@@ -84,7 +84,7 @@ export class RepositoryConnection {
 
 		try {
 			const response = await this.octokit.request(
-				"GET /repos/{owner}/{repo}/contents/{path}",
+				"GET /repos/{owner}/{repo}/{path}",
 				{
 					...this.getBasePayload(),
 					path,
@@ -130,7 +130,7 @@ export class RepositoryConnection {
 			};
 
 			const result = await this.octokit.request(
-				"DELETE /repos/{owner}/{repo}/contents/{path}",
+				"DELETE /repos/{owner}/{repo}/{path}",
 				payload,
 			);
 
@@ -194,7 +194,7 @@ export class RepositoryConnection {
 
 		try {
 			return await this.octokit.request(
-				"PUT /repos/{owner}/{repo}/contents/{path}",
+				"PUT /repos/{owner}/{repo}/{path}",
 				payload,
 			);
 		} catch (error) {
