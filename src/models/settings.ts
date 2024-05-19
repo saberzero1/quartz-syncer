@@ -16,6 +16,7 @@ export default interface QuartzSyncerSettings {
 	slugifyEnabled: boolean;
 
 	contentFolder: string;
+	obsidianRootFolder: string;
 
 	showCreatedTimestamp: boolean;
 	createdTimestampKey: string;
