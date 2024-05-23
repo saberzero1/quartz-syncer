@@ -213,6 +213,7 @@ export class RepositoryConnection {
 
 		const normalizePath = (path: string) => {
 			path = path.replace(/\.\.\//g, "");
+
 			return path.startsWith("/")
 				? `${this.contentFolder}${path}`
 				: `${this.contentFolder}/${path}`;
@@ -316,6 +317,7 @@ export class RepositoryConnection {
 
 		const normalizePath = (path: string) => {
 			path = path.replace(/\.\.\//g, "");
+
 			return path.startsWith("/")
 				? `${this.contentFolder}${path}`
 				: `${this.contentFolder}/${path}`;

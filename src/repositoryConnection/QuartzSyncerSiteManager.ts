@@ -93,7 +93,10 @@ export default class QuartzSyncerSiteManager {
 		}
 
 		await this.userSyncerConnection.updateFile({
-			path: ".env".replace(this.settings.obsidianRootFolder, this.settings.contentFolder),
+			path: ".env".replace(
+				this.settings.obsidianRootFolder,
+				this.settings.contentFolder,
+			),
 			content: base64Settings,
 			message: "Update settings",
 			sha: currentFile?.sha,

@@ -124,17 +124,19 @@ export class GithubSettings {
 
 	private initializeObsidianRootFolder() {
 		new Setting(this.settingsRootElement)
-		.setName("Obsidian root folder name")
-		.setDesc('The root folder in your Obsidian structure. For example, "My Garden"')
-		.addText((text) =>
-			text
-				.setPlaceholder("My Garden")
-				.setValue(this.settings.settings.obsidianRootFolder)
-				.onChange(async (value) => {
-					this.settings.settings.obsidianRootFolder = value;
-					await this.checkConnectionAndSaveSettings();
-				}),
-		);
+			.setName("Obsidian root folder name")
+			.setDesc(
+				'The root folder in your Obsidian structure. For example, "My Garden"',
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("My Garden")
+					.setValue(this.settings.settings.obsidianRootFolder)
+					.onChange(async (value) => {
+						this.settings.settings.obsidianRootFolder = value;
+						await this.checkConnectionAndSaveSettings();
+					}),
+			);
 	}
 
 	private initializeGitHubUserNameSetting() {
