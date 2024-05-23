@@ -24,6 +24,7 @@ export class GithubSettings {
 		this.initializeGitHubUserNameSetting();
 		this.initializeGitHubTokenSetting();
 		this.initializeGitHubContentFolder();
+		this.initializeObsidianRootFolder();
 	}
 
 	initializeHeader = () => {
@@ -116,6 +117,23 @@ export class GithubSettings {
 					.setValue(this.settings.settings.githubRepo)
 					.onChange(async (value) => {
 						this.settings.settings.githubRepo = value;
+						await this.checkConnectionAndSaveSettings();
+					}),
+			);
+	}
+
+	private initializeObsidianRootFolder() {
+		new Setting(this.settingsRootElement)
+			.setName("Obsidian root folder name")
+			.setDesc(
+				'The root folder in your Obsidian structure. For example, "My Garden"',
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("My Garden")
+					.setValue(this.settings.settings.obsidianRootFolder)
+					.onChange(async (value) => {
+						this.settings.settings.obsidianRootFolder = value;
 						await this.checkConnectionAndSaveSettings();
 					}),
 			);

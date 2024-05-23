@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	siteName: "Quartz",
 	slugifyEnabled: true,
 	contentFolder: "content",
+	obsidianRootFolder: "",
 
 	// Timestamp related settings
 	showCreatedTimestamp: false,

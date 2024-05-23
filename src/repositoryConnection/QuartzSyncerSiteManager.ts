@@ -93,7 +93,10 @@ export default class QuartzSyncerSiteManager {
 		}
 
 		await this.userSyncerConnection.updateFile({
-			path: ".env",
+			path: ".env".replace(
+				this.settings.obsidianRootFolder,
+				this.settings.contentFolder,
+			),
 			content: base64Settings,
 			message: "Update settings",
 			sha: currentFile?.sha,
@@ -135,7 +138,7 @@ export default class QuartzSyncerSiteManager {
 		for (const note of notes) {
 			const vaultPath = note.path.replace(
 				this.settings.contentFolder,
-				"",
+				this.settings.obsidianRootFolder,
 			);
 
 			const actualVaultPath = vaultPath.startsWith("/")
@@ -160,15 +163,16 @@ export default class QuartzSyncerSiteManager {
 		);
 		const hashes: Record<string, string> = {};
 
-		for (const img of images) {
-			const vaultPath = decodeURI(
-				img.path.replace(this.settings.contentFolder, ""),
+		for (const image of images) {
+			const vaultPath = image.path.replace(
+				this.settings.contentFolder,
+				this.settings.obsidianRootFolder,
 			);
 
 			const actualVaultPath = vaultPath.startsWith("/")
 				? vaultPath.substring(1)
 				: vaultPath;
-			hashes[actualVaultPath] = img.sha;
+			hashes[actualVaultPath] = image.sha;
 		}
 
 		return hashes;
