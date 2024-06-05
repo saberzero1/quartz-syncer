@@ -17,4 +17,4 @@ export const IMAGE_REGEX =
 	/!\[(.*?)\]\((.*?)(\.(png|jpg|jpeg|gif|webp|bmp))\)/g;
 
 export const TRANSCLUDED_IMAGE_REGEX =
-	/!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp|bmp))\|(.*?)\]\]|!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp|bmp))\]\]/g;
+	/!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp|bmp))\\?\|(.*?)\]\]|!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp|bmp))\]\]/g;

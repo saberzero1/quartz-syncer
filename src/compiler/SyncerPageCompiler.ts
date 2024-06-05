@@ -310,6 +310,7 @@ export class SyncerPageCompiler {
 			for (const transclusionMatch of transclusionMatches ?? []) {
 				try {
 					const [transclusionFileName, headerName] = transclusionMatch
+						.replaceAll("\\|", "|")
 						.substring(
 							transclusionMatch.indexOf("[") + 2,
 							transclusionMatch.indexOf("]"),
@@ -601,6 +602,7 @@ export class SyncerPageCompiler {
 					const imageMatch = transcludedImageMatches[i];
 
 					const [imageName, _] = imageMatch
+						.replaceAll("\\|", "|")
 						.substring(
 							imageMatch.indexOf("[") + 2,
 							imageMatch.indexOf("]"),
@@ -686,6 +688,7 @@ export class SyncerPageCompiler {
 						//Alt 2: [image.png|meta1 meta2|100]
 						//Alt 3: [image.png|meta1 meta2]
 						const [imageName, ...metaDataAndSize] = imageMatch
+							.replaceAll("\\|", "|")
 							.substring(
 								imageMatch.indexOf("[") + 2,
 								imageMatch.indexOf("]"),
