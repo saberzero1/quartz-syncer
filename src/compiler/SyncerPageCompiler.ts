@@ -219,74 +219,88 @@ export class SyncerPageCompiler {
 		const textToBeProcessed =
 			await this.stripAwayCodeFencesAndFrontmatter(file)(text);
 
-		const linkedFileRegex = /\[\[(.+?)\]\]/g;
-		const linkedFileMatches = textToBeProcessed.match(linkedFileRegex);
-
-		if (linkedFileMatches) {
-			for (const linkMatch of linkedFileMatches) {
-				try {
-					const textInsideBrackets = linkMatch.substring(
-						linkMatch.indexOf("[") + 2,
-						linkMatch.lastIndexOf("]") - 1,
-					);
-
-					let [linkedFileName, linkDisplayName] =
-						textInsideBrackets.split("|");
-
-					if (linkedFileName.endsWith("\\")) {
-						linkedFileName = linkedFileName.substring(
-							0,
-							linkedFileName.length - 1,
-						);
-					}
-
-					linkDisplayName = linkDisplayName || linkedFileName;
-					let headerPath = "";
-
-					// detect links to headers or blocks
-					if (linkedFileName.includes("#")) {
-						const headerSplit = linkedFileName.split("#");
-						linkedFileName = headerSplit[0];
-
-						//currently no support for linking to nested heading with multiple #s
-						headerPath =
-							headerSplit.length > 1 ? `#${headerSplit[1]}` : "";
-					}
-					const fullLinkedFilePath = getLinkpath(linkedFileName);
-
-					const linkedFile = this.metadataCache.getFirstLinkpathDest(
-						fullLinkedFilePath,
-						file.getPath(),
-					);
-
-					if (!linkedFile) {
-						convertedText = convertedText.replace(
-							linkMatch,
-							`[[${linkedFileName}${headerPath}\\|${linkDisplayName}]]`,
-						);
-						continue;
-					}
-
-					if (linkedFile.extension === "md") {
-						const extensionlessPath = linkedFile.path.substring(
-							0,
-							linkedFile.path.lastIndexOf("."),
-						);
-
-						convertedText = convertedText.replace(
-							linkMatch,
-							`[[${extensionlessPath}${headerPath}\\|${linkDisplayName}]]`,
-						);
-					}
-				} catch (e) {
-					console.log(e);
-					continue;
-				}
-			}
-		}
+		convertedText = await this.processText(file)(
+			convertedText,
+			textToBeProcessed,
+		);
 
 		return convertedText;
 	};
+
+	processText =
+		(file: PublishFile) =>
+		async (convertedText: string, textToBeProcessed: string) => {
+			const linkedFileRegex = /\[\[(.+?)\]\]/g;
+			const linkedFileMatches = textToBeProcessed.match(linkedFileRegex);
+
+			if (linkedFileMatches) {
+				for (const linkMatch of linkedFileMatches) {
+					try {
+						const textInsideBrackets = linkMatch.substring(
+							linkMatch.indexOf("[") + 2,
+							linkMatch.lastIndexOf("]") - 1,
+						);
+
+						let [linkedFileName, linkDisplayName] =
+							textInsideBrackets.split("|");
+
+						if (linkedFileName.endsWith("\\")) {
+							linkedFileName = linkedFileName.substring(
+								0,
+								linkedFileName.length - 1,
+							);
+						}
+
+						linkDisplayName = linkDisplayName || linkedFileName;
+						let headerPath = "";
+
+						// detect links to headers or blocks
+						if (linkedFileName.includes("#")) {
+							const headerSplit = linkedFileName.split("#");
+							linkedFileName = headerSplit[0];
+
+							//currently no support for linking to nested heading with multiple #s
+							headerPath =
+								headerSplit.length > 1
+									? `#${headerSplit[1]}`
+									: "";
+						}
+						const fullLinkedFilePath = getLinkpath(linkedFileName);
+
+						const linkedFile =
+							this.metadataCache.getFirstLinkpathDest(
+								fullLinkedFilePath,
+								file.getPath(),
+							);
+
+						if (!linkedFile) {
+							convertedText = convertedText.replace(
+								linkMatch,
+								`[[${linkedFileName}${headerPath}\\|${linkDisplayName}]]`,
+							);
+							continue;
+						}
+
+						if (linkedFile.extension === "md") {
+							const extensionlessPath = linkedFile.path.substring(
+								0,
+								linkedFile.path.lastIndexOf("."),
+							);
+
+							convertedText = convertedText.replace(
+								linkMatch,
+								`[[${extensionlessPath}${headerPath}\\|${linkDisplayName}]]`,
+							);
+						}
+					} catch (e) {
+						console.log(e);
+						continue;
+					}
+				}
+			}
+
+			return convertedText;
+		};
 
 	createTranscludedText =
 		(currentDepth: number): TCompilerStep =>
