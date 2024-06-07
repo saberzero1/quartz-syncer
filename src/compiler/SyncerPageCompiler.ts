@@ -27,6 +27,8 @@ import {
 	BLOCKREF_REGEX,
 	TRANSCLUDED_SVG_REGEX,
 	DATAVIEW_LINK_TARGET_BLANK_REGEX,
+	IMAGE_REGEX,
+	TRANSCLUDED_IMAGE_REGEX,
 } from "../utils/regexes";
 import Logger from "js-logger";
 import { DataviewCompiler } from "./DataviewCompiler";
@@ -308,6 +310,7 @@ export class SyncerPageCompiler {
 			for (const transclusionMatch of transclusionMatches ?? []) {
 				try {
 					const [transclusionFileName, headerName] = transclusionMatch
+						.replaceAll("\\|", "|")
 						.substring(
 							transclusionMatch.indexOf("[") + 2,
 							transclusionMatch.indexOf("]"),
@@ -591,9 +594,7 @@ export class SyncerPageCompiler {
 		const assets = [];
 
 		//![[image.png]]
-		const transcludedImageRegex =
-			/!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\|(.*?)\]\]|!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\]\]/g;
-		const transcludedImageMatches = text.match(transcludedImageRegex);
+		const transcludedImageMatches = text.match(TRANSCLUDED_IMAGE_REGEX);
 
 		if (transcludedImageMatches) {
 			for (let i = 0; i < transcludedImageMatches.length; i++) {
@@ -601,6 +602,7 @@ export class SyncerPageCompiler {
 					const imageMatch = transcludedImageMatches[i];
 
 					const [imageName, _] = imageMatch
+						.replaceAll("\\|", "|")
 						.substring(
 							imageMatch.indexOf("[") + 2,
 							imageMatch.indexOf("]"),
@@ -628,8 +630,7 @@ export class SyncerPageCompiler {
 		}
 
 		//![](image.png)
-		const imageRegex = /!\[(.*?)\]\((.*?)(\.(png|jpg|jpeg|gif|webp))\)/g;
-		const imageMatches = text.match(imageRegex);
+		const imageMatches = text.match(IMAGE_REGEX);
 
 		if (imageMatches) {
 			for (let i = 0; i < imageMatches.length; i++) {
@@ -676,9 +677,7 @@ export class SyncerPageCompiler {
 			let imageText = text;
 
 			//![[image.png]]
-			const transcludedImageRegex =
-				/!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\|(.*?)\]\]|!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\]\]/g;
-			const transcludedImageMatches = text.match(transcludedImageRegex);
+			const transcludedImageMatches = text.match(TRANSCLUDED_IMAGE_REGEX);
 
 			if (transcludedImageMatches) {
 				for (let i = 0; i < transcludedImageMatches.length; i++) {
@@ -689,6 +688,7 @@ export class SyncerPageCompiler {
 						//Alt 2: [image.png|meta1 meta2|100]
 						//Alt 3: [image.png|meta1 meta2]
 						const [imageName, ...metaDataAndSize] = imageMatch
+							.replaceAll("\\|", "|")
 							.substring(
 								imageMatch.indexOf("[") + 2,
 								imageMatch.indexOf("]"),
@@ -779,9 +779,7 @@ export class SyncerPageCompiler {
 			}
 
 			//![](image.png)
-			const imageRegex =
-				/!\[(.*?)\]\((.*?)(\.(png|jpg|jpeg|gif|webp))\)/g;
-			const imageMatches = text.match(imageRegex);
+			const imageMatches = text.match(IMAGE_REGEX);
 
 			if (imageMatches) {
 				for (let i = 0; i < imageMatches.length; i++) {
