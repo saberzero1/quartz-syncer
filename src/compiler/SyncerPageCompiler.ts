@@ -276,7 +276,7 @@ export class SyncerPageCompiler {
 		const skipPatterns = [
 			FRONTMATTER_REGEX,
 			EXCALIDRAW_REGEX,
-			CODE_FENCE_REGEX,
+			CODEBLOCK_REGEX,
 			CODE_FENCE_REGEX,
 		];
 
@@ -290,8 +290,7 @@ export class SyncerPageCompiler {
 		let index = 0;
 		let sectionMatch;
 
-		// Parse the entire text and separate it into sections of text matching
-		// skip patterns and the remaining text in between
+		// Parse the entire text and separate it into sections of text matching skip patterns and the remaining text in between
 		while ((sectionMatch = allSkipPatterns.exec(text)) !== null) {
 			sections.push(text.substring(index, sectionMatch.index));
 
@@ -302,7 +301,8 @@ export class SyncerPageCompiler {
 		}
 		sections.push(text.substring(index));
 
-		// Skip sections that match a skip pattern and apply the link conversion to the others
+		// Skip sections that match a skip pattern and apply the link conversion to the remaining
+		// This ensures no wikilinks within skipped sections (like frontmatter) get parsed
 		const modifiedSections = await Promise.all(
 			sections.map(async (section) => {
 				if (skipPatterns.some((pattern) => pattern.test(section))) {
