@@ -202,105 +202,115 @@ export class SyncerPageCompiler {
 		return text.replace(DATAVIEW_LINK_TARGET_BLANK_REGEX, "");
 	};
 
-	private stripAwayCodeFencesAndFrontmatter: TCompilerStep = () => (text) => {
-		let textToBeProcessed = text;
-		textToBeProcessed = textToBeProcessed.replace(EXCALIDRAW_REGEX, "");
-		textToBeProcessed = textToBeProcessed.replace(CODEBLOCK_REGEX, "");
-		textToBeProcessed = textToBeProcessed.replace(CODE_FENCE_REGEX, "");
+	convertLinksInSection: TCompilerStep = (file) => async (text) => {
+		const linkedFileRegex = /\[\[(.+?)\]\]/g;
+		const linkedFileMatches = text.match(linkedFileRegex);
 
-		textToBeProcessed = textToBeProcessed.replace(FRONTMATTER_REGEX, "");
+		if (linkedFileMatches) {
+			for (const linkMatch of linkedFileMatches) {
+				try {
+					const textInsideBrackets = linkMatch.substring(
+						linkMatch.indexOf("[") + 2,
+						linkMatch.lastIndexOf("]") - 1,
+					);
 
-		return textToBeProcessed;
+					let [linkedFileName, linkDisplayName] =
+						textInsideBrackets.split("|");
+
+					if (linkedFileName.endsWith("\\")) {
+						linkedFileName = linkedFileName.substring(
+							0,
+							linkedFileName.length - 1,
+						);
+					}
+
+					linkDisplayName = linkDisplayName || linkedFileName;
+					let headerPath = "";
+
+					// detect links to headers or blocks
+					if (linkedFileName.includes("#")) {
+						const headerSplit = linkedFileName.split("#");
+						linkedFileName = headerSplit[0];
+
+						//currently no support for linking to nested heading with multiple #s
+						headerPath =
+							headerSplit.length > 1 ? `#${headerSplit[1]}` : "";
+					}
+					const fullLinkedFilePath = getLinkpath(linkedFileName);
+
+					const linkedFile = this.metadataCache.getFirstLinkpathDest(
+						fullLinkedFilePath,
+						file.getPath(),
+					);
+
+					if (!linkedFile) {
+						text = text.replace(
+							linkMatch,
+							`[[${linkedFileName}${headerPath}\\|${linkDisplayName}]]`,
+						);
+						continue;
+					}
+
+					if (linkedFile.extension === "md") {
+						const extensionlessPath = linkedFile.path.substring(
+							0,
+							linkedFile.path.lastIndexOf("."),
+						);
+
+						text = text.replace(
+							linkMatch,
+							`[[${extensionlessPath}${headerPath}\\|${linkDisplayName}]]`,
+						);
+					}
+				} catch (e) {
+					console.log(e);
+					continue;
+				}
+			}
+		}
+
+		return text;
 	};
 
 	convertLinksToFullPath: TCompilerStep = (file) => async (text) => {
-		let convertedText = text;
+		const skipPatterns = [
+			FRONTMATTER_REGEX,
+			EXCALIDRAW_REGEX,
+			CODE_FENCE_REGEX,
+			CODE_FENCE_REGEX,
+		];
 
-		const textToBeProcessed =
-			await this.stripAwayCodeFencesAndFrontmatter(file)(text);
-
-		convertedText = await this.processText(file)(
-			convertedText,
-			textToBeProcessed,
+		const allSkipPatterns = new RegExp(
+			`(${skipPatterns.map((pattern) => pattern.source).join("|")})`,
+			"g",
 		);
 
-		return convertedText;
-	};
+		const sections = [];
+		let index = 0;
+		let sectionMatch;
 
-	processText =
-		(file: PublishFile) =>
-		async (convertedText: string, textToBeProcessed: string) => {
-			const linkedFileRegex = /\[\[(.+?)\]\]/g;
-			const linkedFileMatches = textToBeProcessed.match(linkedFileRegex);
+		while ((sectionMatch = allSkipPatterns.exec(text)) !== null) {
+			sections.push(text.substring(index, sectionMatch.index));
 
-			if (linkedFileMatches) {
-				for (const linkMatch of linkedFileMatches) {
-					try {
-						const textInsideBrackets = linkMatch.substring(
-							linkMatch.indexOf("[") + 2,
-							linkMatch.lastIndexOf("]") - 1,
-						);
+			sections.push(
+				text.substring(sectionMatch.index, allSkipPatterns.lastIndex),
+			);
+			index = allSkipPatterns.lastIndex;
+		}
+		sections.push(text.substring(index));
 
-						let [linkedFileName, linkDisplayName] =
-							textInsideBrackets.split("|");
-
-						if (linkedFileName.endsWith("\\")) {
-							linkedFileName = linkedFileName.substring(
-								0,
-								linkedFileName.length - 1,
-							);
-						}
-
-						linkDisplayName = linkDisplayName || linkedFileName;
-						let headerPath = "";
-
-						// detect links to headers or blocks
-						if (linkedFileName.includes("#")) {
-							const headerSplit = linkedFileName.split("#");
-							linkedFileName = headerSplit[0];
-
-							//currently no support for linking to nested heading with multiple #s
-							headerPath =
-								headerSplit.length > 1
-									? `#${headerSplit[1]}`
-									: "";
-						}
-						const fullLinkedFilePath = getLinkpath(linkedFileName);
-
-						const linkedFile =
-							this.metadataCache.getFirstLinkpathDest(
-								fullLinkedFilePath,
-								file.getPath(),
-							);
-
-						if (!linkedFile) {
-							convertedText = convertedText.replace(
-								linkMatch,
-								`[[${linkedFileName}${headerPath}\\|${linkDisplayName}]]`,
-							);
-							continue;
-						}
-
-						if (linkedFile.extension === "md") {
-							const extensionlessPath = linkedFile.path.substring(
-								0,
-								linkedFile.path.lastIndexOf("."),
-							);
-
-							convertedText = convertedText.replace(
-								linkMatch,
-								`[[${extensionlessPath}${headerPath}\\|${linkDisplayName}]]`,
-							);
-						}
-					} catch (e) {
-						console.log(e);
-						continue;
-					}
+		const modifiedSections = await Promise.all(
+			sections.map(async (section) => {
+				if (skipPatterns.some((pattern) => pattern.test(section))) {
+					return section;
+				} else {
+					return await this.convertLinksInSection(file)(section);
 				}
-			}
+			}),
+		);
 
-			return convertedText;
-		};
+		return modifiedSections.join("");
+	};
 
 	createTranscludedText =
 		(currentDepth: number): TCompilerStep =>
