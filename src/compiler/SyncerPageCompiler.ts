@@ -290,30 +290,27 @@ export class SyncerPageCompiler {
 		let index = 0;
 		let sectionMatch;
 
-		// Parse the entire text and separate it into sections of text matching skip patterns and the remaining text in between
+		// Parse the entire text and separate it into sections of text matching skip patterns and the remaining text in between.
+		// Convert links within the sections between skip patterns
 		while ((sectionMatch = allSkipPatterns.exec(text)) !== null) {
-			sections.push(text.substring(index, sectionMatch.index));
+			// Text block before the match
+			sections.push(
+				this.convertLinksInSection(file)(
+					text.substring(index, sectionMatch.index),
+				),
+			);
 
+			// Text block containing the match
 			sections.push(
 				text.substring(sectionMatch.index, allSkipPatterns.lastIndex),
 			);
 			index = allSkipPatterns.lastIndex;
 		}
-		sections.push(text.substring(index));
+		// Remaining text after final skip pattern
+		sections.push(this.convertLinksInSection(file)(text.substring(index)));
 
-		// Skip sections that match a skip pattern and apply the link conversion to the remaining
-		// This ensures no wikilinks within skipped sections (like frontmatter) get parsed
-		const modifiedSections = await Promise.all(
-			sections.map(async (section) => {
-				if (skipPatterns.some((pattern) => pattern.test(section))) {
-					return section;
-				} else {
-					return await this.convertLinksInSection(file)(section);
-				}
-			}),
-		);
-
-		return modifiedSections.join("");
+		// Join the split sections after awaiting the link conversion call
+		return (await Promise.all(sections)).join("");
 	};
 
 	createTranscludedText =
