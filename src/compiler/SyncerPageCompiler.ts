@@ -189,25 +189,9 @@ export class SyncerPageCompiler {
 		return text.replace(DATAVIEW_LINK_TARGET_BLANK_REGEX, "");
 	};
 
-	private stripAwayCodeFencesAndFrontmatter: TCompilerStep = () => (text) => {
-		let textToBeProcessed = text;
-		textToBeProcessed = textToBeProcessed.replace(EXCALIDRAW_REGEX, "");
-		textToBeProcessed = textToBeProcessed.replace(CODEBLOCK_REGEX, "");
-		textToBeProcessed = textToBeProcessed.replace(CODE_FENCE_REGEX, "");
-
-		textToBeProcessed = textToBeProcessed.replace(FRONTMATTER_REGEX, "");
-
-		return textToBeProcessed;
-	};
-
-	convertLinksToFullPath: TCompilerStep = (file) => async (text) => {
-		let convertedText = text;
-
-		const textToBeProcessed =
-			await this.stripAwayCodeFencesAndFrontmatter(file)(text);
-
+	convertLinksInSection: TCompilerStep = (file) => async (text) => {
 		const linkedFileRegex = /\[\[(.+?)\]\]/g;
-		const linkedFileMatches = textToBeProcessed.match(linkedFileRegex);
+		const linkedFileMatches = text.match(linkedFileRegex);
 
 		if (linkedFileMatches) {
 			for (const linkMatch of linkedFileMatches) {
@@ -247,7 +231,7 @@ export class SyncerPageCompiler {
 					);
 
 					if (!linkedFile) {
-						convertedText = convertedText.replace(
+						text = text.replace(
 							linkMatch,
 							`[[${linkedFileName}${headerPath}\\|${linkDisplayName}]]`,
 						);
@@ -260,7 +244,7 @@ export class SyncerPageCompiler {
 							linkedFile.path.lastIndexOf("."),
 						);
 
-						convertedText = convertedText.replace(
+						text = text.replace(
 							linkMatch,
 							`[[${extensionlessPath}${headerPath}\\|${linkDisplayName}]]`,
 						);
@@ -272,7 +256,48 @@ export class SyncerPageCompiler {
 			}
 		}
 
-		return convertedText;
+		return text;
+	};
+
+	convertLinksToFullPath: TCompilerStep = (file) => async (text) => {
+		const skipPatterns = [
+			FRONTMATTER_REGEX,
+			EXCALIDRAW_REGEX,
+			CODEBLOCK_REGEX,
+			CODE_FENCE_REGEX,
+		];
+
+		// Create one large regex pattern which matches every skip pattern
+		const allSkipPatterns = new RegExp(
+			`(${skipPatterns.map((pattern) => pattern.source).join("|")})`,
+			"g",
+		);
+
+		const sections = [];
+		let index = 0;
+		let sectionMatch;
+
+		// Parse the entire text and separate it into sections of text matching skip patterns and the remaining text in between.
+		// Convert links within the sections between skip patterns
+		while ((sectionMatch = allSkipPatterns.exec(text)) !== null) {
+			// Text block before the match
+			sections.push(
+				this.convertLinksInSection(file)(
+					text.substring(index, sectionMatch.index),
+				),
+			);
+
+			// Text block containing the match
+			sections.push(
+				text.substring(sectionMatch.index, allSkipPatterns.lastIndex),
+			);
+			index = allSkipPatterns.lastIndex;
+		}
+		// Remaining text after final skip pattern
+		sections.push(this.convertLinksInSection(file)(text.substring(index)));
+
+		// Join the split sections after awaiting the link conversion call
+		return (await Promise.all(sections)).join("");
 	};
 
 	createTranscludedText =
