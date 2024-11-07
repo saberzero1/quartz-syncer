@@ -49,6 +49,7 @@ Path Rewriting/Subfolder:this-will-never-hit`,
 		},
 	],
 	contentClassesKey: "content-classes",
+	usePermallink: true,
 	defaultNoteSettings: {
 	HomeLink: true,
 	PassFrontmatter: true,
