@@ -1,6 +1,6 @@
 ---
 title: Dataview
-description: Fixes for issues related to the Dataview Obsidian plugin.
+description: Documentation related to using the Dataview Obsidian plugin.
 created: 04-05-25
 date: 04-05-25
 publish: true

@@ -1,6 +1,6 @@
 ---
 title: Authentication
-description: Fixes for authentication issues.
+description: Documentation related to GitHub authentication.
 created: 04-05-25
 date: 04-05-25
 publish: true

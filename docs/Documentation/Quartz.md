@@ -1,6 +1,6 @@
 ---
 title: Quartz
-description: Fixes for issues related to Quartz.
+description: Documentation related to Quartz.
 created: 04-05-25
 date: 04-05-25
 publish: true
@@ -14,6 +14,10 @@ publish: true
 ## Can I use my Obsidian Theme in Quartz?
 
 [Yes](https://github.com/saberzero1/quartz-themes).
+
+## What theme is this site using?
+
+[Tokyo Night](https://github.com/saberzero1/quartz-themes/blob/master/themes/tokyo-night/README.md).
 
 ## Can I configure Quartz settings from Obsidian using Quartz Syncer?
 
