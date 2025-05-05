@@ -183,6 +183,8 @@ If you haven't already, set up Quartz to automatically deploy on push:
 
 For other options, see the [Quartz docs on hosting](https://quartz.jzhao.xyz/hosting).
 
+![[Generating a fine-grained access token#Generating a new fine-grained access token]]
+
 ## Set up Quartz Syncer
 
 In Obsidian, open `Settings > Community Plugins > Quartz Syncer > Options` and configure the following fields:
