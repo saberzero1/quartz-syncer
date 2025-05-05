@@ -27,6 +27,8 @@ import {
 	BLOCKREF_REGEX,
 	TRANSCLUDED_SVG_REGEX,
 	DATAVIEW_LINK_TARGET_BLANK_REGEX,
+	TRANSCLUDED_IMAGE_REGEX,
+	IMAGE_REGEX,
 } from "../utils/regexes";
 import Logger from "js-logger";
 import { DataviewCompiler } from "./DataviewCompiler";
@@ -597,8 +599,8 @@ export class SyncerPageCompiler {
 		const assets = [];
 
 		//![[image.png]]
-		const transcludedImageRegex =
-			/!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\|(.*?)\]\]|!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\]\]/g;
+		const transcludedImageRegex = TRANSCLUDED_IMAGE_REGEX;
+
 		const transcludedImageMatches = text.match(transcludedImageRegex);
 
 		if (transcludedImageMatches) {
@@ -646,7 +648,8 @@ export class SyncerPageCompiler {
 		}
 
 		//![](image.png)
-		const imageRegex = /!\[(.*?)\]\((.*?)(\.(png|jpg|jpeg|gif|webp))\)/g;
+		const imageRegex = IMAGE_REGEX;
+
 		const imageMatches = text.match(imageRegex);
 
 		if (imageMatches) {
@@ -701,8 +704,8 @@ export class SyncerPageCompiler {
 			let imageText = text;
 
 			//![[image.png]]
-			const transcludedImageRegex =
-				/!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\|(.*?)\]\]|!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\]\]/g;
+			const transcludedImageRegex = TRANSCLUDED_IMAGE_REGEX;
+			// /!\[\[(.*?)(\.(${IMAGE_EMBED_FILE_EXTENSIONS}))\|(.*?)\]\]|!\[\[(.*?)(\.(${IMAGE_EMBED_FILE_EXTENSIONS}))\]\]/g;
 			const transcludedImageMatches = text.match(transcludedImageRegex);
 
 			if (transcludedImageMatches) {
@@ -804,8 +807,8 @@ export class SyncerPageCompiler {
 			}
 
 			//![](image.png)
-			const imageRegex =
-				/!\[(.*?)\]\((.*?)(\.(png|jpg|jpeg|gif|webp))\)/g;
+			const imageRegex = IMAGE_REGEX;
+			//	/!\[(.*?)\]\((.*?)(\.(${IMAGE_EMBED_FILE_EXTENSIONS}))\)/g;
 			const imageMatches = text.match(imageRegex);
 
 			if (imageMatches) {
