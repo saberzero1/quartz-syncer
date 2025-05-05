@@ -197,7 +197,7 @@ export class GithubSettings {
 			.setDesc("The name of the GitHub repository")
 			.addText((text) =>
 				text
-					.setPlaceholder("myquartzsyncer")
+					.setPlaceholder("quartz")
 					.setValue(this.settings.settings.githubRepo)
 					.onChange(async (value) => {
 						this.settings.settings.githubRepo = value;
@@ -212,7 +212,7 @@ export class GithubSettings {
 			.setDesc("Your GitHub Username")
 			.addText((text) =>
 				text
-					.setPlaceholder("myusername")
+					.setPlaceholder("username")
 					.setValue(this.settings.settings.githubUserName)
 					.onChange(async (value) => {
 						this.settings.settings.githubUserName = value;
@@ -226,12 +226,12 @@ export class GithubSettings {
 
 		desc.createEl("span", undefined, (span) => {
 			span.innerText =
-				"A GitHub token with repo permissions. You can generate it ";
+				"A GitHub token with repo permissions. You can find instructions to generate it by ";
 
 			span.createEl("a", undefined, (link) => {
 				link.href =
-					"https://github.com/settings/tokens/new?scopes=repo";
-				link.innerText = "here!";
+					"https://saberzero1.github.io/quartz-syncer-docs/Guides/Generating-an-access-token";
+				link.innerText = "clicking here!";
 			});
 		});
 
