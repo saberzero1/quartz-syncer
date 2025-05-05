@@ -226,7 +226,7 @@ export class GithubSettings {
 
 		desc.createEl("span", undefined, (span) => {
 			span.innerText =
-				"A GitHub token with repo permissions. You can find instructions to generate it by ";
+				"A GitHub token with Contents permissions. You can find instructions to generate it by ";
 
 			span.createEl("a", undefined, (link) => {
 				link.href =
