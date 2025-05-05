@@ -191,7 +191,7 @@ In Obsidian, open `Settings > Community Plugins > Quartz Syncer > Options` and c
 
 - GitHub repo name: the name of your repository on GitHub.
 - GitHub username: the name of the GitHub user (or organization) the repository belongs to.
-- GitHub token: the generated authentication token to allow Quartz Syncer to manage your Quartz content folder.
+- GitHub token: the [[Generating an access token#Generating a fine-grained access token|generated authentication token]] to allow Quartz Syncer to manage your Quartz content folder.
 
 > [!EXAMPLE]- Configuration Example
 > Using the original Quartz repository as an example:
