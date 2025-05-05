@@ -599,9 +599,7 @@ export class SyncerPageCompiler {
 		const assets = [];
 
 		//![[image.png]]
-		const transcludedImageRegex = TRANSCLUDED_IMAGE_REGEX;
-
-		const transcludedImageMatches = text.match(transcludedImageRegex);
+		const transcludedImageMatches = text.match(TRANSCLUDED_IMAGE_REGEX);
 
 		if (transcludedImageMatches) {
 			for (let i = 0; i < transcludedImageMatches.length; i++) {
@@ -648,9 +646,7 @@ export class SyncerPageCompiler {
 		}
 
 		//![](image.png)
-		const imageRegex = IMAGE_REGEX;
-
-		const imageMatches = text.match(imageRegex);
+		const imageMatches = text.match(IMAGE_REGEX);
 
 		if (imageMatches) {
 			for (let i = 0; i < imageMatches.length; i++) {
@@ -704,9 +700,7 @@ export class SyncerPageCompiler {
 			let imageText = text;
 
 			//![[image.png]]
-			const transcludedImageRegex = TRANSCLUDED_IMAGE_REGEX;
-			// /!\[\[(.*?)(\.(${IMAGE_EMBED_FILE_EXTENSIONS}))\|(.*?)\]\]|!\[\[(.*?)(\.(${IMAGE_EMBED_FILE_EXTENSIONS}))\]\]/g;
-			const transcludedImageMatches = text.match(transcludedImageRegex);
+			const transcludedImageMatches = text.match(TRANSCLUDED_IMAGE_REGEX);
 
 			if (transcludedImageMatches) {
 				for (let i = 0; i < transcludedImageMatches.length; i++) {
@@ -807,9 +801,7 @@ export class SyncerPageCompiler {
 			}
 
 			//![](image.png)
-			const imageRegex = IMAGE_REGEX;
-			//	/!\[(.*?)\]\((.*?)(\.(${IMAGE_EMBED_FILE_EXTENSIONS}))\)/g;
-			const imageMatches = text.match(imageRegex);
+			const imageMatches = text.match(IMAGE_REGEX);
 
 			if (imageMatches) {
 				for (let i = 0; i < imageMatches.length; i++) {
