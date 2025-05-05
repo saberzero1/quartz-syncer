@@ -2,7 +2,7 @@
 title: Setup Guide
 description: Instructions for setting up Quartz Syncer plugin.
 created: 04-05-25
-date: 04-05-25
+date: 05-05-25
 publish: true
 ---
 
@@ -23,7 +23,7 @@ Configure the following settings in the `quartz.config.ts` file:
 
 (Below example only shows a subset of all settings. Please do not remove any settings.)
 
-```ts title="quartz.config.ts" {3,6,12,24}
+```ts title="quartz.config.ts" {3,6,12,25ú}
 const config: QuartzConfig = {
   configuration: {
     pageTitle: "Quartz 4",
@@ -39,9 +39,10 @@ const config: QuartzConfig = {
     // Change to tell Quartz what date to display on notes
     // Valid options:
     // "created", use when the note was created.
-    // "modified", use when the note was last modified
-    // "published", use when the note was published
+    // "modified", use when the note was last modified.
+    // "published", use when the note was published.
     // See Quartz docs for details.
+    ...
     }
   }
   plugins: {
