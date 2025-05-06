@@ -1,8 +1,8 @@
 ---
 title: Guides
 description: Guides and tutorials for using Quartz Syncer.
-created: 2025-05-05T00:00:00+02:00
-date: 2025-05-06T00:28:34+02:00
+created: 05-05-25
+date: 06-05-25
 publish: true
 ---
 
