@@ -2,7 +2,7 @@
 title: Setup Guide
 description: Instructions for setting up Quartz Syncer plugin.
 created: 04-05-25
-date: 05-05-25
+date: 06-05-25
 publish: true
 ---
 
@@ -23,7 +23,7 @@ Configure the following settings in the `quartz.config.ts` file:
 
 (Below example only shows a subset of all settings. Please do not remove any settings.)
 
-```ts title="quartz.config.ts" {3,6,12,25ú}
+```ts title="quartz.config.ts" {3,6,12,25}
 const config: QuartzConfig = {
   configuration: {
     pageTitle: "Quartz 4",
