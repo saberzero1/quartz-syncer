@@ -19,11 +19,12 @@ export class GithubSettings {
 			"span",
 			{ cls: "connection-status" },
 		);
-		this.initializeHeader();
+		this.initializeGitHubHeader();
 		this.initializeGitHubRepoSetting();
 		this.initializeGitHubUserNameSetting();
 		this.initializeGitHubTokenSetting();
 		this.initializeGitHubContentFolder();
+		this.initializeQuartzHeader();
 		this.initializeUseFullImageResolutionSetting();
 		this.initializeShowCreatedTimestampSetting();
 		this.initializeShowUpdatedTimestampSetting();
@@ -31,7 +32,7 @@ export class GithubSettings {
 		this.initializeUsePermalinkSetting();
 	}
 
-	initializeHeader = () => {
+	initializeGitHubHeader = () => {
 		this.connectionStatusElement.style.cssText = "margin-left: 10px;";
 		this.checkConnectionAndSaveSettings();
 
@@ -42,6 +43,21 @@ export class GithubSettings {
 		githubSettingsHeader.prepend(this.settings.getIcon("github"));
 
 		this.settingsRootElement.prepend(githubSettingsHeader);
+	};
+
+	initializeQuartzHeader = () => {
+		this.connectionStatusElement.style.cssText = "margin-left: 10px;";
+
+		const quartzSettingsHeader = createEl("h3", {
+			text: "Quartz Settings",
+		});
+		//quartzSettingsHeader.append(this.connectionStatusElement);
+
+		quartzSettingsHeader.prepend(
+			this.settings.getIcon("quartz-syncer-icon"),
+		);
+
+		this.settingsRootElement.append(quartzSettingsHeader);
 	};
 
 	checkConnectionAndSaveSettings = async () => {
