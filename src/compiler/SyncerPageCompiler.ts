@@ -27,8 +27,8 @@ import {
 	BLOCKREF_REGEX,
 	TRANSCLUDED_SVG_REGEX,
 	DATAVIEW_LINK_TARGET_BLANK_REGEX,
-	TRANSCLUDED_IMAGE_REGEX,
-	IMAGE_REGEX,
+	TRANSCLUDED_FILE_REGEX,
+	FILE_REGEX,
 } from "../utils/regexes";
 import Logger from "js-logger";
 import { DataviewCompiler } from "./DataviewCompiler";
@@ -121,7 +121,7 @@ export class SyncerPageCompiler {
 			COMPILE_STEPS,
 		)(vaultFileText);
 
-		const [text, images] = await this.convertImageLinks(file)(compiledText);
+		const [text, images] = await this.convertFileLinks(file)(compiledText);
 
 		return [text, { images }];
 	}
@@ -599,7 +599,7 @@ export class SyncerPageCompiler {
 		const assets = [];
 
 		//![[image.png]]
-		const transcludedImageMatches = text.match(TRANSCLUDED_IMAGE_REGEX);
+		const transcludedImageMatches = text.match(TRANSCLUDED_FILE_REGEX);
 
 		if (transcludedImageMatches) {
 			for (let i = 0; i < transcludedImageMatches.length; i++) {
@@ -646,7 +646,7 @@ export class SyncerPageCompiler {
 		}
 
 		//![](image.png)
-		const imageMatches = text.match(IMAGE_REGEX);
+		const imageMatches = text.match(FILE_REGEX);
 
 		if (imageMatches) {
 			for (let i = 0; i < imageMatches.length; i++) {
@@ -691,7 +691,7 @@ export class SyncerPageCompiler {
 		return assets;
 	};
 
-	convertImageLinks =
+	convertFileLinks =
 		(file: PublishFile) =>
 		async (text: string): Promise<[string, Array<Asset>]> => {
 			const filePath = file.getPath();
@@ -700,7 +700,7 @@ export class SyncerPageCompiler {
 			let imageText = text;
 
 			//![[image.png]]
-			const transcludedImageMatches = text.match(TRANSCLUDED_IMAGE_REGEX);
+			const transcludedImageMatches = text.match(TRANSCLUDED_FILE_REGEX);
 
 			if (transcludedImageMatches) {
 				for (let i = 0; i < transcludedImageMatches.length; i++) {
@@ -775,18 +775,16 @@ export class SyncerPageCompiler {
 						let name = "";
 
 						if (metaData && size) {
-							name = `${imageName}|${metaData}|${size}`;
+							name = `|${metaData}|${size}`;
 						} else if (size) {
-							name = `${imageName}|${size}`;
+							name = `|${size}`;
 						} else if (metaData && metaData !== "") {
-							name = `${imageName}|${metaData}`;
+							name = `|${metaData}`;
 						} else {
-							name = imageName;
+							name = "";
 						}
 
-						const imageMarkdown = `![${name}](${encodeURI(
-							cmsImgPath,
-						)})`;
+						const imageMarkdown = `![[${cmsImgPath}${name}]]`;
 
 						assets.push({ path: cmsImgPath, content: imageBase64 });
 
@@ -801,7 +799,7 @@ export class SyncerPageCompiler {
 			}
 
 			//![](image.png)
-			const imageMatches = text.match(IMAGE_REGEX);
+			const imageMatches = text.match(FILE_REGEX);
 
 			if (imageMatches) {
 				for (let i = 0; i < imageMatches.length; i++) {
