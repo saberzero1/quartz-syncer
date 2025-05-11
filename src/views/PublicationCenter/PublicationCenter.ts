@@ -34,7 +34,7 @@ export class PublicationCenter {
 
 		this.modal.titleEl
 			.createEl("span", { text: "Publication Center" })
-			.prepend(this.getIcon("book-up"));
+			.prepend(this.getIcon("quartz-syncer-icon"));
 	}
 
 	getIcon(name: string): Node {

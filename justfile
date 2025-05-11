@@ -14,3 +14,6 @@ prod:
 	cp main.js ./docs/.obsidian/plugins/quartz-syncer
 	cp manifest.json ./docs/.obsidian/plugins/quartz-syncer
 	cp styles.css ./docs/.obsidian/plugins/quartz-syncer
+
+lint:
+	npm run format
