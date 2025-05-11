@@ -75,8 +75,8 @@ export class PublishFile {
 		return hasPublishFlag(this.frontmatter);
 	}
 
-	async getImageLinks() {
-		return this.compiler.extractImageLinks(this);
+	async getBlobLinks() {
+		return this.compiler.extractBlobLinks(this);
 	}
 
 	async cachedRead() {
@@ -102,7 +102,16 @@ export class PublishFile {
 		return this.file.path.localeCompare(other.file.path);
 	}
 
-	getPath = () => this.file.path;
+	getPath = () => {
+		if (
+			this.settings.vaultPath !== "/" &&
+			this.file.path.startsWith(this.settings.vaultPath)
+		) {
+			return this.file.path.replace(this.settings.vaultPath, "");
+		}
+		return this.file.path;
+	};
+	getActualPath = () => this.file.path;
 	getCompiledFrontmatter() {
 		const frontmatterCompiler = new FrontmatterCompiler(this.settings);
 

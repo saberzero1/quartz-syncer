@@ -10,6 +10,7 @@ interface IOctokitterInput {
 	githubUserName: string;
 	quartzRepository: string;
 	contentFolder: string;
+	vaultPath: string;
 }
 
 interface IPutPayload {
@@ -25,12 +26,14 @@ export class RepositoryConnection {
 	private quartzRepository: string;
 	octokit: Octokit;
 	contentFolder: string;
+	vaultPath: string;
 
 	constructor({
 		quartzRepository,
 		githubToken,
 		githubUserName,
 		contentFolder,
+		vaultPath,
 	}: IOctokitterInput) {
 		this.quartzRepository = quartzRepository;
 		this.githubUserName = githubUserName;
@@ -38,6 +41,7 @@ export class RepositoryConnection {
 		this.octokit = new Octokit({ auth: githubToken, log: oktokitLogger });
 
 		this.contentFolder = contentFolder;
+		this.vaultPath = vaultPath;
 	}
 
 	getRepositoryName() {
@@ -202,8 +206,6 @@ export class RepositoryConnection {
 		}
 	}
 
-	// NB: Do not use this, it does not work for some reason.
-	//TODO: Fix this. For now use deleteNote and deleteImage instead
 	async deleteFiles(filePaths: string[]) {
 		const latestCommit = await this.getLatestCommit();
 
@@ -371,7 +373,7 @@ export class RepositoryConnection {
 		});
 
 		const treeAssetPromises = files
-			.flatMap((x) => x.compiledFile[1].images)
+			.flatMap((x) => x.compiledFile[1].blobs)
 			.map(async (asset) => {
 				try {
 					const blob = await this.octokit.request(

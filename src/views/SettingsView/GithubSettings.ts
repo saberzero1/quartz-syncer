@@ -1,5 +1,6 @@
 import { Setting, debounce } from "obsidian";
 import SettingView from "./SettingView";
+import { FolderSuggest } from "../../ui/suggest/file-suggest";
 import { Octokit } from "@octokit/core";
 
 export class GithubSettings {
@@ -9,6 +10,7 @@ export class GithubSettings {
 	connectionStatusElement: HTMLElement;
 
 	constructor(settings: SettingView, settingsRootElement: HTMLElement) {
+		this.app = app;
 		this.settings = settings;
 		this.settingsRootElement = settingsRootElement;
 		this.settingsRootElement.id = "github-settings";
@@ -24,8 +26,9 @@ export class GithubSettings {
 		this.initializeGitHubUserNameSetting();
 		this.initializeGitHubTokenSetting();
 		this.initializeGitHubContentFolder();
+		this.initializeGitHubVaultFolder();
 		this.initializeQuartzHeader();
-		this.initializeUseFullImageResolutionSetting();
+		this.initializeUseFullBlobResolutionSetting();
 		this.initializeShowCreatedTimestampSetting();
 		this.initializeShowUpdatedTimestampSetting();
 		this.initializePassFrontmatterSetting();
@@ -110,11 +113,11 @@ export class GithubSettings {
 		}
 	};
 
-	private initializeUseFullImageResolutionSetting() {
+	private initializeUseFullBlobResolutionSetting() {
 		new Setting(this.settingsRootElement)
-			.setName("Use full image resolution")
+			.setName("Use full blob resolution")
 			.setDesc(
-				"By default, Quartz Syncer will use a lower resolution image to save space. If you want to use the full resolution image, enable this setting.",
+				"By default, Quartz Syncer will use a lower resolution blob to save space. If you want to use the full resolution blob, enable this setting.",
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -205,6 +208,26 @@ export class GithubSettings {
 						await this.checkConnectionAndSaveSettings();
 					}),
 			);
+	}
+
+	private initializeGitHubVaultFolder() {
+		new Setting(this.settingsRootElement)
+			.setName("Vault root folder name")
+			.setDesc(
+				'The folder in your vault that should be used as the website root folder. By default "/" (the root of your vault).',
+			)
+			.addSearch((text) => {
+				new FolderSuggest(this.app, text.inputEl);
+				text.setPlaceholder("/")
+					.setValue(this.settings.settings.vaultPath)
+					.onChange(async (value) => {
+						if (value.length === 0 || !value.endsWith("/")) {
+							value += "/";
+						}
+						this.settings.settings.vaultPath = value;
+						await this.checkConnectionAndSaveSettings();
+					});
+			});
 	}
 
 	private initializeGitHubRepoSetting() {

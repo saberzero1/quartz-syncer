@@ -23,6 +23,7 @@ const quartzSettings = {
 	mainLanguage: "en",
 	slugifyEnabled: true,
 	contentFolder: "content",
+	vaultPath: "/",
 	noteIconKey: "note-icon",
 	defaultNoteIcon: "",
 	showNoteIconOnTitle: false,

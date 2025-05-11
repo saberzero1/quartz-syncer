@@ -14,7 +14,7 @@ import { RepositoryConnection } from "../repositoryConnection/RepositoryConnecti
 
 export interface MarkedForPublishing {
 	notes: PublishFile[];
-	images: string[];
+	blobs: string[];
 }
 
 /**
@@ -35,7 +35,7 @@ export default class Publisher {
 		this.vault = vault;
 		this.metadataCache = metadataCache;
 		this.settings = settings;
-		this.rewriteRules = getRewriteRules(settings.pathRewriteRules);
+		this.rewriteRules = getRewriteRules(settings.vaultPath);
 
 		this.compiler = new SyncerPageCompiler(
 			vault,
@@ -52,9 +52,13 @@ export default class Publisher {
 	}
 
 	async getFilesMarkedForPublishing(): Promise<MarkedForPublishing> {
-		const files = this.vault.getMarkdownFiles();
+		const files = this.vault.getMarkdownFiles().filter((file) => {
+			if (this.settings.vaultPath !== "/")
+				return file.path.startsWith(this.settings.vaultPath);
+			return true;
+		});
 		const notesToPublish: PublishFile[] = [];
-		const imagesToPublish: Set<string> = new Set();
+		const blobsToPublish: Set<string> = new Set();
 
 		for (const file of files) {
 			try {
@@ -69,9 +73,9 @@ export default class Publisher {
 
 					notesToPublish.push(publishFile);
 
-					const images = await publishFile.getImageLinks();
+					const blobs = await publishFile.getBlobLinks();
 
-					images.forEach((i) => imagesToPublish.add(i));
+					blobs.forEach((i) => blobsToPublish.add(i));
 				}
 			} catch (e) {
 				Logger.error(e);
@@ -80,7 +84,7 @@ export default class Publisher {
 
 		return {
 			notes: notesToPublish.sort((a, b) => a.compare(b)),
-			images: Array.from(imagesToPublish),
+			blobs: Array.from(blobsToPublish),
 		};
 	}
 
@@ -90,7 +94,7 @@ export default class Publisher {
 		return await this.delete(path, sha);
 	}
 
-	async deleteImage(vaultFilePath: string, sha?: string) {
+	async deleteBlob(vaultFilePath: string, sha?: string) {
 		const path = `${this.settings.contentFolder}/${vaultFilePath}`;
 
 		return await this.delete(path, sha);
@@ -104,6 +108,7 @@ export default class Publisher {
 			githubUserName: this.settings.githubUserName,
 			githubToken: this.settings.githubToken,
 			contentFolder: this.settings.contentFolder,
+			vaultPath: this.settings.vaultPath,
 		});
 
 		const deleted = await userSyncerConnection.deleteFile(path, {
@@ -142,6 +147,7 @@ export default class Publisher {
 				githubUserName: this.settings.githubUserName,
 				githubToken: this.settings.githubToken,
 				contentFolder: this.settings.contentFolder,
+				vaultPath: this.settings.vaultPath,
 			});
 
 			await userQuartzConnection.deleteFiles(filePaths);
@@ -169,6 +175,7 @@ export default class Publisher {
 				githubUserName: this.settings.githubUserName,
 				githubToken: this.settings.githubToken,
 				contentFolder: this.settings.contentFolder,
+				vaultPath: this.settings.vaultPath,
 			});
 
 			await userQuartzConnection.updateFiles(filesToPublish);
@@ -194,6 +201,7 @@ export default class Publisher {
 			githubUserName: this.settings.githubUserName,
 			githubToken: this.settings.githubToken,
 			contentFolder: this.settings.contentFolder,
+			vaultPath: this.settings.vaultPath,
 		});
 
 		if (!remoteFileHash) {
@@ -222,7 +230,7 @@ export default class Publisher {
 		await this.uploadToGithub(path, content, sha);
 	}
 
-	private async uploadImage(filePath: string, content: string, sha?: string) {
+	private async uploadBlob(filePath: string, content: string, sha?: string) {
 		let previous;
 
 		do {
@@ -235,9 +243,9 @@ export default class Publisher {
 	}
 
 	private async uploadAssets(assets: Assets) {
-		for (let idx = 0; idx < assets.images.length; idx++) {
-			const image = assets.images[idx];
-			await this.uploadImage(image.path, image.content, image.remoteHash);
+		for (let idx = 0; idx < assets.blobs.length; idx++) {
+			const blob = assets.blobs[idx];
+			await this.uploadBlob(blob.path, blob.content, blob.remoteHash);
 		}
 	}
 
@@ -266,6 +274,13 @@ export default class Publisher {
 		if (!this.settings.contentFolder) {
 			new Notice(
 				"Config error: You need to define a Content Folder in the plugin settings",
+			);
+			throw {};
+		}
+
+		if (!this.settings.vaultPath) {
+			new Notice(
+				"Config error: You need to define a Vault Folder in the plugin settings",
 			);
 			throw {};
 		}

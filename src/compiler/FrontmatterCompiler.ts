@@ -34,7 +34,7 @@ export class FrontmatterCompiler {
 
 	constructor(settings: QuartzSyncerSettings) {
 		this.settings = settings;
-		this.rewriteRules = getRewriteRules(settings.pathRewriteRules);
+		this.rewriteRules = getRewriteRules(settings.vaultPath);
 	}
 
 	compile(file: PublishFile, frontmatter: FrontMatterCache): string {

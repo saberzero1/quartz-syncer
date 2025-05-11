@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	siteName: "Quartz",
 	slugifyEnabled: false,
 	contentFolder: "content",
+	vaultPath: "/",
 
 	// Timestamp related settings
 	showCreatedTimestamp: false,
@@ -171,12 +172,12 @@ export default class QuartzSyncer extends Plugin {
 						publishStatus.unpublishedNotes,
 					);
 					const filesToDelete = publishStatus.deletedNotePaths;
-					const imagesToDelete = publishStatus.deletedImagePaths;
+					const blobsToDelete = publishStatus.deletedBlobPaths;
 
 					const totalItems =
 						filesToPublish.length +
 						filesToDelete.length +
-						imagesToDelete.length;
+						blobsToDelete.length;
 
 					if (totalItems === 0) {
 						new Notice("Syncer is already fully synced!");
@@ -189,11 +190,11 @@ export default class QuartzSyncer extends Plugin {
 						statusBarItem,
 						filesToPublish.length +
 							filesToDelete.length +
-							imagesToDelete.length,
+							blobsToDelete.length,
 					);
 
 					new Notice(
-						`Publishing ${filesToPublish.length} notes, deleting ${filesToDelete.length} notes and ${imagesToDelete.length} images. See the status bar in lower right corner for progress.`,
+						`Publishing ${filesToPublish.length} notes, deleting ${filesToDelete.length} notes and ${blobsToDelete.length} blobs. See the status bar in lower right corner for progress.`,
 						8000,
 					);
 
@@ -205,8 +206,8 @@ export default class QuartzSyncer extends Plugin {
 						statusBar.increment();
 					}
 
-					for (const image of imagesToDelete) {
-						await publisher.deleteImage(image.path);
+					for (const blob of blobsToDelete) {
+						await publisher.deleteBlob(blob.path);
 						statusBar.increment();
 					}
 
@@ -222,9 +223,9 @@ export default class QuartzSyncer extends Plugin {
 						);
 					}
 
-					if (imagesToDelete.length > 0) {
+					if (blobsToDelete.length > 0) {
 						new Notice(
-							`Successfully deleted ${imagesToDelete.length} images from your garden.`,
+							`Successfully deleted ${blobsToDelete.length} blobs from your garden.`,
 						);
 					}
 				} catch (e) {

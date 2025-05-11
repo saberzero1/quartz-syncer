@@ -109,7 +109,7 @@
 		filePathsToTree(
 			[
 				...publishStatus.deletedNotePaths,
-				...publishStatus.deletedImagePaths,
+				...publishStatus.deletedBlobPaths,
 			].map((path) => path.path),
 			"Delete Published Notes",
 		);
@@ -168,8 +168,8 @@
 			publishStatus.deletedNotePaths.some((p) => p.path === path),
 		);
 
-		const imagesToDelete = pathsToDelete.filter((path) =>
-			publishStatus.deletedImagePaths.some((p) => p.path === path),
+		const blobsToDelete = pathsToDelete.filter((path) =>
+			publishStatus.deletedBlobPaths.some((p) => p.path === path),
 		);
 
 		unpublishedToPublish =
@@ -192,7 +192,7 @@
 		publishedPaths = [...processingPaths];
 		processingPaths = [];
 
-		processingPaths = [...notesToDelete, ...imagesToDelete];
+		processingPaths = [...notesToDelete, ...blobsToDelete];
 		await publisher.deleteBatch(notesToDelete);
 
 		processingPaths = processingPaths.filter(
@@ -200,13 +200,13 @@
 		);
 		publishedPaths = [...publishedPaths, ...notesToDelete];
 
-		processingPaths = [...imagesToDelete];
-		await publisher.deleteBatch(imagesToDelete);
+		processingPaths = [...blobsToDelete];
+		await publisher.deleteBatch(blobsToDelete);
 
 		processingPaths = processingPaths.filter(
-			(p) => !imagesToDelete.includes(p),
+			(p) => !blobsToDelete.includes(p),
 		);
-		publishedPaths = [...publishedPaths, ...imagesToDelete];
+		publishedPaths = [...publishedPaths, ...blobsToDelete];
 
 		publishedPaths = [...publishedPaths, ...processingPaths];
 		processingPaths = [];

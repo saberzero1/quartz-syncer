@@ -68,32 +68,24 @@ const wrapAround = (value: number, size: number): number => {
 	return ((value % size) + size) % size;
 };
 
-function getRewriteRules(pathRewriteRules: string): PathRewriteRules {
-	return pathRewriteRules
-		.split("\n")
-		.filter((line: string) => line.includes(REWRITE_RULE_DELIMITER))
-		.map((line: string) => {
-			const [searchPath, newPath] = line.split(REWRITE_RULE_DELIMITER);
-
-			return { from: searchPath, to: newPath };
-		});
+function getRewriteRules(vaultPath: string): PathRewriteRules {
+	return { from: vaultPath, to: "/" };
 }
 
 function getSyncerPathForNote(
 	vaultPath: string,
 	rules: PathRewriteRules,
 ): string {
-	for (const { from, to } of rules) {
-		if (vaultPath && vaultPath.startsWith(from)) {
-			const newPath = vaultPath.replace(from, to);
+	const { from, to } = rules;
+	if (vaultPath && vaultPath.startsWith(from)) {
+		const newPath = vaultPath.replace(from, to);
 
-			// remote leading slash if to = ""
-			if (newPath.startsWith("/")) {
-				return newPath.replace("/", "");
-			}
-
-			return newPath;
+		// remote leading slash if to = ""
+		if (newPath.startsWith("/")) {
+			return newPath.replace("/", "");
 		}
+
+		return newPath;
 	}
 
 	return vaultPath;

@@ -22,9 +22,9 @@ type ContentTreeItem = {
 };
 
 /**
- * Manages the digital garden website by handling various site configurations, files,
+ * Manages the Quartz website contents by handling various site configurations, files,
  * and interactions with GitHub via Octokit. Responsible for operations like updating
- * environment variables, fetching and updating notes & images, and creating pull requests
+ * environment variables, fetching and updating notes & blobs, and creating pull requests
  * for site changes.
  */
 
@@ -44,6 +44,7 @@ export default class QuartzSyncerSiteManager {
 			githubUserName: "saberzero1",
 			quartzRepository: "quartz",
 			contentFolder: "content",
+			vaultPath: "/",
 		});
 
 		this.userSyncerConnection = new RepositoryConnection({
@@ -51,6 +52,7 @@ export default class QuartzSyncerSiteManager {
 			githubUserName: settings.githubUserName,
 			quartzRepository: settings.githubRepo,
 			contentFolder: settings.contentFolder,
+			vaultPath: settings.vaultPath,
 		});
 
 		this.templateUpdater = new TemplateUpdateChecker({
@@ -147,12 +149,12 @@ export default class QuartzSyncerSiteManager {
 		return hashes;
 	}
 
-	async getImageHashes(
+	async getBlobHashes(
 		contentTree: NonNullable<TRepositoryContent>,
 	): Promise<Record<string, string>> {
 		const files = contentTree.tree ?? [];
 
-		const images = files.filter(
+		const blobs = files.filter(
 			(x): x is ContentTreeItem =>
 				typeof x.path === "string" &&
 				x.path.startsWith(this.settings.contentFolder) &&
@@ -160,15 +162,15 @@ export default class QuartzSyncerSiteManager {
 		);
 		const hashes: Record<string, string> = {};
 
-		for (const img of images) {
+		for (const blob of blobs) {
 			const vaultPath = decodeURI(
-				img.path.replace(this.settings.contentFolder, ""),
+				blob.path.replace(this.settings.contentFolder, ""),
 			);
 
 			const actualVaultPath = vaultPath.startsWith("/")
 				? vaultPath.substring(1)
 				: vaultPath;
-			hashes[actualVaultPath] = img.sha;
+			hashes[actualVaultPath] = blob.sha;
 		}
 
 		return hashes;
