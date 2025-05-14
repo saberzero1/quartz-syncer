@@ -42,6 +42,7 @@ Path Rewriting/Subfolder2:fun-folder
 Path Rewriting:
 Subfolder:subfolder-rewritten
 Path Rewriting/Subfolder:this-will-never-hit`,
+	publishFrontmatterKey: "publish",
 	customFilters: [
 		{
 			pattern: "❄️",
