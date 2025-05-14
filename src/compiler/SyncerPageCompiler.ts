@@ -59,8 +59,7 @@ export class SyncerPageCompiler {
 	private excalidrawCompiler: ExcalidrawCompiler;
 	private metadataCache: MetadataCache;
 	private readonly getFilesMarkedForPublishing: Publisher["getFilesMarkedForPublishing"];
-
-	private rewriteRules: PathRewriteRule[];
+	private rewriteRule: PathRewriteRule;
 
 	constructor(
 		vault: Vault,
@@ -73,7 +72,7 @@ export class SyncerPageCompiler {
 		this.metadataCache = metadataCache;
 		this.getFilesMarkedForPublishing = getFilesMarkedForPublishing;
 		this.excalidrawCompiler = new ExcalidrawCompiler(vault);
-		this.rewriteRules = getRewriteRules(this.settings.vaultPath);
+		this.rewriteRule = getRewriteRules(this.settings.vaultPath);
 	}
 
 	runCompilerSteps =
@@ -106,7 +105,6 @@ export class SyncerPageCompiler {
 		// ORDER MATTERS!
 		const COMPILE_STEPS: TCompilerStep[] = [
 			this.convertFrontMatter,
-			this.applyVaultPath,
 			this.createBlockIDs,
 			this.createTranscludedText(0),
 			this.convertDataViews,
@@ -114,6 +112,7 @@ export class SyncerPageCompiler {
 			this.removeObsidianComments,
 			this.createSvgEmbeds,
 			this.linkTargeting,
+			this.applyVaultPath,
 		];
 
 		const compiledText = await this.runCompilerSteps(
@@ -127,39 +126,29 @@ export class SyncerPageCompiler {
 	}
 
 	applyVaultPath: TCompilerStep = () => (text) => {
-		const filters = [
-			{
-				pattern: /\[\[${this.settings.vaultPath}(.*?)\]\]/,
-				flags: "g",
-				replace: (match, p1) => {
-					return `[[${p1}]]`;
-				},
-			},
-			{
-				pattern: /\[(.*?)\]\(${this.settings.vaultPath}(.*?)\)/,
-				flags: "g",
-				replace: (match, p1, p2) => {
-					return `[${p1}](${p2})`;
-				},
-			},
-		];
-		if (this.settings.vaultPath !== "") {
-			for (const filter of filters) {
-				try {
-					text = text.replace(
-						RegExp(filter.pattern, filter.flags),
-						filter.replace,
-					);
-				} catch (e) {
-					Logger.error(
-						`Invalid regex: ${filter.pattern} ${filter.flags}`,
-					);
+		const wikilinkRegex = new RegExp(
+			"\\[\\[" + this.settings.vaultPath + "(.*?)\\]\\]",
+			"g",
+		);
 
-					// TODO: validate in settings
-					new Notice(
-						`Your custom filters contains an invalid regex: ${filter.pattern}. Skipping it.`,
-					);
-				}
+		const markdownLinkRegex = new RegExp(
+			"\\[(.*?)\\]\\(" + this.settings.vaultPath + "(.*?)\\)",
+			"g",
+		);
+
+		if (this.settings.vaultPath !== "/" && this.settings.vaultPath !== "") {
+			try {
+				text = text.replace(wikilinkRegex, "[[$1]]");
+				text = text.replace(markdownLinkRegex, "[$1]($2)");
+			} catch (e) {
+				Logger.error(
+					`Error while applying vault path to text: ${text}. Error: ${e}`,
+				);
+
+				// TODO: validate in settings
+				new Notice(
+					`Your custom filters contains an invalid regex. Skipping it.`,
+				);
 			}
 		}
 
@@ -484,7 +473,7 @@ export class SyncerPageCompiler {
 										generateUrlPath(
 											getSyncerPathForNote(
 												linkedFile.path,
-												this.rewriteRules,
+												this.rewriteRule,
 											),
 										),
 								  );
@@ -525,7 +514,7 @@ export class SyncerPageCompiler {
 	createSvgEmbeds: TCompilerStep = (file) => async (text) => {
 		function setWidth(svgText: string, size: string): string {
 			const parser = new DOMParser();
-			const svgDoc = parser.parseFromString(svgText, "blob/svg+xml");
+			const svgDoc = parser.parseFromString(svgText, "image/svg+xml");
 			const svgElement = svgDoc.getElementsByTagName("svg")[0];
 			svgElement.setAttribute("width", size);
 			fixSvgForXmlSerializer(svgElement);
@@ -778,6 +767,16 @@ export class SyncerPageCompiler {
 
 						let relativeEmbedPrefix = "";
 
+						const embedDepthVaultPath =
+							this.settings.vaultPath !== "/" &&
+							this.settings.vaultPath !== ""
+								? this.settings.vaultPath.split("/").length - 1
+								: 0;
+
+						const embedPrefixVaultPath =
+							"../".repeat(embedDepthVaultPath) +
+							this.settings.vaultPath;
+
 						for (
 							let i = 0;
 							i < filePath.split("/").length - 1;
@@ -786,7 +785,13 @@ export class SyncerPageCompiler {
 							relativeEmbedPrefix += "../";
 						}
 
-						const cmsImgPath = `${relativeEmbedPrefix}${linkedFile.path}`;
+						const cmsImgPath =
+							embedDepthVaultPath === 0
+								? `${relativeEmbedPrefix}${linkedFile.path}`
+								: `${relativeEmbedPrefix}${linkedFile.path}`.replace(
+										embedPrefixVaultPath,
+										"",
+								  );
 						let name = "";
 
 						if (metaData && size) {

@@ -14,6 +14,7 @@ export interface PathRewriteRule {
 	to: string;
 }
 export type PathRewriteRules = PathRewriteRule[];
+export type VaultPathRule = PathRewriteRule;
 
 type ContentTreeItem = {
 	path: string;
@@ -130,7 +131,7 @@ export default class QuartzSyncerSiteManager {
 				typeof x.path === "string" &&
 				x.path.startsWith(this.settings.contentFolder) &&
 				x.type === "blob" &&
-				x.path !== `${this.settings.contentFolder}/notes.json`,
+				x.path.endsWith(".md"),
 		);
 		const hashes: Record<string, string> = {};
 
@@ -139,6 +140,7 @@ export default class QuartzSyncerSiteManager {
 				this.settings.contentFolder,
 				"",
 			);
+			//.replace(this.settings.vaultPath, "");
 
 			const actualVaultPath = vaultPath.startsWith("/")
 				? vaultPath.substring(1)
@@ -165,6 +167,7 @@ export default class QuartzSyncerSiteManager {
 		for (const blob of blobs) {
 			const vaultPath = decodeURI(
 				blob.path.replace(this.settings.contentFolder, ""),
+				//.replace(this.settings.vaultPath, ""),
 			);
 
 			const actualVaultPath = vaultPath.startsWith("/")

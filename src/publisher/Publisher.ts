@@ -5,7 +5,7 @@ import {
 	hasPublishFlag,
 	isPublishFrontmatterValid,
 } from "../publishFile/Validator";
-import { PathRewriteRules } from "../repositoryConnection/QuartzSyncerSiteManager";
+import { PathRewriteRule } from "../repositoryConnection/QuartzSyncerSiteManager";
 import QuartzSyncerSettings from "../models/settings";
 import { Assets, SyncerPageCompiler } from "../compiler/SyncerPageCompiler";
 import { CompiledPublishFile, PublishFile } from "../publishFile/PublishFile";
@@ -25,7 +25,8 @@ export default class Publisher {
 	metadataCache: MetadataCache;
 	compiler: SyncerPageCompiler;
 	settings: QuartzSyncerSettings;
-	rewriteRules: PathRewriteRules;
+	rewriteRule: PathRewriteRule;
+	vaultPath: string;
 
 	constructor(
 		vault: Vault,
@@ -35,7 +36,8 @@ export default class Publisher {
 		this.vault = vault;
 		this.metadataCache = metadataCache;
 		this.settings = settings;
-		this.rewriteRules = getRewriteRules(settings.vaultPath);
+		this.rewriteRule = getRewriteRules(settings.vaultPath);
+		this.vaultPath = settings.vaultPath;
 
 		this.compiler = new SyncerPageCompiler(
 			vault,
@@ -53,8 +55,12 @@ export default class Publisher {
 
 	async getFilesMarkedForPublishing(): Promise<MarkedForPublishing> {
 		const files = this.vault.getMarkdownFiles().filter((file) => {
-			if (this.settings.vaultPath !== "/")
+			if (
+				this.settings.vaultPath !== "/" &&
+				this.settings.vaultPath !== ""
+			)
 				return file.path.startsWith(this.settings.vaultPath);
+
 			return true;
 		});
 		const notesToPublish: PublishFile[] = [];
@@ -89,15 +95,27 @@ export default class Publisher {
 	}
 
 	async deleteNote(vaultFilePath: string, sha?: string) {
-		const path = `${this.settings.contentFolder}/${vaultFilePath}`;
+		if (
+			this.settings.vaultPath !== "/" &&
+			this.settings.vaultPath !== "" &&
+			vaultFilePath.startsWith(this.settings.vaultPath)
+		) {
+			vaultFilePath = vaultFilePath.replace(this.settings.vaultPath, "");
+		}
 
-		return await this.delete(path, sha);
+		return await this.delete(vaultFilePath, sha);
 	}
 
 	async deleteBlob(vaultFilePath: string, sha?: string) {
-		const path = `${this.settings.contentFolder}/${vaultFilePath}`;
+		if (
+			this.settings.vaultPath !== "/" &&
+			this.settings.vaultPath !== "" &&
+			vaultFilePath.startsWith(this.settings.vaultPath)
+		) {
+			vaultFilePath = vaultFilePath.replace(this.settings.vaultPath, "");
+		}
 
-		return await this.delete(path, sha);
+		return await this.delete(vaultFilePath, sha);
 	}
 	/** If provided with sha, syncer connection does not need to get it separately! */
 	public async delete(path: string, sha?: string): Promise<boolean> {
@@ -125,7 +143,7 @@ export default class Publisher {
 
 		try {
 			const [text, assets] = file.compiledFile;
-			await this.uploadText(file.getPath(), text, file?.remoteHash);
+			await this.uploadText(file.getVaultPath(), text, file?.remoteHash);
 			await this.uploadAssets(assets);
 
 			return true;

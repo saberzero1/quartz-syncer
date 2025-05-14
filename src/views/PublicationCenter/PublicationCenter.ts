@@ -51,7 +51,19 @@ export class PublicationCenter {
 		try {
 			const remoteContent =
 				await this.siteManager.getNoteContent(notePath);
-			const localFile = this.vault.getAbstractFileByPath(notePath);
+
+			let localNotePath = "";
+
+			if (
+				this.settings.vaultPath !== "/" &&
+				this.settings.vaultPath !== ""
+			) {
+				localNotePath = this.settings.vaultPath + notePath;
+			} else {
+				localNotePath = notePath;
+			}
+
+			const localFile = this.vault.getAbstractFileByPath(localNotePath);
 
 			const localPublishFile = new PublishFile({
 				file: localFile as TFile,

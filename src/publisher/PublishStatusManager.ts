@@ -67,7 +67,7 @@ export default class PublishStatusManager implements IPublishStatusManager {
 			const [content, _] = compiledFile.getCompiledFile();
 
 			const localHash = generateBlobHash(content);
-			const remoteHash = remoteNoteHashes[file.getPath()];
+			const remoteHash = remoteNoteHashes[file.getVaultPath()];
 
 			if (!remoteHash) {
 				unpublishedNotes.push(compiledFile);
@@ -82,7 +82,7 @@ export default class PublishStatusManager implements IPublishStatusManager {
 
 		const deletedNotePaths = this.generateDeletedContentPaths(
 			remoteNoteHashes,
-			marked.notes.map((f) => f.getPath()),
+			marked.notes.map((f) => f.getVaultPath()),
 		);
 
 		const deletedBlobPaths = this.generateDeletedContentPaths(

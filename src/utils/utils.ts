@@ -1,9 +1,8 @@
 import { Base64 } from "js-base64";
 import slugify from "@sindresorhus/slugify";
 import sha1 from "crypto-js/sha1";
-import { PathRewriteRules } from "../repositoryConnection/QuartzSyncerSiteManager";
-
-const REWRITE_RULE_DELIMITER = ":";
+import { PathRewriteRule } from "../repositoryConnection/QuartzSyncerSiteManager";
+import QuartzSyncerSettings from "src/models/settings";
 
 function arrayBufferToBase64(buffer: ArrayBuffer) {
 	let binary = "";
@@ -68,15 +67,16 @@ const wrapAround = (value: number, size: number): number => {
 	return ((value % size) + size) % size;
 };
 
-function getRewriteRules(vaultPath: string): PathRewriteRules {
+function getRewriteRules(vaultPath: string): PathRewriteRule {
 	return { from: vaultPath, to: "/" };
 }
 
 function getSyncerPathForNote(
 	vaultPath: string,
-	rules: PathRewriteRules,
+	rules: PathRewriteRule,
 ): string {
 	const { from, to } = rules;
+
 	if (vaultPath && vaultPath.startsWith(from)) {
 		const newPath = vaultPath.replace(from, to);
 
@@ -122,6 +122,14 @@ function sanitizePermalink(permalink: string): string {
 	return permalink;
 }
 
+function resolvePath(path: string, settings: QuartzSyncerSettings): string {
+	if (settings.vaultPath !== "/" && settings.vaultPath !== "") {
+		path = path.replace(settings.vaultPath, "");
+	}
+
+	return `${settings.contentFolder}/${path}`;
+}
+
 export {
 	arrayBufferToBase64,
 	extractBaseUrl,
@@ -134,4 +142,5 @@ export {
 	escapeRegExp,
 	fixSvgForXmlSerializer,
 	sanitizePermalink,
+	resolvePath,
 };

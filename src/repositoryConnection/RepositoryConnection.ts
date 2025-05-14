@@ -55,6 +55,54 @@ export class RepositoryConnection {
 		};
 	}
 
+	getRepositoryPath(path: string) {
+		const repositoryPath = path.startsWith(this.contentFolder)
+			? path.replace(this.contentFolder, "")
+			: path;
+
+		return repositoryPath.startsWith("/")
+			? repositoryPath.slice(1)
+			: repositoryPath;
+	}
+
+	getVaultPath(path: string) {
+		const vaultPath = path.startsWith(this.vaultPath)
+			? path.replace(this.vaultPath, "")
+			: path;
+
+		return vaultPath.startsWith("/") ? vaultPath.slice(1) : vaultPath;
+	}
+
+	setRepositoryPath(path: string) {
+		const separator = path.startsWith("/") ? "" : "/";
+
+		const repositoryPath = path.startsWith(this.contentFolder)
+			? path
+			: `${this.contentFolder}${separator}${path}`;
+
+		return repositoryPath.startsWith("/")
+			? repositoryPath.slice(1)
+			: repositoryPath;
+	}
+
+	setVaultPath(path: string) {
+		const separator = path.startsWith("/") ? "" : "/";
+
+		const vaultPath = path.startsWith(this.vaultPath)
+			? path
+			: `${this.vaultPath}${separator}${path}`;
+
+		return vaultPath.startsWith("/") ? vaultPath.slice(1) : vaultPath;
+	}
+
+	repositoryToVaultPath(path: string) {
+		return this.setVaultPath(this.getRepositoryPath(path));
+	}
+
+	repositoryToRepositoryPath(path: string) {
+		return this.setRepositoryPath(this.getVaultPath(path));
+	}
+
 	/** Get filetree with path and sha of each file from repository */
 	async getContent(branch: string) {
 		try {
@@ -82,6 +130,10 @@ export class RepositoryConnection {
 	}
 
 	async getFile(path: string, branch?: string) {
+		path = this.setRepositoryPath(
+			this.getVaultPath(this.getRepositoryPath(path)),
+		);
+
 		logger.info(
 			`Getting file ${path} from repository ${this.getRepositoryName()}`,
 		);
@@ -114,6 +166,10 @@ export class RepositoryConnection {
 		path: string,
 		{ branch, sha }: { branch?: string; sha?: string },
 	) {
+		path = this.setRepositoryPath(
+			this.getVaultPath(this.getRepositoryPath(path)),
+		);
+
 		try {
 			sha ??= await this.getFile(path, branch).then((file) => file?.sha);
 
@@ -187,6 +243,10 @@ export class RepositoryConnection {
 	}
 
 	async updateFile({ path, sha, content, branch, message }: IPutPayload) {
+		path = this.setRepositoryPath(
+			this.getVaultPath(this.getRepositoryPath(path)),
+		);
+
 		const payload = {
 			...this.getBasePayload(),
 			path,
@@ -222,6 +282,8 @@ export class RepositoryConnection {
 				previous = path;
 				path = path.replace(/\.\.\//g, "");
 			} while (path !== previous);
+
+			path = this.getVaultPath(path);
 
 			return path.startsWith("/")
 				? `${this.contentFolder}${path}`
@@ -342,6 +404,8 @@ export class RepositoryConnection {
 				previous = path;
 				path = path.replace(/\.\.\//g, "");
 			} while (path !== previous);
+
+			path = this.getVaultPath(path);
 
 			return path.startsWith("/")
 				? `${this.contentFolder}${path}`
