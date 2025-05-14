@@ -2,12 +2,16 @@
 title: Setup Guide
 description: Instructions for setting up Quartz Syncer plugin.
 created: 2004-05-25T00:00:00+02:00
-date: 2025-05-11T17:36:07+02:00
+date: 2025-05-14T11:37:13+02:00
 publish: true
 ---
 
 > [!WARNING]- A GitHub account is required to use Quartz and Quartz Syncer
 > You can sign up for free [here](https://github.com/signup).
+
+> [!WARNING] Set up Quartz first
+> This plugin manages Quartz content from Obsidian. Please set up Quartz if you have not already. See instructions below.
+>
 
 ## Set up Quartz
 
