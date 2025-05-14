@@ -63,7 +63,7 @@ export class MdFileSuggest extends TextInputSuggest<TFile> {
 }
 
 export class FolderSuggest extends TextInputSuggest<TFolder> {
-	constructor(app: App, inputEl: HTMLInputElement | HTMLTextAreaElement) {
+	constructor(app: App, inputEl: HTMLInputElement) {
 		super(app, inputEl);
 	}
 
