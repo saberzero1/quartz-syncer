@@ -35,6 +35,8 @@ export default interface QuartzSyncerSettings {
 
 	usePermalink: boolean;
 
+	publishFrontmatterKey: string;
+
 	defaultNoteSettings: {
 		HomeLink: boolean;
 		PassFrontmatter: boolean;

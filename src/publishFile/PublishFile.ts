@@ -72,7 +72,10 @@ export class PublishFile {
 	}
 
 	shouldPublish(): boolean {
-		return hasPublishFlag(this.frontmatter);
+		return hasPublishFlag(
+			this.settings.publishFrontmatterKey,
+			this.frontmatter,
+		);
 	}
 
 	async getBlobLinks() {

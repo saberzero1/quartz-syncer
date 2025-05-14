@@ -50,7 +50,7 @@ export default class Publisher {
 	shouldPublish(file: TFile): boolean {
 		const frontMatter = this.metadataCache.getCache(file.path)?.frontmatter;
 
-		return hasPublishFlag(frontMatter);
+		return hasPublishFlag(this.settings.publishFrontmatterKey, frontMatter);
 	}
 
 	async getFilesMarkedForPublishing(): Promise<MarkedForPublishing> {
@@ -137,7 +137,12 @@ export default class Publisher {
 	}
 
 	public async publish(file: CompiledPublishFile): Promise<boolean> {
-		if (!isPublishFrontmatterValid(file.frontmatter)) {
+		if (
+			!isPublishFrontmatterValid(
+				this.settings.publishFrontmatterKey,
+				file.frontmatter,
+			)
+		) {
 			return false;
 		}
 
@@ -180,7 +185,10 @@ export default class Publisher {
 
 	public async publishBatch(files: CompiledPublishFile[]): Promise<boolean> {
 		const filesToPublish = files.filter((f) =>
-			isPublishFrontmatterValid(f.frontmatter),
+			isPublishFrontmatterValid(
+				this.settings.publishFrontmatterKey,
+				f.frontmatter,
+			),
 		);
 
 		if (filesToPublish.length === 0) {

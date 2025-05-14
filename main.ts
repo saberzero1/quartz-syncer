@@ -10,7 +10,6 @@ import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteMa
 import { QuartzSyncerSettingTab } from "./src/views/QuartzSyncerSettingTab";
 import Logger from "js-logger";
 import { PublishFile } from "./src/publishFile/PublishFile";
-import { FRONTMATTER_KEYS } from "./src/publishFile/FileMetaDataManager";
 
 const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	githubRepo: "",
@@ -39,6 +38,8 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	contentClassesKey: "content-classes",
 
 	usePermalink: false,
+
+	publishFrontmatterKey: "publish",
 
 	defaultNoteSettings: {
 		HomeLink: true,
@@ -350,7 +351,7 @@ export default class QuartzSyncer extends Plugin {
 			this.app.metadataCache,
 			activeFile,
 		);
-		engine.set(FRONTMATTER_KEYS.PUBLISH, value).apply();
+		engine.set(this.settings.publishFrontmatterKey, value).apply();
 	}
 	async togglePublishFlag() {
 		const activeFile = this.getActiveFile(this.app.workspace);
@@ -367,8 +368,8 @@ export default class QuartzSyncer extends Plugin {
 
 		engine
 			.set(
-				FRONTMATTER_KEYS.PUBLISH,
-				!engine.get(FRONTMATTER_KEYS.PUBLISH),
+				this.settings.publishFrontmatterKey,
+				!engine.get(this.settings.publishFrontmatterKey),
 			)
 			.apply();
 	}

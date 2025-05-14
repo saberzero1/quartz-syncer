@@ -27,6 +27,7 @@ export class GithubSettings {
 		this.initializeGitHubContentFolder();
 		this.initializeGitHubVaultFolder(this.settings.app);
 		this.initializeQuartzHeader();
+		this.initializePublishFrontmatterKeySetting();
 		this.initializeUseFullBlobResolutionSetting();
 		this.initializeShowCreatedTimestampSetting();
 		this.initializeShowUpdatedTimestampSetting();
@@ -228,6 +229,23 @@ export class GithubSettings {
 						await this.checkConnectionAndSaveSettings();
 					});
 			});
+	}
+
+	private initializePublishFrontmatterKeySetting() {
+		new Setting(this.settingsRootElement)
+			.setName("Publish frontmatter key")
+			.setDesc(
+				'Frontmatter key used to mark a note as eligible to publish. By default "publish".',
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("publish")
+					.setValue(this.settings.settings.publishFrontmatterKey)
+					.onChange(async (value) => {
+						this.settings.settings.publishFrontmatterKey = value;
+						await this.checkConnectionAndSaveSettings();
+					}),
+			);
 	}
 
 	private initializeGitHubRepoSetting() {
