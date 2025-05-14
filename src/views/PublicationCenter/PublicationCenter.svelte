@@ -93,14 +93,14 @@
 	$: publishedNotesTree =
 		publishStatus &&
 		filePathsToTree(
-			publishStatus.publishedNotes.map((note) => note.getPath()),
+			publishStatus.publishedNotes.map((note) => note.getVaultPath()),
 			"Currently Published Notes",
 		);
 
 	$: changedNotesTree =
 		publishStatus &&
 		filePathsToTree(
-			publishStatus.changedNotes.map((note) => note.getPath()),
+			publishStatus.changedNotes.map((note) => note.getVaultPath()),
 			"Published Notes With Changes",
 		);
 
@@ -117,7 +117,7 @@
 	$: unpublishedNoteTree =
 		publishStatus &&
 		filePathsToTree(
-			publishStatus.unpublishedNotes.map((note) => note.getPath()),
+			publishStatus.unpublishedNotes.map((note) => note.getVaultPath()),
 			"Unpublished Notes",
 		);
 
@@ -174,19 +174,21 @@
 
 		unpublishedToPublish =
 			publishStatus.unpublishedNotes.filter((note) =>
-				unpublishedPaths.includes(note.getPath()),
+				unpublishedPaths.includes(note.getVaultPath()),
 			) ?? [];
 
 		changedToPublish =
 			publishStatus?.changedNotes.filter((note) =>
-				changedPaths.includes(note.getPath()),
+				changedPaths.includes(note.getVaultPath()),
 			) ?? [];
 
 		showPublishingView = true;
 
 		const allNotesToPublish = unpublishedToPublish.concat(changedToPublish);
 
-		processingPaths = [...allNotesToPublish.map((note) => note.getPath())];
+		processingPaths = [
+			...allNotesToPublish.map((note) => note.getVaultPath()),
+		];
 		await publisher.publishBatch(allNotesToPublish);
 
 		publishedPaths = [...processingPaths];
@@ -279,17 +281,17 @@
 
 			{#each unpublishedToPublish.concat(changedToPublish) as note}
 				<div class="note-list">
-					{#if processingPaths.includes(note.getPath())}
+					{#if processingPaths.includes(note.getVaultPath())}
 						{@html rotatingCog()?.outerHTML}
-					{:else if publishedPaths.includes(note.getPath())}
+					{:else if publishedPaths.includes(note.getVaultPath())}
 						<Icon name="check" />
-					{:else if failedPublish.includes(note.getPath())}
+					{:else if failedPublish.includes(note.getVaultPath())}
 						<Icon name="cross" />
 					{:else}
 						<Icon name="clock" />
 					{/if}
 					{note.file.name}
-					{#if publishedPaths.includes(note.getPath())}
+					{#if publishedPaths.includes(note.getVaultPath())}
 						<span class="published"> - PUBLISHED</span>
 					{/if}
 				</div>

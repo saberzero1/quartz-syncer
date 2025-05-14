@@ -1,4 +1,4 @@
-import { Setting, debounce } from "obsidian";
+import { Setting, App, debounce } from "obsidian";
 import SettingView from "./SettingView";
 import { FolderSuggest } from "../../ui/suggest/file-suggest";
 import { Octokit } from "@octokit/core";
@@ -10,7 +10,6 @@ export class GithubSettings {
 	connectionStatusElement: HTMLElement;
 
 	constructor(settings: SettingView, settingsRootElement: HTMLElement) {
-		this.app = app;
 		this.settings = settings;
 		this.settingsRootElement = settingsRootElement;
 		this.settingsRootElement.id = "github-settings";
@@ -26,7 +25,7 @@ export class GithubSettings {
 		this.initializeGitHubUserNameSetting();
 		this.initializeGitHubTokenSetting();
 		this.initializeGitHubContentFolder();
-		this.initializeGitHubVaultFolder();
+		this.initializeGitHubVaultFolder(this.settings.app);
 		this.initializeQuartzHeader();
 		this.initializeUseFullBlobResolutionSetting();
 		this.initializeShowCreatedTimestampSetting();
@@ -115,9 +114,9 @@ export class GithubSettings {
 
 	private initializeUseFullBlobResolutionSetting() {
 		new Setting(this.settingsRootElement)
-			.setName("Use full blob resolution")
+			.setName("Use full image resolution")
 			.setDesc(
-				"By default, Quartz Syncer will use a lower resolution blob to save space. If you want to use the full resolution blob, enable this setting.",
+				"By default, Quartz Syncer will use a lower resolution image to save space. If you want to use the full resolution blob, enable this setting.",
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -210,14 +209,15 @@ export class GithubSettings {
 			);
 	}
 
-	private initializeGitHubVaultFolder() {
+	private initializeGitHubVaultFolder(app: App) {
 		new Setting(this.settingsRootElement)
 			.setName("Vault root folder name")
 			.setDesc(
 				'The folder in your vault that should be used as the website root folder. By default "/" (the root of your vault).',
 			)
 			.addSearch((text) => {
-				new FolderSuggest(this.app, text.inputEl);
+				new FolderSuggest(app, text.inputEl);
+
 				text.setPlaceholder("/")
 					.setValue(this.settings.settings.vaultPath)
 					.onChange(async (value) => {

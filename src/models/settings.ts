@@ -16,6 +16,7 @@ export default interface QuartzSyncerSettings {
 	slugifyEnabled: boolean;
 
 	contentFolder: string;
+	vaultPath: string;
 
 	showCreatedTimestamp: boolean;
 	createdTimestampKey: string;

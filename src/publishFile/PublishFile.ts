@@ -102,16 +102,17 @@ export class PublishFile {
 		return this.file.path.localeCompare(other.file.path);
 	}
 
-	getPath = () => {
+	getPath = () => this.file.path;
+	getVaultPath = () => {
 		if (
 			this.settings.vaultPath !== "/" &&
 			this.file.path.startsWith(this.settings.vaultPath)
 		) {
 			return this.file.path.replace(this.settings.vaultPath, "");
 		}
+
 		return this.file.path;
 	};
-	getActualPath = () => this.file.path;
 	getCompiledFrontmatter() {
 		const frontmatterCompiler = new FrontmatterCompiler(this.settings);
 
