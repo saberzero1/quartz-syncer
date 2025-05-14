@@ -242,6 +242,9 @@ export class GithubSettings {
 					.setPlaceholder("publish")
 					.setValue(this.settings.settings.publishFrontmatterKey)
 					.onChange(async (value) => {
+						if (value.length === 0) {
+							value = "publish";
+						}
 						this.settings.settings.publishFrontmatterKey = value;
 						await this.checkConnectionAndSaveSettings();
 					}),
