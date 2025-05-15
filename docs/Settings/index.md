@@ -6,6 +6,14 @@ date: 2025-05-15T08:57:29Z+0200
 publish: true
 ---
 
+```dataview
+TABLE WITHOUT ID link(file.link, file.frontmatter.title) AS Category, file.frontmatter.description AS Description
+WHERE startswith(file.folder, this.file.folder)
+WHERE file != this.file
+WHERE file.name = "index"
+SORT file.frontmatter.title ASC
+```
+
 ## GitHub (check connection)
 
 - Username
