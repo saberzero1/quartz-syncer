@@ -2,7 +2,7 @@
 title: Quartz Syncer Documentation
 description: Quartz Syncer allows you to manage your Quartz site content from Obsidian.
 created: 2025-04-20T00:00:00Z+0200
-modified: 2025-05-17T22:37:55Z+0200
+date: 2025-05-15T08:57:29Z+0200
 publish: true
 ---
 

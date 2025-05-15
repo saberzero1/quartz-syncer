@@ -1,8 +1,8 @@
 ---
 title: Authentication
-description: Troubleshooting issues related to GitHub authentication.
+description: Documentation related to GitHub authentication.
 created: 2025-05-05T00:00:00Z+0200
-modified: 2025-05-17T18:47:50Z+0200
+date: 2025-05-15T08:57:29Z+0200
 publish: true
 ---
 
