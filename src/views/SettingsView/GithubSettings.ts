@@ -36,13 +36,7 @@ export class GithubSettings {
 		this.initializePublishFrontmatterKeySetting();
 		this.initializeShowCreatedTimestampSetting();
 		this.initializeShowUpdatedTimestampSetting();
-		this.initializeShowPublishedTimestampSetting();
-		this.initializeEnablePermalinkSetting();
-		this.initializeIncludeAllFrontmatterSetting();
-
-		this.initializePluginIntegrationHeader();
-		this.initializeDataviewSetting();
-		this.initializeExcalidrawSetting();
+		this.initializeUsePermalinkSetting();
 	}
 
 	initializeGitHubHeader = () => {
@@ -204,31 +198,7 @@ export class GithubSettings {
 			);
 	}
 
-	private initializeShowPublishedTimestampSetting() {
-		new Setting(this.settingsRootElement)
-			.setName("Include published timestamp")
-			.setDesc(
-				"Include the published timestamp in your note's properties.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.settings.settings.showPublishedTimestamp)
-					.setDisabled(this.settings.settings.includeAllFrontmatter)
-					.onChange(async (value) => {
-						this.settings.settings.showPublishedTimestamp = value;
-						await this.checkConnectionAndSaveSettings();
-					}),
-			)
-			.setClass(
-				`${
-					this.settings.settings.includeAllFrontmatter
-						? "quartz-syncer-settings-overridden"
-						: "quartz-syncer-settings-overridable"
-				}`,
-			);
-	}
-
-	private initializeIncludeAllFrontmatterSetting() {
+	private initializeUsePermalinkSetting() {
 		new Setting(this.settingsRootElement)
 			.setName("Include all properties")
 			.setDesc(

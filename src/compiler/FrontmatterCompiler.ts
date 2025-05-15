@@ -1,5 +1,10 @@
 import { FrontMatterCache } from "obsidian";
-import { sanitizePermalink } from "../utils/utils";
+import {
+	getSyncerPathForNote,
+	sanitizePermalink,
+	generateUrlPath,
+	getRewriteRules,
+} from "../utils/utils";
 import QuartzSyncerSettings from "../models/settings";
 import { PublishFile } from "../publishFile/PublishFile";
 
@@ -350,4 +355,31 @@ export class FrontmatterCompiler {
 
 			return newFrontMatter;
 		};
+
+	private addNoteIconFrontMatter(
+		baseFrontMatter: TFrontmatter,
+		newFrontMatter: TPublishedFrontMatter,
+	) {
+		if (!baseFrontMatter) {
+			baseFrontMatter = {};
+		}
+
+		const publishedFrontMatter = { ...newFrontMatter };
+
+		return publishedFrontMatter;
+	}
+
+	private addFrontMatterSettings(
+		baseFrontMatter: Record<string, unknown>,
+		newFrontMatter: Record<string, unknown>,
+	) {
+		if (!baseFrontMatter) {
+			baseFrontMatter = {};
+		}
+		const publishedFrontMatter = { ...newFrontMatter };
+
+		publishedFrontMatter.PassFrontmatter = true;
+
+		return publishedFrontMatter;
+	}
 }
