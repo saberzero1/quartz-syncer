@@ -30,13 +30,13 @@ export class GithubSettings {
 
 		this.initializeQuartzHeader();
 		this.initializeQuartzContentFolder();
-		this.initializeUseFullImageResolutionSetting();
-
-		this.initializeFrontmatterHeader();
 		this.initializePublishFrontmatterKeySetting();
+		this.initializeUseFullImageResolutionSetting();
 		this.initializeShowCreatedTimestampSetting();
 		this.initializeShowUpdatedTimestampSetting();
 		this.initializeUsePermalinkSetting();
+		this.initializePluginIntegrationHeader();
+		this.initializeDataviewSetting();
 	}
 
 	initializeGitHubHeader = () => {
@@ -45,7 +45,7 @@ export class GithubSettings {
 		const githubSettingsHeader = createEl("h3", {
 			text: "GitHub",
 		});
-		githubSettingsHeader.appendText(" (Connection status:");
+		githubSettingsHeader.appendText(" (Connection status: ");
 		githubSettingsHeader.append(this.connectionStatusElement);
 		githubSettingsHeader.appendText(")");
 		githubSettingsHeader.prepend(this.settings.getIcon("github"));
@@ -65,20 +65,13 @@ export class GithubSettings {
 		this.settingsRootElement.append(quartzSettingsHeader);
 	};
 
-	initializeFrontmatterHeader = () => {
-		const frontmatterHeader = createEl("h3", {
-			text: "Note properties (frontmatter)",
-		});
-
-		frontmatterHeader.prepend(this.settings.getIcon("archive"));
-
-		this.settingsRootElement.append(frontmatterHeader);
-	};
-
 	initializePluginIntegrationHeader = () => {
+		this.connectionStatusElement.style.cssText = "margin-left: 10px;";
+
 		const pluginIntegrationHeader = createEl("h3", {
 			text: "Plugin Integration",
 		});
+		//pluginIntegrationHeader.append(this.connectionStatusElement);
 
 		pluginIntegrationHeader.prepend(this.settings.getIcon("cable"));
 
@@ -155,7 +148,7 @@ export class GithubSettings {
 	private initializeShowCreatedTimestampSetting() {
 		new Setting(this.settingsRootElement)
 			.setName("Include created timestamp")
-			.setDesc("Include the created timestamp in your note's properties.")
+			.setDesc("Include the created timestamp in your note's frontmatter")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.settings.settings.showCreatedTimestamp)
@@ -178,7 +171,7 @@ export class GithubSettings {
 		new Setting(this.settingsRootElement)
 			.setName("Include modified timestamp")
 			.setDesc(
-				"Include the modified timestamp in your note's properties.",
+				"Include the modified timestamp in your note's frontmatter",
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -200,24 +193,7 @@ export class GithubSettings {
 
 	private initializeUsePermalinkSetting() {
 		new Setting(this.settingsRootElement)
-			.setName("Include all properties")
-			.setDesc(
-				"Include all note properties in the Quartz Syncer note. Enabling this will overrides other property settings to include all properties keys and values.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.settings.settings.includeAllFrontmatter)
-					.onChange(async (value) => {
-						this.settings.settings.includeAllFrontmatter = value;
-						await this.checkConnectionAndSaveSettings();
-					}),
-			)
-			.setClass("quartz-syncer-settings-overrider");
-	}
-
-	private initializeEnablePermalinkSetting() {
-		new Setting(this.settingsRootElement)
-			.setName("Enable permalinks")
+			.setName("Always generate permalinks")
 			.setDesc(
 				"Use the note's permalink as the Quartz note's URL if \"permalink\" is not in the frontmatter. This will override the default Quartz URL.",
 			)
@@ -274,7 +250,7 @@ export class GithubSettings {
 		new Setting(this.settingsRootElement)
 			.setName("Publish key")
 			.setDesc(
-				'Note property key used to mark a note as eligible to publish. Quartz Syncer will ignore all notes without this property. By default "publish".',
+				'Frontmatter key used to mark a note as eligible to publish. Quartz Syncer will ignore all notes without this frontmatter key. By default "publish".',
 			)
 			.addText((text) =>
 				text
@@ -373,11 +349,7 @@ export class GithubSettings {
 					}),
 			)
 			.setClass(
-				`${
-					dataviewEnabled
-						? "quartz-syncer-settings-enabled"
-						: "quartz-syncer-settings-disabled"
-				}`,
+				`${dataviewEnabled ? "" : "quartz-syncer-settings-disabled"}`,
 			);
 	}
 
@@ -390,13 +362,11 @@ export class GithubSettings {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.settings.settings.useExcalidraw)
-					.setValue(false)
 					.setDisabled(true)
 					.onChange(async (value) => {
 						this.settings.settings.useExcalidraw = value;
 						await this.checkConnectionAndSaveSettings();
 					}),
-			)
-			.setClass("quartz-syncer-settings-upcoming");
+			);
 	}
 }

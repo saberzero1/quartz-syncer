@@ -32,9 +32,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	usePermalink: false,
 
 	useDataview: true,
-	useExcalidraw: false,
-
-	includeAllFrontmatter: false,
+	useExcalidraw: true,
 
 	publishFrontmatterKey: "publish",
 

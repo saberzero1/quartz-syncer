@@ -30,6 +30,9 @@ export default interface QuartzSyncerSettings {
 
 	publishFrontmatterKey: string;
 
+	useDataview: boolean;
+	useExcalidraw: boolean;
+
 	ENABLE_DEVELOPER_TOOLS?: boolean;
 	devPluginPath?: string;
 	logLevel?: ILogLevel;
