@@ -19,7 +19,7 @@ const quartzSettings = {
 	contentFolder: "content",
 	vaultPath: "/",
 	useDataview: true,
-	useExcalidraw: true,
+	useExcalidraw: false,
 	noteIconKey: "note-icon",
 	defaultNoteIcon: "",
 	showNoteIconOnTitle: false,
