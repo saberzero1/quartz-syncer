@@ -3,7 +3,6 @@ import {
 	getSyncerPathForNote,
 	sanitizePermalink,
 	generateUrlPath,
-	kebabize,
 	getRewriteRules,
 } from "../utils/utils";
 import QuartzSyncerSettings from "../models/settings";
@@ -231,20 +230,7 @@ export class FrontmatterCompiler {
 		}
 		const publishedFrontMatter = { ...newFrontMatter };
 
-		for (const key of Object.keys(this.settings.defaultNoteSettings)) {
-			const settingValue = baseFrontMatter[kebabize(key)];
-
-			if (settingValue) {
-				publishedFrontMatter[key] = settingValue;
-			}
-		}
-
-		const PassFrontmatter =
-			this.settings.defaultNoteSettings.PassFrontmatter;
-
-		if (PassFrontmatter) {
-			publishedFrontMatter.PassFrontmatter = PassFrontmatter;
-		}
+		publishedFrontMatter.PassFrontmatter = true;
 
 		return publishedFrontMatter;
 	}

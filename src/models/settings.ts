@@ -37,10 +37,6 @@ export default interface QuartzSyncerSettings {
 
 	publishFrontmatterKey: string;
 
-	defaultNoteSettings: {
-		HomeLink: boolean;
-		PassFrontmatter: boolean;
-	};
 	ENABLE_DEVELOPER_TOOLS?: boolean;
 	devPluginPath?: string;
 	logLevel?: ILogLevel;

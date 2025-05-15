@@ -2,7 +2,6 @@ import { Notice, Platform, Plugin, Workspace, addIcon } from "obsidian";
 import Publisher from "./src/publisher/Publisher";
 import QuartzSyncerSettings from "./src/models/settings";
 import { quartzSyncerIcon } from "./src/ui/suggest/constants";
-//import { PublishStatusBar } from "./src/views/PublishStatusBar";
 import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
 import PublishStatusManager from "src/publisher/PublishStatusManager";
 import ObsidianFrontMatterEngine from "src/publishFile/ObsidianFrontMatterEngine";
@@ -41,10 +40,6 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	publishFrontmatterKey: "publish",
 
-	defaultNoteSettings: {
-		HomeLink: true,
-		PassFrontmatter: true,
-	},
 	logLevel: undefined,
 };
 

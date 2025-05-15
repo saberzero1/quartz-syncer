@@ -31,7 +31,6 @@ export class GithubSettings {
 		this.initializeUseFullBlobResolutionSetting();
 		this.initializeShowCreatedTimestampSetting();
 		this.initializeShowUpdatedTimestampSetting();
-		this.initializePassFrontmatterSetting();
 		this.initializeUsePermalinkSetting();
 	}
 
@@ -152,26 +151,6 @@ export class GithubSettings {
 					.setValue(this.settings.settings.showUpdatedTimestamp)
 					.onChange(async (value) => {
 						this.settings.settings.showUpdatedTimestamp = value;
-						await this.checkConnectionAndSaveSettings();
-					}),
-			);
-	}
-
-	private initializePassFrontmatterSetting() {
-		new Setting(this.settingsRootElement)
-			.setName("Pass frontmatter")
-			.setDesc(
-				"Pass the frontmatter from the notes to Quartz. This will allow you to use frontmatter in your Quartz notes.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(
-						this.settings.settings.defaultNoteSettings
-							.PassFrontmatter,
-					)
-					.onChange(async (value) => {
-						this.settings.settings.defaultNoteSettings.PassFrontmatter =
-							value;
 						await this.checkConnectionAndSaveSettings();
 					}),
 			);

@@ -74,7 +74,6 @@ export default class QuartzSyncerSiteManager {
 
 		const keysToSet = {
 			...envValues,
-			...this.settings.defaultNoteSettings,
 		};
 
 		const envSettings = Object.entries(keysToSet)
