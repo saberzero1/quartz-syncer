@@ -24,9 +24,9 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	// Timestamp related settings
 	showCreatedTimestamp: false,
-	createdTimestampKey: "",
+	createdTimestampKey: "created",
 	showUpdatedTimestamp: false,
-	updatedTimestampKey: "",
+	updatedTimestampKey: "date",
 	timestampFormat: "MMM dd, yyyy h:mm a",
 
 	styleSettingsCss: "",
