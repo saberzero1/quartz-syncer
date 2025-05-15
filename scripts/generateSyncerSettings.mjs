@@ -24,6 +24,8 @@ const quartzSettings = {
 	slugifyEnabled: true,
 	contentFolder: "content",
 	vaultPath: "/",
+	useDataview: true,
+	useExcalidraw: true,
 	noteIconKey: "note-icon",
 	defaultNoteIcon: "",
 	showNoteIconOnTitle: false,

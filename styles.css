@@ -22,18 +22,34 @@ button:disabled {
 	margin-left: 10px;
 }
 
-.settings > h1,
-h2,
-h3,
-h4 {
+.quartz-syncer-settings-disabled > .setting-item-info > .setting-item-name {
+	color: var(--color-red, #e92147);
+}
+
+.quartz-syncer-settings-disabled
+	> .setting-item-info
+	> .setting-item-name:after {
+	content: " (plugin disabled)";
+	color: var(--color-red, #e92147);
+	font-weight: bold;
+}
+
+.quartz-syncer-settings-disabled > .setting-item-control > .checkbox-container {
+	background-color: var(--color-red, #e92147);
+}
+
+.quartz-syncer-settings > h1,
+.quartz-syncer-settings h2,
+.quartz-syncer-settings h3,
+.quartz-syncer-settings h4 {
 	margin-top: 40px;
 }
 
-.settings .svg-icon {
+.quartz-syncer-settings .svg-icon {
 	margin-right: 10px;
 }
 
-@keyframes rotate {
+@keyframes quartz-syncer-rotate-animation {
 	0% {
 		transform: rotate(0deg);
 	}
@@ -43,6 +59,6 @@ h4 {
 	}
 }
 
-.rotate {
-	animation: rotate 4s linear infinite;
+.quartz-syncer-rotate {
+	animation: quartz-syncer-rotate-animation 4s linear infinite;
 }

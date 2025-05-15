@@ -38,7 +38,7 @@ export default class SettingView {
 	) {
 		this.app = app;
 		this.settingsRootElement = settingsRootElement;
-		this.settingsRootElement.classList.add("settings");
+		this.settingsRootElement.classList.add("quartz-syncer-settings");
 		this.settings = settings;
 		this.saveSettings = saveSettings;
 	}
