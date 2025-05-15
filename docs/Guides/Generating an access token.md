@@ -1,8 +1,8 @@
 ---
 title: Generating a fine-grained access token
 description: Guide on how to generated an authentication token for GitHub.
-created: 2005-05-25T00:00:00+02:00
-date: 2025-05-11T17:35:24+02:00
+created: 2005-05-25T00:00:00Z+0200
+date: 2025-05-15T08:57:29Z+0200
 publish: true
 ---
 
