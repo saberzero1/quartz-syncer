@@ -22,6 +22,14 @@ button:disabled {
 	margin-left: 10px;
 }
 
+.quartz-syncer-settings-enabled
+	> .setting-item-info
+	> .setting-item-name:after {
+	content: " (plugin enabled)";
+	color: var(--color-green, #08b94e);
+	font-weight: bold;
+}
+
 .quartz-syncer-settings-disabled > .setting-item-info > .setting-item-name {
 	color: var(--color-red, #e92147);
 }
@@ -36,6 +44,14 @@ button:disabled {
 
 .quartz-syncer-settings-disabled > .setting-item-control > .checkbox-container {
 	background-color: var(--color-red, #e92147);
+}
+
+.quartz-syncer-settings-upcoming
+	> .setting-item-info
+	> .setting-item-name:after {
+	content: " (plugin support upcoming)";
+	color: var(--color-orange, #ec7500);
+	font-weight: bold;
 }
 
 .quartz-syncer-settings > h1,

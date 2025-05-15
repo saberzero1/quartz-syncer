@@ -35,6 +35,7 @@ export class GithubSettings {
 		this.initializeUsePermalinkSetting();
 		this.initializePluginIntegrationHeader();
 		this.initializeDataviewSetting();
+		this.initializeExcalidrawSetting();
 	}
 
 	initializeGitHubHeader = () => {
@@ -329,7 +330,11 @@ export class GithubSettings {
 					}),
 			)
 			.setClass(
-				`${dataviewEnabled ? "" : "quartz-syncer-settings-disabled"}`,
+				`${
+					dataviewEnabled
+						? "quartz-syncer-settings-enabled"
+						: "quartz-syncer-settings-disabled"
+				}`,
 			);
 	}
 
@@ -342,11 +347,13 @@ export class GithubSettings {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.settings.settings.useExcalidraw)
+					.setValue(false)
 					.setDisabled(true)
 					.onChange(async (value) => {
 						this.settings.settings.useExcalidraw = value;
 						await this.checkConnectionAndSaveSettings();
 					}),
-			);
+			)
+			.setClass("quartz-syncer-settings-upcoming");
 	}
 }
