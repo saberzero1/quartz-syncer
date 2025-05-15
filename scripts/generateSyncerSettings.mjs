@@ -25,9 +25,7 @@ const quartzSettings = {
 	showCreatedTimestamp: true,
 	createdTimestampKey: "created",
 	showUpdatedTimestamp: true,
-	updatedTimestampKey: "modified",
-	showPublishedTimestamp: false,
-	publishedTimestampKey: "published",
+	updatedTimestampKey: "date",
 	timestampFormat: "MMM dd, yyyy h:mm a",
 
 	pathRewriteRules: `

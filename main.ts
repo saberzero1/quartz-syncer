@@ -21,12 +21,10 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	vaultPath: "/",
 
 	// Timestamp related settings
-	showCreatedTimestamp: true,
+	showCreatedTimestamp: false,
 	createdTimestampKey: "created",
-	showUpdatedTimestamp: true,
-	updatedTimestampKey: "modified",
-	showPublishedTimestamp: false,
-	publishedTimestampKey: "published",
+	showUpdatedTimestamp: false,
+	updatedTimestampKey: "date",
 	timestampFormat: "MMM dd, yyyy h:mm a",
 
 	pathRewriteRules: "",
