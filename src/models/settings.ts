@@ -16,6 +16,7 @@ export default interface QuartzSyncerSettings {
 	slugifyEnabled: boolean;
 
 	contentFolder: string;
+	vaultPath: string;
 
 	showCreatedTimestamp: boolean;
 	createdTimestampKey: string;
@@ -31,6 +32,10 @@ export default interface QuartzSyncerSettings {
 	pathRewriteRules: string;
 	customFilters: Array<{ pattern: string; flags: string; replace: string }>;
 	contentClassesKey: string;
+
+	usePermalink: boolean;
+
+	publishFrontmatterKey: string;
 
 	defaultNoteSettings: {
 		HomeLink: boolean;

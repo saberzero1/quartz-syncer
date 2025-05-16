@@ -27,6 +27,8 @@ import {
 	BLOCKREF_REGEX,
 	TRANSCLUDED_SVG_REGEX,
 	DATAVIEW_LINK_TARGET_BLANK_REGEX,
+	TRANSCLUDED_FILE_REGEX,
+	FILE_REGEX,
 } from "../utils/regexes";
 import Logger from "js-logger";
 import { DataviewCompiler } from "./DataviewCompiler";
@@ -40,7 +42,7 @@ export interface Asset {
 	remoteHash?: string;
 }
 export interface Assets {
-	images: Array<Asset>;
+	blobs: Array<Asset>;
 }
 
 export type TCompiledFile = [string, Assets];
@@ -57,8 +59,7 @@ export class SyncerPageCompiler {
 	private excalidrawCompiler: ExcalidrawCompiler;
 	private metadataCache: MetadataCache;
 	private readonly getFilesMarkedForPublishing: Publisher["getFilesMarkedForPublishing"];
-
-	private rewriteRules: PathRewriteRule[];
+	private rewriteRule: PathRewriteRule;
 
 	constructor(
 		vault: Vault,
@@ -71,7 +72,7 @@ export class SyncerPageCompiler {
 		this.metadataCache = metadataCache;
 		this.getFilesMarkedForPublishing = getFilesMarkedForPublishing;
 		this.excalidrawCompiler = new ExcalidrawCompiler(vault);
-		this.rewriteRules = getRewriteRules(this.settings.pathRewriteRules);
+		this.rewriteRule = getRewriteRules(this.settings.vaultPath);
 	}
 
 	runCompilerSteps =
@@ -88,7 +89,7 @@ export class SyncerPageCompiler {
 		};
 
 	async generateMarkdown(file: PublishFile): Promise<TCompiledFile> {
-		const assets: Assets = { images: [] };
+		const assets: Assets = { blobs: [] };
 
 		const vaultFileText = await file.cachedRead();
 
@@ -104,7 +105,6 @@ export class SyncerPageCompiler {
 		// ORDER MATTERS!
 		const COMPILE_STEPS: TCompilerStep[] = [
 			this.convertFrontMatter,
-			this.convertCustomFilters,
 			this.createBlockIDs,
 			this.createTranscludedText(0),
 			this.convertDataViews,
@@ -112,6 +112,7 @@ export class SyncerPageCompiler {
 			this.removeObsidianComments,
 			this.createSvgEmbeds,
 			this.linkTargeting,
+			this.applyVaultPath,
 		];
 
 		const compiledText = await this.runCompilerSteps(
@@ -119,26 +120,34 @@ export class SyncerPageCompiler {
 			COMPILE_STEPS,
 		)(vaultFileText);
 
-		const [text, images] = await this.convertImageLinks(file)(compiledText);
+		const [text, blobs] = await this.convertFileLinks(file)(compiledText);
 
-		return [text, { images }];
+		return [text, { blobs }];
 	}
 
-	convertCustomFilters: TCompilerStep = () => (text) => {
-		for (const filter of this.settings.customFilters) {
+	applyVaultPath: TCompilerStep = () => (text) => {
+		const wikilinkRegex = new RegExp(
+			"\\[\\[" + this.settings.vaultPath + "(.*?)\\]\\]",
+			"g",
+		);
+
+		const markdownLinkRegex = new RegExp(
+			"\\[(.*?)\\]\\(" + this.settings.vaultPath + "(.*?)\\)",
+			"g",
+		);
+
+		if (this.settings.vaultPath !== "/" && this.settings.vaultPath !== "") {
 			try {
-				text = text.replace(
-					RegExp(filter.pattern, filter.flags),
-					filter.replace,
-				);
+				text = text.replace(wikilinkRegex, "[[$1]]");
+				text = text.replace(markdownLinkRegex, "[$1]($2)");
 			} catch (e) {
 				Logger.error(
-					`Invalid regex: ${filter.pattern} ${filter.flags}`,
+					`Error while applying vault path to text: ${text}. Error: ${e}`,
 				);
 
 				// TODO: validate in settings
 				new Notice(
-					`Your custom filters contains an invalid regex: ${filter.pattern}. Skipping it.`,
+					`Your custom filters contains an invalid regex. Skipping it.`,
 				);
 			}
 		}
@@ -352,7 +361,10 @@ export class SyncerPageCompiler {
 							const refBlock =
 								transclusionFileName.split("#^")[1];
 
-							sectionID = `#${slugify(refBlock)}`;
+							sectionID = `#${slugify(refBlock, {
+								separator: "-",
+								lowercase: false,
+							})}`;
 
 							const blockInFile =
 								publishLinkedFile.getBlock(refBlock);
@@ -374,14 +386,23 @@ export class SyncerPageCompiler {
 
 							// This is to mitigate the issue where the header matching doesn't work properly with headers with special characters (e.g. :)
 							// Obsidian's autocomplete for transclusion omits such charcters which leads to full page transclusion instead of just the heading
-							const headerSlug = slugify(refHeader);
+							const headerSlug = slugify(refHeader, {
+								separator: "-",
+								lowercase: false,
+							});
 
 							const headerInFile = metadata?.headings?.find(
 								(header) =>
-									slugify(header.heading) === headerSlug,
+									slugify(header.heading, {
+										separator: "-",
+										lowercase: false,
+									}) === headerSlug,
 							);
 
-							sectionID = `#${slugify(refHeader)}`;
+							sectionID = `#${slugify(refHeader, {
+								separator: "-",
+								lowercase: false,
+							})}`;
 
 							if (headerInFile && metadata?.headings) {
 								const headerPosition =
@@ -419,7 +440,7 @@ export class SyncerPageCompiler {
 
 						// Apply custom filters to transclusion
 						fileText =
-							await this.convertCustomFilters(publishLinkedFile)(
+							await this.applyVaultPath(publishLinkedFile)(
 								fileText,
 							);
 
@@ -446,14 +467,31 @@ export class SyncerPageCompiler {
 								metadata?.frontmatter &&
 								metadata.frontmatter["permalink"];
 
-							const quartzPath = permalink
+							const quartzPathFull = permalink
 								? sanitizePermalink(permalink)
-								: `/${generateUrlPath(
-										getSyncerPathForNote(
-											linkedFile.path,
-											this.rewriteRules,
+								: sanitizePermalink(
+										generateUrlPath(
+											getSyncerPathForNote(
+												linkedFile.path,
+												this.rewriteRule,
+											),
 										),
-								  )}`;
+								  );
+
+							let quartzPath = quartzPathFull.endsWith("/")
+								? quartzPathFull.slice(0, -1)
+								: quartzPathFull;
+
+							if (
+								this.settings.vaultPath !== "/" &&
+								this.settings.vaultPath !== ""
+							) {
+								quartzPath = quartzPath.replace(
+									this.settings.vaultPath,
+									"",
+								);
+							}
+
 							embedded_link = `<a class="markdown-embed-link" href="${quartzPath}${sectionID}" aria-label="Open link"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svg-icon lucide-link"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg></a>`;
 						}
 
@@ -500,13 +538,13 @@ export class SyncerPageCompiler {
 		if (transcludedSvgs) {
 			for (const svg of transcludedSvgs) {
 				try {
-					const [imageName, size] = svg
+					const [blobName, size] = svg
 						.substring(svg.indexOf("[") + 2, svg.indexOf("]"))
 						.split("|");
-					const imagePath = getLinkpath(imageName);
+					const blobPath = getLinkpath(blobName);
 
 					const linkedFile = this.metadataCache.getFirstLinkpathDest(
-						imagePath,
+						blobPath,
 						file.getPath(),
 					);
 
@@ -531,26 +569,26 @@ export class SyncerPageCompiler {
 			}
 		}
 
-		//!()[image.svg]
+		//!()[blob.svg]
 		const linkedSvgRegex = /!\[(.*?)\]\((.*?)(\.(svg))\)/g;
 		const linkedSvgMatches = text.match(linkedSvgRegex);
 
 		if (linkedSvgMatches) {
 			for (const svg of linkedSvgMatches) {
 				try {
-					const [_imageName, size] = svg
+					const [_blobName, size] = svg
 						.substring(svg.indexOf("[") + 2, svg.indexOf("]"))
 						.split("|");
 					const pathStart = svg.lastIndexOf("(") + 1;
 					const pathEnd = svg.lastIndexOf(")");
-					const imagePath = svg.substring(pathStart, pathEnd);
+					const blobPath = svg.substring(pathStart, pathEnd);
 
-					if (imagePath.startsWith("http")) {
+					if (blobPath.startsWith("http")) {
 						continue;
 					}
 
 					const linkedFile = this.metadataCache.getFirstLinkpathDest(
-						imagePath,
+						blobPath,
 						file.getPath(),
 					);
 
@@ -573,45 +611,40 @@ export class SyncerPageCompiler {
 		return text;
 	};
 
-	extractImageLinks = async (file: PublishFile) => {
+	extractBlobLinks = async (file: PublishFile) => {
 		const text = await file.cachedRead();
 		const assets = [];
 
-		//![[image.png]]
-		const transcludedImageRegex =
-			/!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\|(.*?)\]\]|!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\]\]/g;
-		const transcludedImageMatches = text.match(transcludedImageRegex);
+		//![[blob.png]]
+		const transcludedBlobMatches = text.match(TRANSCLUDED_FILE_REGEX);
 
-		if (transcludedImageMatches) {
-			for (let i = 0; i < transcludedImageMatches.length; i++) {
+		if (transcludedBlobMatches) {
+			for (let i = 0; i < transcludedBlobMatches.length; i++) {
 				try {
-					const imageMatch = transcludedImageMatches[i];
+					const blobMatch = transcludedBlobMatches[i];
 
-					const [imageName, _] = imageMatch
+					const [blobName, _] = blobMatch
 						.substring(
-							imageMatch.indexOf("[") + 2,
-							imageMatch.indexOf("]"),
+							blobMatch.indexOf("[") + 2,
+							blobMatch.indexOf("]"),
 						)
 						.split("|");
 
 					let previous;
-					let actualImageName = imageName;
+					let actualBlobName = blobName;
 
 					do {
-						previous = actualImageName;
+						previous = actualBlobName;
 
-						actualImageName = actualImageName.replace(
-							/\.\.\//g,
-							"",
-						);
-					} while (actualImageName !== previous);
+						actualBlobName = actualBlobName.replace(/\.\.\//g, "");
+					} while (actualBlobName !== previous);
 
-					const actualImagePath = actualImageName;
+					const actualBlobPath = actualBlobName;
 
-					const imagePath = getLinkpath(actualImagePath);
+					const blobPath = getLinkpath(actualBlobPath);
 
 					const linkedFile = this.metadataCache.getFirstLinkpathDest(
-						imagePath,
+						blobPath,
 						file.getPath(),
 					);
 
@@ -626,36 +659,35 @@ export class SyncerPageCompiler {
 			}
 		}
 
-		//![](image.png)
-		const imageRegex = /!\[(.*?)\]\((.*?)(\.(png|jpg|jpeg|gif|webp))\)/g;
-		const imageMatches = text.match(imageRegex);
+		//![](blob.png)
+		const blobMatches = text.match(FILE_REGEX);
 
-		if (imageMatches) {
-			for (let i = 0; i < imageMatches.length; i++) {
+		if (blobMatches) {
+			for (let i = 0; i < blobMatches.length; i++) {
 				try {
-					const imageMatch = imageMatches[i];
+					const blobMatch = blobMatches[i];
 
-					const pathStart = imageMatch.lastIndexOf("(") + 1;
-					const pathEnd = imageMatch.lastIndexOf(")");
-					let imagePath = imageMatch.substring(pathStart, pathEnd);
+					const pathStart = blobMatch.lastIndexOf("(") + 1;
+					const pathEnd = blobMatch.lastIndexOf(")");
+					let blobPath = blobMatch.substring(pathStart, pathEnd);
 
-					if (imagePath.startsWith("http")) {
+					if (blobPath.startsWith("http")) {
 						continue;
 					}
 
 					let previous;
 
 					do {
-						previous = imagePath;
-						imagePath = imagePath.replace(/\.\.\//g, "");
-					} while (imagePath !== previous);
+						previous = blobPath;
+						blobPath = blobPath.replace(/\.\.\//g, "");
+					} while (blobPath !== previous);
 
-					const actualImagePath = imagePath;
+					const actualBlobPath = blobPath;
 
-					const decodedImagePath = decodeURI(actualImagePath);
+					const decodedBlobPath = decodeURI(actualBlobPath);
 
 					const linkedFile = this.metadataCache.getFirstLinkpathDest(
-						decodedImagePath,
+						decodedBlobPath,
 						file.getPath(),
 					);
 
@@ -673,31 +705,29 @@ export class SyncerPageCompiler {
 		return assets;
 	};
 
-	convertImageLinks =
+	convertFileLinks =
 		(file: PublishFile) =>
 		async (text: string): Promise<[string, Array<Asset>]> => {
 			const filePath = file.getPath();
 			const assets = [];
 
-			let imageText = text;
+			let blobText = text;
 
-			//![[image.png]]
-			const transcludedImageRegex =
-				/!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\|(.*?)\]\]|!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp))\]\]/g;
-			const transcludedImageMatches = text.match(transcludedImageRegex);
+			//![[blob.png]]
+			const transcludedBlobMatches = text.match(TRANSCLUDED_FILE_REGEX);
 
-			if (transcludedImageMatches) {
-				for (let i = 0; i < transcludedImageMatches.length; i++) {
+			if (transcludedBlobMatches) {
+				for (let i = 0; i < transcludedBlobMatches.length; i++) {
 					try {
-						const imageMatch = transcludedImageMatches[i];
+						const blobMatch = transcludedBlobMatches[i];
 
-						//Alt 1: [image.png|100]
-						//Alt 2: [image.png|meta1 meta2|100]
-						//Alt 3: [image.png|meta1 meta2]
-						const [imageName, ...metaDataAndSize] = imageMatch
+						//Alt 1: [blob.png|100]
+						//Alt 2: [blob.png|meta1 meta2|100]
+						//Alt 3: [blob.png|meta1 meta2]
+						const [blobName, ...metaDataAndSize] = blobMatch
 							.substring(
-								imageMatch.indexOf("[") + 2,
-								imageMatch.indexOf("]"),
+								blobMatch.indexOf("[") + 2,
+								blobMatch.indexOf("]"),
 							)
 							.split("|");
 
@@ -719,33 +749,43 @@ export class SyncerPageCompiler {
 						const metaDataIsMiddleValues =
 							metaDataAndSize.length > 1;
 
-						//Alt 2: [image.png|meta1 meta2|100]
+						//Alt 2: [blob.png|meta1 meta2|100]
 						if (metaDataIsMiddleValues) {
 							metaData = metaDataAndSize
 								.slice(0, metaDataAndSize.length - 1)
 								.join(" ");
 						}
 
-						//Alt 2: [image.png|meta1 meta2]
+						//Alt 2: [blob.png|meta1 meta2]
 						if (lastValueIsMetaData) {
 							metaData = `${lastValue}`;
 						}
 
-						const imagePath = getLinkpath(imageName);
+						const blobPath = getLinkpath(blobName);
 
 						const linkedFile =
 							this.metadataCache.getFirstLinkpathDest(
-								imagePath,
+								blobPath,
 								filePath,
 							);
 
 						if (!linkedFile) {
 							continue;
 						}
-						const image = await this.vault.readBinary(linkedFile);
-						const imageBase64 = arrayBufferToBase64(image);
+						const blob = await this.vault.readBinary(linkedFile);
+						const blobBase64 = arrayBufferToBase64(blob);
 
 						let relativeEmbedPrefix = "";
+
+						const embedDepthVaultPath =
+							this.settings.vaultPath !== "/" &&
+							this.settings.vaultPath !== ""
+								? this.settings.vaultPath.split("/").length - 1
+								: 0;
+
+						const embedPrefixVaultPath =
+							"../".repeat(embedDepthVaultPath) +
+							this.settings.vaultPath;
 
 						for (
 							let i = 0;
@@ -755,78 +795,77 @@ export class SyncerPageCompiler {
 							relativeEmbedPrefix += "../";
 						}
 
-						const cmsImgPath = `${relativeEmbedPrefix}${linkedFile.path}`;
+						const cmsImgPath =
+							embedDepthVaultPath === 0
+								? `${relativeEmbedPrefix}${linkedFile.path}`
+								: `${relativeEmbedPrefix}${linkedFile.path}`.replace(
+										embedPrefixVaultPath,
+										"",
+								  );
 						let name = "";
 
 						if (metaData && size) {
-							name = `${imageName}|${metaData}|${size}`;
+							name = `|${metaData}|${size}`;
 						} else if (size) {
-							name = `${imageName}|${size}`;
+							name = `|${size}`;
 						} else if (metaData && metaData !== "") {
-							name = `${imageName}|${metaData}`;
+							name = `|${metaData}`;
 						} else {
-							name = imageName;
+							name = "";
 						}
 
-						const imageMarkdown = `![${name}](${encodeURI(
-							cmsImgPath,
-						)})`;
+						const blobMarkdown = `![[${cmsImgPath}${name}]]`;
 
-						assets.push({ path: cmsImgPath, content: imageBase64 });
+						assets.push({ path: cmsImgPath, content: blobBase64 });
 
-						imageText = imageText.replace(
-							imageMatch,
-							imageMarkdown,
-						);
+						blobText = blobText.replace(blobMatch, blobMarkdown);
 					} catch (e) {
 						continue;
 					}
 				}
 			}
 
-			//![](image.png)
-			const imageRegex =
-				/!\[(.*?)\]\((.*?)(\.(png|jpg|jpeg|gif|webp))\)/g;
-			const imageMatches = text.match(imageRegex);
+			//![](blob.png)
+			const blobMatches = text.match(FILE_REGEX);
 
-			if (imageMatches) {
-				for (let i = 0; i < imageMatches.length; i++) {
+			if (blobMatches) {
+				for (let i = 0; i < blobMatches.length; i++) {
 					try {
-						const imageMatch = imageMatches[i];
+						const blobMatch = blobMatches[i];
 
-						const nameStart = imageMatch.indexOf("[") + 1;
-						const nameEnd = imageMatch.indexOf("]");
+						const nameStart = blobMatch.indexOf("[") + 1;
+						const nameEnd = blobMatch.indexOf("]");
 
-						const imageName = imageMatch.substring(
+						const blobName = blobMatch.substring(
 							nameStart,
 							nameEnd,
 						);
 
-						const pathStart = imageMatch.lastIndexOf("(") + 1;
-						const pathEnd = imageMatch.lastIndexOf(")");
+						const pathStart = blobMatch.lastIndexOf("(") + 1;
+						const pathEnd = blobMatch.lastIndexOf(")");
 
-						const imagePath = imageMatch.substring(
+						const blobPath = blobMatch.substring(
 							pathStart,
 							pathEnd,
 						);
 
-						if (imagePath.startsWith("http")) {
+						if (blobPath.startsWith("http")) {
 							continue;
 						}
 
-						const decodedImagePath = decodeURI(imagePath);
+						const decodedBlobPath = decodeURI(blobPath);
 
 						const linkedFile =
 							this.metadataCache.getFirstLinkpathDest(
-								decodedImagePath,
+								decodedBlobPath,
 								filePath,
 							);
 
 						if (!linkedFile) {
 							continue;
 						}
-						const image = await this.vault.readBinary(linkedFile);
-						const imageBase64 = arrayBufferToBase64(image);
+						const blob = await this.vault.readBinary(linkedFile);
+						const blobBase64 = arrayBufferToBase64(blob);
 
 						let relativeEmbedPrefix = "";
 
@@ -839,20 +878,17 @@ export class SyncerPageCompiler {
 						}
 
 						const cmsImgPath = `${relativeEmbedPrefix}${linkedFile.path}`;
-						const imageMarkdown = `![${imageName}](${cmsImgPath})`;
-						assets.push({ path: cmsImgPath, content: imageBase64 });
+						const blobMarkdown = `![${blobName}](${cmsImgPath})`;
+						assets.push({ path: cmsImgPath, content: blobBase64 });
 
-						imageText = imageText.replace(
-							imageMatch,
-							imageMarkdown,
-						);
+						blobText = blobText.replace(blobMatch, blobMarkdown);
 					} catch {
 						continue;
 					}
 				}
 			}
 
-			return [imageText, assets];
+			return [blobText, assets];
 		};
 
 	generateTransclusionHeader(
