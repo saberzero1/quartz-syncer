@@ -1,8 +1,8 @@
 ---
 title: Quartz
 description: Documentation related to Quartz.
-created: 2004-05-25T00:00:00+02:00
-date: 2025-05-11T17:35:59+02:00
+created: 2025-05-05T00:00:00Z+0200
+date: 2025-05-15T08:57:29Z+0200
 publish: true
 ---
 

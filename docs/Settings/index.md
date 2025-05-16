@@ -1,10 +1,18 @@
 ---
 title: Settings
 description: Overview of all settings.
-created: 2025-05-07T22:37:11+02:00
-date: 2025-05-08T08:42:41+02:00
+created: 2025-05-07T22:37:11Z+0200
+date: 2025-05-15T08:57:29Z+0200
 publish: true
 ---
+
+```dataview
+TABLE WITHOUT ID link(file.link, file.frontmatter.title) AS Category, file.frontmatter.description AS Description
+WHERE startswith(file.folder, this.file.folder)
+WHERE file != this.file
+WHERE file.name = "index"
+SORT file.frontmatter.title ASC
+```
 
 ## GitHub (check connection)
 
