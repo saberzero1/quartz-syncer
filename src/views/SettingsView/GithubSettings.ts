@@ -260,6 +260,10 @@ export class GithubSettings {
 					.setPlaceholder("quartz")
 					.setValue(this.settings.settings.githubRepo)
 					.onChange(async (value) => {
+						if (value.length === 0) {
+							value = "quartz";
+						}
+					
 						this.settings.settings.githubRepo = value;
 						await this.checkConnectionAndSaveSettings();
 					}),
