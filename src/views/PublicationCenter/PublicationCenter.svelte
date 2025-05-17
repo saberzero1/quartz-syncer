@@ -101,7 +101,7 @@
 		publishStatus &&
 		filePathsToTree(
 			publishStatus.changedNotes.map((note) => note.getVaultPath()),
-			"Changed Notes",
+			"Changed notes",
 		);
 
 	$: deletedNoteTree =
@@ -111,7 +111,7 @@
 				...publishStatus.deletedNotePaths,
 				...publishStatus.deletedBlobPaths,
 			].map((path) => path.path),
-			"Unchanged Notes (select to unpublish)",
+			"Unchanged notes (select to unpublish)",
 		);
 
 	$: unpublishedNoteTree =

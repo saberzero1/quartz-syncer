@@ -24,10 +24,7 @@ export default interface QuartzSyncerSettings {
 
 	timestampFormat: string;
 
-	timestampFormat: string;
-
 	pathRewriteRules: string;
-	customFilters: Array<{ pattern: string; flags: string; replace: string }>;
 
 	usePermalink: boolean;
 

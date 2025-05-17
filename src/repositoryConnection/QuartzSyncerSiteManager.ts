@@ -60,8 +60,7 @@ export default class QuartzSyncerSiteManager {
 			SHOW_CREATED_TIMESTAMP: this.settings.showCreatedTimestamp,
 			SHOW_UPDATED_TIMESTAMP: this.settings.showUpdatedTimestamp,
 			SHOW_PUBLISHED_TIMESTAMP: this.settings.showPublishedTimestamp,
-			STYLE_SETTINGS_CSS: this.settings.styleSettingsCss,
-			STYLE_SETTINGS_BODY_CLASSES: this.settings.styleSettingsBodyClasses,
+			TIMESTAMP_FORMAT: this.settings.timestampFormat,
 			USE_FULL_RESOLUTION_IMAGES: this.settings.useFullResolutionImages,
 		} as Record<string, string | boolean>;
 
