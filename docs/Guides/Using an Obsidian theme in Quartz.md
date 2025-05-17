@@ -2,7 +2,7 @@
 title: Using an Obsidian theme in Quartz
 description: Guide on how to use Quartz Themes to use an Obsidian theme in Quartz.
 created: 2025-05-16T11:05:44Z+0200
-date: 2025-05-16T12:46:02Z+0200
+modified: 2025-05-17T18:47:50Z+0200
 publish: true
 ---
 
