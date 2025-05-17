@@ -6,7 +6,6 @@ import {
 	TRepositoryContent,
 } from "./RepositoryConnection";
 import Logger from "js-logger";
-import { TemplateUpdateChecker } from "./TemplateManager";
 
 const logger = Logger.get("quartz-syncer-site-manager");
 export interface PathRewriteRule {
@@ -35,7 +34,6 @@ export default class QuartzSyncerSiteManager {
 	baseSyncerConnection: RepositoryConnection;
 	userSyncerConnection: RepositoryConnection;
 
-	templateUpdater: TemplateUpdateChecker;
 	constructor(metadataCache: MetadataCache, settings: QuartzSyncerSettings) {
 		this.settings = settings;
 		this.metadataCache = metadataCache;
@@ -54,11 +52,6 @@ export default class QuartzSyncerSiteManager {
 			quartzRepository: settings.githubRepo,
 			contentFolder: settings.contentFolder,
 			vaultPath: settings.vaultPath,
-		});
-
-		this.templateUpdater = new TemplateUpdateChecker({
-			baseSyncerConnection: this.baseSyncerConnection,
-			userSyncerConnection: this.userSyncerConnection,
 		});
 	}
 
