@@ -30,11 +30,16 @@ export class GithubSettings {
 
 		this.initializeQuartzHeader();
 		this.initializeQuartzContentFolder();
-		this.initializePublishFrontmatterKeySetting();
 		this.initializeUseFullImageResolutionSetting();
+
+		this.initializeFrontmatterHeader();
+		this.initializePublishFrontmatterKeySetting();
 		this.initializeShowCreatedTimestampSetting();
 		this.initializeShowUpdatedTimestampSetting();
-		this.initializeUsePermalinkSetting();
+		this.initializeShowPublishedTimestampSetting();
+		this.initializeEnablePermalinkSetting();
+		this.initializeIncludeAllFrontmatterSetting();
+
 		this.initializePluginIntegrationHeader();
 		this.initializeDataviewSetting();
 		this.initializeExcalidrawSetting();
@@ -64,6 +69,18 @@ export class GithubSettings {
 		);
 
 		this.settingsRootElement.append(quartzSettingsHeader);
+	};
+
+	initializeFrontmatterHeader = () => {
+		this.connectionStatusElement.style.cssText = "margin-left: 10px;";
+
+		const frontmatterHeader = createEl("h3", {
+			text: "Note Properties (Frontmatter)",
+		});
+
+		frontmatterHeader.prepend(this.settings.getIcon("archive"));
+
+		this.settingsRootElement.append(frontmatterHeader);
 	};
 
 	initializePluginIntegrationHeader = () => {
@@ -148,7 +165,7 @@ export class GithubSettings {
 	private initializeShowCreatedTimestampSetting() {
 		new Setting(this.settingsRootElement)
 			.setName("Include created timestamp")
-			.setDesc("Include the created timestamp in your note's frontmatter")
+			.setDesc("Include the created timestamp in your note's properties.")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.settings.settings.showCreatedTimestamp)
@@ -171,7 +188,7 @@ export class GithubSettings {
 		new Setting(this.settingsRootElement)
 			.setName("Include modified timestamp")
 			.setDesc(
-				"Include the modified timestamp in your note's frontmatter",
+				"Include the modified timestamp in your note's properties.",
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -191,9 +208,50 @@ export class GithubSettings {
 			);
 	}
 
-	private initializeUsePermalinkSetting() {
+	private initializeShowPublishedTimestampSetting() {
 		new Setting(this.settingsRootElement)
-			.setName("Always generate permalinks")
+			.setName("Include published timestamp")
+			.setDesc(
+				"Include the published timestamp in your note's properties.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.settings.settings.showPublishedTimestamp)
+					.setDisabled(this.settings.settings.includeAllFrontmatter)
+					.onChange(async (value) => {
+						this.settings.settings.showPublishedTimestamp = value;
+						await this.checkConnectionAndSaveSettings();
+					}),
+			)
+			.setClass(
+				`${
+					this.settings.settings.includeAllFrontmatter
+						? "quartz-syncer-settings-overridden"
+						: "quartz-syncer-settings-overridable"
+				}`,
+			);
+	}
+
+	private initializeIncludeAllFrontmatterSetting() {
+		new Setting(this.settingsRootElement)
+			.setName("Include all properties")
+			.setDesc(
+				"Include all note properties in the Quartz Syncer note. Enabling this will overrides other property settings to include all properties keys and values.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.settings.settings.includeAllFrontmatter)
+					.onChange(async (value) => {
+						this.settings.settings.includeAllFrontmatter = value;
+						await this.checkConnectionAndSaveSettings();
+					}),
+			)
+			.setClass("quartz-syncer-settings-overrider");
+	}
+
+	private initializeEnablePermalinkSetting() {
+		new Setting(this.settingsRootElement)
+			.setName("Enable permalinks")
 			.setDesc(
 				"Use the note's permalink as the Quartz note's URL if \"permalink\" is not in the frontmatter. This will override the default Quartz URL.",
 			)
@@ -250,7 +308,7 @@ export class GithubSettings {
 		new Setting(this.settingsRootElement)
 			.setName("Publish key")
 			.setDesc(
-				'Frontmatter key used to mark a note as eligible to publish. Quartz Syncer will ignore all notes without this frontmatter key. By default "publish".',
+				'Note property key used to mark a note as eligible to publish. Quartz Syncer will ignore all notes without this property. By default "publish".',
 			)
 			.addText((text) =>
 				text

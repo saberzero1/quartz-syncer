@@ -26,32 +26,64 @@ button:disabled {
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " (plugin enabled)";
-	color: var(--color-green, #08b94e);
+	color: var(--text-success, var(--color-green, green));
 	font-weight: bold;
 }
 
 .quartz-syncer-settings-disabled > .setting-item-info > .setting-item-name {
-	color: var(--color-red, #e92147);
+	color: var(--text-error, var(--color-red, red));
 }
 
 .quartz-syncer-settings-disabled
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " (plugin disabled)";
-	color: var(--color-red, #e92147);
+	color: var(--text-error, var(--color-red, red));
 	font-weight: bold;
 }
 
 .quartz-syncer-settings-disabled > .setting-item-control > .checkbox-container {
-	background-color: var(--color-red, #e92147);
+	background-color: var(--text-error, var(--color-red, red));
 }
 
 .quartz-syncer-settings-upcoming
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " (plugin support upcoming)";
-	color: var(--color-orange, #ec7500);
+	color: var(--text-warning, var(--color-orange, orange));
 	font-weight: bold;
+}
+
+.quartz-syncer-settings-overridable
+	> .setting-item-info
+	> .setting-item-name:after {
+	content: " *";
+	color: var(--text-warning, var(--color-orange, orange));
+}
+
+.quartz-syncer-settings-overrider
+	> .setting-item-info
+	> .setting-item-name:after {
+	content: " (enabling this setting will override marked settings (*))";
+	color: var(--text-warning, var(--color-orange, orange));
+	font-weight: bold;
+}
+
+.quartz-syncer-settings-overridden {
+	color: var(--text-muted, grey);
+}
+
+.quartz-syncer-settings-overridden
+	> .setting-item-control
+	> .setting-item-control {
+	display: none;
+}
+
+.quartz-syncer-settings-overridden
+	> .setting-item-info
+	> .setting-item-name:after {
+	content: " (setting overridden)";
+	color: var(--text-warning, var(--color-orange, orange));
 }
 
 .quartz-syncer-settings > h1,

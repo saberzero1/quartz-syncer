@@ -83,8 +83,8 @@ function sanitizePermalink(permalink: string): string {
 		permalink.slice(0, -1);
 	}
 
-	if (!permalink.startsWith("/")) {
-		permalink = "/" + permalink;
+	if (permalink.startsWith("/")) {
+		permalink = permalink.substring(1);
 	}
 
 	return permalink;

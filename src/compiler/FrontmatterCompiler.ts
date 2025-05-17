@@ -1,10 +1,5 @@
 import { FrontMatterCache } from "obsidian";
-import {
-	getSyncerPathForNote,
-	sanitizePermalink,
-	generateUrlPath,
-	getRewriteRules,
-} from "../utils/utils";
+import { sanitizePermalink } from "../utils/utils";
 import QuartzSyncerSettings from "../models/settings";
 import { PublishFile } from "../publishFile/PublishFile";
 
@@ -71,13 +66,8 @@ export class FrontmatterCompiler {
 			publishedFrontMatter,
 		);
 
-		publishedFrontMatter = this.addTimestampsFrontmatter(file)(
-			fileFrontMatter,
-			publishedFrontMatter,
-		);
-
-		const fullFrontMatter = publishedFrontMatter?.PassFrontmatter
-			? { ...fileFrontMatter, ...publishedFrontMatter }
+		const fullFrontMatter = this.settings.includeAllFrontmatter
+			? { ...publishedFrontMatter, ...fileFrontMatter }
 			: publishedFrontMatter;
 
 		const frontMatterString = JSON.stringify(fullFrontMatter);
@@ -204,14 +194,35 @@ export class FrontmatterCompiler {
 				publishedFrontMatter["tags"] = tags;
 			}
 
+			if (fileFrontMatter["tag"] !== undefined) {
+				if (typeof fileFrontMatter["tag"] === "string") {
+					publishedFrontMatter["tags"] = [
+						...(publishedFrontMatter["tags"] ?? []),
+						fileFrontMatter["tag"],
+					];
+				} else if (Array.isArray(fileFrontMatter["tag"])) {
+					publishedFrontMatter["tags"] = [
+						...(publishedFrontMatter["tags"] ?? []),
+						...fileFrontMatter["tag"],
+					];
+				}
+			}
+		}
+
 		return publishedFrontMatter;
 	}
 
-	private addContentClasses(
+	/**
+	 * Adds the css classes to the compiled frontmatter if specified in user settings
+	 */
+	private addCSSClasses(
 		baseFrontMatter: TFrontmatter,
 		newFrontMatter: TPublishedFrontMatter,
 	) {
 		const publishedFrontMatter = { ...newFrontMatter };
+
+		publishedFrontMatter["cssclasses"] =
+			publishedFrontMatter["cssclasses"] ?? "";
 
 		if (baseFrontMatter) {
 			if (baseFrontMatter["cssclasses"] !== undefined) {
@@ -262,7 +273,38 @@ export class FrontmatterCompiler {
 	}
 
 	/**
-	 * Adds the css classes to the compiled frontmatter if specified in user settings
+	 * Adds the social image to the compiled frontmatter if specified in user settings
+	 */
+	private addSocialImage(
+		baseFrontMatter: TFrontmatter,
+		newFrontMatter: TPublishedFrontMatter,
+	) {
+		const publishedFrontMatter = { ...newFrontMatter };
+
+		if (baseFrontMatter) {
+			const socialImage =
+				baseFrontMatter["socialImage"] ??
+				baseFrontMatter["image"] ??
+				baseFrontMatter["cover"] ??
+				"";
+
+			const socialDescription =
+				baseFrontMatter["socialDescription"] ?? "";
+
+			if (socialImage && socialImage !== "") {
+				publishedFrontMatter["socialImage"] = socialImage;
+			}
+
+			if (socialDescription && socialDescription !== "") {
+				publishedFrontMatter["socialDescription"] = socialDescription;
+			}
+		}
+
+		return publishedFrontMatter;
+	}
+
+	/**
+	 * Adds the created, updated, and published timestamps to the compiled frontmatter if specified in user settings
 	 */
 	private addTimestampsFrontmatter =
 		(file: PublishFile) =>
@@ -270,50 +312,42 @@ export class FrontmatterCompiler {
 			baseFrontMatter: TFrontmatter,
 			newFrontMatter: TPublishedFrontMatter,
 		) => {
-			//If all note icon settings are disabled, don't change the frontmatter, so that people won't see all their notes as changed in the publication center
-			const { showCreatedTimestamp, showUpdatedTimestamp } =
-				this.settings;
+			const {
+				showCreatedTimestamp,
+				showUpdatedTimestamp,
+				showPublishedTimestamp,
+			} = this.settings;
 
-		publishedFrontMatter["cssclasses"] =
-			publishedFrontMatter["cssclasses"] ?? "";
+			const overridden = this.settings.includeAllFrontmatter;
 
-			if (createdAt && showCreatedTimestamp) {
-				// TODO: add all Quartz options for created date
+			const createdAt = file.meta.getCreatedAt();
+			const updatedAt = file.meta.getUpdatedAt();
+			const publishedAt = file.meta.getPublishedAt();
+
+			if (createdAt && (showCreatedTimestamp || overridden)) {
 				newFrontMatter["created"] =
-					baseFrontMatter["created"] ?? createdAt;
+					baseFrontMatter["created"] ??
+					baseFrontMatter["date"] ??
+					createdAt;
 			}
 
-			if (updatedAt && showUpdatedTimestamp) {
-				// TODO: add all Quartz options for updated date
-				newFrontMatter["updated"] =
-					baseFrontMatter["date"] ?? updatedAt;
+			if (updatedAt && (showUpdatedTimestamp || overridden)) {
+				newFrontMatter["modified"] =
+					baseFrontMatter["modified"] ??
+					baseFrontMatter["lastmod"] ??
+					baseFrontMatter["updated"] ??
+					baseFrontMatter["last-modified"] ??
+					updatedAt;
+			}
+
+			if (publishedAt && (showPublishedTimestamp || overridden)) {
+				newFrontMatter["published"] =
+					baseFrontMatter["published"] ??
+					baseFrontMatter["publishDate"] ??
+					baseFrontMatter["date"] ??
+					updatedAt;
 			}
 
 			return newFrontMatter;
 		};
-
-	private addNoteIconFrontMatter(
-		baseFrontMatter: TFrontmatter,
-		newFrontMatter: TPublishedFrontMatter,
-	) {
-		if (!baseFrontMatter) {
-			baseFrontMatter = {};
-		}
-
-		const publishedFrontMatter = { ...newFrontMatter };
-
-		return publishedFrontMatter;
-	}
-
-	private addFrontMatterSettings(
-		baseFrontMatter: Record<string, unknown>,
-		newFrontMatter: Record<string, unknown>,
-	) {
-		if (!baseFrontMatter) {
-			baseFrontMatter = {};
-		}
-		const publishedFrontMatter = { ...baseFrontMatter, ...newFrontMatter };
-
-		return publishedFrontMatter;
-	}
 }
