@@ -12,21 +12,16 @@ const quartzSettings = {
 	githubUserName:
 		process.env.GITHUB_USERNAME ||
 		"add your username to .env as GITHUB_USERNAME",
-	quartzBaseUrl: process.env.GARDEN_BASE_URL || "http://add-to-env.com",
-	prHistory: [],
-	baseTheme: "dark",
-	theme: '{"name": "default", "modes": ["dark"]}',
-	faviconPath: "",
+
 	useFullResolutionImages: false,
 	noteSettingsIsInitialized: true,
-	siteName: "Quartz Syncer Test Site",
-	mainLanguage: "en",
-	slugifyEnabled: true,
+
 	contentFolder: "content",
 	vaultPath: "/",
 	useDataview: true,
 	useExcalidraw: false,
 	includeAllFrontmatter: false,
+
 	showCreatedTimestamp: true,
 	createdTimestampKey: "created",
 	showUpdatedTimestamp: true,
@@ -34,21 +29,13 @@ const quartzSettings = {
 	showPublishedTimestamp: false,
 	publishedTimestampKey: "published",
 	timestampFormat: "MMM dd, yyyy h:mm a",
-	styleSettingsCss: "",
-	styleSettingsBodyClasses: "",
+
 	pathRewriteRules: `
 Path Rewriting/Subfolder2:fun-folder
 Path Rewriting:
 Subfolder:subfolder-rewritten
 Path Rewriting/Subfolder:this-will-never-hit`,
 	publishFrontmatterKey: "publish",
-	customFilters: [
-		{
-			pattern: "❄️",
-			flags: "g",
-			replace: "🌞",
-		},
-	],
 	usePermalink: true,
 	ENABLE_DEVELOPER_TOOLS: true,
 	devPluginPath: `${process.cwd()}`,

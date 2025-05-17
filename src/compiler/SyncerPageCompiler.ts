@@ -41,6 +41,7 @@ export interface Asset {
 	// not set yet
 	remoteHash?: string;
 }
+
 export interface Assets {
 	blobs: Array<Asset>;
 }

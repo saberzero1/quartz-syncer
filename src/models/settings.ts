@@ -5,15 +5,10 @@ export default interface QuartzSyncerSettings {
 	githubToken: string;
 	githubRepo: string;
 	githubUserName: string;
-	prHistory: string[];
 
 	useFullResolutionImages: boolean;
 
-	siteName: string;
-
 	noteSettingsIsInitialized: boolean;
-
-	slugifyEnabled: boolean;
 
 	contentFolder: string;
 	vaultPath: string;
@@ -29,11 +24,7 @@ export default interface QuartzSyncerSettings {
 
 	timestampFormat: string;
 
-	styleSettingsCss: string;
-	styleSettingsBodyClasses: string;
-
 	pathRewriteRules: string;
-	customFilters: Array<{ pattern: string; flags: string; replace: string }>;
 
 	usePermalink: boolean;
 
