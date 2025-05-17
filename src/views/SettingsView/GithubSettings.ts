@@ -51,7 +51,7 @@ export class GithubSettings {
 		const githubSettingsHeader = createEl("h3", {
 			text: "GitHub",
 		});
-		githubSettingsHeader.appendText(" (Connection status: ");
+		githubSettingsHeader.appendText(" (Connection status:");
 		githubSettingsHeader.append(this.connectionStatusElement);
 		githubSettingsHeader.appendText(")");
 		githubSettingsHeader.prepend(this.settings.getIcon("github"));
@@ -72,8 +72,6 @@ export class GithubSettings {
 	};
 
 	initializeFrontmatterHeader = () => {
-		this.connectionStatusElement.style.cssText = "margin-left: 10px;";
-
 		const frontmatterHeader = createEl("h3", {
 			text: "Note Properties (Frontmatter)",
 		});
@@ -84,8 +82,6 @@ export class GithubSettings {
 	};
 
 	initializePluginIntegrationHeader = () => {
-		this.connectionStatusElement.style.cssText = "margin-left: 10px;";
-
 		const pluginIntegrationHeader = createEl("h3", {
 			text: "Plugin Integration",
 		});
