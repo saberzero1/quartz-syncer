@@ -72,7 +72,6 @@ export class GithubSettings {
 		const pluginIntegrationHeader = createEl("h3", {
 			text: "Plugin Integration",
 		});
-		//pluginIntegrationHeader.append(this.connectionStatusElement);
 
 		pluginIntegrationHeader.prepend(this.settings.getIcon("cable"));
 
@@ -279,7 +278,7 @@ export class GithubSettings {
 						if (value.length === 0) {
 							value = "quartz";
 						}
-					
+
 						this.settings.settings.githubRepo = value;
 						await this.checkConnectionAndSaveSettings();
 					}),

@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	timestampFormat: "MMM dd, yyyy h:mm a",
 
 	pathRewriteRules: "",
+	customFilters: [],
 
 	usePermalink: false,
 

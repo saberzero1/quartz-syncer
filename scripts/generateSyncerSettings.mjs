@@ -38,6 +38,13 @@ Path Rewriting:
 Subfolder:subfolder-rewritten
 Path Rewriting/Subfolder:this-will-never-hit`,
 	publishFrontmatterKey: "publish",
+	customFilters: [
+		{
+			pattern: "❄️",
+			flags: "g",
+			replace: "🌞",
+		},
+	],
 	usePermalink: true,
 	ENABLE_DEVELOPER_TOOLS: true,
 	devPluginPath: `${process.cwd()}`,
