@@ -9,7 +9,7 @@ publish: true
 > [!WARNING] Upcoming feature
 > Configuring Quartz Themes using Quartz Syncer is an upcoming feature. It it not released yet.
 >
-> If you want to use an Obsidian Theme in Quartz right now, see the [Quartz Themes GitHub repository](https://github.com/saberzero1/quartz-themes#installation) for installation instructions.
+> If you want to use an Obsidian theme in Quartz right now, see the [Quartz Themes GitHub repository](https://github.com/saberzero1/quartz-themes#installation) for installation instructions.
 
 ```dataview
 TABLE WITHOUT ID file.link AS Category, file.frontmatter.description AS Description

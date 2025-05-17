@@ -1,8 +1,8 @@
 ---
-title: Properties
-description: Quartz Syncer settings related to Note Properties or Frontmatter.
+title: Note properties (frontmatter)
+description: Quartz Syncer settings related to note properties or frontmatter.
 created: 2025-05-17T15:08:00Z+0200
-date: 2025-05-17T15:09:25Z+0200
+date: 2025-05-17T17:18:28Z+0200
 publish: true
 ---
 
