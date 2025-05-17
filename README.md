@@ -14,11 +14,11 @@ Alternatively, install the plugin by downloading it from the [Release Tab](https
 >
 > For the most up-to-date information on Quartz Syncer, please refer to the [official documentation](https://saberzero1.github.io/quartz-syncer-docs/).
 
-New to Quartz Syncer? please follow the [[Setup Guide|setup guide]] to get started.
+New to Quartz Syncer? please follow the [setup guide](https://saberzero1.github.io/quartz-syncer-docs/Setup-Guide) to get started.
 
 ## Usage
 
-Unsure on how to use Quartz Syncer, or just curious about its usage? Check the [[Usage Guide|usage guide]].
+Unsure on how to use Quartz Syncer, or just curious about its usage? Check the [usage guide](https://saberzero1.github.io/quartz-syncer-docs/Usage-Guide).
 
 ## Advanced usage
 
@@ -30,7 +30,7 @@ For more advanced usages of Quartz Syncer, check the [[Guides/index|guides secti
 >
 > For issue or questions related to Quartz, not Quartz Syncer, please consult the [Quartz documentation](https://quartz.jzhao.xyz/) or reach out through the communication channels provided there.
 
-If you need help with Quartz Syncer, or if you have a question, please first check the [[Troubleshooting/index|troubleshooting section]]. If your question or issue is not listed, feel free to [[Troubleshooting/index#I have a different issue not listed here|reach out for help]].
+If you need help with Quartz Syncer, or if you have a question, please first check the [troubleshooting section](https://saberzero1.github.io/quartz-syncer-docs/Troubleshooting/). If your question or issue is not listed, feel free to [reach out for help](https://saberzero1.github.io/quartz-syncer-docs/Troubleshooting/#i-have-a-different-issue-not-listed-here).
 
 ## Acknowledgements
 
