@@ -59,7 +59,6 @@ export class GithubSettings {
 		const quartzSettingsHeader = createEl("h3", {
 			text: "Quartz",
 		});
-		//quartzSettingsHeader.append(this.connectionStatusElement);
 
 		quartzSettingsHeader.prepend(
 			this.settings.getIcon("quartz-syncer-icon"),
@@ -74,7 +73,6 @@ export class GithubSettings {
 		const pluginIntegrationHeader = createEl("h3", {
 			text: "Plugin Integration",
 		});
-		//pluginIntegrationHeader.append(this.connectionStatusElement);
 
 		pluginIntegrationHeader.prepend(this.settings.getIcon("cable"));
 
@@ -103,6 +101,7 @@ export class GithubSettings {
 			// If other permissions are needed, add them here and indicate to user on insufficient permissions
 			// Github now advocates for hyper-specific tokens
 			if (response.data.permissions?.admin) {
+				// Token has "contents" permissions
 				this.connectionStatus = "connected";
 			}
 		} catch (error) {
@@ -263,7 +262,7 @@ export class GithubSettings {
 						if (value.length === 0) {
 							value = "quartz";
 						}
-					
+
 						this.settings.settings.githubRepo = value;
 						await this.checkConnectionAndSaveSettings();
 					}),

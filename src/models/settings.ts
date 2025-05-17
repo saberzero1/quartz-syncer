@@ -31,7 +31,6 @@ export default interface QuartzSyncerSettings {
 
 	pathRewriteRules: string;
 	customFilters: Array<{ pattern: string; flags: string; replace: string }>;
-	contentClassesKey: string;
 
 	usePermalink: boolean;
 

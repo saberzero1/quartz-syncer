@@ -75,8 +75,10 @@ export class FrontmatterCompiler {
 			publishedFrontMatter,
 		);
 
-		publishedFrontMatter =
-			this.addTimestampsFrontmatter(file)(publishedFrontMatter);
+		publishedFrontMatter = this.addTimestampsFrontmatter(file)(
+			fileFrontMatter,
+			publishedFrontMatter,
+		);
 
 		const fullFrontMatter = publishedFrontMatter?.PassFrontmatter
 			? { ...fileFrontMatter, ...publishedFrontMatter }
@@ -167,18 +169,47 @@ export class FrontmatterCompiler {
 		const publishedFrontMatter = { ...newFrontMatter };
 
 		if (baseFrontMatter) {
-			const contentClassesKey = this.settings.contentClassesKey;
-			const contentClasses = baseFrontMatter[contentClassesKey];
-
-			if (contentClassesKey && contentClasses) {
-				if (typeof contentClasses == "string") {
-					publishedFrontMatter["contentClasses"] = contentClasses;
-				} else if (Array.isArray(contentClasses)) {
-					publishedFrontMatter["contentClasses"] =
-						contentClasses.join(" ");
-				} else {
-					publishedFrontMatter["contentClasses"] = "";
+			if (baseFrontMatter["cssclasses"] !== undefined) {
+				if (typeof baseFrontMatter["cssclasses"] === "string") {
+					publishedFrontMatter["cssclasses"] +=
+						baseFrontMatter["cssclasses"];
+				} else if (Array.isArray(baseFrontMatter["cssclasses"])) {
+					publishedFrontMatter["cssclasses"] +=
+						baseFrontMatter["cssclasses"].join(" ");
 				}
+			}
+
+			if (baseFrontMatter["cssclass"] !== undefined) {
+				if (typeof baseFrontMatter["cssclass"] === "string") {
+					publishedFrontMatter["cssclasses"] +=
+						baseFrontMatter["cssclass"];
+				} else if (Array.isArray(baseFrontMatter["cssclass"])) {
+					publishedFrontMatter["cssclasses"] +=
+						baseFrontMatter["cssclass"].join(" ");
+				}
+			}
+		}
+
+		// remove duplicates
+		if (publishedFrontMatter["cssclasses"]) {
+			if (typeof publishedFrontMatter["cssclasses"] === "string") {
+				publishedFrontMatter["cssclasses"] =
+					publishedFrontMatter["cssclasses"].split(" ");
+			}
+
+			if (Array.isArray(publishedFrontMatter["cssclasses"])) {
+				publishedFrontMatter["cssclasses"] = [
+					...new Set(publishedFrontMatter["cssclasses"]),
+				];
+			}
+		}
+
+		// convert to string
+		if (typeof publishedFrontMatter["cssclasses"] !== "string") {
+			// If it's an array, join it with spaces
+			if (Array.isArray(publishedFrontMatter["cssclasses"])) {
+				publishedFrontMatter["cssclasses"] =
+					publishedFrontMatter["cssclasses"].join(" ");
 			}
 		}
 
@@ -189,7 +220,11 @@ export class FrontmatterCompiler {
 	 * Adds the created and updated timestamps to the compiled frontmatter if specified in user settings
 	 */
 	private addTimestampsFrontmatter =
-		(file: PublishFile) => (newFrontMatter: TPublishedFrontMatter) => {
+		(file: PublishFile) =>
+		(
+			baseFrontMatter: TFrontmatter,
+			newFrontMatter: TPublishedFrontMatter,
+		) => {
 			//If all note icon settings are disabled, don't change the frontmatter, so that people won't see all their notes as changed in the publication center
 			const { showCreatedTimestamp, showUpdatedTimestamp } =
 				this.settings;
@@ -198,11 +233,15 @@ export class FrontmatterCompiler {
 			const createdAt = file.meta.getCreatedAt();
 
 			if (createdAt && showCreatedTimestamp) {
-				newFrontMatter["created"] = createdAt;
+				// TODO: add all Quartz options for created date
+				newFrontMatter["created"] =
+					baseFrontMatter["created"] ?? createdAt;
 			}
 
 			if (updatedAt && showUpdatedTimestamp) {
-				newFrontMatter["updated"] = updatedAt;
+				// TODO: add all Quartz options for updated date
+				newFrontMatter["updated"] =
+					baseFrontMatter["date"] ?? updatedAt;
 			}
 
 			return newFrontMatter;
@@ -228,9 +267,7 @@ export class FrontmatterCompiler {
 		if (!baseFrontMatter) {
 			baseFrontMatter = {};
 		}
-		const publishedFrontMatter = { ...newFrontMatter };
-
-		publishedFrontMatter.PassFrontmatter = true;
+		const publishedFrontMatter = { ...baseFrontMatter, ...newFrontMatter };
 
 		return publishedFrontMatter;
 	}

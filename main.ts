@@ -11,7 +11,7 @@ import Logger from "js-logger";
 import { PublishFile } from "./src/publishFile/PublishFile";
 
 const DEFAULT_SETTINGS: QuartzSyncerSettings = {
-	githubRepo: "",
+	githubRepo: "quartz",
 	githubToken: "",
 	githubUserName: "",
 	prHistory: [],
@@ -33,8 +33,6 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	styleSettingsBodyClasses: "",
 	pathRewriteRules: "",
 	customFilters: [],
-
-	contentClassesKey: "content-classes",
 
 	usePermalink: false,
 
@@ -241,7 +239,7 @@ export default class QuartzSyncer extends Plugin {
 
 		this.addCommand({
 			id: "open-publish-modal",
-			name: "Open Publication Center",
+			name: "Open publication center",
 			callback: async () => {
 				this.openPublishModal();
 			},
@@ -249,7 +247,7 @@ export default class QuartzSyncer extends Plugin {
 
 		this.addCommand({
 			id: "mark-note-for-publish",
-			name: "Add publish flag",
+			name: "Add publication flag",
 			callback: async () => {
 				this.setPublishFlagValue(true);
 			},
@@ -257,7 +255,7 @@ export default class QuartzSyncer extends Plugin {
 
 		this.addCommand({
 			id: "unmark-note-for-publish",
-			name: "Remove publish flag",
+			name: "Remove publication flag",
 			callback: async () => {
 				this.setPublishFlagValue(false);
 			},
@@ -265,7 +263,7 @@ export default class QuartzSyncer extends Plugin {
 
 		this.addCommand({
 			id: "mark-toggle-publish-status",
-			name: "Toggle publication status",
+			name: "Toggle publication flag",
 			callback: async () => {
 				this.togglePublishFlag();
 			},
