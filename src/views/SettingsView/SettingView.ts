@@ -59,12 +59,43 @@ export default class SettingView {
 		});
 
 		linkDiv.createEl("span", {
-			text: "Remember to read the setup guide if you haven't already. It can be found ",
+			text: "Remember to read the ",
 		});
 
 		linkDiv.createEl("a", {
-			text: "here.",
-			href: "https://github.com/saberzero1/quartz-syncer",
+			text: "documentation",
+			href: "https://saberzero1.github.io/quartz-syncer-docs/",
+		});
+
+		linkDiv.createEl("span", {
+			text: " if you haven't already. A ",
+		});
+
+		linkDiv.createEl("a", {
+			text: "setup guide",
+			href: "https://saberzero1.github.io/quartz-syncer-docs/Setup-Guide",
+		});
+
+		linkDiv.createEl("span", {
+			text: " and a ",
+		});
+
+		linkDiv.createEl("a", {
+			text: "usage guide",
+			href: "https://saberzero1.github.io/quartz-syncer-docs/Usage-Guide",
+		});
+
+		linkDiv.createEl("span", {
+			text: " are also available. If you encounter any issues, please see the ",
+		});
+
+		linkDiv.createEl("a", {
+			text: "troubleshooting section",
+			href: "https://saberzero1.github.io/quartz-syncer-docs/Troubleshooting/",
+		});
+
+		linkDiv.createEl("span", {
+			text: " for help.",
 		});
 
 		const githubSettings = this.settingsRootElement.createEl("div", {

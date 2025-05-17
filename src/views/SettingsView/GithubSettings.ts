@@ -19,7 +19,7 @@ export class GithubSettings {
 
 		this.connectionStatusElement = this.settingsRootElement.createEl(
 			"span",
-			{ cls: "connection-status" },
+			{ text: "⏳", cls: "connection-status" },
 		);
 
 		this.initializeGitHubHeader();
@@ -46,13 +46,12 @@ export class GithubSettings {
 	}
 
 	initializeGitHubHeader = () => {
-		this.connectionStatusElement.style.cssText = "margin-left: 10px;";
 		this.checkConnectionAndSaveSettings();
 
 		const githubSettingsHeader = createEl("h3", {
 			text: "GitHub",
 		});
-		githubSettingsHeader.appendText(" (Connection status: ");
+		githubSettingsHeader.appendText(" (Connection status:");
 		githubSettingsHeader.append(this.connectionStatusElement);
 		githubSettingsHeader.appendText(")");
 		githubSettingsHeader.prepend(this.settings.getIcon("github"));
@@ -61,8 +60,6 @@ export class GithubSettings {
 	};
 
 	initializeQuartzHeader = () => {
-		this.connectionStatusElement.style.cssText = "margin-left: 10px;";
-
 		const quartzSettingsHeader = createEl("h3", {
 			text: "Quartz",
 		});
@@ -75,8 +72,6 @@ export class GithubSettings {
 	};
 
 	initializeFrontmatterHeader = () => {
-		this.connectionStatusElement.style.cssText = "margin-left: 10px;";
-
 		const frontmatterHeader = createEl("h3", {
 			text: "Note Properties (Frontmatter)",
 		});
@@ -87,8 +82,6 @@ export class GithubSettings {
 	};
 
 	initializePluginIntegrationHeader = () => {
-		this.connectionStatusElement.style.cssText = "margin-left: 10px;";
-
 		const pluginIntegrationHeader = createEl("h3", {
 			text: "Plugin Integration",
 		});
