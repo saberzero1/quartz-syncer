@@ -24,6 +24,9 @@ export default interface QuartzSyncerSettings {
 	showUpdatedTimestamp: boolean;
 	updatedTimestampKey: string;
 
+	showPublishedTimestamp: boolean;
+	publishedTimestampKey: string;
+
 	timestampFormat: string;
 
 	styleSettingsCss: string;
@@ -31,16 +34,16 @@ export default interface QuartzSyncerSettings {
 
 	pathRewriteRules: string;
 	customFilters: Array<{ pattern: string; flags: string; replace: string }>;
-	contentClassesKey: string;
 
 	usePermalink: boolean;
 
 	publishFrontmatterKey: string;
 
-	defaultNoteSettings: {
-		HomeLink: boolean;
-		PassFrontmatter: boolean;
-	};
+	useDataview: boolean;
+	useExcalidraw: boolean;
+
+	includeAllFrontmatter: boolean;
+
 	ENABLE_DEVELOPER_TOOLS?: boolean;
 	devPluginPath?: string;
 	logLevel?: ILogLevel;

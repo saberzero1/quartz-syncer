@@ -2,7 +2,6 @@ import { Notice, Platform, Plugin, Workspace, addIcon } from "obsidian";
 import Publisher from "./src/publisher/Publisher";
 import QuartzSyncerSettings from "./src/models/settings";
 import { quartzSyncerIcon } from "./src/ui/suggest/constants";
-//import { PublishStatusBar } from "./src/views/PublishStatusBar";
 import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
 import PublishStatusManager from "src/publisher/PublishStatusManager";
 import ObsidianFrontMatterEngine from "src/publishFile/ObsidianFrontMatterEngine";
@@ -12,7 +11,7 @@ import Logger from "js-logger";
 import { PublishFile } from "./src/publishFile/PublishFile";
 
 const DEFAULT_SETTINGS: QuartzSyncerSettings = {
-	githubRepo: "",
+	githubRepo: "quartz",
 	githubToken: "",
 	githubUserName: "",
 	prHistory: [],
@@ -24,10 +23,12 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	vaultPath: "/",
 
 	// Timestamp related settings
-	showCreatedTimestamp: false,
-	createdTimestampKey: "",
-	showUpdatedTimestamp: false,
-	updatedTimestampKey: "",
+	showCreatedTimestamp: true,
+	createdTimestampKey: "created",
+	showUpdatedTimestamp: true,
+	updatedTimestampKey: "modified",
+	showPublishedTimestamp: false,
+	publishedTimestampKey: "published",
 	timestampFormat: "MMM dd, yyyy h:mm a",
 
 	styleSettingsCss: "",
@@ -35,16 +36,15 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	pathRewriteRules: "",
 	customFilters: [],
 
-	contentClassesKey: "content-classes",
-
 	usePermalink: false,
+
+	useDataview: true,
+	useExcalidraw: false,
+
+	includeAllFrontmatter: false,
 
 	publishFrontmatterKey: "publish",
 
-	defaultNoteSettings: {
-		HomeLink: true,
-		PassFrontmatter: true,
-	},
 	logLevel: undefined,
 };
 
@@ -243,7 +243,7 @@ export default class QuartzSyncer extends Plugin {
 
 		this.addCommand({
 			id: "open-publish-modal",
-			name: "Open Publication Center",
+			name: "Open publication center",
 			callback: async () => {
 				this.openPublishModal();
 			},
@@ -251,7 +251,7 @@ export default class QuartzSyncer extends Plugin {
 
 		this.addCommand({
 			id: "mark-note-for-publish",
-			name: "Add publish flag",
+			name: "Add publication flag",
 			callback: async () => {
 				this.setPublishFlagValue(true);
 			},
@@ -259,7 +259,7 @@ export default class QuartzSyncer extends Plugin {
 
 		this.addCommand({
 			id: "unmark-note-for-publish",
-			name: "Remove publish flag",
+			name: "Remove publication flag",
 			callback: async () => {
 				this.setPublishFlagValue(false);
 			},
@@ -267,7 +267,7 @@ export default class QuartzSyncer extends Plugin {
 
 		this.addCommand({
 			id: "mark-toggle-publish-status",
-			name: "Toggle publication status",
+			name: "Toggle publication flag",
 			callback: async () => {
 				this.togglePublishFlag();
 			},

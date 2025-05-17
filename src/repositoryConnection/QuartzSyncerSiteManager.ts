@@ -6,7 +6,6 @@ import {
 	TRepositoryContent,
 } from "./RepositoryConnection";
 import Logger from "js-logger";
-import { TemplateUpdateChecker } from "./TemplateManager";
 
 const logger = Logger.get("quartz-syncer-site-manager");
 export interface PathRewriteRule {
@@ -35,7 +34,6 @@ export default class QuartzSyncerSiteManager {
 	baseSyncerConnection: RepositoryConnection;
 	userSyncerConnection: RepositoryConnection;
 
-	templateUpdater: TemplateUpdateChecker;
 	constructor(metadataCache: MetadataCache, settings: QuartzSyncerSettings) {
 		this.settings = settings;
 		this.metadataCache = metadataCache;
@@ -55,11 +53,6 @@ export default class QuartzSyncerSiteManager {
 			contentFolder: settings.contentFolder,
 			vaultPath: settings.vaultPath,
 		});
-
-		this.templateUpdater = new TemplateUpdateChecker({
-			baseSyncerConnection: this.baseSyncerConnection,
-			userSyncerConnection: this.userSyncerConnection,
-		});
 	}
 
 	async updateEnv() {
@@ -67,6 +60,7 @@ export default class QuartzSyncerSiteManager {
 			SHOW_CREATED_TIMESTAMP: this.settings.showCreatedTimestamp,
 			TIMESTAMP_FORMAT: this.settings.timestampFormat,
 			SHOW_UPDATED_TIMESTAMP: this.settings.showUpdatedTimestamp,
+			SHOW_PUBLISHED_TIMESTAMP: this.settings.showPublishedTimestamp,
 			STYLE_SETTINGS_CSS: this.settings.styleSettingsCss,
 			STYLE_SETTINGS_BODY_CLASSES: this.settings.styleSettingsBodyClasses,
 			USE_FULL_RESOLUTION_IMAGES: this.settings.useFullResolutionImages,
@@ -74,7 +68,6 @@ export default class QuartzSyncerSiteManager {
 
 		const keysToSet = {
 			...envValues,
-			...this.settings.defaultNoteSettings,
 		};
 
 		const envSettings = Object.entries(keysToSet)
