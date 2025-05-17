@@ -24,6 +24,9 @@ export default interface QuartzSyncerSettings {
 	showUpdatedTimestamp: boolean;
 	updatedTimestampKey: string;
 
+	showPublishedTimestamp: boolean;
+	publishedTimestampKey: string;
+
 	timestampFormat: string;
 
 	styleSettingsCss: string;
@@ -38,6 +41,8 @@ export default interface QuartzSyncerSettings {
 
 	useDataview: boolean;
 	useExcalidraw: boolean;
+
+	includeAllFrontmatter: boolean;
 
 	ENABLE_DEVELOPER_TOOLS?: boolean;
 	devPluginPath?: string;

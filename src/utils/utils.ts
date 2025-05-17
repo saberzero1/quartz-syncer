@@ -111,12 +111,12 @@ function fixSvgForXmlSerializer(svgElement: SVGSVGElement): void {
 }
 
 function sanitizePermalink(permalink: string): string {
-	if (!permalink.endsWith("/")) {
-		permalink += "/";
+	if (permalink.endsWith("/")) {
+		permalink.slice(0, -1);
 	}
 
-	if (!permalink.startsWith("/")) {
-		permalink = "/" + permalink;
+	if (permalink.startsWith("/")) {
+		permalink = permalink.substring(1);
 	}
 
 	return permalink;
