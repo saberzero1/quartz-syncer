@@ -1,19 +1,19 @@
 ---
 title: Quartz
-description: Documentation related to Quartz.
+description: Troubleshooting issues related to Quartz.
 created: 2025-05-05T00:00:00Z+0200
-date: 2025-05-15T08:57:29Z+0200
+date: 2025-05-16T12:54:40Z+0200
 publish: true
 ---
 
 > [!INFO] Quartz usage
->  For question regarding Quartz usage, please refer to the [Quartz documentation](https://quartz.jzhao.xyz/).
+> For question regarding Quartz usage, please refer to the [Quartz documentation](https://quartz.jzhao.xyz/).
 >
->  For support regarding Quartz usage, please connect to us in the [Quartz Community Discord Server](https://discord.gg/cRFFHYye7t).
+> For support regarding Quartz usage, please connect to us in the [Quartz Community Discord Server](https://discord.gg/cRFFHYye7t).
 
-## Can I use my Obsidian Theme in Quartz?
+## Can I use an Obsidian Theme in Quartz?
 
-[Yes](https://github.com/saberzero1/quartz-themes).
+See [[Using an Obsidian theme in Quartz]].
 
 ## What theme is this site using?
 
