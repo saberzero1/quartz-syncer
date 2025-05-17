@@ -73,7 +73,7 @@ export class GithubSettings {
 
 	initializeFrontmatterHeader = () => {
 		const frontmatterHeader = createEl("h3", {
-			text: "Note Properties (Frontmatter)",
+			text: "Note properties (frontmatter)",
 		});
 
 		frontmatterHeader.prepend(this.settings.getIcon("archive"));
