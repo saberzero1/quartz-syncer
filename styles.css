@@ -215,9 +215,6 @@ button:disabled {
 		max-width 0.45s cubic-bezier(0.57, 0.04, 0.58, 1) 0.2s;
 }
 
-/**
- * Based on https://github.com/phibr0/obsidian-commander/blob/main/src/styles.scss
- */
 .quartz-syncer-settings {
 	transition: transform 400ms 0s;
 }
@@ -287,9 +284,6 @@ button:disabled {
 	display: none;
 }
 
-/** Hide linter element css 
- * Based on https://zellwk.com/blog/hide-content-accessibly/
- */
 .quartz-syncer-navigation-item:not(.quartz-syncer-navigation-item-active)
 	> span:nth-child(2),
 .quartz-syncer-visually-hidden {
