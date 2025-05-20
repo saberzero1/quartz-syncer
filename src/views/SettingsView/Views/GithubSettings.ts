@@ -192,7 +192,7 @@ export class GithubSettings {
 
 		desc.createEl("span", undefined, (span) => {
 			span.innerText =
-				"A GitHub access token with \"contents\" permissions. You can find instructions to generate it in ";
+				'A GitHub access token with "contents" permissions. You can find instructions to generate it in ';
 
 			span.createEl("a", undefined, (link) => {
 				link.href =
