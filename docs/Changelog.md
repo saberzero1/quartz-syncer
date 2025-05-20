@@ -2,17 +2,11 @@
 title: Roadmap
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-05-20T12:01:55Z+0200
+modified: 2025-05-20T20:21:59Z+0200
 publish: true
 ---
 
 ## Upcoming
-
-### Version 1.5.3
-
-- Added note counts to the publication center.
-- Various minor styling changes.
-- Updated documentation.
 
 ## Planned
 
@@ -27,6 +21,12 @@ publish: true
 - Manage Quartz plugins.
 
 ## Released
+
+### Version 1.5.3
+
+- Added note counts to the publication center.
+- Added tabbed settings menu.
+- Updated documentation.
 
 ### Version 1.5.2
 
