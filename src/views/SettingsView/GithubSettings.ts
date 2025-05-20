@@ -83,7 +83,7 @@ export class GithubSettings {
 
 	initializePluginIntegrationHeader = () => {
 		const pluginIntegrationHeader = createEl("h3", {
-			text: "Plugin Integration",
+			text: "Plugin integration",
 		});
 
 		pluginIntegrationHeader.prepend(this.settings.getIcon("cable"));
