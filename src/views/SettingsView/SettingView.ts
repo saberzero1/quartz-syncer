@@ -1,8 +1,10 @@
 import { App, debounce, getIcon, MetadataCache, Notice } from "obsidian";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
-
 import QuartzSyncerSettings from "../../models/settings";
-import { GithubSettings } from "./GithubSettings";
+import { GithubSettings } from "./Views/GithubSettings";
+import { QuartzSettings } from "./Views/QuartzSettings";
+import { FrontmatterSettings } from "./Views/FrontmatterSettings";
+import { IntegrationSettings } from "./Views/IntegrationSettings";
 
 export default class SettingView {
 	app: App;
@@ -36,9 +38,12 @@ export default class SettingView {
 	async initialize() {
 		this.settingsRootElement.empty();
 
-		this.settingsRootElement.createEl("h1", {
+		const title = this.settingsRootElement.createEl("div", {
+			cls: "quartz-syncer-setting-title",
+		});
+
+		title.createEl("h1", {
 			text: "Quartz Syncer",
-			cls: "quartz-syncer-settings-title",
 		});
 
 		const descriptionDiv = this.settingsRootElement.createEl("div", {
@@ -85,11 +90,56 @@ export default class SettingView {
 			text: " for help.",
 		});
 
-		const githubSettings = this.settingsRootElement.createEl("div", {
-			cls: "connection-status",
+		const header = this.settingsRootElement.createEl("div", {
+			cls: "quartz-syncer-setting-header",
 		});
 
-		new GithubSettings(this, githubSettings);
+		const headerTabGroup = header.createEl("div", {
+			cls: "quartz-syncer-setting-tab-group",
+		});
+
+		const githubTab = this.createTab("GitHub", "github");
+		const quartzTab = this.createTab("Quartz", "quartz-syncer-icon");
+		const frontmatterTab = this.createTab("Frontmatter", "archive");
+		const integrationTab = this.createTab("Integration", "cable");
+
+		headerTabGroup.appendChild(githubTab);
+		headerTabGroup.appendChild(quartzTab);
+		headerTabGroup.appendChild(frontmatterTab);
+		headerTabGroup.appendChild(integrationTab);
+
+		const content = this.settingsRootElement.createEl("div", {
+			cls: "quartz-syncer-setting-content",
+		});
+
+		new GithubSettings(this, this.createSettingsTab(content, "GitHub"));
+		new QuartzSettings(this, this.createSettingsTab(content, "Quartz"));
+
+		new FrontmatterSettings(
+			this,
+			this.createSettingsTab(content, "Frontmatter"),
+		);
+
+		new IntegrationSettings(
+			this,
+			this.createSettingsTab(content, "Integration"),
+		);
+
+		const tabs = this.settingsRootElement.querySelectorAll(
+			"[data-quartz-syncer-tab]",
+		);
+
+		tabs.forEach((tab) => {
+			tab.addEventListener("click", () => {
+				const tabName = tab.getAttribute("data-quartz-syncer-tab");
+
+				if (tabName) {
+					this.setActiveTab(tabName);
+				}
+			});
+		});
+
+		this.setActiveTab("github");
 	}
 
 	private async saveSiteSettingsAndUpdateEnv(
@@ -117,5 +167,61 @@ export default class SettingView {
 			new Notice("Settings successfully updated!");
 			await saveSettings();
 		}
+	}
+
+	private createTab(name: string, icon: string) {
+		const tab = this.settingsRootElement.createEl("div", {
+			cls: "quartz-syncer-navigation-item",
+			attr: { "data-quartz-syncer-tab": name.toLowerCase() },
+		});
+
+		tab.createEl("span", {
+			cls: "quartz-syncer-navigation-item-icon",
+		}).appendChild(this.getIcon(icon));
+
+		tab.createEl("span", {
+			text: name,
+			cls: "quartz-syncer-navigation-item-text",
+		});
+
+		return tab;
+	}
+
+	private createSettingsTab(parent: HTMLElement, name: string) {
+		const tab = parent.createEl("div", {
+			cls: "quartz-syncer-tab-settings",
+		});
+
+		tab.id = name.toLowerCase();
+
+		return tab;
+	}
+
+	private setActiveTab(tabName: string) {
+		const tabs = this.settingsRootElement.querySelectorAll(
+			"[data-quartz-syncer-tab]",
+		);
+
+		tabs.forEach((tab) => {
+			if (tab.getAttribute("data-quartz-syncer-tab") === tabName) {
+				tab.addClass("quartz-syncer-navigation-item-active");
+			} else {
+				tab.removeClass("quartz-syncer-navigation-item-active");
+			}
+		});
+
+		this.settingsRootElement
+			.querySelectorAll(".quartz-syncer-tab-settings")
+			.forEach((tabContent) => {
+				if (tabContent.id === tabName) {
+					tabContent.classList.add(
+						"quartz-syncer-tab-settings-active",
+					);
+				} else {
+					tabContent.classList.remove(
+						"quartz-syncer-tab-settings-active",
+					);
+				}
+			});
 	}
 }

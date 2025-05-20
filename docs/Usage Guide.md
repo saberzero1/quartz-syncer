@@ -45,7 +45,7 @@ Open the publication center (see above for instructions). Your eligible notes wi
 - **Changed notes**: notes that are in your Obsidian vault and in your Quartz repository, but they don't match. This is usually because the note has been changed in your vault. Any notes checked here will be updated in Quartz.
 	- You can click the icon next to your note's title to preview the exact changes that will be made.
 - **Published notes (select to unpublished)**: notes that are in your in your Quartz repository. Any notes checked here will be unpublished and removed from your Quartz repository. Notes deleted from your vault need to be unpublished here to remove them from Quartz.
-- **Unchanged  notes**: a list of all unchanged notes that are currently published in your Quartz repository. It includes only unchanged notes.
+- **Unchanged  notes**: a list of all unchanged notes that are currently published in your Quartz repository. It includes only unchanged notes that are also in your vault.
 
 After you are satisfied with your selection, click the big button on the bottom left that says `PUBLISH SELECTED CHANGES` and watch the magic happen.
 
