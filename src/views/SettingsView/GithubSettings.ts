@@ -13,13 +13,12 @@ export class GithubSettings {
 	constructor(settings: SettingView, settingsRootElement: HTMLElement) {
 		this.settings = settings;
 		this.settingsRootElement = settingsRootElement;
-		this.settingsRootElement.id = "github-settings";
 		this.settingsRootElement.classList.add("settings-tab-content");
 		this.connectionStatus = "loading";
 
 		this.connectionStatusElement = this.settingsRootElement.createEl(
 			"span",
-			{ text: "⏳", cls: "connection-status" },
+			{ text: "pending..." },
 		);
 
 		this.initializeGitHubHeader();
@@ -48,47 +47,50 @@ export class GithubSettings {
 	initializeGitHubHeader = () => {
 		this.checkConnectionAndSaveSettings();
 
-		const githubSettingsHeader = createEl("h3", {
-			text: "GitHub",
-		});
-		githubSettingsHeader.appendText(" (connection status:");
-		githubSettingsHeader.append(this.connectionStatusElement);
-		githubSettingsHeader.appendText(")");
-		githubSettingsHeader.prepend(this.settings.getIcon("github"));
+		const connectionStatusElement = createEl("span");
+		connectionStatusElement.appendText(" (status: connection ");
+		connectionStatusElement.append(this.connectionStatusElement);
+		connectionStatusElement.appendText(")");
 
-		this.settingsRootElement.prepend(githubSettingsHeader);
+		connectionStatusElement.addClass(
+			"quartz-syncer-connection-status",
+			"quartz-syncer-connection-status-pending",
+		);
+
+		new Setting(this.settingsRootElement)
+			.setName("GitHub")
+			.setDesc(
+				"Quartz Syncer will use this GitHub repository to sync your notes.",
+			)
+			.setHeading()
+			.nameEl.append(connectionStatusElement);
 	};
 
 	initializeQuartzHeader = () => {
-		const quartzSettingsHeader = createEl("h3", {
-			text: "Quartz",
-		});
-
-		quartzSettingsHeader.prepend(
-			this.settings.getIcon("quartz-syncer-icon"),
-		);
-
-		this.settingsRootElement.append(quartzSettingsHeader);
+		new Setting(this.settingsRootElement)
+			.setName("Quartz")
+			.setDesc(
+				"Quartz Syncer will apply these settings to your Quartz notes.",
+			)
+			.setHeading();
 	};
 
 	initializeFrontmatterHeader = () => {
-		const frontmatterHeader = createEl("h3", {
-			text: "Note properties (frontmatter)",
-		});
-
-		frontmatterHeader.prepend(this.settings.getIcon("archive"));
-
-		this.settingsRootElement.append(frontmatterHeader);
+		new Setting(this.settingsRootElement)
+			.setName("Note properties (frontmatter)")
+			.setDesc(
+				"Quartz Syncer will apply these settings to your Quartz notes' frontmatter.",
+			)
+			.setHeading();
 	};
 
 	initializePluginIntegrationHeader = () => {
-		const pluginIntegrationHeader = createEl("h3", {
-			text: "Plugin integration",
-		});
-
-		pluginIntegrationHeader.prepend(this.settings.getIcon("cable"));
-
-		this.settingsRootElement.append(pluginIntegrationHeader);
+		new Setting(this.settingsRootElement)
+			.setName("Plugin integration")
+			.setDesc(
+				"Quartz Syncer will use these Obsidian plugins with your Quartz notes.",
+			)
+			.setHeading();
 	};
 
 	checkConnectionAndSaveSettings = async () => {
@@ -129,16 +131,47 @@ export class GithubSettings {
 	);
 
 	updateConnectionStatusIndicator = () => {
+		if (this.connectionStatusElement.parentElement === null) {
+			return;
+		}
+
 		if (this.connectionStatus === "loading") {
-			this.connectionStatusElement.innerText = "⏳";
+			this.connectionStatusElement.innerText = "pending...";
+
+			this.connectionStatusElement.parentElement.classList.remove(
+				"quartz-syncer-connection-status-success",
+				"quartz-syncer-connection-status-failed",
+			);
+
+			this.connectionStatusElement.parentElement.classList.add(
+				"quartz-syncer-connection-status-pending",
+			);
 		}
 
 		if (this.connectionStatus === "connected") {
-			this.connectionStatusElement.innerText = "✅";
+			this.connectionStatusElement.innerText = "succesful!";
+
+			this.connectionStatusElement.parentElement.classList.remove(
+				"quartz-syncer-connection-status-pending",
+				"quartz-syncer-connection-status-failed",
+			);
+
+			this.connectionStatusElement.parentElement.classList.add(
+				"quartz-syncer-connection-status-success",
+			);
 		}
 
 		if (this.connectionStatus === "error") {
-			this.connectionStatusElement.innerText = "❌";
+			this.connectionStatusElement.innerText = "failed!";
+
+			this.connectionStatusElement.parentElement.classList.remove(
+				"quartz-syncer-connection-status-pending",
+				"quartz-syncer-connection-status-success",
+			);
+
+			this.connectionStatusElement.parentElement.classList.add(
+				"quartz-syncer-connection-status-failed",
+			);
 		}
 	};
 

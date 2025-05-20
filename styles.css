@@ -86,11 +86,18 @@ button:disabled {
 	color: var(--text-warning, var(--color-orange, orange));
 }
 
-.quartz-syncer-settings > h1,
-.quartz-syncer-settings h2,
-.quartz-syncer-settings h3,
-.quartz-syncer-settings h4 {
+.quartz-syncer-settings .setting-item-heading {
 	margin-top: 40px;
+}
+
+.quartz-syncer-settings-title {
+	font-weight: 900;
+	margin-bottom: 12px;
+	margin-top: 6px;
+}
+
+.quartz-syncer-settings-description {
+	margin-bottom: 10px;
 }
 
 .quartz-syncer-settings .svg-icon {
@@ -99,6 +106,22 @@ button:disabled {
 
 .quartz-syncer-svg-icon {
 	margin-right: 4px;
+}
+
+.quartz-syncer-connection-status {
+	font-weight: bold;
+}
+
+.quartz-syncer-connection-status-failed {
+	color: var(--text-error, var(--color-red, red));
+}
+
+.quartz-syncer-connection-status-success {
+	color: var(--text-success, var(--color-green, green));
+}
+
+.quartz-syncer-connection-status-pending {
+	color: var(--text-warning, var(--color-orange, orange));
 }
 
 @keyframes quartz-syncer-rotate-animation {

@@ -37,50 +37,51 @@ export default class SettingView {
 		this.settingsRootElement.empty();
 
 		this.settingsRootElement.createEl("h1", {
-			text: "Quartz Syncer Settings",
+			text: "Quartz Syncer",
+			cls: "quartz-syncer-settings-title",
 		});
 
-		const linkDiv = this.settingsRootElement.createEl("div", {
-			attr: { style: "margin-bottom: 10px;" },
+		const descriptionDiv = this.settingsRootElement.createEl("div", {
+			cls: "quartz-syncer-settings-description",
 		});
 
-		linkDiv.createEl("span", {
+		descriptionDiv.createEl("span", {
 			text: "Remember to read the ",
 		});
 
-		linkDiv.createEl("a", {
+		descriptionDiv.createEl("a", {
 			text: "documentation",
 			href: "https://saberzero1.github.io/quartz-syncer-docs/",
 		});
 
-		linkDiv.createEl("span", {
+		descriptionDiv.createEl("span", {
 			text: " if you haven't already. A ",
 		});
 
-		linkDiv.createEl("a", {
+		descriptionDiv.createEl("a", {
 			text: "setup guide",
 			href: "https://saberzero1.github.io/quartz-syncer-docs/Setup-Guide",
 		});
 
-		linkDiv.createEl("span", {
+		descriptionDiv.createEl("span", {
 			text: " and a ",
 		});
 
-		linkDiv.createEl("a", {
+		descriptionDiv.createEl("a", {
 			text: "usage guide",
 			href: "https://saberzero1.github.io/quartz-syncer-docs/Usage-Guide",
 		});
 
-		linkDiv.createEl("span", {
+		descriptionDiv.createEl("span", {
 			text: " are also available. If you encounter any issues, please see the ",
 		});
 
-		linkDiv.createEl("a", {
+		descriptionDiv.createEl("a", {
 			text: "troubleshooting section",
 			href: "https://saberzero1.github.io/quartz-syncer-docs/Troubleshooting/",
 		});
 
-		linkDiv.createEl("span", {
+		descriptionDiv.createEl("span", {
 			text: " for help.",
 		});
 
