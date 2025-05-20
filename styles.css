@@ -142,6 +142,13 @@ button:disabled {
 	animation: quartz-syncer-rotate-animation 4s linear infinite;
 }
 
+/* Publication center */
+.quartz-syncer-modal-title {
+}
+.quartz-syncer-modal-content:first-child {
+	width: 100%;
+}
+
 /* Settings tabs */
 .quartz-syncer-navigation-item {
 	cursor: pointer;
