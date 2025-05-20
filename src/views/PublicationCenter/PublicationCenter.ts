@@ -33,7 +33,7 @@ export class PublicationCenter {
 		this.vault = app.vault;
 
 		this.modal.titleEl
-			.createEl("span", { text: "Publication Center" })
+			.createEl("span", { text: "Publication center" })
 			.prepend(this.getIcon("quartz-syncer-icon"));
 	}
 
