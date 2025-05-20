@@ -51,7 +51,7 @@ export class GithubSettings {
 		const githubSettingsHeader = createEl("h3", {
 			text: "GitHub",
 		});
-		githubSettingsHeader.appendText(" (Connection status:");
+		githubSettingsHeader.appendText(" (connection status:");
 		githubSettingsHeader.append(this.connectionStatusElement);
 		githubSettingsHeader.appendText(")");
 		githubSettingsHeader.prepend(this.settings.getIcon("github"));
