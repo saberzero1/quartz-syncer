@@ -1,4 +1,4 @@
-import { Setting, App, debounce } from "obsidian";
+import { Setting, debounce } from "obsidian";
 import SettingView from "./SettingView";
 import { FolderSuggest } from "../../ui/suggest/file-suggest";
 import { Octokit } from "@octokit/core";
@@ -26,7 +26,7 @@ export class GithubSettings {
 		this.initializeGitHubRepoSetting();
 		this.initializeGitHubUserNameSetting();
 		this.initializeGitHubTokenSetting();
-		this.initializeGitHubVaultFolder(this.settings.app);
+		this.initializeGitHubVaultFolder();
 
 		this.initializeQuartzHeader();
 		this.initializeQuartzContentFolder();
@@ -279,7 +279,9 @@ export class GithubSettings {
 			);
 	}
 
-	private initializeGitHubVaultFolder(app: App) {
+	private initializeGitHubVaultFolder() {
+		const app = this.settings.app;
+
 		new Setting(this.settingsRootElement)
 			.setName("Vault root folder name")
 			.setDesc(
