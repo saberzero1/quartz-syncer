@@ -33,6 +33,8 @@ export default interface QuartzSyncerSettings {
 	useDataview: boolean;
 	useExcalidraw: boolean;
 
+	useThemes: boolean;
+
 	includeAllFrontmatter: boolean;
 
 	ENABLE_DEVELOPER_TOOLS?: boolean;
