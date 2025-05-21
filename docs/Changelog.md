@@ -29,6 +29,7 @@ publish: true
 	- This behavior can be configured in the settings `Quartz > Apply embeds`.
 - Added settings menu for Quartz Themes.
 	- This currently does nothing, but will be used for managing and applying Obsidian themes to Quartz.
+- Fixed some minor typos.
 - Updated documentation.
 
 ### Version 1.5.3
