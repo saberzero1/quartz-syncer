@@ -1,4 +1,4 @@
-import { Component, Notice } from "obsidian";
+import { Component, Notice, htmlToMarkdown } from "obsidian";
 import { TCompilerStep } from "./SyncerPageCompiler";
 import { escapeRegExp } from "../utils/utils";
 import { DataviewApi, getAPI } from "obsidian-dataview";
@@ -98,7 +98,10 @@ export class DataviewCompiler {
 					counter++;
 				}
 
-				replacedText = replacedText.replace(block, div.innerHTML ?? "");
+				replacedText = replacedText.replace(
+					block,
+					htmlToMarkdown(div) ?? "",
+				);
 			} catch (e) {
 				console.log(e);
 
@@ -275,7 +278,7 @@ async function tryExecuteJs(
 		counter++;
 	}
 
-	return div.innerHTML;
+	return htmlToMarkdown(div);
 }
 
 //delay async function
