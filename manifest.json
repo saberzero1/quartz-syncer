@@ -6,5 +6,6 @@
 	"description": "Manage and publish your notes to Quartz, the fast, batteries-included static-site generator.",
 	"author": "Emile Bangma",
 	"authorUrl": "https://github.com/saberzero1",
+	"fundingUrl": "https://github.com/sponsors/saberzero1",
 	"isDesktopOnly": false
 }
