@@ -113,6 +113,7 @@
 	margin-right: 4px;
 }
 
+/* GitHub connection status */
 .quartz-syncer-connection-status {
 	font-weight: bold;
 }
@@ -156,6 +157,7 @@
 /* Publication center */
 .quartz-syncer-modal-title {
 }
+
 .quartz-syncer-modal-content:first-child {
 	width: 100%;
 }
@@ -164,10 +166,14 @@
 .quartz-syncer-settings .search-input-container::before {
 	display: none;
 }
+
 .quartz-syncer-settings .search-input-container input {
-	width: unset;
 	padding-inline-start: 0px;
 	padding: 4px 8px;
+}
+
+.quartz-syncer-settings.quartz-syncer-desktop .search-input-container input {
+	width: unset;
 }
 
 /* Settings tabs */
@@ -246,9 +252,11 @@
 	justify-content: space-between;
 	gap: 30px;
 }
+
 .quartz-syncer-setting-title.quartz-syncer-mobile {
 	justify-content: space-around;
 }
+
 .quartz-syncer-setting-title h1 {
 	font-weight: 900;
 	margin-top: 6px;
@@ -267,6 +275,7 @@
 	flex-wrap: wrap;
 	width: 100%;
 }
+
 .quartz-syncer-setting-tab-group {
 	margin-top: 6px;
 	padding-left: 2px;
@@ -282,9 +291,11 @@
 	border-left: 2px solid transparent;
 	border-right: 2px solid transparent;
 }
+
 .quartz-syncer-setting-header .quartz-syncer-tab-settings:first-child {
 	margin-left: 6px;
 }
+
 .quartz-syncer-setting-header
 	.quartz-syncer-tab-settings.quartz-syncer-tab-settings-active {
 	border-bottom: 2px solid var(--background-primary);

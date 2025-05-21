@@ -1,4 +1,11 @@
-import { App, debounce, getIcon, MetadataCache, Notice } from "obsidian";
+import {
+	App,
+	debounce,
+	getIcon,
+	MetadataCache,
+	Notice,
+	Platform,
+} from "obsidian";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import QuartzSyncerSettings from "../../models/settings";
 import { GithubSettings } from "./Views/GithubSettings";
@@ -28,6 +35,12 @@ export default class SettingView {
 		this.app = app;
 		this.settingsRootElement = settingsRootElement;
 		this.settingsRootElement.classList.add("quartz-syncer-settings");
+
+		if (Platform.isDesktop)
+			this.settingsRootElement.classList.add("quartz-syncer-desktop");
+		else if (Platform.isMobile)
+			this.settingsRootElement.classList.add("quartz-syncer-mobile");
+
 		this.settings = settings;
 		this.saveSettings = saveSettings;
 	}
