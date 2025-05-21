@@ -1,9 +1,9 @@
 {
 	"id": "quartz-syncer",
 	"name": "Quartz Syncer",
-	"version": "1.6.2",
+	"version": "1.6.3",
 	"minAppVersion": "1.8.10",
-	"description": "Manage and publish your notes to Quartz. Supports Dataview.",
+	"description": "Manage and publish your notes to Quartz, the fast, batteries-included static-site generator that transforms Markdown content into fully functional websites.",
 	"author": "Emile Bangma",
 	"authorUrl": "https://github.com/saberzero1",
 	"isDesktopOnly": false
