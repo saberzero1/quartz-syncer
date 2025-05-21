@@ -2,7 +2,7 @@
 title: Settings
 description: Overview of all settings.
 created: 2025-05-07T22:37:11Z+0200
-modified: 2025-05-21T18:48:05Z+0200
+modified: 2025-05-21T19:59:04Z+0200
 publish: true
 tags: [settings]
 ---
