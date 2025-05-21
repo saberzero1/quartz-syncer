@@ -2,7 +2,7 @@
 title: Roadmap
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-05-21T11:45:34Z+0200
+modified: 2025-05-21T15:49:14Z+0200
 publish: true
 ---
 
@@ -22,10 +22,16 @@ publish: true
 
 ## Released
 
+### Version 1.6.1
+
+- Implemented Obsidian built-in folder suggester.
+- Removed now-unused popperjs dependency.
+- Moved cog loading animation styling to CSS.
+
 ### Version 1.6.0
 
 - Fixed embedding issues when embedding blocks.
-- Embeddings are now handles by Quartz Syncer instead of Quartz.
+- Embeddings are now handled by Quartz Syncer instead of Quartz.
 	- This behavior can be configured in the settings `Quartz > Apply embeds`.
 - Added settings menu for Quartz Themes.
 	- This currently does nothing, but will be used for managing and applying Obsidian themes to Quartz.

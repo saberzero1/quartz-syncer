@@ -1,6 +1,6 @@
 {
 	"name": "quartz-syncer",
-	"version": "1.6.0",
+	"version": "1.6.1",
 	"description": "A plugin used for publishing notes to Quartz",
 	"main": "main.js",
 	"scripts": {
@@ -50,7 +50,6 @@
 	},
 	"dependencies": {
 		"@octokit/core": "^5.0.0",
-		"@popperjs/core": "^2.11.8",
 		"@sindresorhus/slugify": "^1.1.2",
 		"axios": "^1.5.0",
 		"crypto-js": "^4.1.1",
