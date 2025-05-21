@@ -25,6 +25,8 @@ const quartzSettings = {
 
 	includeAllFrontmatter: false,
 
+	applyEmbeds: true,
+
 	showCreatedTimestamp: true,
 	createdTimestampKey: "created",
 	showUpdatedTimestamp: true,

@@ -28,6 +28,8 @@ export default interface QuartzSyncerSettings {
 
 	usePermalink: boolean;
 
+	applyEmbeds: boolean;
+
 	publishFrontmatterKey: string;
 
 	useDataview: boolean;

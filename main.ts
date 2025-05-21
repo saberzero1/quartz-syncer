@@ -40,6 +40,8 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	includeAllFrontmatter: false,
 
+	applyEmbeds: true,
+
 	publishFrontmatterKey: "publish",
 
 	logLevel: undefined,
