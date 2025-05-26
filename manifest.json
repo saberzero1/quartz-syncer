@@ -7,9 +7,9 @@
 	"author": "Emile Bangma",
 	"authorUrl": "https://github.com/saberzero1",
 	"fundingUrl": {
-  "Buy Me a Coffee": "https://buymeacoffee.com/saberzero1",
-  "GitHub Sponsor": "https://github.com/sponsors/saberzero1",
-  "Ko-Fi": "https://ko-fi.com/saberzero1"
- }
+		"Buy Me a Coffee": "https://buymeacoffee.com/saberzero1",
+		"GitHub Sponsor": "https://github.com/sponsors/saberzero1",
+		"Ko-Fi": "https://ko-fi.com/saberzero1"
+	},
 	"isDesktopOnly": false
 }
