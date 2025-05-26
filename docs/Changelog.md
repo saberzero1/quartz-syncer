@@ -2,7 +2,7 @@
 title: Roadmap
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-05-26T15:12:43Z+0200
+modified: 2025-05-26T15:17:35Z+0200
 publish: true
 ---
 
@@ -25,7 +25,11 @@ publish: true
 ### Version 1.6.4
 
 - Moved all inlined styling to CSS classes.
-- Removed broken Excalidraw stub.
+- Changed buttons in publication center to sticky.
+	- This makes the buttons always visible at the bottom of the modal, even when displaying larger tree.
+- Removed unused code.
+- Updated manifest.
+- Updated documentation.
 
 ### Version 1.6.3
 
