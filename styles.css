@@ -107,22 +107,24 @@ pre.quartz-syncer-diff-view.quartz-syncer-diff-removed {
 	margin: 0.2rem 0;
 }
 
-.quartz-syncer-modal-content no-arrow {
+.quartz-syncer-modal-content .no-arrow {
 	padding-left: calc(var(--icon-size) + 2px);
 }
-.quartz-syncer-modal-content arrow {
+.quartz-syncer-modal-content .arrow {
 	cursor: pointer;
 	display: inline-block;
-	/* transition: transform 200ms; */
+	transition: transform 200ms;
 }
-.quartz-syncer-modal-content arrowDown {
+/* arrowDown svelte variable */
+.quartz-syncer-modal-content .arrowDown {
 	transform: rotate(90deg);
 }
+/* isRoot svelte variable */
 .quartz-syncer-modal-content ul.isRoot {
 	padding-left: 0;
 }
 
-.quartz-syncer-modal-content root-header {
+.quartz-syncer-modal-content .root-header {
 	font-weight: bold;
 	font-size: 1.2rem;
 }

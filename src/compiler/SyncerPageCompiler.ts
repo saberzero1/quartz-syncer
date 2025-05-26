@@ -363,7 +363,6 @@ export class SyncerPageCompiler {
 										.replace(`^${refBlock}`, ""),
 								);
 							}
-							console.warn(fileText);
 						} else if (transclusionFileName.includes("#")) {
 							// transcluding header only
 							const refHeader =

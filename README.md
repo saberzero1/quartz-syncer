@@ -23,7 +23,7 @@ Unsure on how to use Quartz Syncer, or just curious about its usage? Check the [
 
 ## Advanced usage
 
-For more advanced usages of Quartz Syncer, check the [[Guides/index|guides section]].
+For more advanced usages of Quartz Syncer, check the [guides section](https://saberzero1.github.io/quartz-syncer-docs/Guides/).
 
 ## Troubleshooting
 

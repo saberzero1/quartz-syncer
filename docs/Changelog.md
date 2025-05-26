@@ -2,7 +2,7 @@
 title: Roadmap
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-05-26T16:20:37Z+0200
+modified: 2025-05-26T22:49:50Z+0200
 publish: true
 ---
 
@@ -21,6 +21,13 @@ publish: true
 - Manage Quartz plugins.
 
 ## Released
+
+### Version 1.6.5
+
+- Fixed icons in publication center not showing correctly.
+- Fixed broken link in project README file.
+- Removed unnecessary warning.
+- Updated manifest.
 
 ### Version 1.6.4
 
