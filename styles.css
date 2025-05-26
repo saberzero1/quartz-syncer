@@ -46,6 +46,115 @@ button.quartz-syncer-publisher-button {
 	color: var(--text-error, var(--color-red, crimson));
 }
 
+/* Quartz Syncer Diff View */
+
+pre.quartz-syncer-diff-view {
+	display: block;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+}
+
+pre.quartz-syncer-diff-view.quartz-syncer-diff-added {
+	--palegreen: 152, 251, 152;
+	background-color: rgba(
+		var(
+			--background-modifier-success-rgb,
+			var(--color-green-rgb, --palegreen)
+		),
+		0.5
+	);
+	color: var(--text-on-accent);
+}
+
+pre.quartz-syncer-diff-view.quartz-syncer-diff-removed {
+	--crimson: 220, 20, 60;
+	background-color: rgba(
+		var(--background-modifier-error-rgb, var(--color-red-rgb, --crimson)),
+		0.5
+	);
+	color: var(--text-on-accent);
+}
+
+.quartz-syncer-diff-line {
+	white-space: pre-wrap;
+	word-wrap: break-word;
+}
+
+.quartz-syncer-diff-line-added {
+	--palegreen: 152, 251, 152;
+	background-color: var(--text-success, var(--color-green, rgb(--palegreen)));
+	color: var(--text-on-accent);
+	text-decoration: overline;
+}
+
+.quartz-syncer-diff-line-removed {
+	--crimson: 220, 20, 60;
+	background-color: var(--text-error, var(--color-red, rgb(--crimson)));
+	color: var(--text-on-accent);
+	text-decoration: line-through;
+}
+
+/* Quartz Syncer Tree Selectors */
+
+.quartz-syncer-modal-content ul {
+	margin: 0;
+	list-style: none;
+	padding-left: 1.2rem;
+	user-select: none;
+}
+
+.quartz-syncer-modal-content li {
+	margin: 0.2rem 0;
+}
+
+.quartz-syncer-modal-content no-arrow {
+	padding-left: calc(var(--icon-size) + 2px);
+}
+.quartz-syncer-modal-content arrow {
+	cursor: pointer;
+	display: inline-block;
+	/* transition: transform 200ms; */
+}
+.quartz-syncer-modal-content arrowDown {
+	transform: rotate(90deg);
+}
+.quartz-syncer-modal-content ul.isRoot {
+	padding-left: 0;
+}
+
+.quartz-syncer-modal-content root-header {
+	font-weight: bold;
+	font-size: 1.2rem;
+}
+input:indeterminate {
+	background-color: var(--checkbox-color);
+	border-color: var(--checkbox-color);
+}
+input[type="checkbox"]:indeterminate:after {
+	content: "";
+	top: -1px;
+	left: -1px;
+	position: absolute;
+	width: var(--checkbox-size);
+	height: var(--checkbox-size);
+	display: block;
+	background-color: var(--checkbox-marker-color);
+	-webkit-mask-position: 52% 52%;
+	mask-position: 52% 52%;
+	-webkit-mask-size: 65%;
+	mask-size: 65%;
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-image: url('data:image/svg+xml; utf8,<svg fill="none" width="12px" height="12px" viewBox="0 0 32 32" id="icon" xmlns="http://www.w3.org/2000/svg"><rect fill="%23000000" x="4" y="4" width="24" height="24"/></svg>');
+	mask-image: url('data:image/svg+xml; utf8,<svg fill="none" width="12px" height="12px" viewBox="0 0 32 32" id="icon" xmlns="http://www.w3.org/2000/svg"><rect fill="%23000000" x="4" y="4" width="24" height="24"/></svg>');
+}
+
+.quartz-syncer-icon-diff {
+	cursor: pointer;
+	display: inline-block;
+	margin-left: 4px;
+}
+
 /* Quartz Syncer Settings */
 
 .quartz-syncer-settings button:disabled,
