@@ -261,9 +261,9 @@
 </script>
 
 <div>
-	<hr class="title-separator" />
+	<hr class="quartz-syncer-publisher-title-separator" />
 	{#if !publishStatus}
-		<div class="loading-msg">
+		<div class="quartz-syncer-publisher-loading-msg">
 			{@html bigRotatingCog()?.outerHTML}
 			<div>Calculating publication status from GitHub</div>
 		</div>
@@ -284,17 +284,20 @@
 			{showDiff}
 		/>
 
-		<hr class="footer-separator" />
+		<hr class="quartz-syncer-publisher-footer-separator" />
 
-		<div class="footer">
-			<button on:click={publishMarkedNotes}
-				>PUBLISH SELECTED CHANGES</button
+		<div class="quartz-syncer-publisher-footer">
+			<button
+				class="quartz-syncer-publisher-button"
+				on:click={publishMarkedNotes}>PUBLISH SELECTED CHANGES</button
 			>
 		</div>
 	{:else}
 		<div>
-			<div class="callout">
-				<div class="callout-title-inner">Publishing Notes</div>
+			<div class="quartz-syncer-publisher-callout">
+				<div class="quartz-syncer-publisher-callout-title-inner">
+					Publishing Notes
+				</div>
 				<div>
 					{`${publishedPaths.length} of ${
 						unpublishedToPublish.length +
@@ -308,16 +311,16 @@
 						{`(${failedPublish.length} failed)`}
 					</div>
 				{/if}
-				<div class="loading-container">
+				<div class="quartz-syncer-publisher-loading-container">
 					<div
-						class="loading-bar"
+						class="quartz-syncer-publisher-loading-bar"
 						style="width: {publishProgress}%"
 					/>
 				</div>
 			</div>
 
 			{#each unpublishedToPublish.concat(changedToPublish) as note}
-				<div class="note-list">
+				<div class="quartz-syncer-publisher-note-list">
 					{#if processingPaths.includes(note.getVaultPath())}
 						{@html rotatingCog()?.outerHTML}
 					{:else if publishedPaths.includes(note.getVaultPath())}
@@ -329,13 +332,15 @@
 					{/if}
 					{note.file.name}
 					{#if publishedPaths.includes(note.getVaultPath())}
-						<span class="published"> - PUBLISHED</span>
+						<span class="quartz-syncer-publisher-published">
+							- PUBLISHED</span
+						>
 					{/if}
 				</div>
 			{/each}
 
 			{#each pathsToDelete as path}
-				<div class="note-list">
+				<div class="quartz-syncer-publisher-note-list">
 					{#if processingPaths.includes(path)}
 						{@html rotatingCog()?.outerHTML}
 					{:else if publishedPaths.includes(path)}
@@ -346,63 +351,20 @@
 					{path.split("/").last()}
 
 					{#if publishedPaths.includes(path)}
-						<span class="deleted"> - DELETED</span>
+						<span class="quartz-syncer-publisher-deleted">
+							- DELETED</span
+						>
 					{/if}
 				</div>
 			{/each}
 
-			<hr class="footer-separator" />
+			<hr class="quartz-syncer-publisher-footer-separator" />
 
-			<div class="footer">
-				<button on:click={close}>DONE</button>
+			<div class="quartz-syncer-publisher-footer">
+				<button class="quartz-syncer-publisher-button" on:click={close}
+					>DONE</button
+				>
 			</div>
 		</div>
 	{/if}
 </div>
-
-<style>
-	.title-separator {
-		margin-top: 0px;
-		margin-bottom: 15px;
-	}
-
-	.footer-separator {
-		margin-top: 15px;
-		margin-bottom: 15px;
-	}
-
-	.footer {
-		display: flex;
-		justify-content: flex-end;
-	}
-
-	.loading-msg {
-		font-size: 1.2rem;
-		display: flex;
-		align-items: center;
-		flex-direction: column;
-	}
-	button {
-		background-color: var(--interactive-accent);
-		color: var(--text-on-accent);
-		cursor: pointer;
-		font-weight: bold;
-	}
-	.loading-container {
-		width: 100%;
-		height: 5px;
-		margin-top: 10px;
-	}
-
-	.loading-bar {
-		background-color: var(--interactive-accent);
-		height: 100%;
-		transition: all 0.5s ease-in-out;
-	}
-	.published {
-		color: #8bff8b;
-	}
-	.deleted {
-		color: #ff5757;
-	}
-</style>

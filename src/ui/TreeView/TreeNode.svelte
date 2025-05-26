@@ -129,7 +129,11 @@
 				<span on:click={toggleExpansion}>{tree.name}</span>
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				{#if enableShowDiff}
-					<span title="Show changes" class="diff" on:click={showDiff}>
+					<span
+						title="Show changes"
+						class="quartz-syncer-icon-diff"
+						on:click={showDiff}
+					>
 						<Icon name="file-diff" />
 					</span>
 				{/if}
@@ -137,64 +141,3 @@
 		{/if}
 	</li>
 </ul>
-
-<style>
-	ul {
-		margin: 0;
-		list-style: none;
-		padding-left: 1.2rem;
-		user-select: none;
-	}
-
-	li {
-		margin: 0.2rem 0;
-	}
-
-	.no-arrow {
-		padding-left: calc(var(--icon-size) + 2px);
-	}
-	.arrow {
-		cursor: pointer;
-		display: inline-block;
-		/* transition: transform 200ms; */
-	}
-	.arrowDown {
-		transform: rotate(90deg);
-	}
-	ul.isRoot {
-		padding-left: 0;
-	}
-
-	.root-header {
-		font-weight: bold;
-		font-size: 1.2rem;
-	}
-	input:indeterminate {
-		background-color: var(--checkbox-color);
-		border-color: var(--checkbox-color);
-	}
-	input[type="checkbox"]:indeterminate:after {
-		content: "";
-		top: -1px;
-		left: -1px;
-		position: absolute;
-		width: var(--checkbox-size);
-		height: var(--checkbox-size);
-		display: block;
-		background-color: var(--checkbox-marker-color);
-		-webkit-mask-position: 52% 52%;
-		mask-position: 52% 52%;
-		-webkit-mask-size: 65%;
-		mask-size: 65%;
-		-webkit-mask-repeat: no-repeat;
-		mask-repeat: no-repeat;
-		-webkit-mask-image: url('data:image/svg+xml; utf8,<svg fill="none" width="12px" height="12px" viewBox="0 0 32 32" id="icon" xmlns="http://www.w3.org/2000/svg"><rect fill="%23000000" x="4" y="4" width="24" height="24"/></svg>');
-		mask-image: url('data:image/svg+xml; utf8,<svg fill="none" width="12px" height="12px" viewBox="0 0 32 32" id="icon" xmlns="http://www.w3.org/2000/svg"><rect fill="%23000000" x="4" y="4" width="24" height="24"/></svg>');
-	}
-
-	.diff {
-		cursor: pointer;
-		display: inline-block;
-		margin-left: 4px;
-	}
-</style>

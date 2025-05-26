@@ -10,13 +10,13 @@ import QuartzSyncerSettings from "../models/settings";
 import { PathRewriteRule } from "../repositoryConnection/QuartzSyncerSiteManager";
 import Publisher from "../publisher/Publisher";
 import {
+	escapeLatexBlock,
 	fixSvgForXmlSerializer,
 	generateUrlPath,
 	getSyncerPathForNote,
 	getRewriteRules,
 	sanitizePermalink,
 } from "../utils/utils";
-import { ExcalidrawCompiler } from "./ExcalidrawCompiler";
 import slugify from "@sindresorhus/slugify";
 import { fixMarkdownHeaderSyntax } from "../utils/markdown";
 import {
@@ -56,7 +56,6 @@ export type TCompilerStep = (
 export class SyncerPageCompiler {
 	private readonly vault: Vault;
 	private readonly settings: QuartzSyncerSettings;
-	private excalidrawCompiler: ExcalidrawCompiler;
 	private metadataCache: MetadataCache;
 	private readonly getFilesMarkedForPublishing: Publisher["getFilesMarkedForPublishing"];
 	private rewriteRule: PathRewriteRule;
@@ -71,7 +70,6 @@ export class SyncerPageCompiler {
 		this.settings = settings;
 		this.metadataCache = metadataCache;
 		this.getFilesMarkedForPublishing = getFilesMarkedForPublishing;
-		this.excalidrawCompiler = new ExcalidrawCompiler(vault);
 		this.rewriteRule = getRewriteRules(this.settings.vaultPath);
 	}
 
@@ -89,18 +87,11 @@ export class SyncerPageCompiler {
 		};
 
 	async generateMarkdown(file: PublishFile): Promise<TCompiledFile> {
-		const assets: Assets = { blobs: [] };
-
 		const vaultFileText = await file.cachedRead();
 
 		if (this.settings.useExcalidraw) {
 			if (file.file.name.endsWith(".excalidraw.md")) {
-				return [
-					await this.excalidrawCompiler.compileMarkdown({
-						includeExcaliDrawJs: true,
-					})(file)(vaultFileText),
-					assets,
-				];
+				console.warn("Excalidraw files are not supported yet.");
 			}
 		}
 
@@ -304,7 +295,6 @@ export class SyncerPageCompiler {
 
 			const transcludedRegex = /!\[\[(.+?)\]\]/g;
 			const transclusionMatches = text.match(transcludedRegex);
-			let numberOfExcaliDraws = 0;
 
 			for (const transclusionMatch of transclusionMatches ?? []) {
 				try {
@@ -347,22 +337,7 @@ export class SyncerPageCompiler {
 					});
 
 					if (linkedFile.name.endsWith(".excalidraw.md")) {
-						numberOfExcaliDraws++;
-						const isFirstDrawing = numberOfExcaliDraws === 1;
-
-						const fileText = await publishLinkedFile.cachedRead();
-
-						const excaliDrawCode =
-							await this.excalidrawCompiler.compileMarkdown({
-								includeExcaliDrawJs: isFirstDrawing,
-								idAppendage: `${numberOfExcaliDraws}`,
-								includeFrontMatter: false,
-							})(publishLinkedFile)(fileText);
-
-						transcludedText = transcludedText.replace(
-							transclusionMatch,
-							excaliDrawCode,
-						);
+						continue;
 					} else if (linkedFile.extension === "md") {
 						let fileText = await publishLinkedFile.cachedRead();
 
@@ -377,15 +352,18 @@ export class SyncerPageCompiler {
 								publishLinkedFile.getBlock(refBlock);
 
 							if (blockInFile) {
-								fileText = fileText
-									.split("\n")
-									.slice(
-										blockInFile.position.start.line,
-										blockInFile.position.end.line + 1,
-									)
-									.join("\n")
-									.replace(`^${refBlock}`, "");
+								fileText = escapeLatexBlock(
+									fileText
+										.split("\n")
+										.slice(
+											blockInFile.position.start.line,
+											blockInFile.position.end.line + 1,
+										)
+										.join("\n")
+										.replace(`^${refBlock}`, ""),
+								);
 							}
+							console.warn(fileText);
 						} else if (transclusionFileName.includes("#")) {
 							// transcluding header only
 							const refHeader =

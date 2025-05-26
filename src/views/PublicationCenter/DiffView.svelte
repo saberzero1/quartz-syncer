@@ -16,10 +16,10 @@
 			{#each diff as part}
 				{#if part.added}
 					<pre
-						style="display: block; background-color: rgba(170, 255, 170, 0.5); color: var(--text-on-accent)">{part.value}</pre>
+						class="quartz-syncer-diff-view quartz-syncer-diff-added">{part.value}</pre>
 				{:else if part.removed}
 					<pre
-						style="display: block; background-color: rgba(255, 170, 170, 0.5); color: var(--text-on-accent)">{part.value}</pre>
+						class="quartz-syncer-diff-view quartz-syncer-diff-removed">{part.value}</pre>
 				{:else}
 					<pre>{part.value}</pre>
 				{/if}
@@ -27,11 +27,3 @@
 		</div>
 	{/if}
 </div>
-
-<style>
-	pre {
-		display: block;
-		white-space: pre-wrap;
-		word-wrap: break-word;
-	}
-</style>
