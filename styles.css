@@ -1,4 +1,54 @@
-.quurtz-syncer-settings button:disabled,
+/* Quartz Syncer Publication Center */
+.quartz-syncer-publisher-title-separator {
+	margin-top: 0px;
+	margin-bottom: 15px;
+}
+
+.quartz-syncer-publisher-footer-separator {
+	margin-top: 15px;
+	margin-bottom: 15px;
+}
+
+.quartz-syncer-publisher-footer {
+	display: flex;
+	justify-content: flex-end;
+	position: sticky;
+	bottom: 0;
+}
+
+.quartz-syncer-publisher-loading-msg {
+	font-size: 1.2rem;
+	display: flex;
+	align-items: center;
+	flex-direction: column;
+}
+button.quartz-syncer-publisher-button {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	cursor: pointer;
+	font-weight: bold;
+}
+.quartz-syncer-publisher-loading-container {
+	width: 100%;
+	height: 5px;
+	margin-top: 10px;
+}
+
+.quartz-syncer-publisher-loading-bar {
+	background-color: var(--interactive-accent);
+	height: 100%;
+	transition: all 0.5s ease-in-out;
+}
+.quartz-syncer-publisher-published {
+	color: var(--text-success, var(--color-green, palegreen));
+}
+.quartz-syncer-publisher-deleted {
+	color: var(--text-error, var(--color-red, crimson));
+}
+
+/* Quartz Syncer Settings */
+
+.quartz-syncer-settings button:disabled,
 .quartz-syncer-publish-status-view button:disabled {
 	pointer-events: none;
 	opacity: 0.4;
@@ -27,31 +77,31 @@
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " (plugin enabled)";
-	color: var(--text-success, var(--color-green, green));
+	color: var(--text-success, var(--color-green, palegreen));
 	font-weight: bold;
 }
 
 .quartz-syncer-settings-disabled > .setting-item-info > .setting-item-name {
-	color: var(--text-error, var(--color-red, red));
+	color: var(--text-error, var(--color-red, crimson));
 }
 
 .quartz-syncer-settings-disabled
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " (plugin disabled)";
-	color: var(--text-error, var(--color-red, red));
+	color: var(--text-error, var(--color-red, crimson));
 	font-weight: bold;
 }
 
 .quartz-syncer-settings-disabled > .setting-item-control > .checkbox-container {
-	background-color: var(--text-error, var(--color-red, red));
+	background-color: var(--text-error, var(--color-red, crimson));
 }
 
 .quartz-syncer-settings-upcoming
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " (plugin support upcoming)";
-	color: var(--text-warning, var(--color-orange, orange));
+	color: var(--text-warning, var(--color-orange, darkorange));
 	font-weight: bold;
 }
 
@@ -59,14 +109,14 @@
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " *";
-	color: var(--text-warning, var(--color-orange, orange));
+	color: var(--text-warning, var(--color-orange, darkorange));
 }
 
 .quartz-syncer-settings-overrider
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " (enabling this setting will override marked settings (*))";
-	color: var(--text-warning, var(--color-orange, orange));
+	color: var(--text-warning, var(--color-orange, darkorange));
 	font-weight: bold;
 }
 
@@ -84,7 +134,7 @@
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " (setting overridden)";
-	color: var(--text-warning, var(--color-orange, orange));
+	color: var(--text-warning, var(--color-orange, darkorange));
 }
 
 .quartz-syncer-settings .setting-item-heading {
@@ -119,15 +169,15 @@
 }
 
 .quartz-syncer-connection-status-failed {
-	color: var(--text-error, var(--color-red, red));
+	color: var(--text-error, var(--color-red, crimson));
 }
 
 .quartz-syncer-connection-status-success {
-	color: var(--text-success, var(--color-green, green));
+	color: var(--text-success, var(--color-green, palegreen));
 }
 
 .quartz-syncer-connection-status-pending {
-	color: var(--text-warning, var(--color-orange, orange));
+	color: var(--text-warning, var(--color-orange, darkorange));
 }
 
 /* Cog animation */

@@ -78,6 +78,3 @@
 		on:showDiff={(e) => showDiff(e.detail.node.path)}
 	/>
 </div>
-
-<style>
-</style>
