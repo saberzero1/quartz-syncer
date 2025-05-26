@@ -63,6 +63,14 @@ function escapeRegExp(string: string) {
 	return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& means the whole matched string
 }
 
+function escapeLatexBlock(string: string): string {
+	if (string.startsWith("$$") && string.endsWith("$$")) {
+		return `$$${string}$$`;
+	}
+
+	return string;
+}
+
 function fixSvgForXmlSerializer(svgElement: SVGSVGElement): void {
 	// Insert a comment in the style tags to prevent XMLSerializer from self-closing it during serialization.
 	const styles = svgElement.getElementsByTagName("style");
@@ -105,6 +113,7 @@ export {
 	getRewriteRules,
 	getSyncerPathForNote,
 	escapeRegExp,
+	escapeLatexBlock,
 	fixSvgForXmlSerializer,
 	sanitizePermalink,
 	hideEl,

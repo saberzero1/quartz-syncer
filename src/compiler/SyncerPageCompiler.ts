@@ -10,6 +10,7 @@ import QuartzSyncerSettings from "../models/settings";
 import { PathRewriteRule } from "../repositoryConnection/QuartzSyncerSiteManager";
 import Publisher from "../publisher/Publisher";
 import {
+	escapeLatexBlock,
 	fixSvgForXmlSerializer,
 	generateUrlPath,
 	getSyncerPathForNote,
@@ -351,15 +352,18 @@ export class SyncerPageCompiler {
 								publishLinkedFile.getBlock(refBlock);
 
 							if (blockInFile) {
-								fileText = fileText
-									.split("\n")
-									.slice(
-										blockInFile.position.start.line,
-										blockInFile.position.end.line + 1,
-									)
-									.join("\n")
-									.replace(`^${refBlock}`, "");
+								fileText = escapeLatexBlock(
+									fileText
+										.split("\n")
+										.slice(
+											blockInFile.position.start.line,
+											blockInFile.position.end.line + 1,
+										)
+										.join("\n")
+										.replace(`^${refBlock}`, ""),
+								);
 							}
+							console.warn(fileText);
 						} else if (transclusionFileName.includes("#")) {
 							// transcluding header only
 							const refHeader =
