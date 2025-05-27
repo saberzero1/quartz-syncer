@@ -1,15 +1,26 @@
-import { Setting, debounce } from "obsidian";
-import SettingView from "../SettingView";
-import { FolderSuggest } from "../../../ui/suggest/folder";
+import { Setting, App, PluginSettingTab, debounce } from "obsidian";
+import SettingView from "src/views/SettingsView/SettingView";
+import QuartzSyncer from "main";
+import { FolderSuggest } from "src/ui/suggest/folder";
 import { Octokit } from "@octokit/core";
 
-export class GithubSettings {
+export class GithubSettings extends PluginSettingTab {
+	app: App;
+	plugin: QuartzSyncer;
 	settings: SettingView;
 	connectionStatus: "loading" | "connected" | "error";
 	private settingsRootElement: HTMLElement;
 	connectionStatusElement: HTMLElement;
 
-	constructor(settings: SettingView, settingsRootElement: HTMLElement) {
+	constructor(
+		app: App,
+		plugin: QuartzSyncer,
+		settings: SettingView,
+		settingsRootElement: HTMLElement,
+	) {
+		super(app, plugin);
+		this.app = app;
+		this.plugin = plugin;
 		this.settings = settings;
 		this.settingsRootElement = settingsRootElement;
 		this.settingsRootElement.classList.add("settings-tab-content");
@@ -19,12 +30,20 @@ export class GithubSettings {
 			"span",
 			{ text: "pending..." },
 		);
+	}
+
+	display() {
+		this.settingsRootElement.empty();
+		this.settingsRootElement.addClass("quartz-syncer-github-settings");
 
 		this.initializeGitHubHeader();
 		this.initializeGitHubRepoSetting();
 		this.initializeGitHubUserNameSetting();
 		this.initializeGitHubTokenSetting();
 		this.initializeGitHubVaultFolder();
+
+		this.settings.settings.lastUsedSettingsTab = "github";
+		this.settings.saveSettings();
 	}
 
 	initializeGitHubHeader = () => {

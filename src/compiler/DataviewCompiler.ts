@@ -1,6 +1,6 @@
 import { Component, Notice, htmlToMarkdown } from "obsidian";
-import { TCompilerStep } from "./SyncerPageCompiler";
-import { escapeRegExp } from "../utils/utils";
+import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
+import { escapeRegExp } from "src/utils/utils";
 import { DataviewApi, getAPI } from "obsidian-dataview";
 import { PublishFile } from "src/publishFile/PublishFile";
 import Logger from "js-logger";

@@ -1,7 +1,7 @@
 import { FrontMatterCache } from "obsidian";
-import { sanitizePermalink } from "../utils/utils";
-import QuartzSyncerSettings from "../models/settings";
-import { PublishFile } from "../publishFile/PublishFile";
+import { sanitizePermalink } from "src/utils/utils";
+import QuartzSyncerSettings from "src/models/settings";
+import { PublishFile } from "src/publishFile/PublishFile";
 
 export type TFrontmatter = Record<string, unknown> & {
 	title?: string;

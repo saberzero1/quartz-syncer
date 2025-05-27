@@ -1,4 +1,4 @@
-import { replaceBlockIDs } from "./replaceBlockIDs";
+import replaceBlockIDs from "./replaceBlockIDs";
 
 describe("replaceBlockIDs", () => {
 	it("should replace block IDs in markdown", () => {

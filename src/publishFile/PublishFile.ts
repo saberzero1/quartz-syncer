@@ -2,14 +2,14 @@ import { MetadataCache, TFile, Vault } from "obsidian";
 import {
 	SyncerPageCompiler,
 	TCompiledFile,
-} from "../compiler/SyncerPageCompiler";
+} from "src/compiler/SyncerPageCompiler";
 import {
 	FrontmatterCompiler,
 	TFrontmatter,
-} from "../compiler/FrontmatterCompiler";
-import QuartzSyncerSettings from "../models/settings";
-import { hasPublishFlag } from "./Validator";
-import { FileMetadataManager } from "./FileMetaDataManager";
+} from "src/compiler/FrontmatterCompiler";
+import QuartzSyncerSettings from "src/models/settings";
+import { hasPublishFlag } from "src/publishFile/Validator";
+import { FileMetadataManager } from "src/publishFile/FileMetaDataManager";
 
 interface IPublishFileProps {
 	file: TFile;

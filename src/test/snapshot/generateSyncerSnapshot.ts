@@ -1,6 +1,6 @@
-import Publisher from "../../publisher/Publisher";
+import Publisher from "src/publisher/Publisher";
 import { Notice, Platform } from "obsidian";
-import QuartzSyncerSettings from "../../models/settings";
+import QuartzSyncerSettings from "src/models/settings";
 import fs from "fs/promises";
 
 const SNAPSHOT_PATH = "src/test/snapshot/snapshot.md";

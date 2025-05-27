@@ -1,17 +1,36 @@
-import { Setting } from "obsidian";
-import SettingView from "../SettingView";
+import { Setting, App, PluginSettingTab } from "obsidian";
+import SettingView from "src/views/SettingsView/SettingView";
+import QuartzSyncer from "main";
 
-export class ThemesSettings {
+export class ThemesSettings extends PluginSettingTab {
+	app: App;
+	plugin: QuartzSyncer;
 	settings: SettingView;
 	settingsRootElement: HTMLElement;
 
-	constructor(settings: SettingView, settingsRootElement: HTMLElement) {
+	constructor(
+		app: App,
+		plugin: QuartzSyncer,
+		settings: SettingView,
+		settingsRootElement: HTMLElement,
+	) {
+		super(app, plugin);
+		this.app = app;
+		this.plugin = plugin;
 		this.settings = settings;
 		this.settingsRootElement = settingsRootElement;
 		this.settingsRootElement.classList.add("settings-tab-content");
+	}
+
+	display(): void {
+		this.settingsRootElement.empty();
+		this.settingsRootElement.addClass("quartz-syncer-github-settings");
 
 		this.initializeThemesHeader();
 		this.initializeThemeSetting();
+
+		this.settings.settings.lastUsedSettingsTab = "themes";
+		this.settings.saveSettings();
 	}
 
 	initializeThemesHeader = () => {

@@ -42,6 +42,9 @@ Subfolder:subfolder-rewritten
 Path Rewriting/Subfolder:this-will-never-hit`,
 	publishFrontmatterKey: "publish",
 	usePermalink: true,
+
+	lastUsedSettingsTab: "github",
+
 	ENABLE_DEVELOPER_TOOLS: true,
 	devPluginPath: `${process.cwd()}`,
 	logLevel: Logger.DEBUG,

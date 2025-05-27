@@ -1,7 +1,7 @@
-import QuartzSyncerSiteManager from "../repositoryConnection/QuartzSyncerSiteManager";
-import Publisher from "./Publisher";
-import { generateBlobHash } from "../utils/utils";
-import { CompiledPublishFile } from "../publishFile/PublishFile";
+import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
+import Publisher from "src/publisher/Publisher";
+import { generateBlobHash } from "src/utils/utils";
+import { CompiledPublishFile } from "src/publishFile/PublishFile";
 
 /**
  *  Manages the publishing status of notes and blobs for a digital garden.

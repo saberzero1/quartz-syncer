@@ -39,6 +39,8 @@ export default interface QuartzSyncerSettings {
 
 	includeAllFrontmatter: boolean;
 
+	lastUsedSettingsTab: string;
+
 	ENABLE_DEVELOPER_TOOLS?: boolean;
 	devPluginPath?: string;
 	logLevel?: ILogLevel;
