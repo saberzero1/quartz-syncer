@@ -1,11 +1,11 @@
 import { type App, Modal, getIcon, Vault, TFile } from "obsidian";
-import QuartzSyncerSettings from "../../models/settings";
-import { PublishFile } from "../../publishFile/PublishFile";
-import QuartzSyncerSiteManager from "../../repositoryConnection/QuartzSyncerSiteManager";
-import PublishStatusManager from "../../publisher/PublishStatusManager";
-import Publisher from "../../publisher/Publisher";
-import PublicationCenterSvelte from "./PublicationCenter.svelte";
-import DiffView from "./DiffView.svelte";
+import QuartzSyncerSettings from "src/models/settings";
+import { PublishFile } from "src/publishFile/PublishFile";
+import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
+import PublishStatusManager from "src/publisher/PublishStatusManager";
+import Publisher from "src/publisher/Publisher";
+import PublicationCenterSvelte from "src/views/PublicationCenter/PublicationCenter.svelte";
+import DiffView from "src/views/PublicationCenter/DiffView.svelte";
 import * as Diff from "diff";
 
 export class PublicationCenter {

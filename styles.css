@@ -211,41 +211,9 @@ input[type="checkbox"]:indeterminate:after {
 .quartz-syncer-settings-upcoming
 	> .setting-item-info
 	> .setting-item-name:after {
-	content: " (plugin support upcoming)";
+	content: " (upcoming feature)";
 	color: var(--text-warning, var(--color-orange, darkorange));
 	font-weight: bold;
-}
-
-.quartz-syncer-settings-overridable
-	> .setting-item-info
-	> .setting-item-name:after {
-	content: " *";
-	color: var(--text-warning, var(--color-orange, darkorange));
-}
-
-.quartz-syncer-settings-overrider
-	> .setting-item-info
-	> .setting-item-name:after {
-	content: " (enabling this setting will override marked settings (*))";
-	color: var(--text-warning, var(--color-orange, darkorange));
-	font-weight: bold;
-}
-
-.quartz-syncer-settings-overridden {
-	color: var(--text-muted, grey);
-}
-
-.quartz-syncer-settings-overridden
-	> .setting-item-control
-	> .setting-item-control {
-	display: none;
-}
-
-.quartz-syncer-settings-overridden
-	> .setting-item-info
-	> .setting-item-name:after {
-	content: " (setting overridden)";
-	color: var(--text-warning, var(--color-orange, darkorange));
 }
 
 .quartz-syncer-settings .setting-item-heading {

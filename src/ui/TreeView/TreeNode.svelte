@@ -11,7 +11,7 @@
 	import { createEventDispatcher } from "svelte";
 
 	import TreeNode from "src/models/TreeNode";
-	import Icon from "../Icon.svelte";
+	import Icon from "src/ui/Icon.svelte";
 	export let tree: TreeNode;
 	export let readOnly: boolean = false;
 	export let enableShowDiff: boolean = false;

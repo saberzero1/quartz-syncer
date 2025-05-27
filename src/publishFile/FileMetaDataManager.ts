@@ -1,5 +1,5 @@
 import { FrontMatterCache, TFile } from "obsidian";
-import QuartzSyncerSettings from "../models/settings";
+import QuartzSyncerSettings from "src/models/settings";
 import { DateTime } from "luxon";
 
 export class FileMetadataManager {

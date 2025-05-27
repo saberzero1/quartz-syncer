@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Node from "./TreeNode.svelte";
+	import Node from "src/ui/TreeView/TreeNode.svelte";
 	import TreeNode from "src/models/TreeNode";
 
 	export let tree: TreeNode;

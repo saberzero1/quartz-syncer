@@ -1,6 +1,6 @@
 import slugify from "@sindresorhus/slugify";
 import sha1 from "crypto-js/sha1";
-import { PathRewriteRule } from "../repositoryConnection/QuartzSyncerSiteManager";
+import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
 
 function generateUrlPath(filePath: string, slugifyPath = true): string {
 	if (!filePath) {

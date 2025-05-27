@@ -1,18 +1,37 @@
-import { Setting } from "obsidian";
-import SettingView from "../SettingView";
+import { Setting, App, PluginSettingTab } from "obsidian";
+import SettingView from "src/views/SettingsView/SettingView";
+import QuartzSyncer from "main";
 
-export class QuartzSettings {
+export class QuartzSettings extends PluginSettingTab {
+	app: App;
+	plugin: QuartzSyncer;
 	settings: SettingView;
 	private settingsRootElement: HTMLElement;
 
-	constructor(settings: SettingView, settingsRootElement: HTMLElement) {
+	constructor(
+		app: App,
+		plugin: QuartzSyncer,
+		settings: SettingView,
+		settingsRootElement: HTMLElement,
+	) {
+		super(app, plugin);
+		this.app = app;
+		this.plugin = plugin;
 		this.settings = settings;
 		this.settingsRootElement = settingsRootElement;
+	}
+
+	display(): void {
+		this.settingsRootElement.empty();
+		this.settingsRootElement.addClass("quartz-syncer-github-settings");
 
 		this.initializeQuartzHeader();
 		this.initializeQuartzContentFolder();
 		this.initializeUseFullImageResolutionSetting();
 		this.initializeApplyEmbedsSetting();
+
+		this.settings.settings.lastUsedSettingsTab = "quartz";
+		this.settings.saveSettings();
 	}
 
 	initializeQuartzHeader = () => {

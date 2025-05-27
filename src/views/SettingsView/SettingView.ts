@@ -7,7 +7,9 @@ import {
 	Platform,
 } from "obsidian";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
-import QuartzSyncerSettings from "../../models/settings";
+import QuartzSyncerSettings from "src/models/settings";
+import QuartzSyncer from "main";
+import QuartzSyncerSettingTabCollection from "src/models/SyncerTab";
 import { GithubSettings } from "./Views/GithubSettings";
 import { QuartzSettings } from "./Views/QuartzSettings";
 import { FrontmatterSettings } from "./Views/FrontmatterSettings";
@@ -16,6 +18,7 @@ import { ThemesSettings } from "./Views/ThemesSettings";
 
 export default class SettingView {
 	app: App;
+	plugin: QuartzSyncer;
 	settings: QuartzSyncerSettings;
 	saveSettings: () => Promise<void>;
 	private settingsRootElement: HTMLElement;
@@ -28,11 +31,13 @@ export default class SettingView {
 
 	constructor(
 		app: App,
+		plugin: QuartzSyncer,
 		settingsRootElement: HTMLElement,
 		settings: QuartzSyncerSettings,
 		saveSettings: () => Promise<void>,
 	) {
 		this.app = app;
+		this.plugin = plugin;
 		this.settingsRootElement = settingsRootElement;
 		this.settingsRootElement.classList.add("quartz-syncer-settings");
 
@@ -128,20 +133,52 @@ export default class SettingView {
 			cls: "quartz-syncer-setting-content",
 		});
 
-		new GithubSettings(this, this.createSettingsTab(content, "GitHub"));
-		new QuartzSettings(this, this.createSettingsTab(content, "Quartz"));
+		const settingTabs: QuartzSyncerSettingTabCollection = [];
 
-		new FrontmatterSettings(
-			this,
-			this.createSettingsTab(content, "Frontmatter"),
+		settingTabs.push(
+			new GithubSettings(
+				this.app,
+				this.plugin,
+				this,
+				this.createSettingsTab(content, "GitHub"),
+			),
 		);
 
-		new IntegrationSettings(
-			this,
-			this.createSettingsTab(content, "Integration"),
+		settingTabs.push(
+			new QuartzSettings(
+				this.app,
+				this.plugin,
+				this,
+				this.createSettingsTab(content, "Quartz"),
+			),
 		);
 
-		new ThemesSettings(this, this.createSettingsTab(content, "Themes"));
+		settingTabs.push(
+			new FrontmatterSettings(
+				this.app,
+				this.plugin,
+				this,
+				this.createSettingsTab(content, "Frontmatter"),
+			),
+		);
+
+		settingTabs.push(
+			new IntegrationSettings(
+				this.app,
+				this.plugin,
+				this,
+				this.createSettingsTab(content, "Integration"),
+			),
+		);
+
+		settingTabs.push(
+			new ThemesSettings(
+				this.app,
+				this.plugin,
+				this,
+				this.createSettingsTab(content, "Themes"),
+			),
+		);
 
 		const tabs = this.settingsRootElement.querySelectorAll(
 			"[data-quartz-syncer-tab]",
@@ -152,12 +189,15 @@ export default class SettingView {
 				const tabName = tab.getAttribute("data-quartz-syncer-tab");
 
 				if (tabName) {
-					this.setActiveTab(tabName);
+					this.setActiveTab(tabName, settingTabs);
 				}
 			});
 		});
 
-		this.setActiveTab("github");
+		this.setActiveTab(
+			this.settings.lastUsedSettingsTab ?? "github",
+			settingTabs,
+		);
 	}
 
 	private async saveSiteSettingsAndUpdateEnv(
@@ -210,12 +250,15 @@ export default class SettingView {
 			cls: "quartz-syncer-tab-settings",
 		});
 
-		tab.id = name.toLowerCase();
+		tab.id = `quartz-syncer-settings-tab-${name.toLowerCase()}`;
 
 		return tab;
 	}
 
-	private setActiveTab(tabName: string) {
+	private setActiveTab(
+		tabName: string,
+		settingTabs: QuartzSyncerSettingTabCollection,
+	) {
 		const tabs = this.settingsRootElement.querySelectorAll(
 			"[data-quartz-syncer-tab]",
 		);
@@ -230,11 +273,12 @@ export default class SettingView {
 
 		this.settingsRootElement
 			.querySelectorAll(".quartz-syncer-tab-settings")
-			.forEach((tabContent) => {
-				if (tabContent.id === tabName) {
+			.forEach((tabContent, index) => {
+				if (tabContent.id === `quartz-syncer-settings-tab-${tabName}`) {
 					tabContent.classList.add(
 						"quartz-syncer-tab-settings-active",
 					);
+					settingTabs[index].display();
 				} else {
 					tabContent.classList.remove(
 						"quartz-syncer-tab-settings-active",

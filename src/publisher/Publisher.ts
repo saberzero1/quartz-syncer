@@ -1,16 +1,16 @@
 import { MetadataCache, Notice, TFile, Vault } from "obsidian";
 import { Base64 } from "js-base64";
-import { getRewriteRules } from "../utils/utils";
+import { getRewriteRules } from "src/utils/utils";
 import {
 	hasPublishFlag,
 	isPublishFrontmatterValid,
-} from "../publishFile/Validator";
-import { PathRewriteRule } from "../repositoryConnection/QuartzSyncerSiteManager";
-import QuartzSyncerSettings from "../models/settings";
-import { Assets, SyncerPageCompiler } from "../compiler/SyncerPageCompiler";
-import { CompiledPublishFile, PublishFile } from "../publishFile/PublishFile";
+} from "src/publishFile/Validator";
+import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
+import QuartzSyncerSettings from "src/models/settings";
+import { Assets, SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
+import { CompiledPublishFile, PublishFile } from "src/publishFile/PublishFile";
+import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import Logger from "js-logger";
-import { RepositoryConnection } from "../repositoryConnection/RepositoryConnection";
 
 export interface MarkedForPublishing {
 	notes: PublishFile[];

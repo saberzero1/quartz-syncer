@@ -1,4 +1,4 @@
-export function replaceBlockIDs(markdown: string) {
+export default function replaceBlockIDs(markdown: string) {
 	const block_pattern = / \^([\w\d-]+)/g;
 	const complex_block_pattern = /\n\^([\w\d-]+)\n/g;
 

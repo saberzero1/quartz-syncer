@@ -44,6 +44,8 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	publishFrontmatterKey: "publish",
 
+	lastUsedSettingsTab: "github",
+
 	logLevel: undefined,
 };
 

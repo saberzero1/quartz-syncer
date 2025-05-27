@@ -4,7 +4,7 @@ import { Base64 } from "js-base64";
 import {
 	RepositoryConnection,
 	TRepositoryContent,
-} from "./RepositoryConnection";
+} from "src/repositoryConnection/RepositoryConnection";
 import Logger from "js-logger";
 
 const logger = Logger.get("quartz-syncer-site-manager");

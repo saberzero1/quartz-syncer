@@ -2,7 +2,7 @@
 title: Roadmap
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-05-26T22:49:50Z+0200
+modified: 2025-05-27T16:50:36Z+0200
 publish: true
 ---
 
@@ -13,6 +13,7 @@ publish: true
 - Excalidraw support.
 - Canvas support.
 - Built-in Quartz Themes support.
+- TTRPG-related plugin support.
 
 ## Someday
 
@@ -21,6 +22,15 @@ publish: true
 - Manage Quartz plugins.
 
 ## Released
+
+### Version 1.6.6
+
+- Re-implemented the settings modal to use built-in Obsidian functionality.
+- Settings that are overridden by other settings are now automatically hidden.
+- Settings modal will now remember the last settings tab opened, instead of always opening the GitHub tab.
+- Added missing heading to the Frontmatter settings tab.
+- Removed redundant rendering calls.
+- Restructured import statements.
 
 ### Version 1.6.5
 

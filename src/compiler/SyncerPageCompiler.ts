@@ -6,9 +6,9 @@ import {
 	arrayBufferToBase64,
 	getLinkpath,
 } from "obsidian";
-import QuartzSyncerSettings from "../models/settings";
-import { PathRewriteRule } from "../repositoryConnection/QuartzSyncerSiteManager";
-import Publisher from "../publisher/Publisher";
+import QuartzSyncerSettings from "src/models/settings";
+import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
+import Publisher from "src/publisher/Publisher";
 import {
 	escapeLatexBlock,
 	fixSvgForXmlSerializer,
@@ -16,9 +16,9 @@ import {
 	getSyncerPathForNote,
 	getRewriteRules,
 	sanitizePermalink,
-} from "../utils/utils";
+} from "src/utils/utils";
 import slugify from "@sindresorhus/slugify";
-import { fixMarkdownHeaderSyntax } from "../utils/markdown";
+import { fixMarkdownHeaderSyntax } from "src/utils/markdown";
 import {
 	CODEBLOCK_REGEX,
 	CODE_FENCE_REGEX,
@@ -29,10 +29,10 @@ import {
 	DATAVIEW_LINK_TARGET_BLANK_REGEX,
 	TRANSCLUDED_FILE_REGEX,
 	FILE_REGEX,
-} from "../utils/regexes";
+} from "src/utils/regexes";
 import Logger from "js-logger";
-import { DataviewCompiler } from "./DataviewCompiler";
-import { PublishFile } from "../publishFile/PublishFile";
+import { DataviewCompiler } from "src/compiler/DataviewCompiler";
+import { PublishFile } from "src/publishFile/PublishFile";
 
 export interface Asset {
 	path: string;

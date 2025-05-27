@@ -1,10 +1,6 @@
 import assert from "node:assert";
-import {
-	getSyncerPathForNote,
-	getRewriteRules,
-	wrapAround,
-} from "../utils/utils";
-import { PathRewriteRule } from "../repositoryConnection/QuartzSyncerSiteManager";
+import { getSyncerPathForNote, getRewriteRules, wrapAround } from "./utils";
+import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
 
 describe("utils", () => {
 	describe("getSyncerPathForNote", () => {
