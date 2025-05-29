@@ -156,9 +156,9 @@ export default class QuartzSyncerSiteManager {
 		const hashes: Record<string, string> = {};
 
 		for (const blob of blobs) {
-			const vaultPath = decodeURI(
-				blob.path.replace(this.settings.contentFolder, ""),
-				//.replace(this.settings.vaultPath, ""),
+			const vaultPath = blob.path.replace(
+				this.settings.contentFolder,
+				"",
 			);
 
 			const actualVaultPath = vaultPath.startsWith("/")
