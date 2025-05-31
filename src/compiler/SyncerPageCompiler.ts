@@ -228,7 +228,9 @@ export class SyncerPageCompiler {
 						);
 					}
 
-					linkDisplayName = linkDisplayName || linkedFileName;
+					linkDisplayName = linkDisplayName
+						? `\\|${linkDisplayName}`
+						: "";
 					let headerPath = "";
 
 					// detect links to headers or blocks
@@ -250,7 +252,7 @@ export class SyncerPageCompiler {
 					if (!linkedFile) {
 						convertedText = convertedText.replace(
 							linkMatch,
-							`[[${linkedFileName}${headerPath}\\|${linkDisplayName}]]`,
+							`[[${linkedFileName}${headerPath}${linkDisplayName}]]`,
 						);
 						continue;
 					}
@@ -263,7 +265,7 @@ export class SyncerPageCompiler {
 
 						convertedText = convertedText.replace(
 							linkMatch,
-							`[[${extensionlessPath}${headerPath}\\|${linkDisplayName}]]`,
+							`[[${extensionlessPath}${headerPath}${linkDisplayName}]]`,
 						);
 					}
 				} catch (e) {
