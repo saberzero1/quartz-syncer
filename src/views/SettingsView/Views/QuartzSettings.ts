@@ -63,7 +63,7 @@ export class QuartzSettings extends PluginSettingTab {
 		new Setting(this.settingsRootElement)
 			.setName("Apply embeds")
 			.setDesc(
-				"By default, Quartz Syncer will apply embeds directly to your notes. If you want to let Quartz embeds, disable this setting.",
+				"By default, Quartz Syncer will apply embeds directly to your notes. If you want to let Quartz handle embeds, disable this setting.",
 			)
 			.addToggle((toggle) =>
 				toggle
