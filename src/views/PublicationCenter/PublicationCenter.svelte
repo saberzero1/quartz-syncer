@@ -103,7 +103,7 @@
 							publishStatus.publishedNotes.length === 1
 								? "1 note"
 								: `${publishStatus.publishedNotes.length} notes`
-					  })`
+						})`
 					: ""),
 		);
 
@@ -117,7 +117,7 @@
 							publishStatus.changedNotes.length === 1
 								? "1 note"
 								: `${publishStatus.changedNotes.length} notes`
-					  })`
+						})`
 					: ""),
 		);
 
@@ -140,8 +140,8 @@
 								: `${
 										publishStatus.changedNotes.length +
 										publishStatus.publishedNotes.length
-								  } notes`
-					  })`
+									} notes`
+						})`
 					: ""),
 		);
 
@@ -155,7 +155,7 @@
 							publishStatus.unpublishedNotes.length === 1
 								? "1 note"
 								: `${publishStatus.unpublishedNotes.length} notes`
-					  })`
+						})`
 					: ""),
 		);
 

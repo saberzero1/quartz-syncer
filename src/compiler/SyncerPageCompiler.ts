@@ -312,7 +312,7 @@ export class SyncerPageCompiler {
 							? transclusionFileNameInitial.substring(
 									0,
 									transclusionFileNameInitial.length - 1,
-							  )
+								)
 							: transclusionFileNameInitial;
 
 					const transclusionFilePath =
@@ -447,7 +447,7 @@ export class SyncerPageCompiler {
 												this.rewriteRule,
 											),
 										),
-								  );
+									);
 
 							let quartzPath = quartzPathFull.endsWith("/")
 								? quartzPathFull.slice(0, -1)
@@ -765,7 +765,7 @@ export class SyncerPageCompiler {
 								: `${relativeEmbedPrefix}${linkedFile.path}`.replace(
 										embedPrefixVaultPath,
 										"",
-								  );
+									);
 						let name = "";
 
 						if (metaData && size) {
