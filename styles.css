@@ -17,7 +17,7 @@
 }
 
 .quartz-syncer-publisher-loading-msg {
-	font-size: 1.2rem;
+	font-size: var(--font-ui-larger);
 	display: flex;
 	align-items: center;
 	flex-direction: column;
@@ -25,8 +25,8 @@
 button.quartz-syncer-publisher-button {
 	background-color: var(--interactive-accent);
 	color: var(--text-on-accent);
-	cursor: pointer;
-	font-weight: bold;
+	cursor: var(--cursor);
+	font-weight: var(--font-bold);
 }
 .quartz-syncer-publisher-loading-container {
 	width: 100%;
@@ -40,10 +40,10 @@ button.quartz-syncer-publisher-button {
 	transition: all 0.5s ease-in-out;
 }
 .quartz-syncer-publisher-published {
-	color: var(--text-success, var(--color-green, palegreen));
+	color: var(--text-success, var(--color-green));
 }
 .quartz-syncer-publisher-deleted {
-	color: var(--text-error, var(--color-red, crimson));
+	color: var(--text-error, var(--color-red));
 }
 
 /* Quartz Syncer Diff View */
@@ -55,21 +55,16 @@ pre.quartz-syncer-diff-view {
 }
 
 pre.quartz-syncer-diff-view.quartz-syncer-diff-added {
-	--palegreen: 152, 251, 152;
 	background-color: rgba(
-		var(
-			--background-modifier-success-rgb,
-			var(--color-green-rgb, --palegreen)
-		),
+		var(--background-modifier-success-rgb, var(--color-green-rgb)),
 		0.5
 	);
 	color: var(--text-on-accent);
 }
 
 pre.quartz-syncer-diff-view.quartz-syncer-diff-removed {
-	--crimson: 220, 20, 60;
 	background-color: rgba(
-		var(--background-modifier-error-rgb, var(--color-red-rgb, --crimson)),
+		var(--background-modifier-error-rgb, var(--color-red-rgb)),
 		0.5
 	);
 	color: var(--text-on-accent);
@@ -81,21 +76,18 @@ pre.quartz-syncer-diff-view.quartz-syncer-diff-removed {
 }
 
 .quartz-syncer-diff-line-added {
-	--palegreen: 152, 251, 152;
-	background-color: var(--text-success, var(--color-green, rgb(--palegreen)));
+	background-color: var(--text-success, var(--color-green));
 	color: var(--text-on-accent);
 	text-decoration: overline;
 }
 
 .quartz-syncer-diff-line-removed {
-	--crimson: 220, 20, 60;
-	background-color: var(--text-error, var(--color-red, rgb(--crimson)));
+	background-color: var(--text-error, var(--color-red));
 	color: var(--text-on-accent);
 	text-decoration: line-through;
 }
 
 /* Quartz Syncer Tree Selectors */
-
 .quartz-syncer-modal-content ul {
 	margin: 0;
 	list-style: none;
@@ -111,7 +103,7 @@ pre.quartz-syncer-diff-view.quartz-syncer-diff-removed {
 	padding-left: calc(var(--icon-size) + 2px);
 }
 .quartz-syncer-modal-content .arrow {
-	cursor: pointer;
+	cursor: var(--cursor);
 	display: inline-block;
 	transition: transform 200ms;
 }
@@ -125,8 +117,8 @@ pre.quartz-syncer-diff-view.quartz-syncer-diff-removed {
 }
 
 .quartz-syncer-modal-content .root-header {
-	font-weight: bold;
-	font-size: 1.2rem;
+	font-weight: var(--font-bold);
+	font-size: var(--font-ui-larger);
 }
 input:indeterminate {
 	background-color: var(--checkbox-color);
@@ -152,7 +144,7 @@ input[type="checkbox"]:indeterminate:after {
 }
 
 .quartz-syncer-icon-diff {
-	cursor: pointer;
+	cursor: var(--cursor);
 	display: inline-block;
 	margin-left: 4px;
 }
@@ -180,7 +172,7 @@ input[type="checkbox"]:indeterminate:after {
 }
 
 .quartz-syncer-publish-status-view .collapsable {
-	cursor: pointer;
+	cursor: var(--cursor);
 	margin-left: 10px;
 }
 
@@ -188,36 +180,36 @@ input[type="checkbox"]:indeterminate:after {
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " (plugin enabled)";
-	color: var(--text-success, var(--color-green, palegreen));
-	font-weight: bold;
+	color: var(--text-success, var(--color-green));
+	font-weight: var(--font-bold);
 }
 
 .quartz-syncer-settings-disabled > .setting-item-info > .setting-item-name {
-	color: var(--text-error, var(--color-red, crimson));
+	color: var(--text-error, var(--color-red));
 }
 
 .quartz-syncer-settings-disabled
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " (plugin disabled)";
-	color: var(--text-error, var(--color-red, crimson));
-	font-weight: bold;
+	color: var(--text-error, var(--color-red));
+	font-weight: var(--font-bold);
 }
 
 .quartz-syncer-settings-disabled > .setting-item-control > .checkbox-container {
-	background-color: var(--text-error, var(--color-red, crimson));
+	background-color: var(--text-error, var(--color-red));
 }
 
 .quartz-syncer-settings-upcoming
 	> .setting-item-info
 	> .setting-item-name:after {
 	content: " (upcoming feature)";
-	color: var(--text-warning, var(--color-orange, darkorange));
-	font-weight: bold;
+	color: var(--text-warning, var(--color-orange));
+	font-weight: var(--font-bold);
 }
 
 .quartz-syncer-settings .setting-item-heading {
-	margin-top: 40px;
+	margin-top: var(--heading-spacing);
 }
 
 .quartz-syncer-settings-title {
@@ -244,19 +236,19 @@ input[type="checkbox"]:indeterminate:after {
 
 /* GitHub connection status */
 .quartz-syncer-connection-status {
-	font-weight: bold;
+	font-weight: var(--font-bold);
 }
 
 .quartz-syncer-connection-status-failed {
-	color: var(--text-error, var(--color-red, crimson));
+	color: var(--text-error, var(--color-red));
 }
 
 .quartz-syncer-connection-status-success {
-	color: var(--text-success, var(--color-green, palegreen));
+	color: var(--text-success, var(--color-green));
 }
 
 .quartz-syncer-connection-status-pending {
-	color: var(--text-warning, var(--color-orange, darkorange));
+	color: var(--text-warning, var(--color-orange));
 }
 
 /* Cog animation */
@@ -307,13 +299,13 @@ input[type="checkbox"]:indeterminate:after {
 
 /* Settings tabs */
 .quartz-syncer-navigation-item {
-	cursor: pointer;
-	border-radius: 100px;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 8px 8px 2px 2px;
+	cursor: var(--cursor);
+	border: var(--border-width) solid var(--background-modifier-border);
+	border-radius: var(--radius-m) var(--radius-m) var(--radius-s)
+		var(--radius-s);
 
-	font-weight: bold;
-	font-size: 16px;
+	font-weight: var(--font-bold);
+	font-size: var(--font-text-size);
 
 	display: flex;
 	flex-direction: row;
@@ -324,7 +316,7 @@ input[type="checkbox"]:indeterminate:after {
 	gap: 4px;
 	overflow: hidden;
 
-	background-color: var(--background-primary-secondary-alt);
+	background-color: var(--background-secondary-alt);
 
 	transition:
 		color 0.25s ease-in-out,
@@ -361,8 +353,9 @@ input[type="checkbox"]:indeterminate:after {
 	color: var(--text-on-accent);
 	padding: 4px 9px !important;
 	max-width: 100% !important;
-	border: 1px solid var(--background-modifier-border);
-	border-radius: 8px 8px 2px 2px;
+	border: var(--border-width) solid var(--background-modifier-border);
+	border-radius: var(--radius-m) var(--radius-m) var(--radius-s)
+		var(--radius-s);
 	border-bottom: 0px;
 	transition:
 		color 0.25s ease-in-out,
@@ -409,16 +402,16 @@ input[type="checkbox"]:indeterminate:after {
 	margin-top: 6px;
 	padding-left: 2px;
 	padding-right: 2px;
-	border-bottom: 2px solid var(--background-modifier-border);
+	border-bottom: var(--border-width) solid var(--background-modifier-border);
 }
 
 .quartz-syncer-setting-header .quartz-syncer-tab-settings {
 	padding: 6px 12px;
 	font-weight: 600;
-	cursor: pointer;
+	cursor: var(--cursor);
 	white-space: nowrap;
-	border-left: 2px solid transparent;
-	border-right: 2px solid transparent;
+	border-left: var(--border-width) solid var(--background-modifier-border);
+	border-right: var(--border-width) solid var(--background-modifier-border);
 }
 
 .quartz-syncer-setting-header .quartz-syncer-tab-settings:first-child {
@@ -427,12 +420,12 @@ input[type="checkbox"]:indeterminate:after {
 
 .quartz-syncer-setting-header
 	.quartz-syncer-tab-settings.quartz-syncer-tab-settings-active {
-	border-bottom: 2px solid var(--background-primary);
+	border-bottom: var(--border-width) solid var(--background-primary);
 	transform: translateY(2px);
-	border-radius: 2px;
-	border-left: 2px solid var(--background-modifier-border);
-	border-top: 2px solid var(--background-modifier-border);
-	border-right: 2px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	border-left: var(--border-width) solid var(--background-modifier-border);
+	border-top: var(--border-width) solid var(--background-modifier-border);
+	border-right: var(--border-width) solid var(--background-modifier-border);
 }
 
 .quartz-syncer-setting-content
@@ -445,9 +438,15 @@ input[type="checkbox"]:indeterminate:after {
 	display: none;
 }
 
-.quartz-syncer-navigation-item:not(.quartz-syncer-navigation-item-active)
+body.is-phone
+	.quartz-syncer-navigation-item:not(.quartz-syncer-navigation-item-active)
 	> span:nth-child(2),
-.quartz-syncer-visually-hidden {
+body.is-tablet
+	.quartz-syncer-navigation-item:not(.quartz-syncer-navigation-item-active)
+	> span:nth-child(2),
+body.is-mobile
+	.quartz-syncer-navigation-item:not(.quartz-syncer-navigation-item-active)
+	> span:nth-child(2) {
 	border: 0;
 	clip: rect(0 0 0 0);
 	clip-path: rect(0 0 0 0);

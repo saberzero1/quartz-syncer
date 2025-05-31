@@ -120,9 +120,8 @@ export class FrontmatterCompiler {
 					}
 
 					if (typeof baseFrontMatter["alias"] === "string") {
-						publishedFrontMatter[
-							"aliases"
-						] += ` ${baseFrontMatter["alias"]}`;
+						publishedFrontMatter["aliases"] +=
+							` ${baseFrontMatter["alias"]}`;
 					} else if (Array.isArray(baseFrontMatter["alias"])) {
 						publishedFrontMatter["aliases"] += ` ${baseFrontMatter[
 							"alias"

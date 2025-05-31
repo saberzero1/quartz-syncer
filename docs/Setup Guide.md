@@ -2,7 +2,7 @@
 title: Setup Guide
 description: Instructions for setting up Quartz Syncer plugin.
 created: 2025-05-05T12:00:00Z+0200
-modified: 2025-05-21T00:01:26Z+0200
+modified: 2025-05-31T13:01:56Z+0200
 publish: true
 tags: [guides]
 ---

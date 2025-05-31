@@ -228,7 +228,9 @@ export class SyncerPageCompiler {
 						);
 					}
 
-					linkDisplayName = linkDisplayName || linkedFileName;
+					linkDisplayName = linkDisplayName
+						? `\\|${linkDisplayName}`
+						: "";
 					let headerPath = "";
 
 					// detect links to headers or blocks
@@ -250,7 +252,7 @@ export class SyncerPageCompiler {
 					if (!linkedFile) {
 						convertedText = convertedText.replace(
 							linkMatch,
-							`[[${linkedFileName}${headerPath}\\|${linkDisplayName}]]`,
+							`[[${linkedFileName}${headerPath}${linkDisplayName}]]`,
 						);
 						continue;
 					}
@@ -263,7 +265,7 @@ export class SyncerPageCompiler {
 
 						convertedText = convertedText.replace(
 							linkMatch,
-							`[[${extensionlessPath}${headerPath}\\|${linkDisplayName}]]`,
+							`[[${extensionlessPath}${headerPath}${linkDisplayName}]]`,
 						);
 					}
 				} catch (e) {
@@ -310,7 +312,7 @@ export class SyncerPageCompiler {
 							? transclusionFileNameInitial.substring(
 									0,
 									transclusionFileNameInitial.length - 1,
-							  )
+								)
 							: transclusionFileNameInitial;
 
 					const transclusionFilePath =
@@ -445,7 +447,7 @@ export class SyncerPageCompiler {
 												this.rewriteRule,
 											),
 										),
-								  );
+									);
 
 							let quartzPath = quartzPathFull.endsWith("/")
 								? quartzPathFull.slice(0, -1)
@@ -763,7 +765,7 @@ export class SyncerPageCompiler {
 								: `${relativeEmbedPrefix}${linkedFile.path}`.replace(
 										embedPrefixVaultPath,
 										"",
-								  );
+									);
 						let name = "";
 
 						if (metaData && size) {
