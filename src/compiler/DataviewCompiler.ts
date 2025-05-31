@@ -87,21 +87,14 @@ export class DataviewCompiler {
 				const block = queryBlock[0];
 				const query = queryBlock[1];
 
-				const div = createEl("div");
-				const component = new Component();
-				component.load();
-				await dvApi.executeJs(query, div, component, file.getPath());
-				let counter = 0;
+				const dataviewResult = await tryExecuteJs(query, file, dvApi);
 
-				while (!div.querySelector("[data-tag-name]") && counter < 100) {
-					await delay(5);
-					counter++;
+				if (dataviewResult) {
+					replacedText = replacedText.replace(
+						block,
+						dataviewResult.toString() ?? "",
+					);
 				}
-
-				replacedText = replacedText.replace(
-					block,
-					htmlToMarkdown(div) ?? "",
-				);
 			} catch (e) {
 				console.log(e);
 
@@ -119,9 +112,7 @@ export class DataviewCompiler {
 				const code = inlineQuery[0];
 				const query = inlineQuery[1];
 
-				const dataviewResult = dvApi.tryEvaluate(query.trim(), {
-					this: dvApi.page(file.getPath()) ?? {},
-				});
+				const dataviewResult = tryDVEvaluate(query.trim(), file, dvApi);
 
 				if (dataviewResult) {
 					replacedText = replacedText.replace(
@@ -273,7 +264,7 @@ async function tryExecuteJs(
 	await dvApi.executeJs(query, div, component, file.getPath());
 	let counter = 0;
 
-	while (!div.querySelector("[data-tag-name]") && counter < 50) {
+	while (!div.querySelector("[data-tag-name]") && counter < 100) {
 		await delay(5);
 		counter++;
 	}
