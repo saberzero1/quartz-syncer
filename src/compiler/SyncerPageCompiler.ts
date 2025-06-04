@@ -300,12 +300,13 @@ export class SyncerPageCompiler {
 
 			for (const transclusionMatch of transclusionMatches ?? []) {
 				try {
-					const [transclusionFileNameInitial, _] = transclusionMatch
-						.substring(
-							transclusionMatch.indexOf("[") + 2,
-							transclusionMatch.indexOf("]"),
-						)
-						.split("|");
+					const [transclusionFileNameInitial, transclusionAlias] =
+						transclusionMatch
+							.substring(
+								transclusionMatch.indexOf("[") + 2,
+								transclusionMatch.indexOf("]"),
+							)
+							.split("|");
 
 					const transclusionFileName =
 						transclusionFileNameInitial.endsWith("\\")
@@ -473,7 +474,7 @@ export class SyncerPageCompiler {
 						//This should be recursive up to a certain depth
 						transcludedText = transcludedText.replace(
 							transclusionMatch,
-							fileText,
+							`<div class="transclude" data-embed-alias=" ${transclusionAlias ? transclusionAlias.trim() : ""} " data-url="${linkedFile.path.replace(/\.md$/, "")}"> \n\n${fileText}\n\n</div>\n <a href="${linkedFile.path.replace(/\.md$/, "")}" class="internal transclude-src">Link to original</a>`,
 						);
 					}
 				} catch (error) {
