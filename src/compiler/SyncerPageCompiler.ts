@@ -461,6 +461,12 @@ export class SyncerPageCompiler {
 							}
 						}
 
+						// Fixing malformed block math transclusions:
+						fileText = fileText.replace(
+							/(^|[^$])\$\$($)/gm, // only match double dollar signs (block math)
+							"$1$$$$$$$$$2", // adding two extra dollar signs
+						);
+
 						if (fileText.match(transcludedRegex)) {
 							fileText = await this.createTranscludedText(
 								currentDepth + 1,
@@ -478,31 +484,6 @@ export class SyncerPageCompiler {
 					continue;
 				}
 			}
-
-			// Fix MathJax transclusions
-			// double dollar signs tend to collapse into a single one which makes them inlined
-			// this is a workaround to fix that
-			/*
-			example:
-			$$
-			hello
-			$$
-			turns into
-			$
-			hello
-			$
-			which is not what we want
-			we do want to keep inlined math as it is, so we only fix the ones that should not be inlined:
-			$goodbye$ //good
-			$
-			hello
-			$ //bad
-			*/
-			// Fixing malformed transclusions:
-			transcludedText = transcludedText.replace(
-				/(^|[^$])\$($)/gm,
-				"$1$$$$$2",
-			);
 
 			return transcludedText;
 		};
