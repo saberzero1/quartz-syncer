@@ -2,7 +2,7 @@
 title: Roadmap
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-05-31T13:43:55Z+0200
+modified: 2025-06-05T17:47:28Z+0200
 publish: true
 ---
 
@@ -22,6 +22,12 @@ publish: true
 - Manage Quartz components.
 
 ## Released
+
+### Version 1.6.8
+
+- Fixed DataviewJS queries not always returning correct data.
+- Fixed MathJax collapsing to inline queries when embedded.
+- Updated documentation.
 
 ### Version 1.6.7
 
