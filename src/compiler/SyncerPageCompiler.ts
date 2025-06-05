@@ -10,7 +10,6 @@ import QuartzSyncerSettings from "src/models/settings";
 import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
 import Publisher from "src/publisher/Publisher";
 import {
-	escapeLatexBlock,
 	fixSvgForXmlSerializer,
 	generateUrlPath,
 	getSyncerPathForNote,
@@ -354,16 +353,14 @@ export class SyncerPageCompiler {
 								publishLinkedFile.getBlock(refBlock);
 
 							if (blockInFile) {
-								fileText = escapeLatexBlock(
-									fileText
-										.split("\n")
-										.slice(
-											blockInFile.position.start.line,
-											blockInFile.position.end.line + 1,
-										)
-										.join("\n")
-										.replace(`^${refBlock}`, ""),
-								);
+								fileText = fileText
+									.split("\n")
+									.slice(
+										blockInFile.position.start.line,
+										blockInFile.position.end.line + 1,
+									)
+									.join("\n")
+									.replace(`^${refBlock}`, "");
 							}
 						} else if (transclusionFileName.includes("#")) {
 							// transcluding header only
@@ -481,6 +478,31 @@ export class SyncerPageCompiler {
 					continue;
 				}
 			}
+
+			// Fix MathJax transclusions
+			// double dollar signs tend to collapse into a single one which makes them inlined
+			// this is a workaround to fix that
+			/*
+			example:
+			$$
+			hello
+			$$
+			turns into
+			$
+			hello
+			$
+			which is not what we want
+			we do want to keep inlined math as it is, so we only fix the ones that should not be inlined:
+			$goodbye$ //good
+			$
+			hello
+			$ //bad
+			*/
+			// Fixing malformed transclusions:
+			transcludedText = transcludedText.replace(
+				/(^|[^$])\$($)/gm,
+				"$1$$$$$2",
+			);
 
 			return transcludedText;
 		};
