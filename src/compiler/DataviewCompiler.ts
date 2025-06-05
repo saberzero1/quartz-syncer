@@ -269,7 +269,24 @@ async function tryExecuteJs(
 		counter++;
 	}
 
-	return htmlToMarkdown(div);
+	const markdown = htmlToMarkdown(div) || "";
+
+	const result = cleanDataviewJsResultMarkdown(markdown);
+
+	return result;
+}
+
+function cleanDataviewJsResultMarkdown(markdown: string): string {
+	// Replace URI escape characters with their actual characters
+	markdown = decodeURI(markdown);
+
+	// remove `.md` extension from file links
+	markdown = markdown.replace(/(\[.*?\]\()(.+?)\.md(\))/g, "$1$2$3");
+
+	// rewrite markdown links to use the Obsidian wikilinks format
+	markdown = markdown.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "[[$2|$1]]");
+
+	return markdown.trim();
 }
 
 //delay async function
