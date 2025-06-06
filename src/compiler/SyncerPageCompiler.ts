@@ -461,17 +461,17 @@ export class SyncerPageCompiler {
 							}
 						}
 
-						// Fixing malformed block math transclusions:
-						fileText = fileText.replace(
-							/(^|[^$])\$\$($)/gm, // only match double dollar signs (block math)
-							"$1$$$$$$$$$2", // adding two extra dollar signs
-						);
-
 						if (fileText.match(transcludedRegex)) {
 							fileText = await this.createTranscludedText(
 								currentDepth + 1,
 							)(publishLinkedFile)(fileText);
 						}
+
+						// Fixing malformed block math transclusions:
+						fileText = fileText.replace(
+							/(^|[^$])\$\$($)/gm, // only match double dollar signs (block math)
+							"$1$$$$$$$$$2", // adding two extra dollar signs
+						);
 
 						//This should be recursive up to a certain depth
 						transcludedText = transcludedText.replace(
