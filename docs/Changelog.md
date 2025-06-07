@@ -2,7 +2,7 @@
 title: Roadmap
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-06-05T17:53:38Z+0200
+modified: 2025-06-07T12:52:59Z+0200
 publish: true
 ---
 
@@ -22,6 +22,11 @@ publish: true
 - Manage Quartz components.
 
 ## Released
+
+### Version 1.6.9
+
+- Fixed MathJax embedding inside callouts and multi-layer embbeddings.
+- Updated documentation.
 
 ### Version 1.6.8
 
