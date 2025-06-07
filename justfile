@@ -1,6 +1,8 @@
 default:
 	just --list
 
+full: lint check prod
+
 dev:
 	npm run dev
 	mkdir -p ./docs/.obsidian/plugins/quartz-syncer
