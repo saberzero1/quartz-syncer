@@ -1,16 +1,12 @@
 ---
-title: Roadmap
+title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-06-09T20:53:59Z+0200
+modified: 2025-06-09T22:26:42Z+0200
 publish: true
 ---
 
 ## Upcoming
-
-### Version 1.7.0
-
-- Experimental Datacore support.
 
 ## Planned
 
@@ -26,6 +22,11 @@ publish: true
 - Manage Quartz components.
 
 ## Released
+
+### Version 1.7.0
+
+- Experimental [[Settings/Integrations/Datacore|Datacore]] support.
+- Updated documentation.
 
 ### Version 1.6.9
 

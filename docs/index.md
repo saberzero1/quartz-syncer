@@ -2,7 +2,7 @@
 title: Quartz Syncer Documentation
 description: Quartz Syncer allows you to manage your Quartz site content from Obsidian.
 created: 2025-04-20T00:00:00Z+0200
-modified: 2025-05-31T13:08:41Z+0200
+modified: 2025-06-09T22:12:32Z+0200
 publish: true
 ---
 
@@ -42,5 +42,6 @@ Quartz Syncer would not have been build without the following:
 - [Quartz](https://quartz.jzhao.xyz/), for the amazing and welcoming community. Come say hi in the Discord server sometimes.
 - [Obsidian Linter](https://github.com/platers/obsidian-linter), for inspiring the tabbed settings UI.
 - [Dataview](https://blacksmithgu.github.io/obsidian-dataview/), for their great API integration, allowing me to properly integrate it in Quartz.
+- [Datacore](https://blacksmithgu.github.io/datacore/), for their wonderful integration despite its infancy, allowing easy integration into Quartz.
 - [Obsidian Publish](https://obsidian.md/publish), for inspiring me to create a similar solution for Quartz.
 - The entire Obsidian community, for all your weird and amazing creations. Keep it up.
