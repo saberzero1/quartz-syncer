@@ -1,4 +1,5 @@
 import {
+	App,
 	MetadataCache,
 	Notice,
 	TFile,
@@ -31,6 +32,7 @@ import {
 } from "src/utils/regexes";
 import Logger from "js-logger";
 import { DataviewCompiler } from "src/compiler/DataviewCompiler";
+import { DatacoreCompiler } from "./DatacoreCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 
 export interface Asset {
@@ -53,6 +55,7 @@ export type TCompilerStep = (
 	| ((partiallyCompiledContent: string) => string);
 
 export class SyncerPageCompiler {
+	private app: App;
 	private readonly vault: Vault;
 	private readonly settings: QuartzSyncerSettings;
 	private metadataCache: MetadataCache;
@@ -60,11 +63,13 @@ export class SyncerPageCompiler {
 	private rewriteRule: PathRewriteRule;
 
 	constructor(
+		app: App,
 		vault: Vault,
 		settings: QuartzSyncerSettings,
 		metadataCache: MetadataCache,
 		getFilesMarkedForPublishing: Publisher["getFilesMarkedForPublishing"],
 	) {
+		this.app = app;
 		this.vault = vault;
 		this.settings = settings;
 		this.metadataCache = metadataCache;
@@ -99,6 +104,7 @@ export class SyncerPageCompiler {
 			this.convertFrontMatter,
 			this.createTranscludedText(0),
 			this.convertDataViews,
+			this.convertDataCores,
 			this.convertLinksToFullPath,
 			this.removeObsidianComments,
 			this.createSvgEmbeds,
@@ -183,6 +189,16 @@ export class SyncerPageCompiler {
 		const dataviewCompiler = new DataviewCompiler();
 
 		return await dataviewCompiler.compile(file)(text);
+	};
+
+	convertDataCores = (file: PublishFile) => async (text: string) => {
+		if (!this.settings.useDatacore) {
+			return text;
+		}
+
+		const datacoreCompiler = new DatacoreCompiler(this.app);
+
+		return await datacoreCompiler.compile(file)(text);
 	};
 
 	linkTargeting: TCompilerStep = () => (text) => {

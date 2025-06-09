@@ -1,7 +1,7 @@
 import { Setting, App, PluginSettingTab } from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
-import { isPluginEnabled } from "obsidian-dataview";
+import { isPluginEnabled } from "src/utils/utils";
 
 export class IntegrationSettings extends PluginSettingTab {
 	app: App;
@@ -28,6 +28,7 @@ export class IntegrationSettings extends PluginSettingTab {
 
 		this.initializePluginIntegrationHeader();
 		this.initializeDataviewSetting();
+		this.initializeDatacoreSetting();
 		this.initializeExcalidrawSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "integration";
@@ -43,8 +44,37 @@ export class IntegrationSettings extends PluginSettingTab {
 			.setHeading();
 	};
 
+	private initializeDatacoreSetting() {
+		const datacoreEnabled = isPluginEnabled("datacore");
+
+		new Setting(this.settingsRootElement)
+			.setName("Enable Datacore integration")
+			.setDesc(
+				"Converts Datacore queries into Quartz-compatible markdown. Currently, this is an experimental feature and may not work as expected.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(
+						this.settings.settings.useDatacore && datacoreEnabled,
+					)
+					.setDisabled(!datacoreEnabled)
+					.onChange(async (value) => {
+						this.settings.settings.useDatacore =
+							value && datacoreEnabled;
+						await this.settings.saveSettings();
+					}),
+			)
+			.setClass(
+				`${
+					datacoreEnabled
+						? "quartz-syncer-settings-enabled"
+						: "quartz-syncer-settings-disabled"
+				}`,
+			);
+	}
+
 	private initializeDataviewSetting() {
-		const dataviewEnabled = isPluginEnabled(this.settings.app);
+		const dataviewEnabled = isPluginEnabled("dataview");
 
 		new Setting(this.settingsRootElement)
 			.setName("Enable Dataview integration")

@@ -90,6 +90,13 @@ function sanitizePermalink(permalink: string): string {
 	return permalink;
 }
 
+function isPluginEnabled(pluginId: string): boolean {
+	//@ts-expect-error global app is available in Obsidian
+	const plugins = app.plugins.enabledPlugins;
+
+	return plugins.has(pluginId) || plugins.has(pluginId.toLowerCase());
+}
+
 export {
 	generateUrlPath,
 	generateBlobHash,
@@ -99,4 +106,5 @@ export {
 	escapeRegExp,
 	fixSvgForXmlSerializer,
 	sanitizePermalink,
+	isPluginEnabled,
 };

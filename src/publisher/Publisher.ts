@@ -1,4 +1,4 @@
-import { MetadataCache, Notice, TFile, Vault } from "obsidian";
+import { App, MetadataCache, Notice, TFile, Vault } from "obsidian";
 import { Base64 } from "js-base64";
 import { getRewriteRules } from "src/utils/utils";
 import {
@@ -21,6 +21,7 @@ export interface MarkedForPublishing {
  * Prepares files to be published and publishes them to Github
  */
 export default class Publisher {
+	app: App;
 	vault: Vault;
 	metadataCache: MetadataCache;
 	compiler: SyncerPageCompiler;
@@ -29,10 +30,12 @@ export default class Publisher {
 	vaultPath: string;
 
 	constructor(
+		app: App,
 		vault: Vault,
 		metadataCache: MetadataCache,
 		settings: QuartzSyncerSettings,
 	) {
+		this.app = app;
 		this.vault = vault;
 		this.metadataCache = metadataCache;
 		this.settings = settings;
@@ -40,6 +43,7 @@ export default class Publisher {
 		this.vaultPath = settings.vaultPath;
 
 		this.compiler = new SyncerPageCompiler(
+			app,
 			vault,
 			settings,
 			metadataCache,
