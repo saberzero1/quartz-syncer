@@ -2,6 +2,7 @@ import { DatacoreApi } from "@blacksmithgu/datacore/build/library/index";
 import { App, Component, Notice } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
+import { isPluginEnabled } from "src/utils/utils";
 import Logger from "js-logger";
 
 export class DatacoreCompiler {
@@ -237,9 +238,8 @@ export class DatacoreCompiler {
 // According to the documentation.
 // This will hopefully change in the future when the API stabilizes.
 function getDatacoreApi(): DatacoreApi | undefined {
-	//@ts-expect-error // Accessing global window object
-	if (window.datacore !== undefined) {
-		//@ts-expect-error // Accessing global window object
+	if (isPluginEnabled("datacore")) {
+		//@ts-expect-error If datacore is enabled, it should be available on the window object
 		return window.datacore as DatacoreApi;
 	}
 

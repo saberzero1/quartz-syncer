@@ -1,7 +1,7 @@
 import { Setting, App, PluginSettingTab } from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
-import { isPluginEnabled } from "obsidian-dataview";
+import { isPluginEnabled } from "src/utils/utils";
 
 export class IntegrationSettings extends PluginSettingTab {
 	app: App;
@@ -45,8 +45,7 @@ export class IntegrationSettings extends PluginSettingTab {
 	};
 
 	private initializeDatacoreSetting() {
-		//@ts-expect-error // Accessing global window object
-		const datacoreEnabled = !!(window.datacore !== undefined);
+		const datacoreEnabled = isPluginEnabled("datacore");
 
 		new Setting(this.settingsRootElement)
 			.setName("Enable Datacore integration")
@@ -75,7 +74,7 @@ export class IntegrationSettings extends PluginSettingTab {
 	}
 
 	private initializeDataviewSetting() {
-		const dataviewEnabled = isPluginEnabled(this.settings.app);
+		const dataviewEnabled = isPluginEnabled("dataview");
 
 		new Setting(this.settingsRootElement)
 			.setName("Enable Dataview integration")
