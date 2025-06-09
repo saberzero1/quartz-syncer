@@ -33,6 +33,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	usePermalink: false,
 
+	useDatacore: false,
 	useDataview: true,
 	useExcalidraw: false,
 
@@ -107,6 +108,7 @@ export default class QuartzSyncer extends Plugin {
 			Logger.info("Developer tools enabled");
 
 			const publisher = new Publisher(
+				this.app,
 				this.app.vault,
 				this.app.metadataCache,
 				this.settings,
@@ -221,6 +223,7 @@ export default class QuartzSyncer extends Plugin {
 			);
 
 			const publisher = new Publisher(
+				this.app,
 				this.app.vault,
 				this.app.metadataCache,
 				this.settings,

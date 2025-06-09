@@ -32,6 +32,7 @@ export default interface QuartzSyncerSettings {
 
 	publishFrontmatterKey: string;
 
+	useDatacore: boolean;
 	useDataview: boolean;
 	useExcalidraw: boolean;
 

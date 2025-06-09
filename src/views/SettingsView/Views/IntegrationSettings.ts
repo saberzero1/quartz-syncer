@@ -28,6 +28,7 @@ export class IntegrationSettings extends PluginSettingTab {
 
 		this.initializePluginIntegrationHeader();
 		this.initializeDataviewSetting();
+		this.initializeDatacoreSetting();
 		this.initializeExcalidrawSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "integration";
@@ -42,6 +43,36 @@ export class IntegrationSettings extends PluginSettingTab {
 			)
 			.setHeading();
 	};
+
+	private initializeDatacoreSetting() {
+		//@ts-expect-error // Accessing global window object
+		const datacoreEnabled = !!(window.datacore !== undefined);
+
+		new Setting(this.settingsRootElement)
+			.setName("Enable Datacore integration")
+			.setDesc(
+				"Converts Datacore queries into Quartz-compatible markdown. Currently, this is an experimental feature and may not work as expected.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(
+						this.settings.settings.useDatacore && datacoreEnabled,
+					)
+					.setDisabled(!datacoreEnabled)
+					.onChange(async (value) => {
+						this.settings.settings.useDatacore =
+							value && datacoreEnabled;
+						await this.settings.saveSettings();
+					}),
+			)
+			.setClass(
+				`${
+					datacoreEnabled
+						? "quartz-syncer-settings-enabled"
+						: "quartz-syncer-settings-disabled"
+				}`,
+			);
+	}
 
 	private initializeDataviewSetting() {
 		const dataviewEnabled = isPluginEnabled(this.settings.app);
