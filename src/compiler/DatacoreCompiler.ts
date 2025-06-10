@@ -2,28 +2,9 @@ import { DatacoreApi } from "@blacksmithgu/datacore/build/library/index";
 import { App, Component, Notice } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
-import {
-	//cleanQueryResult,
-	delay,
-	isPluginEnabled,
-	sanitizeHTMLToString,
-} from "src/utils/utils";
-import {
-	datacoreCallout,
-	datacoreCard,
-	datacoreEmbed,
-	datacoreFields,
-	datacoreTable,
-} from "src/utils/styles";
+import { delay, isPluginEnabled, sanitizeHTMLToString } from "src/utils/utils";
+import { datacoreCard } from "src/utils/styles";
 import Logger from "js-logger";
-
-const injectStyles: Record<string, boolean> = {
-	callout: false,
-	card: false,
-	embed: false,
-	list: false,
-	table: false,
-};
 
 export class DatacoreCompiler {
 	app: App;
@@ -43,9 +24,7 @@ export class DatacoreCompiler {
 
 		const dcApi = this.datacore;
 
-		for (const key in injectStyles) {
-			injectStyles[key] = false; // Reset the inject styles flags
-		}
+		let injectCardCSS = false;
 
 		const dataCoreJsRegex = /```datacorejs\s(.+?)```/gms;
 		const dataCoreJsxRegex = /```datacorejsx\s(.+?)```/gms;
@@ -71,7 +50,7 @@ export class DatacoreCompiler {
 
 				const queryResult = await tryExecuteJs(finalQuery, file, dcApi);
 
-				flagInjects(queryResult);
+				injectCardCSS = injectCardCSS || flagInjects(queryResult);
 
 				const result = sanitizeHTMLToString(
 					queryResult,
@@ -112,7 +91,7 @@ export class DatacoreCompiler {
 					dcApi,
 				);
 
-				flagInjects(queryResult);
+				injectCardCSS = injectCardCSS || flagInjects(queryResult);
 
 				const result = sanitizeHTMLToString(
 					queryResult,
@@ -149,7 +128,7 @@ export class DatacoreCompiler {
 
 				const queryResult = await tryExecuteTs(finalQuery, file, dcApi);
 
-				flagInjects(queryResult);
+				injectCardCSS = injectCardCSS || flagInjects(queryResult);
 
 				const result = sanitizeHTMLToString(
 					queryResult,
@@ -190,7 +169,7 @@ export class DatacoreCompiler {
 					dcApi,
 				);
 
-				flagInjects(queryResult);
+				injectCardCSS = injectCardCSS || flagInjects(queryResult);
 
 				const result = sanitizeHTMLToString(
 					queryResult,
@@ -217,7 +196,14 @@ export class DatacoreCompiler {
 			}
 		}
 
-		return replacedText + injectFlaggedStyles();
+		const injectCSS = injectCardCSS
+			? `
+
+<style>${datacoreCard}</style>
+`
+			: "";
+
+		return replacedText + injectCSS;
 	};
 
 	/**
@@ -408,50 +394,8 @@ function flagInjects(html: HTMLDivElement) {
 			: html.classList;
 
 	if (classList.contains("datacore-card")) {
-		injectStyles.card = true;
-	} else if (
-		classList.contains("datacore") &&
-		classList.contains("callout")
-	) {
-		injectStyles.callout = true;
-	} else if (classList.contains("datacore-embed")) {
-		injectStyles.embed = true;
-	} else if (classList.contains("datacore-table")) {
-		injectStyles.table = true;
-	} else if (classList.contains("datacore-list")) {
-		injectStyles.list = true;
-	}
-}
-
-function injectFlaggedStyles() {
-	let result = "";
-
-	if (injectStyles.callout) {
-		result += datacoreCallout;
+		return true;
 	}
 
-	if (injectStyles.card) {
-		result += datacoreCard;
-	}
-
-	if (injectStyles.embed) {
-		result += datacoreEmbed;
-	}
-
-	if (injectStyles.list) {
-		result += datacoreFields;
-	}
-
-	if (injectStyles.table) {
-		result += datacoreTable;
-	}
-
-	if (result.length > 0) {
-		return `
-
-<style>${result}</style>
-`;
-	}
-
-	return "";
+	return false;
 }

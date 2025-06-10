@@ -102,6 +102,9 @@ function cleanQueryResult(markdown: string): string {
 	// Replace URI escape characters with their actual characters
 	markdown = decodeURI(markdown);
 
+	// Rewrite tag links
+	markdown = markdown.replace(/\[(#[^\]]+)\]\((#[^)]+)\)/g, "$2");
+
 	// remove `.md` extension from file links
 	markdown = markdown.replace(/(\[.*?\]\()(.+?)\.md(\))/g, "$1$2$3");
 
@@ -176,7 +179,9 @@ function sanitizeHTMLToString(
 			)) ||
 		markdownableTagNames.includes(container.tagName.toLowerCase())
 	) {
-		return htmlToMarkdown(container) || "";
+		const result = htmlToMarkdown(container) || "";
+
+		return cleanQueryResult(result);
 	}
 
 	// Serialize the sanitized HTML back to a string
