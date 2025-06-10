@@ -103,7 +103,10 @@ function cleanQueryResult(markdown: string): string {
 	markdown = decodeURI(markdown);
 
 	// Rewrite tag links
-	markdown = markdown.replace(/\[(#[^\]]+)\]\((#[^)]+)\)/g, "$2");
+	markdown = markdown.replace(
+		/\[#([^\]]+)\]\(#([^)]+)\)/g,
+		`<a href="tags/$2" class="tag-link">$1</a>`,
+	);
 
 	// remove `.md` extension from file links
 	markdown = markdown.replace(/(\[.*?\]\()(.+?)\.md(\))/g, "$1$2$3");
