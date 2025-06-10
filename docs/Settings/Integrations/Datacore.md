@@ -2,7 +2,7 @@
 title: Datacore
 description: Whether to enable support for the Datacore plugin. Requires Datacore to be installed and enabled.
 created: 2025-06-09T20:48:56Z+0200
-modified: 2025-06-09T22:13:32Z+0200
+modified: 2025-06-10T22:22:53Z+0200
 publish: true
 tags: [datacore, integration, settings/integrations]
 default_value: "false"
@@ -57,7 +57,7 @@ return function View() {
     {id: "Tags", value: page => page.$tags}
   ];
   
-  return <dc.Table rows={pages} columns={COLUMNS} />
+  return <dc.Table rows={pages} columns={COLUMNS} />;
 }
 ```
 
@@ -70,7 +70,7 @@ return function View() {
     {id: "Tags", value: page => page.$tags}
   ];
   
-  return <dc.Table rows={pages} columns={COLUMNS} />
+  return <dc.Table rows={pages} columns={COLUMNS} />;
 }
 ```
 

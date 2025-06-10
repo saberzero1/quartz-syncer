@@ -2,16 +2,19 @@ import { DatacoreApi } from "@blacksmithgu/datacore/build/library/index";
 import { App, Component, Notice } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
-import { isPluginEnabled } from "src/utils/utils";
+import { delay, isPluginEnabled, sanitizeHTMLToString } from "src/utils/utils";
+import { datacoreCard } from "src/utils/styles";
 import Logger from "js-logger";
 
 export class DatacoreCompiler {
 	app: App;
 	datacore: DatacoreApi | undefined;
+	serializer: XMLSerializer;
 
 	constructor(app: App) {
 		this.app = app;
 		this.datacore = getDatacoreApi();
+		this.serializer = new XMLSerializer();
 	}
 
 	compile: TCompilerStep = (file) => async (text) => {
@@ -19,10 +22,9 @@ export class DatacoreCompiler {
 
 		if (!this.datacore) return text;
 
-		let injectCardStyle = false;
-		const cardClass = "datacore-card";
-
 		const dcApi = this.datacore;
+
+		let injectCardCSS = false;
 
 		const dataCoreJsRegex = /```datacorejs\s(.+?)```/gms;
 		const dataCoreJsxRegex = /```datacorejsx\s(.+?)```/gms;
@@ -46,10 +48,14 @@ export class DatacoreCompiler {
 				const { isInsideCalloutDepth, finalQuery } =
 					this.sanitizeQuery(query);
 
-				const result = (await tryExecuteJs(finalQuery, file, dcApi))
-					.innerHTML;
+				const queryResult = await tryExecuteJs(finalQuery, file, dcApi);
 
-				if (result.includes(cardClass)) injectCardStyle = true;
+				injectCardCSS = injectCardCSS || flagInjects(queryResult);
+
+				const result = sanitizeHTMLToString(
+					queryResult,
+					this.serializer,
+				);
 
 				if (isInsideCalloutDepth > 0) {
 					replacedText = replacedText.replace(
@@ -79,10 +85,18 @@ export class DatacoreCompiler {
 				const { isInsideCalloutDepth, finalQuery } =
 					this.sanitizeQuery(query);
 
-				const result = (await tryExecuteJsx(finalQuery, file, dcApi))
-					.innerHTML;
+				const queryResult = await tryExecuteJsx(
+					finalQuery,
+					file,
+					dcApi,
+				);
 
-				if (result.includes(cardClass)) injectCardStyle = true;
+				injectCardCSS = injectCardCSS || flagInjects(queryResult);
+
+				const result = sanitizeHTMLToString(
+					queryResult,
+					this.serializer,
+				);
 
 				if (isInsideCalloutDepth > 0) {
 					replacedText = replacedText.replace(
@@ -112,10 +126,14 @@ export class DatacoreCompiler {
 				const { isInsideCalloutDepth, finalQuery } =
 					this.sanitizeQuery(query);
 
-				const result = (await tryExecuteTs(finalQuery, file, dcApi))
-					.innerHTML;
+				const queryResult = await tryExecuteTs(finalQuery, file, dcApi);
 
-				if (result.includes(cardClass)) injectCardStyle = true;
+				injectCardCSS = injectCardCSS || flagInjects(queryResult);
+
+				const result = sanitizeHTMLToString(
+					queryResult,
+					this.serializer,
+				);
 
 				if (isInsideCalloutDepth > 0) {
 					replacedText = replacedText.replace(
@@ -145,10 +163,18 @@ export class DatacoreCompiler {
 				const { isInsideCalloutDepth, finalQuery } =
 					this.sanitizeQuery(query);
 
-				const result = (await tryExecuteTsx(finalQuery, file, dcApi))
-					.innerHTML;
+				const queryResult = await tryExecuteTsx(
+					finalQuery,
+					file,
+					dcApi,
+				);
 
-				if (result.includes(cardClass)) injectCardStyle = true;
+				injectCardCSS = injectCardCSS || flagInjects(queryResult);
+
+				const result = sanitizeHTMLToString(
+					queryResult,
+					this.serializer,
+				);
 
 				if (isInsideCalloutDepth > 0) {
 					replacedText = replacedText.replace(
@@ -170,11 +196,14 @@ export class DatacoreCompiler {
 			}
 		}
 
-		if (injectCardStyle) {
-			replacedText = replacedText + addCardStyle(); // Add the card style at the end of the text
-		}
+		const injectCSS = injectCardCSS
+			? `
 
-		return replacedText;
+<style>${datacoreCard}</style>
+`
+			: "";
+
+		return replacedText + injectCSS;
 	};
 
 	/**
@@ -358,87 +387,15 @@ async function tryExecuteTsx(
 	return div;
 }
 
-//delay async function
-function delay(milliseconds: number) {
-	return new Promise((resolve, _) => {
-		setTimeout(resolve, milliseconds);
-	});
-}
+function flagInjects(html: HTMLDivElement) {
+	const classList =
+		html.classList.length === 0
+			? html.children[0].classList
+			: html.classList;
 
-function addCardStyle() {
-	return `
-<style>
-.datacore-card {
-    display: flex;
-    flex-direction: column;
-    padding: 1.2rem;
-    border-radius: 0.5em;
-    background-color: var(--background-secondary);
-    min-width: 89%;
-    border: 2px solid var(--table-border-color);
-    overflow-y: scroll;
-}
+	if (classList.contains("datacore-card")) {
+		return true;
+	}
 
-.datacore-card-title {
-    margin-bottom: 0.6em;
-    display: flex;
-    justify-content: space-between;
-    font-size: 1.8em;
-}
-
-.datacore-card-title.centered {
-    justify-content: center !important;
-}
-
-.datacore-card-content,
-.datacore-card-inner,
-.datacore-card {
-    transition: all 0.3s cubic-bezier(0.65, 0.05, 0.36, 1);
-}
-.datacore-card-inner {
-    overflow-y: scroll;
-    overflow-x: hidden;
-    max-height: 500px;
-}
-
-.datacore-card .datacore-card-collapser,
-.datacore-card.is-collapsed .datacore-card-collapser {
-    transition: all 0.5s cubic-bezier(0.65, 0.05, 0.36, 1);
-}
-
-.datacore-card-content {
-    flex-grow: 1;
-}
-
-.datacore-card-inner {
-    display: flex;
-}
-
-.datacore-card:not(.datacore-card.is-collapsed) .datacore-card-collapser {
-    transform: rotate(180deg);
-}
-
-.datacore-card.is-collapsed .datacore-card-collapser {
-    transform: rotate(0deg) !important;
-}
-
-.datacore-card-collapse,
-.datacore-card-collapser svg {
-    min-width: 1em;
-    min-height: 1em;
-    fill: currentColor;
-    vertical-align: middle;
-}
-
-.datacore-card.is-collapsed .datacore-card-collapser {
-    transform: rotate(0deg);
-}
-
-.datacore-card .datacore-card-footer {
-    font-size: 0.7em;
-    text-align: right;
-    padding: 0;
-}
-</style>
-`;
+	return false;
 }
