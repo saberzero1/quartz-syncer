@@ -2,11 +2,18 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-06-09T22:26:42Z+0200
+modified: 2025-06-10T22:05:17Z+0200
 publish: true
 ---
 
 ## Upcoming
+
+### Version 1.7.1
+
+- Datacore integration improvements.
+- Fixed Datacore callouts.
+- Fixed aliases and permalinks not passing through when set inside note properties.
+- Updated documentation.
 
 ## Planned
 
