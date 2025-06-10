@@ -86,13 +86,6 @@ export class FrontmatterCompiler {
 		) => {
 			const publishedFrontMatter = { ...newFrontMatter };
 
-			if (
-				!this.settings.usePermalink &&
-				!this.settings.includeAllFrontmatter
-			) {
-				return publishedFrontMatter;
-			}
-
 			if (baseFrontMatter) {
 				if (baseFrontMatter["permalink"]) {
 					publishedFrontMatter["permalink"] =
