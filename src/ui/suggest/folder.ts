@@ -1,4 +1,4 @@
-import { App, AbstractInputSuggest, TFolder } from "obsidian";
+import { App, AbstractInputSuggest } from "obsidian";
 
 export class FolderSuggest extends AbstractInputSuggest<string> {
 	private folders: string[];
@@ -9,13 +9,11 @@ export class FolderSuggest extends AbstractInputSuggest<string> {
 
 		this.inputEl = inputEl;
 
-		this.folders = ["/"].concat(
-			this.app.vault
-				.getAllLoadedFiles()
-				.filter((item) => item instanceof TFolder)
-				.map((folder) => folder.path + "/")
-				.filter((folder) => folder !== "//"),
-		);
+		this.folders = this.app.vault
+			.getAllFolders(true)
+			.map((folder) =>
+				folder.path.endsWith("/") ? folder.path : folder.path + "/",
+			);
 	}
 
 	getSuggestions(inputStr: string): string[] {
