@@ -1,5 +1,5 @@
 import localforage from "localforage";
-import { DataFile } from "src/indexer/DataFile";
+import { DataFile, dataFileHashMismatch } from "src/datastore/DataFile";
 
 /** A piece of data that has been cached for a specific version and time. */
 export interface Cached<DataFile> {
@@ -7,6 +7,8 @@ export interface Cached<DataFile> {
 	version: string;
 	/** The UNIX epoch time in milliseconds that the data was written to cache. */
 	time: number;
+	/** Whether the local file hash matches the remote hash */
+	changed: boolean;
 	/** The data that was cached. */
 	data: DataFile;
 }
@@ -58,6 +60,7 @@ export class DataStore {
 		await this.persister.setItem(this.fileKey(path), {
 			version: this.version,
 			time: Date.now(),
+			changed: dataFileHashMismatch(data as DataFile),
 			data: data,
 		});
 	}
