@@ -40,6 +40,8 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	useThemes: false,
 
+	useCache: true,
+
 	includeAllFrontmatter: false,
 
 	applyEmbeds: true,
