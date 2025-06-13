@@ -641,7 +641,7 @@ export class SyncerPageCompiler {
 					}
 
 					assets.push(linkedFile.path);
-				} catch (e) {
+				} catch (_error) {
 					continue;
 				}
 			}
@@ -807,7 +807,7 @@ export class SyncerPageCompiler {
 						assets.push({ path: cmsImgPath, content: blobBase64 });
 
 						blobText = blobText.replace(blobMatch, blobMarkdown);
-					} catch (e) {
+					} catch (_error) {
 						continue;
 					}
 				}

@@ -73,7 +73,7 @@ export default class QuartzSyncer extends Plugin {
 
 		await this.loadSettings();
 
-		this.settings.logLevel && Logger.setLevel(this.settings.logLevel);
+		if (this.settings.logLevel) Logger.setLevel(this.settings.logLevel);
 
 		Logger.info("Initializing QuartzSyncer plugin v" + this.appVersion);
 
