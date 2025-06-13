@@ -64,6 +64,49 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		const remoteBlobHashes =
 			await this.siteManager.getBlobHashes(contentTree);
 
+		// Check remote cache and update if needed
+		for (const [path, sha] of Object.entries(remoteBlobHashes)) {
+			if (!sha) {
+				continue;
+			}
+
+			const hash = await this.publisher.datastore.loadRemoteHash(path);
+
+			if (!hash || hash !== sha) {
+				// Check if file exists in Obsidian vault
+				if (!this.publisher.vault.getAbstractFileByPath(path)) {
+					continue;
+				}
+
+				const localFile =
+					await this.publisher.datastore.loadLocalFile(path);
+
+				const localHash =
+					await this.publisher.datastore.loadLocalHash(path);
+
+				if (localFile && localHash) {
+					const timestamp =
+						(await this.publisher.datastore.getTime(path)) ??
+						Date.now();
+
+					if (localHash !== sha) {
+						// If local hash is different, update the remote file
+						this.publisher.datastore.storeRemoteFile(
+							path,
+							timestamp,
+							localFile,
+						);
+
+						this.publisher.datastore.storeRemoteHash(
+							path,
+							timestamp,
+							localHash,
+						);
+					}
+				}
+			}
+		}
+
 		const marked = await this.publisher.getFilesMarkedForPublishing();
 
 		console.log(marked);

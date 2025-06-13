@@ -141,6 +141,70 @@ export class DataStore {
 		});
 	}
 
+	public async loadLocalHash(
+		path: string,
+	): Promise<string | null | undefined> {
+		const data = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
+		if (data && data.localHash) {
+			return data.localHash;
+		}
+
+		return null; // No cached data found
+	}
+
+	public async loadRemoteHash(
+		path: string,
+	): Promise<string | null | undefined> {
+		const data = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
+		if (data && data.remoteHash) {
+			return data.remoteHash;
+		}
+
+		return null; // No cached data found
+	}
+
+	public async storeLocalHash(
+		path: string,
+		timestamp: number,
+		hash: string,
+	): Promise<void> {
+		await this.persister.setItem(this.fileKey(path), {
+			version: this.version,
+			time: timestamp ?? Date.now(),
+			localHash: hash,
+		});
+	}
+
+	public async storeRemoteHash(
+		path: string,
+		timestamp: number,
+		hash: string,
+	): Promise<void> {
+		await this.persister.setItem(this.fileKey(path), {
+			version: this.version,
+			time: timestamp ?? Date.now(),
+			remoteHash: hash,
+		});
+	}
+
+	public async getTime(path: string): Promise<number | null> {
+		const data = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
+		if (data) {
+			return data.time;
+		}
+
+		return null; // No cached data found
+	}
+
 	/** Load file metadata by path. */
 	public async loadFile(
 		path: string,

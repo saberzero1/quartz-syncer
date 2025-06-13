@@ -1,12 +1,16 @@
 ---
-created: 2025-06-12T22:44:54Z+0200
-modified: 2025-06-12T22:47:03Z+0200
 title: Enable caching
 description: Whether to cache note compilation results to greatly improve performance.
-tags:
-  - settings/syncer
+created: 2025-06-12T22:44:54Z+0200
+modified: 2025-06-13T13:06:27Z+0200
+tags: [settings/syncer]
 default_value: "true"
 ---
+
+> [!WARNING] Upcoming feature
+>
+> This feature is expected to be released with version `1.8.0`
+
 ```mermaid
 flowchart TD
     A[fa:fa-file-text Markdown] --> B{Has publish flag?}

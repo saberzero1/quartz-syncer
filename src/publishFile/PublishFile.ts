@@ -68,10 +68,13 @@ export class PublishFile {
 				: false;*/
 		const outdated =
 			cachedFile && cachedFile.localData
-				? await this.datastore.isLocalFileOutdated(
+				? (await this.datastore.isLocalFileOutdated(
 						this.file.path,
 						this.file.stat.mtime,
-					)
+					)) &&
+					!(await this.datastore.areLocalAndRemoteIdentical(
+						this.file.path,
+					))
 				: true;
 
 		console.log("Checking if file is outdated", this.file.path, outdated);
@@ -86,7 +89,20 @@ export class PublishFile {
 			storedFile = cachedFile.localData;
 		} else {
 			// If the file is not cached or outdated, compile it
+			console.log("Compiling file for cache", this.file.path);
 			storedFile = await this.compiler.generateMarkdown(this);
+
+			if (!storedFile) {
+				throw new Error(
+					`Failed to compile file: ${this.file.path}. Compiler returned null.`,
+				);
+			}
+
+			this.datastore.storeLocalFile(
+				this.file.path,
+				this.file.stat.mtime,
+				storedFile,
+			);
 		}
 
 		const compiledFile = storedFile;
@@ -103,16 +119,8 @@ export class PublishFile {
 			compiledFile,
 		);
 
-		if (!cachedFile?.localData || outdated) {
-			// Store the compiled file in the DataStore
-			console.log("Stored file in DataStore", this.file.path);
-
-			this.datastore.storeLocalFile(
-				this.file.path,
-				this.file.stat.mtime,
-				compiledFile,
-			);
-		}
+		// TODO: Fill the remote file cache from github. It is currently always empty
+		// TODO: Update the file change preview as well to use the cache
 
 		return compiledPublishFile;
 	}
