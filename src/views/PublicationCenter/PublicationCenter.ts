@@ -1,6 +1,5 @@
-import { type App, Modal, getIcon, Vault, TFile } from "obsidian";
+import { type App, Modal, getIcon, Vault } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
-import { PublishFile } from "src/publishFile/PublishFile";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import PublishStatusManager from "src/publisher/PublishStatusManager";
 import Publisher from "src/publisher/Publisher";
@@ -53,7 +52,13 @@ export class PublicationCenter {
 	private showDiff = async (notePath: string) => {
 		try {
 			const remoteContent =
-				await this.siteManager.getNoteContent(notePath);
+				await this.publisher.datastore.loadRemoteFile(notePath);
+
+			let remoteFile = remoteContent ? remoteContent[0] : undefined;
+
+			if (!remoteContent) {
+				remoteFile = await this.siteManager.getNoteContent(notePath);
+			}
 
 			let localNotePath = "";
 
@@ -66,29 +71,16 @@ export class PublicationCenter {
 				localNotePath = notePath;
 			}
 
-			const localFile = this.vault.getAbstractFileByPath(localNotePath);
+			const localFile =
+				await this.publisher.datastore.loadLocalFile(localNotePath);
 
-			if (localFile instanceof TFile) {
-				const localPublishFile = new PublishFile({
-					file: localFile,
-					vault: this.vault,
-					compiler: this.publisher.compiler,
-					metadataCache: this.publisher.metadataCache,
-					settings: this.settings,
-					datastore: this.publisher.datastore,
-				});
-
-				const [localContent, _] =
-					await this.publisher.compiler.generateMarkdown(
-						localPublishFile,
-					);
-
-				const diff = Diff.diffLines(remoteContent, localContent);
+			if (remoteFile && localFile) {
+				const diff = Diff.diffLines(remoteFile, localFile[0]);
 				let diffView: DiffView | undefined;
 				const diffModal = new Modal(this.modal.app);
 
 				diffModal.titleEl
-					.createEl("span", { text: `${localFile.basename}` })
+					.createEl("span", { text: `${notePath.split("/")[-1]}` })
 					.prepend(this.getIcon("file-diff"));
 
 				diffModal.onOpen = () => {

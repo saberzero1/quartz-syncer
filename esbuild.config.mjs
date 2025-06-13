@@ -20,7 +20,7 @@ esbuild.build({
 	entryPoints: ['main.ts'],
 	bundle: true,
 	external: ['obsidian', 'electron', ...builtins],
-	format: 'esm',
+	format: 'cjs',
 	target: 'es2024',
 	logLevel: "info",
 	sourcemap: prod ? false : 'inline',

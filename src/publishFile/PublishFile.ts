@@ -11,6 +11,7 @@ import QuartzSyncerSettings from "src/models/settings";
 import { hasPublishFlag } from "src/publishFile/Validator";
 import { FileMetadataManager } from "src/publishFile/FileMetaDataManager";
 import { DataStore } from "src/datastore/DataStore";
+import { generateBlobHash } from "src/utils/utils";
 
 interface IPublishFileProps {
 	file: TFile;
@@ -56,40 +57,21 @@ export class PublishFile {
 		// Check if the file is already compiled
 		// If so, grab it from the DataStore
 		// Check if the file is already compiled and the hash matches
-		const cachedFile = await this.datastore.loadFile(this.file.path);
+		const cachedFile = await this.datastore.loadLocalFile(this.file.path);
 
-		/*
-		const outdated =
-			cachedFile && cachedFile.data
-				? await this.datastore.isDataStoreOutdated(
-						this.file.path,
-						this.file.stat.mtime,
-					)
-				: false;*/
-		const outdated =
-			cachedFile && cachedFile.localData
-				? (await this.datastore.isLocalFileOutdated(
-						this.file.path,
-						this.file.stat.mtime,
-					)) &&
-					!(await this.datastore.areLocalAndRemoteIdentical(
-						this.file.path,
-					))
-				: true;
-
-		console.log("Checking if file is outdated", this.file.path, outdated);
+		const outdated = cachedFile
+			? await this.datastore.isLocalFileOutdated(
+					this.file.path,
+					this.file.stat.mtime,
+				)
+			: true;
 
 		let storedFile = null;
 
-		//console.log("cachedFile", cachedFile, "outdated", outdated);
-
-		if (cachedFile && !outdated && cachedFile.localData) {
-			console.log("Using cached file", this.file.path);
-
-			storedFile = cachedFile.localData;
+		if (cachedFile && !outdated) {
+			storedFile = cachedFile;
 		} else {
 			// If the file is not cached or outdated, compile it
-			console.log("Compiling file for cache", this.file.path);
 			storedFile = await this.compiler.generateMarkdown(this);
 
 			if (!storedFile) {
@@ -98,10 +80,18 @@ export class PublishFile {
 				);
 			}
 
-			this.datastore.storeLocalFile(
+			const localHash = generateBlobHash(storedFile[0]);
+
+			await this.datastore.storeLocalFile(
 				this.file.path,
 				this.file.stat.mtime,
 				storedFile,
+			);
+
+			await this.datastore.storeLocalHash(
+				this.file.path,
+				this.file.stat.mtime,
+				localHash,
 			);
 		}
 

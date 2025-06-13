@@ -1,5 +1,6 @@
 import localforage from "localforage";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
+import { generateBlobHash } from "src/utils/utils";
 
 /** A piece of data that has been cached for a specific version and time. */
 export type QuartzSyncerCache = {
@@ -122,10 +123,17 @@ export class DataStore {
 		timestamp: number,
 		data: TCompiledFile,
 	): Promise<void> {
+		const existingData = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
 		await this.persister.setItem(this.fileKey(path), {
 			version: this.version,
 			time: timestamp ?? Date.now(),
 			localData: data,
+			localHash: existingData?.localHash ?? generateBlobHash(data[0]),
+			remoteData: existingData?.remoteData ?? null, // Preserve remote data if it exists
+			remoteHash: existingData?.remoteHash, // Preserve remote hash if it exists
 		});
 	}
 
@@ -134,10 +142,17 @@ export class DataStore {
 		timestamp: number,
 		data: TCompiledFile,
 	): Promise<void> {
+		const existingData = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
 		await this.persister.setItem(this.fileKey(path), {
 			version: this.version,
 			time: timestamp ?? Date.now(),
+			localData: existingData?.localData ?? null, // Preserve local data if it exists
+			localHash: existingData?.localHash, // Preserve local hash if it exists
 			remoteData: data,
+			remoteHash: existingData?.remoteHash, // Preserve remote hash if it exists
 		});
 	}
 
@@ -174,10 +189,17 @@ export class DataStore {
 		timestamp: number,
 		hash: string,
 	): Promise<void> {
+		const existingData = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
 		await this.persister.setItem(this.fileKey(path), {
 			version: this.version,
 			time: timestamp ?? Date.now(),
+			localData: existingData?.localData ?? null, // Preserve local data if it exists
 			localHash: hash,
+			remoteData: existingData?.remoteData ?? null, // Preserve remote data if it exists
+			remoteHash: existingData?.remoteHash, // Preserve remote hash if it exists
 		});
 	}
 
@@ -186,9 +208,16 @@ export class DataStore {
 		timestamp: number,
 		hash: string,
 	): Promise<void> {
+		const existingData = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
 		await this.persister.setItem(this.fileKey(path), {
 			version: this.version,
 			time: timestamp ?? Date.now(),
+			localData: existingData?.localData ?? null, // Preserve local data if it exists
+			localHash: existingData?.localHash, // Preserve local hash if it exists
+			remoteData: existingData?.remoteData ?? null, // Preserve remote data if it exists
 			remoteHash: hash,
 		});
 	}
@@ -222,7 +251,6 @@ export class DataStore {
 		const keys = await this.allFiles();
 
 		for (const key of keys) {
-			console.log("Dropping file key:", key);
 			await this.persister.removeItem(this.fileKey(key));
 		}
 	}

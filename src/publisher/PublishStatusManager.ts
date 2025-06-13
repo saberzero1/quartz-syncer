@@ -70,6 +70,8 @@ export default class PublishStatusManager implements IPublishStatusManager {
 				continue;
 			}
 
+			//const notePath = path.startsWith(this.settings.vaultPath) ? path.slict(this.settings.vaultPath.length + 1) : path;
+
 			const hash = await this.publisher.datastore.loadRemoteHash(path);
 
 			if (!hash || hash !== sha) {
@@ -78,43 +80,42 @@ export default class PublishStatusManager implements IPublishStatusManager {
 					continue;
 				}
 
-				const localFile =
-					await this.publisher.datastore.loadLocalFile(path);
+				// If the hash is different, update the remote file
 
-				const localHash =
-					await this.publisher.datastore.loadLocalHash(path);
+				const remoteContent =
+					await this.siteManager.getNoteContent(path);
 
-				if (localFile && localHash) {
-					const timestamp =
-						(await this.publisher.datastore.getTime(path)) ??
-						Date.now();
-
-					if (localHash !== sha) {
-						// If local hash is different, update the remote file
-						this.publisher.datastore.storeRemoteFile(
-							path,
-							timestamp,
-							localFile,
-						);
-
-						this.publisher.datastore.storeRemoteHash(
-							path,
-							timestamp,
-							localHash,
-						);
-					}
+				if (!remoteContent) {
+					continue;
 				}
+
+				const timestamp =
+					(await this.publisher.datastore.getTime(path)) ??
+					Date.now();
+
+				await this.publisher.datastore.storeRemoteFile(
+					path,
+					timestamp,
+					[remoteContent, { blobs: [] }],
+				);
+
+				await this.publisher.datastore.storeRemoteHash(
+					path,
+					timestamp,
+					sha,
+				);
 			}
 		}
 
 		const marked = await this.publisher.getFilesMarkedForPublishing();
 
-		console.log(marked);
+		// Drop deleted blobs from cache
+		await this.publisher.datastore.synchronize(
+			marked["notes"].map((f) => f.getPath()),
+		);
 
 		for (const file of marked.notes) {
-			//console.log(file);
 			const compiledFile = await file.compile();
-			//console.log("Compiled file", compiledFile);
 			const [content, _] = compiledFile.getCompiledFile();
 
 			const localHash = generateBlobHash(content);

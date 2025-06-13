@@ -3,7 +3,7 @@
 	"compilerOptions": {
 		"baseUrl": ".",
 		"inlineSources": true,
-		"module": "esnext",
+		"module": "commonjs",
 		"target": "es2024",
 		"allowJs": true,
 		"noEmit": true,
