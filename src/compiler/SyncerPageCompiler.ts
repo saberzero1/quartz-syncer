@@ -34,6 +34,7 @@ import Logger from "js-logger";
 import { DataviewCompiler } from "src/compiler/DataviewCompiler";
 import { DatacoreCompiler } from "./DatacoreCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
+import { DataStore } from "src/datastore/DataStore";
 
 export interface Asset {
 	path: string;
@@ -61,18 +62,21 @@ export class SyncerPageCompiler {
 	private metadataCache: MetadataCache;
 	private readonly getFilesMarkedForPublishing: Publisher["getFilesMarkedForPublishing"];
 	private rewriteRule: PathRewriteRule;
+	private datastore: DataStore;
 
 	constructor(
 		app: App,
 		vault: Vault,
 		settings: QuartzSyncerSettings,
 		metadataCache: MetadataCache,
+		datastore: DataStore,
 		getFilesMarkedForPublishing: Publisher["getFilesMarkedForPublishing"],
 	) {
 		this.app = app;
 		this.vault = vault;
 		this.settings = settings;
 		this.metadataCache = metadataCache;
+		this.datastore = datastore;
 		this.getFilesMarkedForPublishing = getFilesMarkedForPublishing;
 		this.rewriteRule = getRewriteRules(this.settings.vaultPath);
 	}
@@ -351,6 +355,7 @@ export class SyncerPageCompiler {
 						metadataCache: this.metadataCache,
 						vault: this.vault,
 						settings: this.settings,
+						datastore: this.datastore,
 					});
 
 					if (linkedFile.name.endsWith(".excalidraw.md")) {

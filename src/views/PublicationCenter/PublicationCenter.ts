@@ -75,6 +75,7 @@ export class PublicationCenter {
 					compiler: this.publisher.compiler,
 					metadataCache: this.publisher.metadataCache,
 					settings: this.settings,
+					datastore: this.publisher.datastore,
 				});
 
 				const [localContent, _] =

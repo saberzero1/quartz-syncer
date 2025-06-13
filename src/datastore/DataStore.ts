@@ -1,17 +1,21 @@
 import localforage from "localforage";
-import { DataFile, dataFileHashMismatch } from "src/datastore/DataFile";
+import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 
 /** A piece of data that has been cached for a specific version and time. */
-export interface Cached<DataFile> {
+export type QuartzSyncerCache = {
 	/** The version of the plugin that the data was written to cache with. */
 	version: string;
 	/** The UNIX epoch time in milliseconds that the data was written to cache. */
 	time: number;
-	/** Whether the local file hash matches the remote hash */
-	changed: boolean;
-	/** The data that was cached. */
-	data: DataFile;
-}
+	/** Local file hash */
+	localHash?: string;
+	/** Remote file hash */
+	remoteHash?: string;
+	/** Local file data, if available. */
+	localData?: TCompiledFile | null;
+	/** Remote file data, if available. */
+	remoteData?: TCompiledFile | null;
+};
 
 /** Simpler wrapper for a file-backed cache for arbitrary metadata. */
 export class DataStore {
@@ -22,7 +26,7 @@ export class DataStore {
 		public version: string,
 	) {
 		this.persister = localforage.createInstance({
-			name: "quartz-syncer/cache/" + appId,
+			name: `quartz-syncer/cache/${appId}/${version}`,
 			driver: [localforage.INDEXEDDB],
 			description:
 				"Cache metadata about files and sections in the quartz syncer index.",
@@ -43,26 +47,120 @@ export class DataStore {
 		});
 	}
 
-	/** Load file metadata by path. */
-	public async loadFile(
+	public async isLocalFileOutdated(
 		path: string,
-	): Promise<Cached<Partial<DataFile>> | null | undefined> {
-		return this.persister.getItem(this.fileKey(path)).then((raw) => {
-			return raw as Cached<Partial<DataFile>>;
-		});
+		timestamp: number,
+	): Promise<boolean> {
+		const data = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
+		if (data && data.localData) {
+			return data.time < timestamp || data.version !== this.version;
+		}
+
+		return true; // No cached data found, consider it outdated
 	}
 
-	/** Store file metadata by path. */
-	public async storeFile(
+	public async isRemoteFileOutdated(path: string): Promise<boolean> {
+		const data = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
+		if (data && data.remoteData) {
+			return data.version !== this.version;
+		}
+
+		return true; // No cached data found, consider it outdated
+	}
+
+	public async areLocalAndRemoteIdentical(path: string): Promise<boolean> {
+		const data = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
+		if (data && data.localData && data.remoteData) {
+			return (
+				data.localHash === data.remoteHash &&
+				data.version === this.version
+			);
+		}
+
+		return false; // No cached data found or hashes do not match
+	}
+
+	public async loadLocalFile(
 		path: string,
-		data: Partial<DataFile>,
+	): Promise<TCompiledFile | null | undefined> {
+		const data = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
+		if (data && data.localData) {
+			return data.localData;
+		}
+
+		return null; // No cached data found
+	}
+
+	public async loadRemoteFile(
+		path: string,
+	): Promise<TCompiledFile | null | undefined> {
+		const data = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
+		if (data && data.remoteData) {
+			return data.remoteData;
+		}
+
+		return null; // No cached data found
+	}
+
+	public async storeLocalFile(
+		path: string,
+		timestamp: number,
+		data: TCompiledFile,
 	): Promise<void> {
 		await this.persister.setItem(this.fileKey(path), {
 			version: this.version,
-			time: Date.now(),
-			changed: dataFileHashMismatch(data as DataFile),
-			data: data,
+			time: timestamp ?? Date.now(),
+			localData: data,
 		});
+	}
+
+	public async storeRemoteFile(
+		path: string,
+		timestamp: number,
+		data: TCompiledFile,
+	): Promise<void> {
+		await this.persister.setItem(this.fileKey(path), {
+			version: this.version,
+			time: timestamp ?? Date.now(),
+			remoteData: data,
+		});
+	}
+
+	/** Load file metadata by path. */
+	public async loadFile(
+		path: string,
+	): Promise<QuartzSyncerCache | null | undefined> {
+		return this.persister.getItem(this.fileKey(path)).then((raw) => {
+			return raw as QuartzSyncerCache | null | undefined;
+		});
+	}
+
+	public async dropFile(path: string): Promise<void> {
+		await this.persister.removeItem(this.fileKey(path));
+	}
+
+	public async dropAllFiles(): Promise<void> {
+		const keys = await this.allFiles();
+
+		for (const key of keys) {
+			console.log("Dropping file key:", key);
+			await this.persister.removeItem(this.fileKey(key));
+		}
 	}
 
 	/** Drop old file keys that no longer exist. */

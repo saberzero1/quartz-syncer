@@ -66,8 +66,12 @@ export default class PublishStatusManager implements IPublishStatusManager {
 
 		const marked = await this.publisher.getFilesMarkedForPublishing();
 
+		console.log(marked);
+
 		for (const file of marked.notes) {
+			//console.log(file);
 			const compiledFile = await file.compile();
+			//console.log("Compiled file", compiledFile);
 			const [content, _] = compiledFile.getCompiledFile();
 
 			const localHash = generateBlobHash(content);

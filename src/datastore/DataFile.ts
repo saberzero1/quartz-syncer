@@ -3,24 +3,92 @@ import { CompiledPublishFile } from "src/publishFile/PublishFile";
 import { generateBlobHash } from "src/utils/utils";
 
 export class DataFile {
-	hash: string;
-	remoteHash: string | null;
-	data: TCompiledFile;
+	updated: number;
+	localHash: string | null = null;
+	localData: TCompiledFile | null = null;
+	remoteHash: string | null = null;
+	remoteData: TCompiledFile | null = null;
 
 	constructor(file: CompiledPublishFile) {
-		this.hash = generateBlobHash(file.compiledFile[0]);
-		this.remoteHash = file.remoteHash || null;
-		this.data = file.compiledFile;
-	}
-}
-
-export function dataFileHashMismatch(file: DataFile) {
-	// Check if the local hash matches the remote hash or remoteHash is null
-	if (!file.remoteHash || file.hash !== file.remoteHash) {
-		return true; // Hashes do not match
+		//this.hash = generateBlobHash(file.compiledFile[0]);
+		this.updated = file.file.stat.mtime;
+		//this.data = file.compiledFile;
 	}
 
-	return false; // Hashes match
+	getLocalHash(): string | null {
+		if (this.localHash) {
+			return this.localHash;
+		}
+
+		if (this.localData) {
+			const localHash = generateBlobHash(this.localData[0]);
+			this.localHash = localHash;
+
+			return localHash;
+		}
+
+		return null;
+	}
+
+	getRemoteHash(): string | null {
+		if (this.remoteHash) {
+			return this.remoteHash;
+		}
+
+		if (this.remoteData) {
+			const remoteHash = generateBlobHash(this.remoteData[0]);
+			this.remoteHash = remoteHash;
+
+			return remoteHash;
+		}
+
+		return null;
+	}
+
+	getLocalData(): TCompiledFile | null {
+		return this.localData;
+	}
+
+	getRemoteData(): TCompiledFile | null {
+		return this.remoteData;
+	}
+
+	getLocalMarkdown(): string | null {
+		if (this.localData) {
+			return this.localData[0];
+		}
+
+		return null;
+	}
+
+	getRemoteMarkdown(): string | null {
+		if (this.remoteData) {
+			return this.remoteData[0];
+		}
+
+		return null;
+	}
+
+	setLocalData(data: TCompiledFile): void {
+		this.localData = data;
+		this.localHash = generateBlobHash(data[0]);
+	}
+
+	setRemoteData(data: TCompiledFile): void {
+		this.remoteData = data;
+		this.remoteHash = generateBlobHash(data[0]);
+	}
+
+	identical(): boolean {
+		const localHash = this.getLocalHash();
+		const remoteHash = this.getRemoteHash();
+
+		if (localHash === null || remoteHash === null) {
+			return false;
+		}
+
+		return localHash === remoteHash;
+	}
 }
 
 // TODO: Add functions to convert to/from this type and the PublishFile type. FileMetadataManager seems to be a good candidate for this, as it already has methods to get created/updated/published timestamps and other metadata.

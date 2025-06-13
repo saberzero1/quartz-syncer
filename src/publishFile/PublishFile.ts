@@ -10,6 +10,7 @@ import {
 import QuartzSyncerSettings from "src/models/settings";
 import { hasPublishFlag } from "src/publishFile/Validator";
 import { FileMetadataManager } from "src/publishFile/FileMetaDataManager";
+import { DataStore } from "src/datastore/DataStore";
 
 interface IPublishFileProps {
 	file: TFile;
@@ -17,6 +18,7 @@ interface IPublishFileProps {
 	compiler: SyncerPageCompiler;
 	metadataCache: MetadataCache;
 	settings: QuartzSyncerSettings;
+	datastore: DataStore;
 }
 
 export class PublishFile {
@@ -29,6 +31,7 @@ export class PublishFile {
 	settings: QuartzSyncerSettings;
 	// Access props and other file metadata
 	meta: FileMetadataManager;
+	datastore: DataStore;
 
 	constructor({
 		file,
@@ -36,6 +39,7 @@ export class PublishFile {
 		metadataCache,
 		vault,
 		settings,
+		datastore,
 	}: IPublishFileProps) {
 		this.compiler = compiler;
 		this.metadataCache = metadataCache;
@@ -43,23 +47,74 @@ export class PublishFile {
 		this.settings = settings;
 		this.vault = vault;
 		this.frontmatter = this.getFrontmatter();
+		this.datastore = datastore;
 
 		this.meta = new FileMetadataManager(file, this.frontmatter, settings);
 	}
 
 	async compile(): Promise<CompiledPublishFile> {
-		const compiledFile = await this.compiler.generateMarkdown(this);
+		// Check if the file is already compiled
+		// If so, grab it from the DataStore
+		// Check if the file is already compiled and the hash matches
+		const cachedFile = await this.datastore.loadFile(this.file.path);
 
-		return new CompiledPublishFile(
+		/*
+		const outdated =
+			cachedFile && cachedFile.data
+				? await this.datastore.isDataStoreOutdated(
+						this.file.path,
+						this.file.stat.mtime,
+					)
+				: false;*/
+		const outdated =
+			cachedFile && cachedFile.localData
+				? await this.datastore.isLocalFileOutdated(
+						this.file.path,
+						this.file.stat.mtime,
+					)
+				: true;
+
+		console.log("Checking if file is outdated", this.file.path, outdated);
+
+		let storedFile = null;
+
+		//console.log("cachedFile", cachedFile, "outdated", outdated);
+
+		if (cachedFile && !outdated && cachedFile.localData) {
+			console.log("Using cached file", this.file.path);
+
+			storedFile = cachedFile.localData;
+		} else {
+			// If the file is not cached or outdated, compile it
+			storedFile = await this.compiler.generateMarkdown(this);
+		}
+
+		const compiledFile = storedFile;
+
+		const compiledPublishFile = new CompiledPublishFile(
 			{
 				file: this.file,
 				compiler: this.compiler,
 				metadataCache: this.metadataCache,
 				vault: this.vault,
 				settings: this.settings,
+				datastore: this.datastore,
 			},
 			compiledFile,
 		);
+
+		if (!cachedFile?.localData || outdated) {
+			// Store the compiled file in the DataStore
+			console.log("Stored file in DataStore", this.file.path);
+
+			this.datastore.storeLocalFile(
+				this.file.path,
+				this.file.stat.mtime,
+				compiledFile,
+			);
+		}
+
+		return compiledPublishFile;
 	}
 
 	// TODO: This doesn't work yet, but file should be able to tell it's type
