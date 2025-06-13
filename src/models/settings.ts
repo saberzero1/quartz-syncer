@@ -38,6 +38,8 @@ export default interface QuartzSyncerSettings {
 
 	useThemes: boolean;
 
+	useCache: boolean;
+
 	includeAllFrontmatter: boolean;
 
 	lastUsedSettingsTab: string;

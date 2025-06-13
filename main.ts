@@ -7,6 +7,7 @@ import PublishStatusManager from "src/publisher/PublishStatusManager";
 import ObsidianFrontMatterEngine from "src/publishFile/ObsidianFrontMatterEngine";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import { QuartzSyncerSettingTab } from "./src/views/QuartzSyncerSettingTab";
+import { DataStore } from "src/datastore/DataStore";
 import Logger from "js-logger";
 
 const DEFAULT_SETTINGS: QuartzSyncerSettings = {
@@ -39,6 +40,8 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	useThemes: false,
 
+	useCache: true,
+
 	includeAllFrontmatter: false,
 
 	applyEmbeds: true,
@@ -61,15 +64,18 @@ Logger.useDefaults({
 export default class QuartzSyncer extends Plugin {
 	settings!: QuartzSyncerSettings;
 	appVersion!: string;
+	datastore!: DataStore;
 
 	publishModal!: PublicationCenter;
 
 	async onload() {
 		this.appVersion = this.manifest.version;
 
+		this.datastore = new DataStore(this.manifest.id, this.appVersion);
+
 		await this.loadSettings();
 
-		this.settings.logLevel && Logger.setLevel(this.settings.logLevel);
+		if (this.settings.logLevel) Logger.setLevel(this.settings.logLevel);
 
 		Logger.info("Initializing QuartzSyncer plugin v" + this.appVersion);
 
@@ -112,6 +118,7 @@ export default class QuartzSyncer extends Plugin {
 				this.app.vault,
 				this.app.metadataCache,
 				this.settings,
+				this.datastore,
 			);
 
 			import("./src/test/snapshot/generateSyncerSnapshot")
@@ -227,6 +234,7 @@ export default class QuartzSyncer extends Plugin {
 				this.app.vault,
 				this.app.metadataCache,
 				this.settings,
+				this.datastore,
 			);
 
 			const publishStatusManager = new PublishStatusManager(

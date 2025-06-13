@@ -1,9 +1,0 @@
-npm node_modules
-build
-main.js
-*.mjs
-jest.config.js
-
-.eslintrc.js
-src/testVault/*
-content/*

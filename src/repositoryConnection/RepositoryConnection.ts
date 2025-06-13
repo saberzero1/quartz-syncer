@@ -122,9 +122,9 @@ export class RepositoryConnection {
 			if (response.status === 200) {
 				return response.data;
 			}
-		} catch (error) {
+		} catch (_error) {
 			throw new Error(
-				`Could not get file ${""} from repository ${this.getRepositoryName()}`,
+				`Could not get files from repository ${this.getRepositoryName()}`,
 			);
 		}
 	}
@@ -155,7 +155,7 @@ export class RepositoryConnection {
 			) {
 				return response.data;
 			}
-		} catch (error) {
+		} catch (_error) {
 			throw new Error(
 				`Could not get file ${path} from repository ${this.getRepositoryName()}`,
 			);

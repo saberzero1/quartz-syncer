@@ -93,7 +93,7 @@ export class GithubSettings extends PluginSettingTab {
 				// Token has "contents" permissions
 				this.connectionStatus = "connected";
 			}
-		} catch (error) {
+		} catch (_error) {
 			this.connectionStatus = "error";
 		}
 		this.updateConnectionStatusIndicator();

@@ -10,6 +10,8 @@ import {
 import QuartzSyncerSettings from "src/models/settings";
 import { hasPublishFlag } from "src/publishFile/Validator";
 import { FileMetadataManager } from "src/publishFile/FileMetaDataManager";
+import { DataStore } from "src/datastore/DataStore";
+import { generateBlobHash } from "src/utils/utils";
 
 interface IPublishFileProps {
 	file: TFile;
@@ -17,6 +19,7 @@ interface IPublishFileProps {
 	compiler: SyncerPageCompiler;
 	metadataCache: MetadataCache;
 	settings: QuartzSyncerSettings;
+	datastore: DataStore;
 }
 
 export class PublishFile {
@@ -29,6 +32,7 @@ export class PublishFile {
 	settings: QuartzSyncerSettings;
 	// Access props and other file metadata
 	meta: FileMetadataManager;
+	datastore: DataStore;
 
 	constructor({
 		file,
@@ -36,6 +40,7 @@ export class PublishFile {
 		metadataCache,
 		vault,
 		settings,
+		datastore,
 	}: IPublishFileProps) {
 		this.compiler = compiler;
 		this.metadataCache = metadataCache;
@@ -43,23 +48,71 @@ export class PublishFile {
 		this.settings = settings;
 		this.vault = vault;
 		this.frontmatter = this.getFrontmatter();
+		this.datastore = datastore;
 
 		this.meta = new FileMetadataManager(file, this.frontmatter, settings);
 	}
 
 	async compile(): Promise<CompiledPublishFile> {
-		const compiledFile = await this.compiler.generateMarkdown(this);
+		// Check if the file is already compiled
+		// If so, grab it from the DataStore
+		// Check if the file is already compiled and the hash matches
+		const cachedFile = await this.datastore.loadLocalFile(this.file.path);
 
-		return new CompiledPublishFile(
+		const outdated = cachedFile
+			? await this.datastore.isLocalFileOutdated(
+					this.file.path,
+					this.file.stat.mtime,
+				)
+			: true;
+
+		let storedFile = null;
+
+		if (cachedFile && !outdated) {
+			storedFile = cachedFile;
+		} else {
+			// If the file is not cached or outdated, compile it
+			storedFile = await this.compiler.generateMarkdown(this);
+
+			if (!storedFile) {
+				throw new Error(
+					`Failed to compile file: ${this.file.path}. Compiler returned null.`,
+				);
+			}
+
+			const localHash = generateBlobHash(storedFile[0]);
+
+			await this.datastore.storeLocalFile(
+				this.file.path,
+				this.file.stat.mtime,
+				storedFile,
+			);
+
+			await this.datastore.storeLocalHash(
+				this.file.path,
+				this.file.stat.mtime,
+				localHash,
+			);
+		}
+
+		const compiledFile = storedFile;
+
+		const compiledPublishFile = new CompiledPublishFile(
 			{
 				file: this.file,
 				compiler: this.compiler,
 				metadataCache: this.metadataCache,
 				vault: this.vault,
 				settings: this.settings,
+				datastore: this.datastore,
 			},
 			compiledFile,
 		);
+
+		// TODO: Fill the remote file cache from github. It is currently always empty
+		// TODO: Update the file change preview as well to use the cache
+
+		return compiledPublishFile;
 	}
 
 	// TODO: This doesn't work yet, but file should be able to tell it's type

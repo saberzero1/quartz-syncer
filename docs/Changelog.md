@@ -2,11 +2,19 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-06-10T22:47:21Z+0200
+modified: 2025-06-13T21:32:47Z+0200
 publish: true
 ---
 
 ## Upcoming
+
+### Version 1.8.0
+
+- Significant performance improvements.
+- Caching of compiled files.
+- Improved preview performance.
+- Visual indicators for progress.
+- Folder suggester no longer fetches all files instead of just folders.
 
 ## Planned
 

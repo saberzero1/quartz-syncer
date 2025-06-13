@@ -10,6 +10,7 @@ import QuartzSyncerSettings from "src/models/settings";
 import { Assets, SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { CompiledPublishFile, PublishFile } from "src/publishFile/PublishFile";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import { DataStore } from "src/datastore/DataStore";
 import Logger from "js-logger";
 
 export interface MarkedForPublishing {
@@ -28,12 +29,14 @@ export default class Publisher {
 	settings: QuartzSyncerSettings;
 	rewriteRule: PathRewriteRule;
 	vaultPath: string;
+	datastore: DataStore;
 
 	constructor(
 		app: App,
 		vault: Vault,
 		metadataCache: MetadataCache,
 		settings: QuartzSyncerSettings,
+		datastore: DataStore,
 	) {
 		this.app = app;
 		this.vault = vault;
@@ -41,12 +44,14 @@ export default class Publisher {
 		this.settings = settings;
 		this.rewriteRule = getRewriteRules(settings.vaultPath);
 		this.vaultPath = settings.vaultPath;
+		this.datastore = datastore;
 
 		this.compiler = new SyncerPageCompiler(
 			app,
 			vault,
 			settings,
 			metadataCache,
+			datastore,
 			() => this.getFilesMarkedForPublishing(),
 		);
 	}
@@ -75,10 +80,11 @@ export default class Publisher {
 				if (this.shouldPublish(file)) {
 					const publishFile = new PublishFile({
 						file,
-						vault: this.vault,
 						compiler: this.compiler,
 						metadataCache: this.metadataCache,
+						vault: this.vault,
 						settings: this.settings,
+						datastore: this.datastore,
 					});
 
 					notesToPublish.push(publishFile);
@@ -179,6 +185,11 @@ export default class Publisher {
 
 			await userQuartzConnection.deleteFiles(filePaths);
 
+			// Update the remote files and hashes in the datastore
+			for (const filePath of filePaths) {
+				await this.datastore.dropFile(filePath);
+			}
+
 			return true;
 		} catch (error) {
 			console.error(error);
@@ -209,6 +220,19 @@ export default class Publisher {
 			});
 
 			await userQuartzConnection.updateFiles(filesToPublish);
+
+			// Update the remote files and hashes in the datastore
+			for (const file of filesToPublish) {
+				const data = await this.datastore.loadFile(file.file.path);
+
+				if (data && data.localData) {
+					await this.datastore.storeRemoteFile(
+						file.file.path,
+						file.file.stat.mtime,
+						data.localData,
+					);
+				}
+			}
 
 			return true;
 		} catch (error) {
