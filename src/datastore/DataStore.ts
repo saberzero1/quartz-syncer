@@ -2,6 +2,10 @@ import localforage from "localforage";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import { generateBlobHash } from "src/utils/utils";
 
+// TODO: Add config option for syncing DataStore
+// TODO: Add eventlistener for when the DataStore is updated from data.json
+// TODO: Add functions to write and read to data.json
+
 /** A piece of data that has been cached for a specific version and time. */
 export type QuartzSyncerCache = {
 	/** The version of the plugin that the data was written to cache with. */

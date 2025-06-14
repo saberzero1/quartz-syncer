@@ -24,6 +24,8 @@ const quartzSettings = {
 
 	useThemes: false,
 
+	useCache: true,
+
 	includeAllFrontmatter: false,
 
 	applyEmbeds: true,

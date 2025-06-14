@@ -1,8 +1,9 @@
-import { type App, Modal, getIcon, Vault } from "obsidian";
+import { type App, Modal, getIcon, TFile, Vault } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import PublishStatusManager from "src/publisher/PublishStatusManager";
 import Publisher from "src/publisher/Publisher";
+import { PublishFile } from "src/publishFile/PublishFile";
 import PublicationCenterSvelte from "src/views/PublicationCenter/PublicationCenter.svelte";
 import DiffView from "src/views/PublicationCenter/DiffView.svelte";
 import * as Diff from "diff";
@@ -51,12 +52,15 @@ export class PublicationCenter {
 
 	private showDiff = async (notePath: string) => {
 		try {
-			const remoteContent =
+			let remoteContent, remoteFile, localContent, localFile;
+
+			if (this.settings.useCache) {
 				await this.publisher.datastore.loadRemoteFile(notePath);
 
-			let remoteFile = remoteContent ? remoteContent[0] : undefined;
+				remoteFile = remoteContent ? remoteContent[0] : undefined;
+			}
 
-			if (!remoteContent) {
+			if (!remoteContent || !this.settings.useCache) {
 				remoteFile = await this.siteManager.getNoteContent(notePath);
 			}
 
@@ -71,11 +75,41 @@ export class PublicationCenter {
 				localNotePath = notePath;
 			}
 
-			const localFile =
-				await this.publisher.datastore.loadLocalFile(localNotePath);
+			if (this.settings.useCache) {
+				localContent =
+					await this.publisher.datastore.loadLocalFile(localNotePath);
+
+				localFile = localContent ? localContent[0] : undefined;
+			} else {
+				localContent = this.vault.getAbstractFileByPath(localNotePath);
+
+				if (!(localContent instanceof TFile)) {
+					localFile = "";
+				} else {
+					localContent =
+						await this.publisher.compiler.generateMarkdown(
+							new PublishFile({
+								file: localContent,
+								vault: this.vault,
+								compiler: this.publisher.compiler,
+								datastore: this.publisher.datastore,
+								metadataCache: this.publisher.metadataCache,
+								settings: this.settings,
+							}),
+						);
+
+					if (!localContent) {
+						throw new Error(
+							`Failed to compile local file: ${localNotePath}. Compiler returned null.`,
+						);
+					}
+
+					localFile = localContent[0];
+				}
+			}
 
 			if (remoteFile && localFile) {
-				const diff = Diff.diffLines(remoteFile, localFile[0]);
+				const diff = Diff.diffLines(remoteFile, localFile);
 				let diffView: DiffView | undefined;
 				const diffModal = new Modal(this.modal.app);
 

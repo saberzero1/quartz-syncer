@@ -185,9 +185,11 @@ export default class Publisher {
 
 			await userQuartzConnection.deleteFiles(filePaths);
 
-			// Update the remote files and hashes in the datastore
-			for (const filePath of filePaths) {
-				await this.datastore.dropFile(filePath);
+			if (this.settings.useCache) {
+				// Update the remote files and hashes in the datastore
+				for (const filePath of filePaths) {
+					await this.datastore.dropFile(filePath);
+				}
 			}
 
 			return true;
@@ -221,16 +223,18 @@ export default class Publisher {
 
 			await userQuartzConnection.updateFiles(filesToPublish);
 
-			// Update the remote files and hashes in the datastore
-			for (const file of filesToPublish) {
-				const data = await this.datastore.loadFile(file.file.path);
+			if (this.settings.useCache) {
+				// Update the remote files and hashes in the datastore
+				for (const file of filesToPublish) {
+					const data = await this.datastore.loadFile(file.file.path);
 
-				if (data && data.localData) {
-					await this.datastore.storeRemoteFile(
-						file.file.path,
-						file.file.stat.mtime,
-						data.localData,
-					);
+					if (data && data.localData) {
+						await this.datastore.storeRemoteFile(
+							file.file.path,
+							file.file.stat.mtime,
+							data.localData,
+						);
+					}
 				}
 			}
 

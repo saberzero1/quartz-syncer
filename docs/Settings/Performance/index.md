@@ -1,15 +1,15 @@
 ---
-title: Syncer
-description: Quartz Syncer settings related to Syncer.
+title: Performance
+description: Quartz Syncer settings related to performance.
 created: 2025-06-12T22:41:01Z+0200
-modified: 2025-06-12T23:16:14Z+0200
+modified: 2025-06-14T09:04:31Z+0200
 publish: true
-tags: [settings, settings/syncer]
+tags: [settings, settings/performance]
 ---
 
 ```datacorejsx
 return function View() {
-  const pages = dc.useQuery("@page").filter(page => page.$path.startsWith("Settings/Syncer") && page.$name !== "index")
+  const pages = dc.useQuery("@page").filter(page => page.$path.startsWith("Settings/Performance") && page.$name !== "index")
 
   const COLUMNS = [
     {id: "Category", value: page => page.$link},

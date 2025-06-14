@@ -54,50 +54,55 @@ export class PublishFile {
 	}
 
 	async compile(): Promise<CompiledPublishFile> {
-		// Check if the file is already compiled
-		// If so, grab it from the DataStore
-		// Check if the file is already compiled and the hash matches
-		const cachedFile = await this.datastore.loadLocalFile(this.file.path);
+		let compiledFile: TCompiledFile;
 
-		const outdated = cachedFile
-			? await this.datastore.isLocalFileOutdated(
+		if (this.settings.useCache) {
+			const cachedFile = await this.datastore.loadLocalFile(
+				this.file.path,
+			);
+
+			const outdated = cachedFile
+				? await this.datastore.isLocalFileOutdated(
+						this.file.path,
+						this.file.stat.mtime,
+					)
+				: true;
+
+			let storedFile = null;
+
+			if (cachedFile && !outdated) {
+				storedFile = cachedFile;
+			} else {
+				// If the file is not cached or outdated, compile it
+				storedFile = await this.compiler.generateMarkdown(this);
+
+				if (!storedFile) {
+					throw new Error(
+						`Failed to compile file: ${this.file.path}. Compiler returned null.`,
+					);
+				}
+
+				const localHash = generateBlobHash(storedFile[0]);
+
+				await this.datastore.storeLocalFile(
 					this.file.path,
 					this.file.stat.mtime,
-				)
-			: true;
+					storedFile,
+				);
 
-		let storedFile = null;
-
-		if (cachedFile && !outdated) {
-			storedFile = cachedFile;
-		} else {
-			// If the file is not cached or outdated, compile it
-			storedFile = await this.compiler.generateMarkdown(this);
-
-			if (!storedFile) {
-				throw new Error(
-					`Failed to compile file: ${this.file.path}. Compiler returned null.`,
+				await this.datastore.storeLocalHash(
+					this.file.path,
+					this.file.stat.mtime,
+					localHash,
 				);
 			}
 
-			const localHash = generateBlobHash(storedFile[0]);
-
-			await this.datastore.storeLocalFile(
-				this.file.path,
-				this.file.stat.mtime,
-				storedFile,
-			);
-
-			await this.datastore.storeLocalHash(
-				this.file.path,
-				this.file.stat.mtime,
-				localHash,
-			);
+			compiledFile = storedFile;
+		} else {
+			compiledFile = await this.compiler.generateMarkdown(this);
 		}
 
-		const compiledFile = storedFile;
-
-		const compiledPublishFile = new CompiledPublishFile(
+		return new CompiledPublishFile(
 			{
 				file: this.file,
 				compiler: this.compiler,
@@ -108,11 +113,6 @@ export class PublishFile {
 			},
 			compiledFile,
 		);
-
-		// TODO: Fill the remote file cache from github. It is currently always empty
-		// TODO: Update the file change preview as well to use the cache
-
-		return compiledPublishFile;
 	}
 
 	// TODO: This doesn't work yet, but file should be able to tell it's type

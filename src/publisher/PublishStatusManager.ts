@@ -64,55 +64,60 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		const remoteBlobHashes =
 			await this.siteManager.getBlobHashes(contentTree);
 
-		// Check remote cache and update if needed
-		for (const [path, sha] of Object.entries(remoteBlobHashes)) {
-			if (!sha) {
-				continue;
-			}
-
-			//const notePath = path.startsWith(this.settings.vaultPath) ? path.slict(this.settings.vaultPath.length + 1) : path;
-
-			const hash = await this.publisher.datastore.loadRemoteHash(path);
-
-			if (!hash || hash !== sha) {
-				// Check if file exists in Obsidian vault
-				if (!this.publisher.vault.getAbstractFileByPath(path)) {
+		if (this.publisher.settings.useCache) {
+			// Check remote cache and update if needed
+			for (const [path, sha] of Object.entries(remoteBlobHashes)) {
+				if (!sha) {
 					continue;
 				}
 
-				// If the hash is different, update the remote file
+				//const notePath = path.startsWith(this.settings.vaultPath) ? path.slict(this.settings.vaultPath.length + 1) : path;
 
-				const remoteContent =
-					await this.siteManager.getNoteContent(path);
+				const hash =
+					await this.publisher.datastore.loadRemoteHash(path);
 
-				if (!remoteContent) {
-					continue;
+				if (!hash || hash !== sha) {
+					// Check if file exists in Obsidian vault
+					if (!this.publisher.vault.getAbstractFileByPath(path)) {
+						continue;
+					}
+
+					// If the hash is different, update the remote file
+
+					const remoteContent =
+						await this.siteManager.getNoteContent(path);
+
+					if (!remoteContent) {
+						continue;
+					}
+
+					const timestamp =
+						(await this.publisher.datastore.getTime(path)) ??
+						Date.now();
+
+					await this.publisher.datastore.storeRemoteFile(
+						path,
+						timestamp,
+						[remoteContent, { blobs: [] }],
+					);
+
+					await this.publisher.datastore.storeRemoteHash(
+						path,
+						timestamp,
+						sha,
+					);
 				}
-
-				const timestamp =
-					(await this.publisher.datastore.getTime(path)) ??
-					Date.now();
-
-				await this.publisher.datastore.storeRemoteFile(
-					path,
-					timestamp,
-					[remoteContent, { blobs: [] }],
-				);
-
-				await this.publisher.datastore.storeRemoteHash(
-					path,
-					timestamp,
-					sha,
-				);
 			}
 		}
 
 		const marked = await this.publisher.getFilesMarkedForPublishing();
 
-		// Drop deleted blobs from cache
-		await this.publisher.datastore.synchronize(
-			marked["notes"].map((f) => f.getPath()),
-		);
+		if (this.publisher.settings.useCache) {
+			// Drop deleted blobs from cache
+			await this.publisher.datastore.synchronize(
+				marked["notes"].map((f) => f.getPath()),
+			);
+		}
 
 		for (const file of marked.notes) {
 			const compiledFile = await file.compile();
