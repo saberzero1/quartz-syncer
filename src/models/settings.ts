@@ -39,6 +39,9 @@ export default interface QuartzSyncerSettings {
 	useThemes: boolean;
 
 	useCache: boolean;
+	syncCache: boolean;
+	cacheTimestamp: number;
+	cache: string;
 
 	includeAllFrontmatter: boolean;
 

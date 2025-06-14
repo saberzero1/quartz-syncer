@@ -41,6 +41,9 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	useThemes: false,
 
 	useCache: true,
+	syncCache: true,
+	cacheTimestamp: 0,
+	cache: "",
 
 	includeAllFrontmatter: false,
 
@@ -74,6 +77,26 @@ export default class QuartzSyncer extends Plugin {
 		this.datastore = new DataStore(this.manifest.id, this.appVersion);
 
 		await this.loadSettings();
+
+		if (this.settings.useCache && this.settings.syncCache) {
+			let timestamp = await this.datastore.persister.getItem("data.json");
+			let cacheData: string | undefined = undefined;
+
+			if (timestamp === undefined || this.settings.cacheTimestamp === 0) {
+				const now = Date.now();
+
+				// No cached data found, save to data.json
+				[timestamp, cacheData] =
+					await this.datastore.saveToDataJson(now);
+				this.settings.cache = cacheData;
+				this.settings.cacheTimestamp = (timestamp as number) ?? now;
+				await this.saveSettings();
+			}
+
+			if (timestamp && timestamp !== this.settings.cacheTimestamp) {
+				await this.datastore.loadFromDataJson(this.settings.cache);
+			}
+		}
 
 		if (this.settings.logLevel) Logger.setLevel(this.settings.logLevel);
 

@@ -25,6 +25,9 @@ const quartzSettings = {
 	useThemes: false,
 
 	useCache: true,
+	syncCache: true,
+	cacheTimestamp: 0,
+	cache: "",
 
 	includeAllFrontmatter: false,
 

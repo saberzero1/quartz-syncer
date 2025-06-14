@@ -1,10 +1,9 @@
 import localforage from "localforage";
+import { Notice } from "obsidian";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import { generateBlobHash } from "src/utils/utils";
 
-// TODO: Add config option for syncing DataStore
 // TODO: Add eventlistener for when the DataStore is updated from data.json
-// TODO: Add functions to write and read to data.json
 
 /** A piece of data that has been cached for a specific version and time. */
 export type QuartzSyncerCache = {
@@ -271,6 +270,46 @@ export class DataStore {
 			await this.persister.removeItem(this.fileKey(key));
 
 		return keys;
+	}
+
+	/** Serializes the data store to data.json file. */
+	public async saveToDataJson(timestamp: number): Promise<[number, string]> {
+		const data: Record<string, QuartzSyncerCache> = {};
+		const keys = await this.allKeys();
+
+		for (const key of keys) {
+			if (!key.startsWith("file:")) continue; // Only process file keys
+
+			const value = await this.persister.getItem(key);
+
+			if (value) {
+				data[key] = value as QuartzSyncerCache;
+			}
+		}
+		// Sort the keys to ensure consistent order
+		Object.keys(data).sort();
+
+		const jsonData = JSON.stringify(data, null, 2);
+		timestamp = Date.now();
+
+		await this.persister.setItem("data.json", timestamp);
+
+		new Notice("Quartz Syncer cache saved to data.json.");
+
+		return [timestamp, jsonData];
+	}
+
+	/** Load the data store from data.json file. */
+	public async loadFromDataJson(cache: string): Promise<void> {
+		const data: Record<string, QuartzSyncerCache> = JSON.parse(cache);
+
+		for (const [key, value] of Object.entries(data)) {
+			await this.persister.setItem(key, value);
+		}
+
+		new Notice("Quartz Syncer cache loaded from data.json.");
+
+		return;
 	}
 
 	/** Obtain a list of all metadata keys. */
