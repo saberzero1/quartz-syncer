@@ -134,7 +134,7 @@ export default class PublishStatusManager implements IPublishStatusManager {
 					controller.setText(`Processing ${path}...`);
 				}
 
-				if (!hash || hash !== sha) {
+				if ((!hash || hash !== sha) && path.endsWith(".md")) {
 					// Check if file exists in Obsidian vault
 					if (!this.publisher.vault.getAbstractFileByPath(path)) {
 						continue;

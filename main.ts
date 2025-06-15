@@ -271,6 +271,24 @@ export default class QuartzSyncer extends Plugin {
 				this.togglePublishFlag();
 			},
 		});
+
+		if (this.settings.useCache) {
+			this.addCommand({
+				id: "clear-cache-for-active-file",
+				name: "Clear cache for active file",
+				callback: async () => {
+					await this.clearCacheForActiveFile();
+				},
+			});
+
+			this.addCommand({
+				id: "clear-cache-for-all-files",
+				name: "Clear cache for all files",
+				callback: async () => {
+					await this.clearCacheForAllFiles();
+				},
+			});
+		}
 	}
 
 	/**
@@ -292,6 +310,58 @@ export default class QuartzSyncer extends Plugin {
 		}
 
 		return activeFile;
+	}
+
+	/**
+	 * Clears the cache for the currently active file.
+	 * If no file is active, it does nothing.
+	 */
+	async clearCacheForActiveFile() {
+		const activeFile = this.getActiveFile(this.app.workspace);
+
+		if (!activeFile) {
+			return;
+		}
+
+		const cacheKey = `file:${activeFile.path}`;
+
+		if (this.settings.useCache) {
+			await this.datastore.persister.removeItem(cacheKey);
+			Logger.info(`Cache cleared for file: ${activeFile.path}`);
+			new Notice(`Cache cleared for file: ${activeFile.path}`);
+		} else {
+			Logger.warn("Cache is disabled, no action taken.");
+			new Notice("Cache is disabled, no action taken.");
+		}
+	}
+
+	/**
+	 * Clears the cache for all files.
+	 * This method removes all cached data from the datastore.
+	 * If the cache is disabled, it does nothing.
+	 * It will show a confirmation dialog before clearing the cache.
+	 */
+	async clearCacheForAllFiles() {
+		// Show confirmation dialog before clearing the cache
+		const confirmation = confirm(
+			"Are you sure you want to clear the Quartz Syncer cache for all files? This action cannot be undone.",
+		);
+
+		if (!confirmation) {
+			Logger.info("Cache clearing cancelled by user.");
+			new Notice("Cache clearing cancelled.");
+
+			return;
+		}
+
+		if (this.settings.useCache) {
+			await this.datastore.recreate();
+			Logger.info("Cache cleared for all files.");
+			new Notice("Cache cleared for all files.");
+		} else {
+			Logger.warn("Cache is disabled, no action taken.");
+			new Notice("Cache is disabled, no action taken.");
+		}
 	}
 
 	/**
