@@ -1,9 +1,9 @@
 /**
- * PublishStatusBar class.
+ * PublishProgressBar class.
  * This class manages the status bar item that displays the publishing status of notes.
  * It provides methods to increment the counter for published files, update the status text,
  */
-export class PublishStatusBar {
+export class PublishProgressBar {
 	statusBarItem: HTMLElement;
 	counter: number;
 	numberOfNotesToPublish: number;

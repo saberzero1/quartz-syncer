@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { getIcon } from "obsidian";
+	import { getIcon, ProgressBarComponent } from "obsidian";
 	import TreeNode from "src/models/TreeNode";
 	import {
 		IPublishStatusManager,
 		PublishStatus,
 	} from "src/publisher/PublishStatusManager";
+	import { LoadingController } from "src/views/PublicationCenter/ProgressBar";
 	import TreeView from "src/ui/TreeView/TreeView.svelte";
 	import { onMount } from "svelte";
 	import Publisher from "src/publisher/Publisher";
@@ -18,13 +19,16 @@
 
 	let publishStatus: PublishStatus;
 	let showPublishingView: boolean = false;
+	let progressText = "Preparing to load...";
+	let controller: LoadingController;
+	let publishController: LoadingController;
 
 	/**
 	 * The tree representing the published notes.
 	 * It is built from the publish status and updated reactively.
 	 */
 	async function getPublishStatus() {
-		publishStatus = await publishStatusManager.getPublishStatus();
+		publishStatus = await publishStatusManager.getPublishStatus(controller);
 	}
 
 	onMount(getPublishStatus);
@@ -93,6 +97,59 @@
 		return root;
 	}
 
+	// This function is a Svelte Action. It will be attached to the
+	// container div for the progress bar.
+	function progressBarAction(node: HTMLElement) {
+		// This code runs when the <div> is added to the DOM.
+
+		// Dynamically import and create the native Obsidian component
+		const progressBar = new ProgressBarComponent(node);
+
+		// 2. Create the controller object that connects the data loader's
+		// calls to our UI elements.
+		controller = {
+			setProgress: (percentage) => {
+				// This directly calls the method on the native component instance.
+				progressBar.setValue(percentage);
+			},
+			setText: (message) => {
+				// This updates our local Svelte state, which is bound to the <p> tag.
+				progressText = message;
+			},
+		};
+
+		// An action can optionally return a `destroy` method.
+		// Svelte will call this automatically when the element is removed.
+		// While ProgressBarComponent doesn't have a public .destroy() method,
+		// this is where you would put any cleanup logic. Removing the parent
+		// `node` is typically sufficient for Obsidian components.
+		return {
+			destroy() {
+				// console.log("Progress bar container removed, cleanup complete.");
+			},
+		};
+	}
+
+	function publishProgressBarAction(node: HTMLElement) {
+		// This code runs when the <div> is added to the DOM.
+		const progressBar = new ProgressBarComponent(node);
+
+		// 2. Create the controller object that connects the data loader's
+		// calls to our UI elements.
+		publishController = {
+			setProgress: (progress) => {
+				progressBar.setValue(progress);
+			},
+			setText: () => {},
+		};
+
+		return {
+			destroy() {
+				// Cleanup logic if needed
+			},
+		};
+	}
+
 	/**
 	 * Returns an icon element with the specified name.
 	 * If the icon is not found, it returns null.
@@ -112,7 +169,7 @@
 	 *
 	 * @returns An HTML element representing the large cog icon.
 	 */
-	const bigRotatingCog = () => {
+	/*const bigRotatingCog = () => {
 		let cog = getIcon("cog");
 
 		cog?.classList.add(
@@ -122,7 +179,7 @@
 		);
 
 		return cog;
-	};
+	};*/
 
 	$: publishedNotesTree =
 		publishStatus &&
@@ -196,6 +253,8 @@
 				changedToPublish.length +
 				pathsToDelete.length)) *
 		100;
+
+	$: publishController?.setProgress(publishProgress);
 
 	/**
 	 * Traverses the tree and collects the paths of all leaf nodes that are checked.
@@ -305,11 +364,16 @@
 </script>
 
 <div>
-	<hr class="quartz-syncer-publisher-title-separator" />
+	{#if publishStatus}
+		<hr class="quartz-syncer-publisher-title-separator" />
+	{/if}
 	{#if !publishStatus}
 		<div class="quartz-syncer-publisher-loading-msg">
-			{@html bigRotatingCog()?.outerHTML}
-			<div>Calculating publication status from GitHub</div>
+			<div
+				use:progressBarAction
+				class="quartz-syncer-progress-bar-container"
+			/>
+			<div class="quartz-syncer-progress-bar-text">{progressText}</div>
 		</div>
 	{:else if !showPublishingView}
 		<TreeView tree={unpublishedNoteTree ?? emptyNode} {showDiff} />
@@ -357,8 +421,8 @@
 				{/if}
 				<div class="quartz-syncer-publisher-loading-container">
 					<div
-						class="quartz-syncer-publisher-loading-bar"
-						style="width: {publishProgress}%"
+						use:publishProgressBarAction
+						class="quartz-syncer-progress-bar-container"
 					/>
 				</div>
 			</div>

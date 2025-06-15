@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-06-15T00:05:31Z+0200
+modified: 2025-06-15T20:11:55Z+0200
 publish: true
 ---
 
@@ -13,7 +13,10 @@ publish: true
 - Significant performance improvements.
 - Caching of compiled files.
 - Improved preview performance.
-- Visual indicators for progress.
+- Visual indicators for loading and publishing progress.
+- New commands:
+	- Clear cache for current file.
+	- Clear cache for all files.
 - Folder suggester no longer fetches all files instead of just folders.
 
 ## Planned

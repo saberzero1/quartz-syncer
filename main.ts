@@ -90,6 +90,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	/** Plugin state variables */
 	lastUsedSettingsTab: "github",
 	noteSettingsIsInitialized: false,
+	numberOfKnownNotesForPublishing: 0,
 
 	/** Developer settings */
 	logLevel: undefined,
@@ -149,6 +150,14 @@ export default class QuartzSyncer extends Plugin {
 			if (timestamp && timestamp !== this.settings.cacheTimestamp) {
 				await this.datastore.loadFromDataJson(this.settings.cache);
 			}
+		}
+
+		if (this.settings.numberOfKnownNotesForPublishing === 0) {
+			// If the number of known notes is 0, we need to initialize it
+			// This will be used to track the number of notes that are marked for publishing
+			const allNotes = this.app.vault.getMarkdownFiles().length;
+			this.settings.numberOfKnownNotesForPublishing = allNotes;
+			await this.saveSettings();
 		}
 
 		if (this.settings.logLevel) Logger.setLevel(this.settings.logLevel);

@@ -79,6 +79,7 @@ export default interface QuartzSyncerSettings {
 	/** Plugin state variables */
 	noteSettingsIsInitialized: boolean;
 	lastUsedSettingsTab: string;
+	numberOfKnownNotesForPublishing: number;
 
 	/** Developer settings */
 	ENABLE_DEVELOPER_TOOLS?: boolean;

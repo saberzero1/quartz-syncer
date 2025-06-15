@@ -3,7 +3,7 @@
 	export let diff: Diff.Change[];
 </script>
 
-<div>
+<div class="quartz-syncer-modal-content-diff-view">
 	<div class="info callout">
 		Differences between your local file and the published file.
 		<br />

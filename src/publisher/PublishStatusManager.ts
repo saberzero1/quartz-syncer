@@ -2,6 +2,7 @@ import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteMa
 import Publisher from "src/publisher/Publisher";
 import { generateBlobHash } from "src/utils/utils";
 import { CompiledPublishFile } from "src/publishFile/PublishFile";
+import { LoadingController } from "src/views/PublicationCenter/ProgressBar";
 
 /**
  * PublishStatusManager class.
@@ -68,12 +69,20 @@ export default class PublishStatusManager implements IPublishStatusManager {
 	 * Gets the current publish status, including unpublished, published, changed notes,
 	 * and deleted note and blob paths.
 	 *
+	 * @param controller - The loading controller to manage the loading state.
 	 * @returns A promise that resolves to an object containing the publish status.
 	 */
-	async getPublishStatus(): Promise<PublishStatus> {
+	async getPublishStatus(
+		controller: LoadingController,
+	): Promise<PublishStatus> {
 		const unpublishedNotes: Array<CompiledPublishFile> = [];
 		const publishedNotes: Array<CompiledPublishFile> = [];
 		const changedNotes: Array<CompiledPublishFile> = [];
+
+		if (controller) {
+			controller.setText("Retrieving publish status...");
+			controller.setProgress(0);
+		}
 
 		const contentTree =
 			await this.siteManager.userSyncerConnection.getContent("HEAD");
@@ -88,10 +97,26 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		const remoteBlobHashes =
 			await this.siteManager.getBlobHashes(contentTree);
 
+		const remoteBlobHashesArray = Object.entries(remoteBlobHashes);
+
+		const numberOfEntries = remoteBlobHashesArray.length;
+		let currentEntry = 0;
+
+		// TODO: This is the slow part, we should increment the progress bar here
 		if (this.publisher.settings.useCache) {
 			// Check remote cache and update if needed
-			for (const [path, sha] of Object.entries(remoteBlobHashes)) {
+			for (const [path, sha] of remoteBlobHashesArray) {
 				if (!sha) {
+					currentEntry++;
+
+					if (controller) {
+						controller.setProgress(
+							Math.floor((currentEntry / numberOfEntries) * 100),
+						);
+
+						controller.setText(`Processing ${path}...`);
+					}
+
 					continue;
 				}
 
@@ -99,6 +124,15 @@ export default class PublishStatusManager implements IPublishStatusManager {
 
 				const hash =
 					await this.publisher.datastore.loadRemoteHash(path);
+
+				currentEntry++;
+
+				if (controller) {
+					controller.setProgress(
+						Math.floor((currentEntry / numberOfEntries) * 100),
+					);
+					controller.setText(`Processing ${path}...`);
+				}
 
 				if (!hash || hash !== sha) {
 					// Check if file exists in Obsidian vault
@@ -132,6 +166,11 @@ export default class PublishStatusManager implements IPublishStatusManager {
 					);
 				}
 			}
+		}
+
+		if (controller) {
+			controller.setText("Finishing up...");
+			controller.setProgress(100);
 		}
 
 		const marked = await this.publisher.getFilesMarkedForPublishing();
@@ -212,5 +251,5 @@ export interface PublishStatus {
  * Defines the methods for managing publish status.
  */
 export interface IPublishStatusManager {
-	getPublishStatus(): Promise<PublishStatus>;
+	getPublishStatus(controller: LoadingController): Promise<PublishStatus>;
 }
