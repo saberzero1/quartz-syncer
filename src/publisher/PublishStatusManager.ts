@@ -4,7 +4,8 @@ import { generateBlobHash } from "src/utils/utils";
 import { CompiledPublishFile } from "src/publishFile/PublishFile";
 
 /**
- *  Manages the publishing status of notes and blobs for a digital garden.
+ * PublishStatusManager class.
+ * Manages the publishing status of notes and blobs for a digital garden.
  */
 export default class PublishStatusManager implements IPublishStatusManager {
 	siteManager: QuartzSyncerSiteManager;
@@ -15,14 +16,31 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		this.publisher = publisher;
 	}
 
+	/**
+	 * Gets the paths of deleted notes.
+	 *
+	 * @returns A promise that resolves to an array of deleted note paths.
+	 */
 	getDeletedNotePaths(): Promise<string[]> {
 		throw new Error("Method not implemented.");
 	}
 
+	/**
+	 * Gets the paths of deleted blobs.
+	 *
+	 * @returns A promise that resolves to an array of deleted blob paths.
+	 */
 	getDeletedBlobsPaths(): Promise<string[]> {
 		throw new Error("Method not implemented.");
 	}
 
+	/**
+	 * Generates paths for deleted content based on remote hashes and marked files.
+	 *
+	 * @param remoteNoteHashes - The hashes of remote notes.
+	 * @param marked - The list of marked files.
+	 * @returns An array of objects containing the path and SHA of deleted content.
+	 */
 	private generateDeletedContentPaths(
 		remoteNoteHashes: { [key: string]: string },
 		marked: string[],
@@ -46,6 +64,12 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		return pathsWithSha;
 	}
 
+	/**
+	 * Gets the current publish status, including unpublished, published, changed notes,
+	 * and deleted note and blob paths.
+	 *
+	 * @returns A promise that resolves to an object containing the publish status.
+	 */
 	async getPublishStatus(): Promise<PublishStatus> {
 		const unpublishedNotes: Array<CompiledPublishFile> = [];
 		const publishedNotes: Array<CompiledPublishFile> = [];
@@ -162,11 +186,19 @@ export default class PublishStatusManager implements IPublishStatusManager {
 	}
 }
 
+/**
+ * PathToRemove interface.
+ * Represents a path and its SHA for deleted content.
+ */
 interface PathToRemove {
 	path: string;
 	sha: string;
 }
 
+/**
+ * PublishStatus interface.
+ * Represents the status of published notes, including unpublished, published, changed notes, and deleted note and blob paths.
+ */
 export interface PublishStatus {
 	unpublishedNotes: Array<CompiledPublishFile>;
 	publishedNotes: Array<CompiledPublishFile>;
@@ -175,6 +207,10 @@ export interface PublishStatus {
 	deletedBlobPaths: Array<PathToRemove>;
 }
 
+/**
+ * IPublishStatusManager interface.
+ * Defines the methods for managing publish status.
+ */
 export interface IPublishStatusManager {
 	getPublishStatus(): Promise<PublishStatus>;
 }

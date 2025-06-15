@@ -21,10 +21,21 @@ export type QuartzSyncerCache = {
 	remoteData?: TCompiledFile | null;
 };
 
-/** Simpler wrapper for a file-backed cache for arbitrary metadata. */
+/**
+ * Simpler wrapper for a file-backed cache for arbitrary metadata.
+ *
+ * This class provides methods to store, retrieve, and manage metadata about files and sections
+ * in the Quartz Syncer index.
+ */
 export class DataStore {
 	public persister: LocalForage;
 
+	/**
+	 * Create a new DataStore instance for caching metadata about files and sections.
+	 *
+	 * @param appId - The application ID to use for the cache instance.
+	 * @param version - The version of the application to use for the cache instance.
+	 */
 	public constructor(
 		public appId: string,
 		public version: string,
@@ -37,7 +48,11 @@ export class DataStore {
 		});
 	}
 
-	/** Drop the entire cache instance and re-create a new fresh instance. */
+	/**
+	 * Drop the entire cache instance and re-create a new fresh instance.
+	 *
+	 * @returns A promise that resolves when the cache is recreated.
+	 */
 	public async recreate() {
 		await localforage.dropInstance({
 			name: "quartz-syncer/cache/" + this.appId,
@@ -51,6 +66,13 @@ export class DataStore {
 		});
 	}
 
+	/**
+	 * Check if a local file is outdated compared to the given timestamp and version.
+	 *
+	 * @param path - The file path to check for outdated status.
+	 * @param timestamp - The UNIX epoch time in milliseconds to compare against.
+	 * @returns A promise that resolves to true if the local file is outdated, false otherwise.
+	 */
 	public async isLocalFileOutdated(
 		path: string,
 		timestamp: number,
@@ -66,6 +88,12 @@ export class DataStore {
 		return true; // No cached data found, consider it outdated
 	}
 
+	/**
+	 * Check if the remote file is outdated compared to the current version.
+	 *
+	 * @param path - The file path to check for outdated status.
+	 * @returns A promise that resolves to true if the remote file is outdated, false otherwise.
+	 */
 	public async isRemoteFileOutdated(path: string): Promise<boolean> {
 		const data = (await this.persister.getItem(
 			this.fileKey(path),
@@ -78,6 +106,12 @@ export class DataStore {
 		return true; // No cached data found, consider it outdated
 	}
 
+	/**
+	 * Check if the local and remote files are identical in the cache.
+	 *
+	 * @param path - The file path to check for identity.
+	 * @returns A promise that resolves to true if they are identical, false otherwise.
+	 */
 	public async areLocalAndRemoteIdentical(path: string): Promise<boolean> {
 		const data = (await this.persister.getItem(
 			this.fileKey(path),
@@ -93,6 +127,12 @@ export class DataStore {
 		return false; // No cached data found or hashes do not match
 	}
 
+	/**
+	 * Load a local file from the cache.
+	 *
+	 * @param path - The file path to load the local file for.
+	 * @returns A promise that resolves to the local file data, or null if not found.
+	 */
 	public async loadLocalFile(
 		path: string,
 	): Promise<TCompiledFile | null | undefined> {
@@ -107,6 +147,12 @@ export class DataStore {
 		return null; // No cached data found
 	}
 
+	/**
+	 * Load a remote file from the cache.
+	 *
+	 * @param path - The file path to load the remote file for.
+	 * @returns A promise that resolves to the remote file data, or null if not found.
+	 */
 	public async loadRemoteFile(
 		path: string,
 	): Promise<TCompiledFile | null | undefined> {
@@ -121,6 +167,13 @@ export class DataStore {
 		return null; // No cached data found
 	}
 
+	/**
+	 * Store a local file in the cache.
+	 *
+	 * @param path - The file path to store the local file for.
+	 * @param timestamp - The UNIX epoch time in milliseconds to set for the data.
+	 * @param data - The local file data to store.
+	 */
 	public async storeLocalFile(
 		path: string,
 		timestamp: number,
@@ -140,6 +193,13 @@ export class DataStore {
 		});
 	}
 
+	/**
+	 * Store a remote file in the cache.
+	 *
+	 * @param path - The file path to store the remote file for.
+	 * @param timestamp - The UNIX epoch time in milliseconds to set for the data.
+	 * @param data - The remote file data to store.
+	 */
 	public async storeRemoteFile(
 		path: string,
 		timestamp: number,
@@ -159,6 +219,12 @@ export class DataStore {
 		});
 	}
 
+	/**
+	 * Load the local file hash from the cache.
+	 *
+	 * @param path - The file path to load the local hash for.
+	 * @returns A promise that resolves to the local hash, or null if not found.
+	 */
 	public async loadLocalHash(
 		path: string,
 	): Promise<string | null | undefined> {
@@ -173,6 +239,12 @@ export class DataStore {
 		return null; // No cached data found
 	}
 
+	/**
+	 * Load the remote file hash from the cache.
+	 *
+	 * @param path - The file path to load the remote hash for.
+	 * @returns A promise that resolves to the remote hash, or null if not found.
+	 */
 	public async loadRemoteHash(
 		path: string,
 	): Promise<string | null | undefined> {
@@ -187,6 +259,13 @@ export class DataStore {
 		return null; // No cached data found
 	}
 
+	/**
+	 * Store a local file hash in the cache.
+	 *
+	 * @param path - The file path to store the local hash for.
+	 * @param timestamp - The UNIX epoch time in milliseconds to set for the data.
+	 * @param hash - The hash of the local file.
+	 */
 	public async storeLocalHash(
 		path: string,
 		timestamp: number,
@@ -206,6 +285,14 @@ export class DataStore {
 		});
 	}
 
+	/**
+	 * Store the remote file hash in the cache.
+	 *
+	 * @param path - The file path to store the remote hash for.
+	 * @param timestamp - The UNIX epoch time in milliseconds to set for the remote hash.
+	 * @param hash - The hash of the remote file to store.
+	 * @returns A promise that resolves when the remote hash is stored.
+	 */
 	public async storeRemoteHash(
 		path: string,
 		timestamp: number,
@@ -225,6 +312,12 @@ export class DataStore {
 		});
 	}
 
+	/**
+	 * Get the time when the file was last cached.
+	 *
+	 * @param path - The file path to get the cached time for.
+	 * @returns A promise that resolves to the cached time in milliseconds, or null if not found.
+	 */
 	public async getTime(path: string): Promise<number | null> {
 		const data = (await this.persister.getItem(
 			this.fileKey(path),
@@ -237,7 +330,12 @@ export class DataStore {
 		return null; // No cached data found
 	}
 
-	/** Load file metadata by path. */
+	/**
+	 * Load file metadata by path.
+	 *
+	 * @param path - The file path to load metadata for.
+	 * @returns A promise that resolves to the cached metadata for the file, or null if not found.
+	 */
 	public async loadFile(
 		path: string,
 	): Promise<QuartzSyncerCache | null | undefined> {
@@ -246,10 +344,21 @@ export class DataStore {
 		});
 	}
 
+	/**
+	 * Drop a file from the cache.
+	 *
+	 * @param path - The file path to drop from the cache.
+	 * @returns A promise that resolves when the file is dropped.
+	 */
 	public async dropFile(path: string): Promise<void> {
 		await this.persister.removeItem(this.fileKey(path));
 	}
 
+	/**
+	 * Drop all files in the cache.
+	 *
+	 * @returns A promise that resolves when all files are dropped.
+	 */
 	public async dropAllFiles(): Promise<void> {
 		const keys = await this.allFiles();
 
@@ -258,7 +367,12 @@ export class DataStore {
 		}
 	}
 
-	/** Drop old file keys that no longer exist. */
+	/**
+	 * Drop old file keys that no longer exist.
+	 *
+	 * @param existing - A list of existing file paths to keep in the cache.
+	 * @returns A promise that resolves to a set of keys that were removed from the cache.
+	 */
 	public async synchronize(
 		existing: string[] | Set<string>,
 	): Promise<Set<string>> {
@@ -272,7 +386,12 @@ export class DataStore {
 		return keys;
 	}
 
-	/** Serializes the data store to data.json file. */
+	/**
+	 * Serializes the data store to data.json file.
+	 *
+	 * @param timestamp - The UNIX epoch time in milliseconds to set for the data.
+	 * @returns A promise that resolves to a tuple containing the saved timestamp and the DataStore as JSON string.
+	 */
 	public async saveToDataJson(timestamp: number): Promise<[number, string]> {
 		const data: Record<string, QuartzSyncerCache> = {};
 		const keys = await this.allKeys();
@@ -299,7 +418,12 @@ export class DataStore {
 		return [timestamp, jsonData];
 	}
 
-	/** Load the data store from data.json file. */
+	/**
+	 * Load the data store from data.json file.
+	 *
+	 * @param cache - The JSON string containing the cache data.
+	 * @returns A promise that resolves when the cache is loaded from.
+	 */
 	public async loadFromDataJson(cache: string): Promise<void> {
 		const data: Record<string, QuartzSyncerCache> = JSON.parse(cache);
 
@@ -312,12 +436,20 @@ export class DataStore {
 		return;
 	}
 
-	/** Obtain a list of all metadata keys. */
+	/**
+	 * Obtain a list of all metadata keys.
+	 *
+	 * @returns A list of all keys in the cache.
+	 */
 	public async allKeys(): Promise<string[]> {
 		return this.persister.keys();
 	}
 
-	/** Obtain a list of all persisted files. */
+	/**
+	 * Obtain a list of all persisted files.
+	 *
+	 * @returns A list of file paths that are stored in the cache.
+	 */
 	public async allFiles(): Promise<string[]> {
 		const keys = await this.allKeys();
 
@@ -326,7 +458,12 @@ export class DataStore {
 			.map((k) => k.substring(5));
 	}
 
-	/** Get a unique key for a given file path. */
+	/**
+	 * Get a unique key for a given file path.
+	 *
+	 * @param path - The file path to generate a key for.
+	 * @returns A unique key for the file, prefixed with "file:".
+	 */
 	public fileKey(path: string): string {
 		return "file:" + path;
 	}

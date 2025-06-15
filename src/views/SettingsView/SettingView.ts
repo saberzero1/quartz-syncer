@@ -17,6 +17,12 @@ import { IntegrationSettings } from "./Views/IntegrationSettings";
 import { PerformanceSettings } from "./Views/PerformanceSettings";
 import { ThemesSettings } from "./Views/ThemesSettings";
 
+/**
+ * SettingView class.
+ * This class represents the settings view for the Quartz Syncer plugin.
+ * It provides methods to initialize the settings view, create tabs, and handle user interactions.
+ * It also includes methods to save settings and update the environment.
+ */
 export default class SettingView {
 	app: App;
 	plugin: QuartzSyncer;
@@ -51,10 +57,22 @@ export default class SettingView {
 		this.saveSettings = saveSettings;
 	}
 
+	/**
+	 * Returns an icon element for the given name.
+	 * If the icon is not found, it returns a span element.
+	 *
+	 * @param name - The name of the icon to retrieve.
+	 * @returns A Node representing the icon.
+	 */
 	getIcon(name: string): Node {
 		return getIcon(name) ?? document.createElement("span");
 	}
 
+	/**
+	 * Initializes the settings view.
+	 * It creates the title, description, header, and content sections.
+	 * It also sets up the tabs and their corresponding settings views.
+	 */
 	async initialize() {
 		this.settingsRootElement.empty();
 
@@ -212,6 +230,14 @@ export default class SettingView {
 		);
 	}
 
+	/**
+	 * Saves the site settings and updates the environment.
+	 * It shows a notice to the user and handles any errors that may occur during the update.
+	 *
+	 * @param metadataCache - The metadata cache to use for updating the environment.
+	 * @param settings - The current settings of the Quartz Syncer plugin.
+	 * @param saveSettings - A function to save the settings after updating.
+	 */
 	private async saveSiteSettingsAndUpdateEnv(
 		metadataCache: MetadataCache,
 		settings: QuartzSyncerSettings,
@@ -239,6 +265,13 @@ export default class SettingView {
 		}
 	}
 
+	/**
+	 * Creates a settings tab element with the specified name and icon.
+	 *
+	 * @param name - The name of the tab.
+	 * @param icon - The icon to display in the tab.
+	 * @returns The created tab element.
+	 */
 	private createTab(name: string, icon: string) {
 		const tab = this.settingsRootElement.createEl("div", {
 			cls: "quartz-syncer-navigation-item",
@@ -257,6 +290,13 @@ export default class SettingView {
 		return tab;
 	}
 
+	/**
+	 * Creates a settings tab content element with the specified name.
+	 *
+	 * @param parent - The parent element to append the tab to.
+	 * @param name - The name of the tab.
+	 * @returns The created tab content element.
+	 */
 	private createSettingsTab(parent: HTMLElement, name: string) {
 		const tab = parent.createEl("div", {
 			cls: "quartz-syncer-tab-settings",
@@ -267,6 +307,12 @@ export default class SettingView {
 		return tab;
 	}
 
+	/**
+	 * Sets the active tab and displays the corresponding settings view.
+	 *
+	 * @param tabName - The name of the tab to set as active.
+	 * @param settingTabs - The collection of setting tabs to display.
+	 */
 	private setActiveTab(
 		tabName: string,
 		settingTabs: QuartzSyncerSettingTabCollection,

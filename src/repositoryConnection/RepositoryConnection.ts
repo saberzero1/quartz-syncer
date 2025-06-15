@@ -5,6 +5,10 @@ import { CompiledPublishFile } from "src/publishFile/PublishFile";
 const logger = Logger.get("repository-connection");
 const oktokitLogger = Logger.get("octokit");
 
+/**
+ * IOctokitterInput interface.
+ * This interface defines the input parameters required to create a RepositoryConnection instance.
+ */
 interface IOctokitterInput {
 	githubToken: string;
 	githubUserName: string;
@@ -13,6 +17,10 @@ interface IOctokitterInput {
 	vaultPath: string;
 }
 
+/**
+ * IPutPayload interface.
+ * This interface defines the payload structure for updating files in the repository.
+ */
 interface IPutPayload {
 	path: string;
 	sha?: string;
@@ -21,6 +29,13 @@ interface IPutPayload {
 	message?: string;
 }
 
+/**
+ * RepositoryConnection class.
+ * This class manages the connection to a GitHub repository using Octokit.
+ * It provides methods to interact with the repository, such as getting content,
+ * updating files, deleting files, and managing branches.
+ * It also handles the conversion between repository paths and vault paths.
+ */
 export class RepositoryConnection {
 	private githubUserName: string;
 	private quartzRepository: string;
@@ -44,10 +59,20 @@ export class RepositoryConnection {
 		this.vaultPath = vaultPath;
 	}
 
+	/**
+	 * Get the full repository name in the format "username/repository".
+	 *
+	 * @returns The full repository name.
+	 */
 	getRepositoryName() {
 		return this.githubUserName + "/" + this.quartzRepository;
 	}
 
+	/**
+	 * Get the base payload for Octokit requests.
+	 *
+	 * @returns An object containing the owner and repo properties.
+	 */
 	getBasePayload() {
 		return {
 			owner: this.githubUserName,
@@ -55,6 +80,14 @@ export class RepositoryConnection {
 		};
 	}
 
+	/**
+	 * Get the repository path from a given path.
+	 * If the path starts with the content folder, it removes that part.
+	 * If the resulting path starts with a slash, it removes that as well.
+	 *
+	 * @param path - The path to convert.
+	 * @returns The repository path.
+	 */
 	getRepositoryPath(path: string) {
 		const repositoryPath = path.startsWith(this.contentFolder)
 			? path.replace(this.contentFolder, "")
@@ -65,6 +98,14 @@ export class RepositoryConnection {
 			: repositoryPath;
 	}
 
+	/**
+	 * Get the vault path from a given path.
+	 * If the path starts with the vault path, it removes that part.
+	 * If the resulting path starts with a slash, it removes that as well.
+	 *
+	 * @param path - The path to convert.
+	 * @returns The vault path.
+	 */
 	getVaultPath(path: string) {
 		const vaultPath = path.startsWith(this.vaultPath)
 			? path.replace(this.vaultPath, "")
@@ -73,6 +114,14 @@ export class RepositoryConnection {
 		return vaultPath.startsWith("/") ? vaultPath.slice(1) : vaultPath;
 	}
 
+	/**
+	 * Set the repository path from a given path.
+	 * If the path does not start with the content folder, it prepends it.
+	 * If the resulting path starts with a slash, it removes that as well.
+	 *
+	 * @param path - The path to convert.
+	 * @returns The repository path.
+	 */
 	setRepositoryPath(path: string) {
 		const separator = path.startsWith("/") ? "" : "/";
 
@@ -85,6 +134,14 @@ export class RepositoryConnection {
 			: repositoryPath;
 	}
 
+	/**
+	 * Set the vault path from a given path.
+	 * If the path does not start with the vault path, it prepends it.
+	 * If the resulting path starts with a slash, it removes that as well.
+	 *
+	 * @param path - The path to convert.
+	 * @returns The vault path.
+	 */
 	setVaultPath(path: string) {
 		const separator = path.startsWith("/") ? "" : "/";
 
@@ -95,15 +152,35 @@ export class RepositoryConnection {
 		return vaultPath.startsWith("/") ? vaultPath.slice(1) : vaultPath;
 	}
 
+	/**
+	 * Convert a repository path to a vault path.
+	 * It first converts the path to a repository path and then sets it as a vault path.
+	 *
+	 * @param path - The repository path to convert.
+	 * @returns The vault path.
+	 */
 	repositoryToVaultPath(path: string) {
 		return this.setVaultPath(this.getRepositoryPath(path));
 	}
 
+	/**
+	 * Convert a vault path to a repository path.
+	 * It first converts the path to a vault path and then sets it as a repository path.
+	 *
+	 * @param path - The vault path to convert.
+	 * @returns The repository path.
+	 */
 	repositoryToRepositoryPath(path: string) {
 		return this.setRepositoryPath(this.getVaultPath(path));
 	}
 
-	/** Get filetree with path and sha of each file from repository */
+	/**
+	 * Get filetree with path and sha of each file from repository
+	 *
+	 * @param branch - The branch to get the content from.
+	 * @returns The content of the repository as a tree structure.
+	 * @throws Will throw an error if the content cannot be retrieved.
+	 */
 	async getContent(branch: string) {
 		try {
 			const response = await this.octokit.request(
@@ -129,6 +206,15 @@ export class RepositoryConnection {
 		}
 	}
 
+	/**
+	 * Get a file from the repository.
+	 * It retrieves the file content from the specified path and branch.
+	 *
+	 * @param path - The path of the file to retrieve.
+	 * @param branch - The branch to get the file from (optional).
+	 * @returns The file data if found, otherwise undefined.
+	 * @throws Will throw an error if the file cannot be retrieved.
+	 */
 	async getFile(path: string, branch?: string) {
 		path = this.setRepositoryPath(
 			this.getVaultPath(this.getRepositoryPath(path)),
@@ -162,6 +248,16 @@ export class RepositoryConnection {
 		}
 	}
 
+	/**
+	 * Get a file from the repository by its SHA.
+	 * It retrieves the file content from the specified SHA and branch.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @param sha - The SHA of the file to retrieve.
+	 * @param branch - The branch to get the file from (optional).
+	 * @returns The file data if found, otherwise undefined.
+	 */
 	async deleteFile(
 		path: string,
 		{ branch, sha }: { branch?: string; sha?: string },
@@ -206,6 +302,14 @@ export class RepositoryConnection {
 		}
 	}
 
+	/**
+	 * Get the latest release from the repository.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @returns The latest release data if found, otherwise undefined.
+	 * @throws Will throw an error if the latest release cannot be retrieved.
+	 */
 	async getLatestRelease() {
 		try {
 			const release = await this.octokit.request(
@@ -223,6 +327,12 @@ export class RepositoryConnection {
 		}
 	}
 
+	/**
+	 * Get the latest commit from the repository.
+	 *
+	 * @returns The latest commit data if found, otherwise undefined.
+	 * @throws Will throw an error if the latest commit cannot be retrieved.
+	 */
 	async getLatestCommit(): Promise<
 		{ sha: string; commit: { tree: { sha: string } } } | undefined
 	> {
@@ -242,6 +352,17 @@ export class RepositoryConnection {
 		}
 	}
 
+	/**
+	 * Update a file in the repository.
+	 * It updates the file content at the specified path and branch.
+	 *
+	 * @param path - The path of the file to update.
+	 * @param sha - The SHA of the file to update (optional).
+	 * @param content - The new content of the file.
+	 * @param branch - The branch to update the file in (optional).
+	 * @param message - The commit message for the update (optional).
+	 * @returns The response data from the update request.
+	 */
 	async updateFile({ path, sha, content, branch, message }: IPutPayload) {
 		path = this.setRepositoryPath(
 			this.getVaultPath(this.getRepositoryPath(path)),
@@ -266,6 +387,13 @@ export class RepositoryConnection {
 		}
 	}
 
+	/**
+	 * Delete multiple files from the repository.
+	 * It retrieves the latest commit, creates a new tree with the files to be deleted,
+	 * and commits the changes to the default branch.
+	 *
+	 * @param filePaths - An array of file paths to delete.
+	 */
 	async deleteFiles(filePaths: string[]) {
 		const latestCommit = await this.getLatestCommit();
 
@@ -378,6 +506,13 @@ export class RepositoryConnection {
 		);
 	}
 
+	/**
+	 * Update multiple files in the repository.
+	 * It retrieves the latest commit, creates a new tree with the files to be updated,
+	 * and commits the changes to the default branch.
+	 *
+	 * @param files - An array of CompiledPublishFile objects to update.
+	 */
 	async updateFiles(files: CompiledPublishFile[]) {
 		const latestCommit = await this.getLatestCommit();
 
@@ -511,6 +646,14 @@ export class RepositoryConnection {
 		);
 	}
 
+	/**
+	 * Get information about the repository.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @returns The repository information if found, otherwise undefined.
+	 * @throws Will throw an error if the repository information cannot be retrieved.
+	 */
 	async getRepositoryInfo() {
 		const repoInfo = await this.octokit
 			.request("GET /repos/{owner}/{repo}", {
@@ -529,6 +672,16 @@ export class RepositoryConnection {
 		return repoInfo?.data;
 	}
 
+	/**
+	 * Create a new branch in the repository.
+	 * It creates a new branch with the specified name and SHA.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @param branchName - The name of the new branch.
+	 * @param sha - The SHA of the commit to base the new branch on.
+	 * @throws Will throw an error if the branch cannot be created.
+	 */
 	async createBranch(branchName: string, sha: string) {
 		await this.octokit.request("POST /repos/{owner}/{repo}/git/refs", {
 			...this.getBasePayload(),
@@ -538,6 +691,11 @@ export class RepositoryConnection {
 	}
 }
 
+/**
+ * TRepositoryContent type.
+ * This type represents the content of a repository as returned by the getContent method.
+ * It is an awaited type of the return value of the getContent method of the RepositoryConnection class.
+ */
 export type TRepositoryContent = Awaited<
 	ReturnType<typeof RepositoryConnection.prototype.getContent>
 >;

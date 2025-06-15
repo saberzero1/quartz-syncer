@@ -2,6 +2,10 @@ import { Setting, App, PluginSettingTab, Notice } from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 
+/**
+ * PerformanceSettings class.
+ * This class is responsible for managing the performance settings of the Quartz Syncer plugin.
+ */
 export class PerformanceSettings extends PluginSettingTab {
 	app: App;
 	plugin: QuartzSyncer;
@@ -22,6 +26,10 @@ export class PerformanceSettings extends PluginSettingTab {
 		this.settingsRootElement.classList.add("settings-tab-content");
 	}
 
+	/**
+	 * Displays the performance settings.
+	 * This method initializes the performance settings UI and sets up event listeners.
+	 */
 	display(): void {
 		this.settingsRootElement.empty();
 		this.settingsRootElement.addClass("quartz-syncer-github-settings");
@@ -35,6 +43,10 @@ export class PerformanceSettings extends PluginSettingTab {
 		this.settings.saveSettings();
 	}
 
+	/**
+	 * Initializes the performance settings header.
+	 * This method creates a header for the performance settings section.
+	 */
 	initializePerformanceHeader = () => {
 		new Setting(this.settingsRootElement)
 			.setName("Performance")
@@ -44,6 +56,10 @@ export class PerformanceSettings extends PluginSettingTab {
 			.setHeading();
 	};
 
+	/**
+	 * Initializes the enable cache setting.
+	 * This method creates a toggle for enabling or disabling the Quartz Syncer cache.
+	 */
 	initializeEnableCacheSetting = () => {
 		new Setting(this.settingsRootElement)
 			.setName("Cache")
@@ -71,6 +87,11 @@ export class PerformanceSettings extends PluginSettingTab {
 			);
 	};
 
+	/**
+	 * Initializes the sync cache setting.
+	 * This method creates a toggle for enabling or disabling the sync cache feature.
+	 * The sync cache feature allows the cache to be written to `data.json` for syncing across devices.
+	 */
 	initializeSyncCacheSetting = () => {
 		if (this.settings.settings.useCache) {
 			new Setting(this.settingsRootElement)
@@ -89,6 +110,11 @@ export class PerformanceSettings extends PluginSettingTab {
 		}
 	};
 
+	/**
+	 * Initializes the clear cache setting.
+	 * This method creates a button for clearing the Quartz Syncer cache.
+	 * When clicked, it will remove all cached files and force a re-fetch of all data from the GitHub repository.
+	 */
 	initializeClearCacheSetting = () => {
 		if (this.settings.settings.useCache) {
 			new Setting(this.settingsRootElement)

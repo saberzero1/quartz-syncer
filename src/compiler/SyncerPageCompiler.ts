@@ -1,7 +1,6 @@
 import {
 	App,
 	MetadataCache,
-	Notice,
 	TFile,
 	Vault,
 	arrayBufferToBase64,
@@ -36,6 +35,10 @@ import { DatacoreCompiler } from "./DatacoreCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { DataStore } from "src/datastore/DataStore";
 
+/**
+ * Interface for an asset that will be published.
+ * It contains the path to the asset and its content.
+ */
 export interface Asset {
 	path: string;
 	content: string;
@@ -43,18 +46,43 @@ export interface Asset {
 	remoteHash?: string;
 }
 
+/**
+ * Interface for the assets that will be published.
+ * It contains an array of assets.
+ */
 export interface Assets {
 	blobs: Array<Asset>;
 }
 
+/**
+ * Type for the compiled file.
+ * It is a tuple containing the compiled text and the assets for the file.
+ * The compiled text is the text that has been processed by the compiler steps.
+ * The assets are the files that are linked in the text, such as images or other files.
+ */
 export type TCompiledFile = [string, Assets];
 
+/**
+ * Type for a compiler step.
+ * It is a function that takes a PublishFile and returns a function that takes the partially compiled content.
+ * The returned function can either return a string or a Promise that resolves to a string.
+ *
+ * @param publishFile - The file that is being published.
+ * @returns A function that takes the partially compiled content and returns the compiled content.
+ */
 export type TCompilerStep = (
 	publishFile: PublishFile,
 ) =>
 	| ((partiallyCompiledContent: string) => Promise<string>)
 	| ((partiallyCompiledContent: string) => string);
 
+/**
+ * SyncerPageCompiler class.
+ * This class is responsible for compiling the content of a file for publishing.
+ * It applies various compiler steps to the content, such as converting front matter, creating transcluded text, converting links to full paths, and more.
+ * It also extracts file links and converts them to the appropriate format for publishing.
+ * It is used by the Publisher to prepare files for publishing.
+ */
 export class SyncerPageCompiler {
 	private app: App;
 	private readonly vault: Vault;
@@ -81,6 +109,14 @@ export class SyncerPageCompiler {
 		this.rewriteRule = getRewriteRules(this.settings.vaultPath);
 	}
 
+	/**
+	 * Runs the compiler steps on the given text.
+	 * It applies each compiler step in order, passing the result of the previous step to the next one.
+	 *
+	 * @param file - The file that is being published.
+	 * @param compilerSteps - The array of compiler steps to apply.
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 */
 	runCompilerSteps =
 		(file: PublishFile, compilerSteps: TCompilerStep[]) =>
 		async (text: string): Promise<string> => {
@@ -94,6 +130,14 @@ export class SyncerPageCompiler {
 			);
 		};
 
+	/**
+	 * Generates the markdown content for the given file.
+	 * It reads the file content, applies various compiler steps to it, and returns the compiled text along with the assets.
+	 *
+	 * @param file - The file to generate the markdown content for.
+	 * @returns A promise that resolves to a tuple containing the compiled text and the assets.
+	 * @throws If the file is an Excalidraw file, a warning is logged as Excalidraw files are not supported yet.
+	 */
 	async generateMarkdown(file: PublishFile): Promise<TCompiledFile> {
 		const vaultFileText = await file.cachedRead();
 
@@ -126,6 +170,13 @@ export class SyncerPageCompiler {
 		return [text, { blobs }];
 	}
 
+	/**
+	 * Applies the vault path to links in the text.
+	 * It replaces links that start with the vault path with Obsidian-style links (e.g. [[link]]) and Markdown-style links (e.g. [link](path)).
+	 * If the vault path is not set, or is the vault root, it does nothing.
+	 *
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 */
 	applyVaultPath: TCompilerStep = () => (text) => {
 		const wikilinkRegex = new RegExp(
 			"\\[\\[" + this.settings.vaultPath + "(.*?)\\]\\]",
@@ -145,17 +196,19 @@ export class SyncerPageCompiler {
 				Logger.error(
 					`Error while applying vault path to text: ${text}. Error: ${e}`,
 				);
-
-				// TODO: validate in settings
-				new Notice(
-					`Your custom filters contains an invalid regex. Skipping it.`,
-				);
 			}
 		}
 
 		return text;
 	};
 
+	/**
+	 * Removes Obsidian comments from the text.
+	 * It looks for comments in the form of %% comment %% and removes them, unless they are inside a code block, code fence, or excalidraw drawing.
+	 *
+	 * @param text - The text to compile.
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 */
 	removeObsidianComments: TCompilerStep = () => (text) => {
 		const obsidianCommentsRegex = /%%.+?%%/gms;
 		const obsidianCommentsMatches = text.match(obsidianCommentsRegex);
@@ -179,12 +232,26 @@ export class SyncerPageCompiler {
 		return text;
 	};
 
+	/**
+	 * Converts the front matter of the file to a string.
+	 * It replaces the front matter in the text with the compiled front matter from the file.
+	 *
+	 * @param file - The file to compile the front matter for.
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 */
 	convertFrontMatter: TCompilerStep = (file) => (text) => {
 		const compiledFrontmatter = file.getCompiledFrontmatter();
 
 		return text.replace(FRONTMATTER_REGEX, () => compiledFrontmatter);
 	};
 
+	/**
+	 * Converts Dataview queries in the text to their results.
+	 * It uses the DataviewCompiler to compile the text.
+	 *
+	 * @param file - The file to compile the Dataview queries for.
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 */
 	convertDataViews: TCompilerStep = (file) => async (text) => {
 		if (!this.settings.useDataview) {
 			return text;
@@ -195,6 +262,13 @@ export class SyncerPageCompiler {
 		return await dataviewCompiler.compile(file)(text);
 	};
 
+	/**
+	 * Converts Datacore queries in the text to their results.
+	 * It uses the DatacoreCompiler to compile the text.
+	 *
+	 * @param file - The file to compile the Datacore queries for.
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 */
 	convertDataCores = (file: PublishFile) => async (text: string) => {
 		if (!this.settings.useDatacore) {
 			return text;
@@ -205,10 +279,22 @@ export class SyncerPageCompiler {
 		return await datacoreCompiler.compile(file)(text);
 	};
 
+	/**
+	 * Removes the target="_blank" attribute from Dataview links in the text.
+	 * It uses a regular expression to find and remove the target attribute.
+	 *
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 */
 	linkTargeting: TCompilerStep = () => (text) => {
 		return text.replace(DATAVIEW_LINK_TARGET_BLANK_REGEX, "");
 	};
 
+	/**
+	 * Strips away code fences, front matter, and Excalidraw drawings from the text.
+	 * It uses regular expressions to find and remove these elements.
+	 *
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 */
 	private stripAwayCodeFencesAndFrontmatter: TCompilerStep = () => (text) => {
 		let textToBeProcessed = text;
 		textToBeProcessed = textToBeProcessed.replace(EXCALIDRAW_REGEX, "");
@@ -220,6 +306,14 @@ export class SyncerPageCompiler {
 		return textToBeProcessed;
 	};
 
+	/**
+	 * Converts links in the text to full paths.
+	 * It looks for links in the form of [[link]] and converts them to full paths.
+	 * It also handles links to headers and blocks, and removes the file extension if it is a Markdown file.
+	 *
+	 * @param file - The file to compile the links for.
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 */
 	convertLinksToFullPath: TCompilerStep = (file) => async (text) => {
 		let convertedText = text;
 
@@ -297,6 +391,14 @@ export class SyncerPageCompiler {
 		return convertedText;
 	};
 
+	/**
+	 * Creates transcluded text by replacing transclusion links with the content of the linked files.
+	 * It recursively processes transclusions up to a depth of 4 to avoid infinite loops.
+	 * It also applies the vault path to the transcluded text.
+	 *
+	 * @param currentDepth - The current depth of recursion.
+	 * @returns A function that takes the file and returns a function that takes the text to compile.
+	 */
 	createTranscludedText =
 		(currentDepth: number): TCompilerStep =>
 		(file) =>
@@ -509,6 +611,14 @@ export class SyncerPageCompiler {
 			return transcludedText;
 		};
 
+	/**
+	 * Creates SVG
+	 * It looks for SVG transclusions in the text and replaces them with the content of the linked SVG files.
+	 * It supports both transcluded SVGs in the form of ![blob.svg] and ![blob.svg|size] and transcluded SVGs in the form of [blob.svg|size].
+	 *
+	 * @param file - The file to compile the SVGs for.
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 */
 	createSvgEmbeds: TCompilerStep = (file) => async (text) => {
 		function setWidth(svgText: string, size: string): string {
 			const parser = new DOMParser();
@@ -599,6 +709,13 @@ export class SyncerPageCompiler {
 		return text;
 	};
 
+	/**
+	 * Extracts blob links from the file.
+	 * It looks for transcluded blobs in the form of ![[blob.png]] and ![](blob.png) and returns the paths of the linked files.
+	 *
+	 * @param file - The file to extract the blob links from.
+	 * @returns A promise that resolves to an array of asset paths.
+	 */
 	extractBlobLinks = async (file: PublishFile) => {
 		const text = await file.cachedRead();
 		const assets = [];
@@ -693,6 +810,14 @@ export class SyncerPageCompiler {
 		return assets;
 	};
 
+	/**
+	 * Converts file links in the text to their content.
+	 * It looks for transcluded blobs in the form of ![[blob.png]] and ![](blob.png) and replaces them with the content of the linked files.
+	 *
+	 * @param file - The file to compile the links for.
+	 * @returns A function that takes the text to compile and returns a tuple containing the compiled text and the assets.
+	 * @throws If the file is not found, it continues to the next match.
+	 */
 	convertFileLinks =
 		(file: PublishFile) =>
 		async (text: string): Promise<[string, Array<Asset>]> => {
@@ -879,6 +1004,15 @@ export class SyncerPageCompiler {
 			return [blobText, assets];
 		};
 
+	/**
+	 * Generates a transclusion header for the given header name and transcluded file.
+	 * It replaces the \{\{title\}\} variable in the header name with the basename of the transcluded file.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @param headerName - The header name to generate.
+	 * @returns The generated header name with the \{\{title\}\} variable replaced.
+	 */
 	generateTransclusionHeader(
 		headerName: string | undefined,
 		transcludedFile: TFile,

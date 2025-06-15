@@ -1,5 +1,6 @@
 import eslint from "@eslint/js";
 import typescriptEslint from "typescript-eslint";
+import tsdoc from "eslint-plugin-tsdoc";
 import svelte from "eslint-plugin-svelte";
 import prettier from "eslint-plugin-prettier";
 import prettierConfig from "eslint-config-prettier";
@@ -23,7 +24,22 @@ export default [
 	// 5. Prettier configuration
 	prettierConfig,
 
-	// 6. Custom configuration for Svelte files
+	// 6. TSDoc configuration
+	{
+		languageOptions: {
+			parserOptions: {
+				project: "./tsconfig.json",
+			},
+		},
+		plugins: {
+			tsdoc,
+		},
+		rules: {
+			"tsdoc/syntax": "warn",
+		},
+	},
+
+	// 7. Custom configuration for Svelte files
 	{
 		files: ["**/*.svelte"],
 		languageOptions: {
@@ -38,7 +54,7 @@ export default [
 		}
 	},
 
-	// 7. Custom rules for all files
+	// 8. Custom rules for all files
 	{
 		languageOptions: {
 			parser: typescriptEslint.parser,

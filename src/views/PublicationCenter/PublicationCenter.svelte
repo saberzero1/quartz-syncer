@@ -19,12 +19,23 @@
 	let publishStatus: PublishStatus;
 	let showPublishingView: boolean = false;
 
+	/**
+	 * The tree representing the published notes.
+	 * It is built from the publish status and updated reactively.
+	 */
 	async function getPublishStatus() {
 		publishStatus = await publishStatusManager.getPublishStatus();
 	}
 
 	onMount(getPublishStatus);
 
+	/**
+	 * The tree representing the published notes.
+	 * It is built from the publish status and updated reactively.
+	 *
+	 * @param tree - The root node of the tree.
+	 * @param pathComponents - The components of the path to insert into the tree.
+	 */
 	function insertIntoTree(tree: TreeNode, pathComponents: string[]): void {
 		let currentNode = tree;
 
@@ -54,6 +65,14 @@
 		}
 	}
 
+	/**
+	 * Converts an array of file paths into a tree structure.
+	 * Each path is split by '/' and inserted into the tree.
+	 *
+	 * @param filePaths - An array of file paths to convert into a tree.
+	 * @param rootName - The name of the root node in the tree.
+	 * @returns A TreeNode representing the root of the tree.
+	 */
 	function filePathsToTree(
 		filePaths: string[],
 		rootName: string = "root",
@@ -74,13 +93,25 @@
 		return root;
 	}
 
+	/**
+	 * Returns an icon element with the specified name.
+	 * If the icon is not found, it returns null.
+	 *
+	 * @returns An HTML element representing the icon, or null if not found.
+	 */
 	const rotatingCog = () => {
 		let cog = getIcon("cog");
 		cog?.classList.add("quartz-syncer-rotate", "quartz-syncer-cog");
 
 		return cog;
 	};
-	//TODO: move to class
+
+	/**
+	 * Returns a larger rotating cog icon element.
+	 * This is used to indicate a loading state in the publishing view.
+	 *
+	 * @returns An HTML element representing the large cog icon.
+	 */
 	const bigRotatingCog = () => {
 		let cog = getIcon("cog");
 
@@ -166,6 +197,13 @@
 				pathsToDelete.length)) *
 		100;
 
+	/**
+	 * Traverses the tree and collects the paths of all leaf nodes that are checked.
+	 * This is used to determine which notes are marked for publishing.
+	 *
+	 * @param tree - The root node of the tree to traverse.
+	 * @returns An array of paths for the checked leaf nodes.
+	 */
 	const traverseTree = (tree: TreeNode): Array<string> => {
 		const paths: Array<string> = [];
 
@@ -190,6 +228,11 @@
 	let publishedPaths: Array<string> = [];
 	let failedPublish: Array<string> = [];
 
+	/**
+	 * Publishes the notes that are marked for publishing.
+	 * It collects the paths of unpublished and changed notes, as well as deleted notes,
+	 * and then calls the publisher to publish them in batches.
+	 */
 	const publishMarkedNotes = async () => {
 		if (!unpublishedNoteTree || !changedNotesTree) return;
 

@@ -13,12 +13,17 @@ import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnect
 import { DataStore } from "src/datastore/DataStore";
 import Logger from "js-logger";
 
+/**
+ * MarkedForPublishing interface.
+ * Represents the files and blobs that are marked for publishing.
+ */
 export interface MarkedForPublishing {
 	notes: PublishFile[];
 	blobs: string[];
 }
 
 /**
+ * Publisher class.
  * Prepares files to be published and publishes them to Github
  */
 export default class Publisher {
@@ -56,12 +61,23 @@ export default class Publisher {
 		);
 	}
 
+	/**
+	 * Checks if the file should be published based on its frontmatter.
+	 *
+	 * @param file - The file to check.
+	 * @returns true if the file should be published, false otherwise.
+	 */
 	shouldPublish(file: TFile): boolean {
 		const frontMatter = this.metadataCache.getCache(file.path)?.frontmatter;
 
 		return hasPublishFlag(this.settings.publishFrontmatterKey, frontMatter);
 	}
 
+	/**
+	 * Gets the files that are marked for publishing.
+	 *
+	 * @returns A promise that resolves to an object containing notes and blobs to be published.
+	 */
 	async getFilesMarkedForPublishing(): Promise<MarkedForPublishing> {
 		const files = this.vault.getMarkdownFiles().filter((file) => {
 			if (
@@ -104,6 +120,15 @@ export default class Publisher {
 		};
 	}
 
+	/**
+	 * Uploads a note to the repository.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @param vaultFilePath - The path of the note in the vault.
+	 * @param sha - The SHA of the note, if it exists.
+	 * @returns A promise that resolves to true if the upload was successful, false otherwise.
+	 */
 	async deleteNote(vaultFilePath: string, sha?: string) {
 		if (
 			this.settings.vaultPath !== "/" &&
@@ -116,6 +141,15 @@ export default class Publisher {
 		return await this.delete(vaultFilePath, sha);
 	}
 
+	/**
+	 * Deletes a blob from the repository.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @param vaultFilePath - The path of the blob in the vault.
+	 * @param sha - The SHA of the blob, if it exists.
+	 * @returns A promise that resolves to true if the deletion was successful, false otherwise.
+	 */
 	async deleteBlob(vaultFilePath: string, sha?: string) {
 		if (
 			this.settings.vaultPath !== "/" &&
@@ -127,7 +161,16 @@ export default class Publisher {
 
 		return await this.delete(vaultFilePath, sha);
 	}
-	/** If provided with sha, syncer connection does not need to get it separately! */
+
+	/**
+	 * Deletes a file from the repository.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @param path - The path of the file to delete.
+	 * @param sha - The SHA of the file, if it exists.
+	 * @returns A promise that resolves to true if the deletion was successful, false otherwise.
+	 */
 	public async delete(path: string, sha?: string): Promise<boolean> {
 		this.validateSettings();
 
@@ -146,6 +189,14 @@ export default class Publisher {
 		return !!deleted;
 	}
 
+	/**
+	 * Publishes a file to the repository.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @param file - The file to publish.
+	 * @returns A promise that resolves to true if the publish was successful, false otherwise.
+	 */
 	public async publish(file: CompiledPublishFile): Promise<boolean> {
 		if (
 			!isPublishFrontmatterValid(
@@ -169,6 +220,12 @@ export default class Publisher {
 		}
 	}
 
+	/**
+	 * Deletes a batch of files from the repository.
+	 *
+	 * @param filePaths - An array of file paths to delete.
+	 * @returns A promise that resolves to true if the deletion was successful, false otherwise.
+	 */
 	public async deleteBatch(filePaths: string[]): Promise<boolean> {
 		if (filePaths.length === 0) {
 			return true;
@@ -200,6 +257,12 @@ export default class Publisher {
 		}
 	}
 
+	/**
+	 * Publishes a batch of files to the repository.
+	 *
+	 * @param files - An array of compiled publish files to publish.
+	 * @returns A promise that resolves to true if the publish was successful, false otherwise.
+	 */
 	public async publishBatch(files: CompiledPublishFile[]): Promise<boolean> {
 		const filesToPublish = files.filter((f) =>
 			isPublishFrontmatterValid(
@@ -246,6 +309,14 @@ export default class Publisher {
 		}
 	}
 
+	/**
+	 * Uploads a file to GitHub.
+	 *
+	 * @param path - The path of the file in the repository.
+	 * @param content - The content of the file to upload.
+	 * @param remoteFileHash - The SHA of the file, if it exists.
+	 * @returns A promise that resolves to the result of the upload operation.
+	 */
 	private async uploadToGithub(
 		path: string,
 		content: string,
@@ -282,12 +353,30 @@ export default class Publisher {
 		});
 	}
 
+	/**
+	 * Uploads a text file to GitHub.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @param filePath - The path of the file in the repository.
+	 * @param content - The content of the file to upload.
+	 * @param sha - The SHA of the file, if it exists.
+	 */
 	private async uploadText(filePath: string, content: string, sha?: string) {
 		content = Base64.encode(content);
 		const path = `${this.settings.contentFolder}/${filePath}`;
 		await this.uploadToGithub(path, content, sha);
 	}
 
+	/**
+	 * Uploads a blob to GitHub.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @param filePath - The path of the blob in the repository.
+	 * @param content - The content of the blob to upload.
+	 * @param sha - The SHA of the blob, if it exists.
+	 */
 	private async uploadBlob(filePath: string, content: string, sha?: string) {
 		let previous;
 
@@ -300,6 +389,13 @@ export default class Publisher {
 		await this.uploadToGithub(path, content, sha);
 	}
 
+	/**
+	 * Uploads assets to GitHub.
+	 *
+	 * @deprecated Unused.
+	 *
+	 * @param assets - The assets to upload.
+	 */
 	private async uploadAssets(assets: Assets) {
 		for (let idx = 0; idx < assets.blobs.length; idx++) {
 			const blob = assets.blobs[idx];
@@ -307,6 +403,11 @@ export default class Publisher {
 		}
 	}
 
+	/**
+	 * Validates the plugin settings.
+	 *
+	 * @throws shows a notice if any required setting is missing.
+	 */
 	validateSettings() {
 		if (!this.settings.githubRepo) {
 			new Notice(

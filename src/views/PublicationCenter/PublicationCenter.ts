@@ -8,6 +8,11 @@ import PublicationCenterSvelte from "src/views/PublicationCenter/PublicationCent
 import DiffView from "src/views/PublicationCenter/DiffView.svelte";
 import * as Diff from "diff";
 
+/**
+ * PublicationCenter class.
+ * This class represents the publication center UI for managing the publishing status of notes.
+ * It provides methods to open the modal, display the publication status, and show diffs between local and remote files.
+ */
 export class PublicationCenter {
 	modal: Modal;
 	settings: QuartzSyncerSettings;
@@ -40,6 +45,13 @@ export class PublicationCenter {
 		this.modal.contentEl.addClass("quartz-syncer-modal-content");
 	}
 
+	/**
+	 * Returns an icon element based on the provided name.
+	 * If the icon is not found, it returns a span element.
+	 *
+	 * @param name - The name of the icon to retrieve.
+	 * @returns A Node representing the icon.
+	 */
 	getIcon(name: string): Node {
 		const icon = getIcon(name) ?? document.createElement("span");
 
@@ -50,6 +62,14 @@ export class PublicationCenter {
 		return icon;
 	}
 
+	/**
+	 * Shows the diff between the remote and local versions of a note.
+	 * It retrieves the content of both versions, compares them, and displays the differences in a modal.
+	 *
+	 * @param notePath - The path of the note to compare.
+	 * @returns A promise that resolves when the diff is displayed.
+	 * @throws Will throw an error if the note content cannot be retrieved or compiled.
+	 */
 	private showDiff = async (notePath: string) => {
 		try {
 			let remoteContent, remoteFile, localContent, localFile;
@@ -136,6 +156,11 @@ export class PublicationCenter {
 			console.error(e);
 		}
 	};
+
+	/**
+	 * Opens the publication center modal.
+	 * It sets up the modal's content and behavior, including the publication status manager and publisher.
+	 */
 	open = () => {
 		this.modal.onClose = () => {
 			this.publicationCenterUi.$destroy();
