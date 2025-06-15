@@ -308,6 +308,7 @@ input[type="checkbox"]:indeterminate:after {
 	font-size: var(--font-text-size);
 
 	display: flex;
+	flex-shrink: 0;
 	flex-direction: row;
 	white-space: nowrap;
 
@@ -394,7 +395,7 @@ input[type="checkbox"]:indeterminate:after {
 .quartz-syncer-setting-header .quartz-syncer-setting-tab-group {
 	display: flex;
 	align-items: flex-end;
-	flex-wrap: wrap;
+	overflow-x: auto;
 	width: 100%;
 }
 

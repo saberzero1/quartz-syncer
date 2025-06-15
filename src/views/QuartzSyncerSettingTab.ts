@@ -3,6 +3,11 @@ import QuartzSyncer from "main";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import SettingView from "src/views/SettingsView/SettingView";
 
+/**
+ * QuartzSyncerSettingTab class.
+ * This class extends PluginSettingTab and is responsible for managing the settings tab
+ * for the QuartzSyncer plugin. It initializes the settings and displays the setting view.
+ */
 export class QuartzSyncerSettingTab extends PluginSettingTab {
 	app: App;
 	plugin: QuartzSyncer;
@@ -23,6 +28,10 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		}
 	}
 
+	/**
+	 * Display the settings tab.
+	 * This method initializes the SettingView and displays it in the container element.
+	 */
 	async display(): Promise<void> {
 		const { containerEl } = this;
 

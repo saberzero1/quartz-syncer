@@ -3,6 +3,15 @@ import sha1 from "crypto-js/sha1";
 import { sanitizeHTMLToDom, htmlToMarkdown } from "obsidian";
 import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
 
+/**
+ * Generates a URL path from a file path.
+ * If slugifyPath is true, it will slugify the path segments.
+ * If slugifyPath is false, it will return the path as is without the file extension.
+ *
+ * @param filePath - The file path to generate the URL path from.
+ * @param slugifyPath - Whether to slugify the path segments (default is true).
+ * @returns The generated URL path.
+ */
 function generateUrlPath(filePath: string, slugifyPath = true): string {
 	if (!filePath) {
 		return filePath;
@@ -24,6 +33,13 @@ function generateUrlPath(filePath: string, slugifyPath = true): string {
 	);
 }
 
+/**
+ * Generates a SHA1 hash for a blob content.
+ * The content is prefixed with the header "blob \{byteLength\}\\0".
+ *
+ * @param content - The content of the blob to hash.
+ * @returns The SHA1 hash of the blob content.
+ */
 function generateBlobHash(content: string) {
 	const byteLength = new TextEncoder().encode(content).byteLength;
 	const header = `blob ${byteLength}\0`;
@@ -32,14 +48,38 @@ function generateBlobHash(content: string) {
 	return sha1(gitBlob).toString();
 }
 
+/**
+ * Wraps a value around a given size.
+ * This is useful for circular arrays or when you want to ensure the value stays within a certain range.
+ *
+ * @param value - The value to wrap around.
+ * @param size - The size of the range to wrap around.
+ * @returns The wrapped value.
+ */
 const wrapAround = (value: number, size: number): number => {
 	return ((value % size) + size) % size;
 };
 
+/**
+ * Returns a rewrite rule for the given vault path.
+ * The rule rewrites the vault path to the root path ("/").
+ *
+ * @param vaultPath - The path of the vault to rewrite.
+ * @returns A PathRewriteRule object with the from and to properties.
+ */
 function getRewriteRules(vaultPath: string): PathRewriteRule {
 	return { from: vaultPath, to: "/" };
 }
 
+/**
+ * Returns the syncer path for a note based on the provided vault path and rewrite rules.
+ * If the vault path starts with the 'from' part of the rules, it replaces it with the 'to' part.
+ * If the resulting path starts with a "/", it removes it.
+ *
+ * @param vaultPath - The path of the vault to rewrite.
+ * @param rules - The PathRewriteRule object containing 'from' and 'to' properties.
+ * @returns The rewritten path for the note.
+ */
 function getSyncerPathForNote(
 	vaultPath: string,
 	rules: PathRewriteRule,
@@ -60,10 +100,23 @@ function getSyncerPathForNote(
 	return vaultPath;
 }
 
+/**
+ * Escapes special characters in a string for use in a regular expression.
+ * This is useful to prevent regex injection attacks or unintended matches.
+ *
+ * @param string - The string to escape.
+ * @returns The escaped string.
+ */
 function escapeRegExp(string: string) {
 	return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& means the whole matched string
 }
 
+/**
+ * Fixes SVG elements for XML serialization by ensuring that style tags are not self-closed.
+ * This is necessary because XMLSerializer tends to self-close empty style tags, which can cause issues.
+ *
+ * @param svgElement - The SVG element to fix.
+ */
 function fixSvgForXmlSerializer(svgElement: SVGSVGElement): void {
 	// Insert a comment in the style tags to prevent XMLSerializer from self-closing it during serialization.
 	const styles = svgElement.getElementsByTagName("style");
@@ -79,6 +132,13 @@ function fixSvgForXmlSerializer(svgElement: SVGSVGElement): void {
 	}
 }
 
+/**
+ * Sanitizes a permalink by ensuring it starts with a "/" and does not end with a "/".
+ * This is useful for ensuring consistent permalink formatting.
+ *
+ * @param permalink - The permalink to sanitize.
+ * @returns The sanitized permalink.
+ */
 function sanitizePermalink(permalink: string): string {
 	if (permalink.endsWith("/")) {
 		permalink.slice(0, -1);
@@ -91,6 +151,13 @@ function sanitizePermalink(permalink: string): string {
 	return permalink;
 }
 
+/**
+ * Checks if a plugin is enabled in Obsidian.
+ * It checks both the exact plugin ID and the lowercase version of it.
+ *
+ * @param pluginId - The ID of the plugin to check.
+ * @returns True if the plugin is enabled, false otherwise.
+ */
 function isPluginEnabled(pluginId: string): boolean {
 	//@ts-expect-error global app is available in Obsidian
 	const plugins = app.plugins.enabledPlugins;
@@ -98,6 +165,14 @@ function isPluginEnabled(pluginId: string): boolean {
 	return plugins.has(pluginId) || plugins.has(pluginId.toLowerCase());
 }
 
+/**
+ * Cleans a query result in Markdown format.
+ * It decodes URI escape characters, rewrites tag links, removes `.md` extensions from file links,
+ * and rewrites Markdown links to use the Obsidian wikilinks format.
+ *
+ * @param markdown - The Markdown string to clean.
+ * @returns The cleaned Markdown string.
+ */
 function cleanQueryResult(markdown: string): string {
 	// Replace URI escape characters with their actual characters
 	markdown = decodeURI(markdown);
@@ -117,13 +192,86 @@ function cleanQueryResult(markdown: string): string {
 	return markdown.trim();
 }
 
-//delay async function
+/**
+ * Delays the execution for a specified number of milliseconds.
+ * This is useful for creating pauses in asynchronous operations.
+ *
+ * @param milliseconds - The number of milliseconds to delay.
+ * @returns A promise that resolves after the specified delay.
+ */
 function delay(milliseconds: number) {
 	return new Promise((resolve, _) => {
 		setTimeout(resolve, milliseconds);
 	});
 }
 
+/**
+ * Surrounds the input with a callout block.
+ * The depth of the callout block is determined by the depth parameter.
+ *
+ * @param input - The input text to surround with a callout block.
+ * @param depth - The depth of the callout block (default is 1).
+ * @returns The input text surrounded by a callout block.
+ */
+function surroundWithCalloutBlock(input: string, depth: number = 1): string {
+	const tmp = input.split("\n");
+
+	const calloutSymbol = "> ".repeat(depth);
+
+	return " " + tmp.join(`\n${calloutSymbol}`);
+}
+
+/**
+ * Checks if a query is inside a callout block.
+ * Removes the callout symbols and re-join sanitized parts.
+ * Also returns the boolean that indicates if the query was inside a callout.
+ *
+ * @param query - The query to sanitize.
+ * @returns
+ */
+function sanitizeQuery(query: string): {
+	isInsideCalloutDepth: number;
+	finalQuery: string;
+} {
+	let isInsideCalloutDepth = 0;
+	const parts = query.split("\n");
+	const sanitized = [];
+
+	for (const part of parts) {
+		let depthPivot = 0;
+
+		if (part.startsWith(">")) {
+			depthPivot += 1;
+			let intermediate = part.substring(1).trim();
+
+			while (intermediate.startsWith(">")) {
+				intermediate = intermediate.substring(1).trim();
+				depthPivot += 1;
+			}
+			sanitized.push(intermediate);
+		} else {
+			sanitized.push(part);
+		}
+		isInsideCalloutDepth = Math.max(isInsideCalloutDepth, depthPivot);
+	}
+	let finalQuery = query;
+
+	if (isInsideCalloutDepth > 0) {
+		finalQuery = sanitized.join("\n");
+	}
+
+	return { isInsideCalloutDepth, finalQuery };
+}
+
+/**
+ * Sanitizes HTML content to a string.
+ * It removes unwanted elements, cleans internal links, converts callouts to Quartz-compatible format,
+ * and unwraps the container to remove unnecessary wrapper elements.
+ *
+ * @param div - The HTMLDivElement containing the HTML content to sanitize.
+ * @param serializer - The XMLSerializer used to serialize the sanitized HTML back to a string.
+ * @returns The sanitized HTML as a string.
+ */
 function sanitizeHTMLToString(
 	div: HTMLDivElement,
 	serializer: XMLSerializer,
@@ -193,6 +341,14 @@ function sanitizeHTMLToString(
 	return serializedHtml.replace(' xmlns="http://www.w3.org/1999/xhtml"', "");
 }
 
+/**
+ * Converts callouts in the container to a Quartz-compatible format.
+ * This function replaces the callout elements with a Quartz-compatible blockquote format.
+ * It handles attributes, icons, and content structure to ensure compatibility with Quartz.
+ *
+ * @param container - The HTMLDivElement containing the callouts to convert.
+ * @returns The container with callouts converted to Quartz-compatible format.
+ */
 function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 	const callouts = container.querySelectorAll(".callout");
 
@@ -279,6 +435,13 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 	return container;
 }
 
+/**
+ * Cleans anchor links in the container by removing target, rel, and data-href attributes.
+ * This is useful for internal links and tags to ensure they do not have unnecessary attributes
+ * that could interfere with Quartz' SPA-navigation or styling.
+ *
+ * @param container - The HTMLDivElement containing the anchor links to clean.
+ */
 function cleanAnchorLinks(container: HTMLDivElement): void {
 	const internalLinks = container.querySelectorAll("a.internal-link, a.tag");
 
@@ -289,6 +452,13 @@ function cleanAnchorLinks(container: HTMLDivElement): void {
 	});
 }
 
+/**
+ * Removes unwanted elements from the container based on the provided selector.
+ * This is useful for cleaning up the HTML content by removing scripts, styles, and other unwanted elements.
+ *
+ * @param container - The HTMLDivElement containing the elements to remove.
+ * @param selector - The CSS selector for the elements to remove.
+ */
 function removeUnwantedElements(
 	container: HTMLDivElement,
 	selector: string,
@@ -300,6 +470,13 @@ function removeUnwantedElements(
 	});
 }
 
+/**
+ * Unwraps the container by removing wrapper elements that might have been added by Obsidian.
+ * It replaces the container with its first child if it has no attributes and only one child.
+ *
+ * @param container - The HTMLDivElement to unwrap.
+ * @returns The unwrapped container.
+ */
 function unwrap(container: HTMLDivElement) {
 	// Remove wrapper elements that might have been added by Obsidian
 	while (
@@ -332,4 +509,6 @@ export {
 	cleanQueryResult,
 	delay,
 	sanitizeHTMLToString,
+	surroundWithCalloutBlock,
+	sanitizeQuery,
 };

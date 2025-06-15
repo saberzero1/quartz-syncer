@@ -2,6 +2,10 @@ import { Setting, App, PluginSettingTab } from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 
+/**
+ * FrontmatterSettings class.
+ * This class is responsible for managing the frontmatter settings of the Quartz Syncer plugin.
+ */
 export class FrontmatterSettings extends PluginSettingTab {
 	app: App;
 	plugin: QuartzSyncer;
@@ -22,6 +26,10 @@ export class FrontmatterSettings extends PluginSettingTab {
 		this.settingsRootElement = settingsRootElement;
 	}
 
+	/**
+	 * Display the frontmatter settings.
+	 * This method initializes the settings UI for managing Quartz Syncer's frontmatter properties.
+	 */
 	display(): void {
 		this.settingsRootElement.empty();
 		this.settingsRootElement.addClass("quartz-syncer-github-settings");
@@ -38,6 +46,10 @@ export class FrontmatterSettings extends PluginSettingTab {
 		this.settings.saveSettings();
 	}
 
+	/**
+	 * Initializes the header for the frontmatter settings section.
+	 * This method creates a heading for the frontmatter settings in the UI.
+	 */
 	initializeFrontmatterHeader = () => {
 		new Setting(this.settingsRootElement)
 			.setName("Note properties (frontmatter)")
@@ -47,6 +59,10 @@ export class FrontmatterSettings extends PluginSettingTab {
 			.setHeading();
 	};
 
+	/**
+	 * Initializes the setting for the publish frontmatter key.
+	 * This method allows users to set the key used to mark notes as eligible for publication.
+	 */
 	private initializePublishFrontmatterKeySetting() {
 		new Setting(this.settingsRootElement)
 			.setName("Publish key")
@@ -67,6 +83,11 @@ export class FrontmatterSettings extends PluginSettingTab {
 			);
 	}
 
+	/**
+	 * Initializes the setting to include all frontmatter properties.
+	 * This method allows users to include all note properties in the Quartz Syncer note,
+	 * overriding other property settings.
+	 */
 	private initializeIncludeAllFrontmatterSetting() {
 		new Setting(this.settingsRootElement)
 			.setName("Include all properties")
@@ -84,6 +105,10 @@ export class FrontmatterSettings extends PluginSettingTab {
 			);
 	}
 
+	/**
+	 * Initializes the setting to show the created timestamp in the note's properties.
+	 * This method allows users to include the created timestamp in the Quartz Syncer note's frontmatter.
+	 */
 	private initializeShowCreatedTimestampSetting() {
 		if (!this.settings.settings.includeAllFrontmatter) {
 			new Setting(this.settingsRootElement)
@@ -105,6 +130,10 @@ export class FrontmatterSettings extends PluginSettingTab {
 		}
 	}
 
+	/**
+	 * Initializes the setting to show the updated timestamp in the note's properties.
+	 * This method allows users to include the updated timestamp in the Quartz Syncer note's frontmatter.
+	 */
 	private initializeShowUpdatedTimestampSetting() {
 		if (!this.settings.settings.includeAllFrontmatter) {
 			new Setting(this.settingsRootElement)
@@ -126,6 +155,10 @@ export class FrontmatterSettings extends PluginSettingTab {
 		}
 	}
 
+	/**
+	 * Initializes the setting to show the published timestamp in the note's properties.
+	 * This method allows users to include the published timestamp in the Quartz Syncer note's frontmatter.
+	 */
 	private initializeShowPublishedTimestampSetting() {
 		if (!this.settings.settings.includeAllFrontmatter) {
 			new Setting(this.settingsRootElement)
@@ -148,6 +181,11 @@ export class FrontmatterSettings extends PluginSettingTab {
 		}
 	}
 
+	/**
+	 * Initializes the setting to enable permalinks in the note's properties.
+	 * This method allows users to use the note's permalink as the Quartz note's URL
+	 * even if "permalink" is not in the frontmatter.
+	 */
 	private initializeEnablePermalinkSetting() {
 		new Setting(this.settingsRootElement)
 			.setName("Enable permalinks")

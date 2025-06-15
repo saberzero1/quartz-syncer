@@ -3,6 +3,10 @@ import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 import { isPluginEnabled } from "src/utils/utils";
 
+/**
+ * IntegrationSettings class.
+ * This class is responsible for displaying and managing the integration settings for the Quartz Syncer plugin.
+ */
 export class IntegrationSettings extends PluginSettingTab {
 	app: App;
 	plugin: QuartzSyncer;
@@ -22,6 +26,10 @@ export class IntegrationSettings extends PluginSettingTab {
 		this.settingsRootElement = settingsRootElement;
 	}
 
+	/**
+	 * Displays the integration settings.
+	 * This method initializes the settings UI elements and sets the last used settings tab.
+	 */
 	display(): void {
 		this.settingsRootElement.empty();
 		this.settingsRootElement.addClass("quartz-syncer-github-settings");
@@ -35,6 +43,10 @@ export class IntegrationSettings extends PluginSettingTab {
 		this.settings.saveSettings();
 	}
 
+	/**
+	 * Initializes the plugin integration header.
+	 * This method creates a header for the plugin integration section in the settings.
+	 */
 	initializePluginIntegrationHeader = () => {
 		new Setting(this.settingsRootElement)
 			.setName("Plugin integration")
@@ -44,6 +56,11 @@ export class IntegrationSettings extends PluginSettingTab {
 			.setHeading();
 	};
 
+	/**
+	 * Initializes the Datacore setting.
+	 * This method creates a toggle for enabling/disabling Datacore integration.
+	 * It checks if the Datacore plugin is enabled and updates the settings accordingly.
+	 */
 	private initializeDatacoreSetting() {
 		const datacoreEnabled = isPluginEnabled("datacore");
 
@@ -73,6 +90,11 @@ export class IntegrationSettings extends PluginSettingTab {
 			);
 	}
 
+	/**
+	 * Initializes the Dataview setting.
+	 * This method creates a toggle for enabling/disabling Dataview integration.
+	 * It checks if the Dataview plugin is enabled and updates the settings accordingly.
+	 */
 	private initializeDataviewSetting() {
 		const dataviewEnabled = isPluginEnabled("dataview");
 
@@ -102,6 +124,11 @@ export class IntegrationSettings extends PluginSettingTab {
 			);
 	}
 
+	/**
+	 * Initializes the Excalidraw setting.
+	 * This method creates a toggle for enabling/disabling Excalidraw integration.
+	 * It currently disables the toggle as Excalidraw integration is not yet implemented.
+	 */
 	private initializeExcalidrawSetting() {
 		new Setting(this.settingsRootElement)
 			.setName("Enable Excalidraw integration")

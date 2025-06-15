@@ -1,3 +1,11 @@
+/**
+ * Utility functions for handling Markdown headings.
+ *
+ * @deprecated Unused.
+ *
+ * @param rawHeading - The raw Markdown heading string.
+ * @returns An object containing the hashes and the title of the heading.
+ */
 const seperateHashesFromHeader = (
 	rawHeading: string,
 ): { hashes: string; title: string } => {
@@ -18,6 +26,14 @@ const seperateHashesFromHeader = (
 	return { hashes: "#", title: rawHeading.trim() };
 };
 
+/**
+ * Fixes the Markdown header syntax by ensuring there is a space between the hashes and the title.
+ *
+ * @deprecated Unused.
+ *
+ * @param rawHeading - The raw Markdown heading string.
+ * @returns The fixed Markdown heading string with proper syntax.
+ */
 export const fixMarkdownHeaderSyntax = (rawHeading: string): string => {
 	const { hashes, title } = seperateHashesFromHeader(rawHeading);
 

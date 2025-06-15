@@ -1,5 +1,9 @@
 import { MetadataCache, TFile, Vault } from "obsidian";
 
+/**
+ * IFonrtMatterEngine interface.
+ * This interface defines the methods for managing front matter in Obsidian files.
+ */
 export interface IFrontMatterEngine {
 	set(key: string, value: string | boolean | number): IFrontMatterEngine;
 	remove(key: string): IFrontMatterEngine;
@@ -7,6 +11,10 @@ export interface IFrontMatterEngine {
 	apply(): Promise<void>;
 }
 
+/**
+ * ObsidianFrontMatterEngine class.
+ * This class implements the IFrontMatterEngine interface and provides methods to manage frontmatter in Obsidian files.
+ */
 export default class ObsidianFrontMatterEngine implements IFrontMatterEngine {
 	metadataCache: MetadataCache;
 	file: TFile;
@@ -20,6 +28,13 @@ export default class ObsidianFrontMatterEngine implements IFrontMatterEngine {
 		this.file = file;
 	}
 
+	/**
+	 * Sets a key-value pair in the front matter.
+	 *
+	 * @param key - The key to set.
+	 * @param value - The value to set for the key.
+	 * @returns The current instance of ObsidianFrontMatterEngine for method chaining.
+	 */
 	set(
 		key: string,
 		value: string | boolean | number,
@@ -29,16 +44,34 @@ export default class ObsidianFrontMatterEngine implements IFrontMatterEngine {
 		return this;
 	}
 
+	/**
+	 * Removes a key from the front matter.
+	 *
+	 * @param key - The key to remove.
+	 * @returns The current instance of ObsidianFrontMatterEngine for method chaining.
+	 */
 	remove(key: string): ObsidianFrontMatterEngine {
 		this.generatedFrontMatter[key] = undefined;
 
 		return this;
 	}
 
+	/**
+	 * Gets the value of a key from the front matter.
+	 *
+	 * @param key - The key to get the value for.
+	 * @returns The value of the key, or undefined if the key does not exist.
+	 */
 	get(key: string): string | boolean | number {
 		return this.getFrontMatterSnapshot()[key];
 	}
 
+	/**
+	 * Applies the changes made to the front matter to the file.
+	 * It reads the current content of the file, updates the front matter, and writes it back.
+	 *
+	 * @returns A promise that resolves when the changes are applied.
+	 */
 	async apply(): Promise<void> {
 		const newFrontMatter = this.getFrontMatterSnapshot();
 
@@ -58,6 +91,13 @@ export default class ObsidianFrontMatterEngine implements IFrontMatterEngine {
 		await this.vault.modify(this.file, newContent);
 	}
 
+	/**
+	 * Converts the front matter object to a YAML string.
+	 * It removes any keys with undefined values and formats the remaining keys as YAML.
+	 *
+	 * @param frontMatter - The front matter object to convert.
+	 * @returns A YAML string representation of the front matter.
+	 */
 	private frontMatterToYaml(frontMatter: Record<string, unknown>) {
 		for (const key of Object.keys(frontMatter)) {
 			if (frontMatter[key] === undefined) {
@@ -79,6 +119,12 @@ export default class ObsidianFrontMatterEngine implements IFrontMatterEngine {
 		return yaml;
 	}
 
+	/**
+	 * Gets a snapshot of the current front matter, merging it with any generated front matter.
+	 * It retrieves the existing front matter from the metadata cache and combines it with the generated front matter.
+	 *
+	 * @returns An object containing the merged front matter.
+	 */
 	private getFrontMatterSnapshot() {
 		const cachedFrontMatter = {
 			...this.metadataCache.getCache(this.file?.path)?.frontmatter,

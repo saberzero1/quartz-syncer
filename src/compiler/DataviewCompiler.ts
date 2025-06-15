@@ -1,13 +1,37 @@
 import { Component, Notice, htmlToMarkdown } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
-import { cleanQueryResult, delay, escapeRegExp } from "src/utils/utils";
+import {
+	cleanQueryResult,
+	delay,
+	escapeRegExp,
+	surroundWithCalloutBlock,
+	sanitizeQuery,
+} from "src/utils/utils";
 import { DataviewApi, getAPI } from "obsidian-dataview";
 import { PublishFile } from "src/publishFile/PublishFile";
 import Logger from "js-logger";
 
+/**
+ * DataviewCompiler class.
+ * This class is responsible for compiling Dataview queries in the text.
+ * It replaces the queries with the results of the queries.
+ * It supports both code block queries and inline queries.
+ * It also supports DataviewJS queries.
+ *
+ * Documentation: {@link https://saberzero1.github.io/quartz-syncer-docs/Settings/Integrations/Dataview}
+ */
 export class DataviewCompiler {
 	constructor() {}
 
+	/**
+	 * Compiles the text by replacing Dataview queries with their results.
+	 * It supports both code block queries and inline queries.
+	 * It also supports DataviewJS queries.
+	 *
+	 * @param file - The file to compile the text for.
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 * @throws If the Dataview API is not available, a notice is shown to the user.
+	 */
 	compile: TCompilerStep = (file) => async (text) => {
 		let replacedText = text;
 		const dataViewRegex = /```dataview\s(.+?)```/gms;
@@ -56,7 +80,7 @@ export class DataviewCompiler {
 				const query = queryBlock[1];
 
 				const { isInsideCalloutDepth, finalQuery } =
-					this.sanitizeQuery(query);
+					sanitizeQuery(query);
 
 				let markdown = await dvApi.tryQueryMarkdown(
 					finalQuery,
@@ -64,7 +88,7 @@ export class DataviewCompiler {
 				);
 
 				if (isInsideCalloutDepth > 0) {
-					markdown = this.surroundWithCalloutBlock(
+					markdown = surroundWithCalloutBlock(
 						markdown,
 						isInsideCalloutDepth,
 					);
@@ -165,63 +189,17 @@ export class DataviewCompiler {
 
 		return replacedText;
 	};
-
-	/**
-	 * Splits input in lines.
-	 * Prepends the callout/quote sign to each line,
-	 * returns all the lines as a single string
-	 *
-	 */
-	surroundWithCalloutBlock(input: string, depth: number = 1): string {
-		const tmp = input.split("\n");
-
-		const calloutSymbol = "> ".repeat(depth);
-
-		return " " + tmp.join(`\n${calloutSymbol}`);
-	}
-
-	/**
-	 * Checks if a query is inside a callout block.
-	 * Removes the callout symbols and re-join sanitized parts.
-	 * Also returns the boolean that indicates if the query was inside a callout.
-	 * @param query
-	 * @returns
-	 */
-	sanitizeQuery(query: string): {
-		isInsideCalloutDepth: number;
-		finalQuery: string;
-	} {
-		let isInsideCalloutDepth = 0;
-		const parts = query.split("\n");
-		const sanitized = [];
-
-		for (const part of parts) {
-			let depthPivot = 0;
-
-			if (part.startsWith(">")) {
-				depthPivot += 1;
-				let intermediate = part.substring(1).trim();
-
-				while (intermediate.startsWith(">")) {
-					intermediate = intermediate.substring(1).trim();
-					depthPivot += 1;
-				}
-				sanitized.push(intermediate);
-			} else {
-				sanitized.push(part);
-			}
-			isInsideCalloutDepth = Math.max(isInsideCalloutDepth, depthPivot);
-		}
-		let finalQuery = query;
-
-		if (isInsideCalloutDepth > 0) {
-			finalQuery = sanitized.join("\n");
-		}
-
-		return { isInsideCalloutDepth, finalQuery };
-	}
 }
 
+/**
+ * Tries to evaluate a Dataview query using the Dataview API.
+ *
+ * @param query - The Dataview query to evaluate.
+ * @param file - The file to evaluate the query against.
+ * @param dvApi - The Dataview API instance.
+ * @returns The result of the evaluation as a string, or undefined if the evaluation failed.
+ * @throws Will log a warning if the evaluation fails.
+ */
 function tryDVEvaluate(
 	query: string,
 	file: PublishFile,
@@ -241,6 +219,13 @@ function tryDVEvaluate(
 	return result;
 }
 
+/**
+ * Tries to evaluate a DataviewJS query using the eval function.
+ *
+ * @param query - The DataviewJS query to evaluate.
+ * @returns The result of the evaluation as a string, or an empty string if the evaluation failed.
+ * @throws Will log a warning if the evaluation fails.
+ */
 function tryEval(query: string) {
 	let result = "";
 
@@ -253,6 +238,14 @@ function tryEval(query: string) {
 	return result;
 }
 
+/**
+ * Tries to execute a DataviewJS query using the Dataview API.
+ *
+ * @param query - The DataviewJS query to execute.
+ * @param file - The file to execute the query against.
+ * @param dvApi - The Dataview API instance.
+ * @returns The result of the execution as a string, or an empty string if the execution failed.
+ */
 async function tryExecuteJs(
 	query: string,
 	file: PublishFile,

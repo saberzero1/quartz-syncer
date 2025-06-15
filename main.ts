@@ -7,46 +7,91 @@ import PublishStatusManager from "src/publisher/PublishStatusManager";
 import ObsidianFrontMatterEngine from "src/publishFile/ObsidianFrontMatterEngine";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import { QuartzSyncerSettingTab } from "./src/views/QuartzSyncerSettingTab";
+import { DataStore } from "src/datastore/DataStore";
 import Logger from "js-logger";
 
+/**
+ * QuartzSyncer plugin settings.
+ * @remarks
+ * This interface defines the defauult settings for the QuartzSyncer plugin.
+ */
 const DEFAULT_SETTINGS: QuartzSyncerSettings = {
+	/** GitHub settings */
 	githubRepo: "quartz",
-	githubToken: "",
 	githubUserName: "",
-	useFullResolutionImages: false,
-	noteSettingsIsInitialized: false,
-
-	// Quartz related settings
-	contentFolder: "content",
+	githubToken: "",
 	vaultPath: "/",
 
-	// Timestamp related settings
+	/** Quartz settings */
+	contentFolder: "content",
+	useFullResolutionImages: false,
+	applyEmbeds: true,
+
+	/** Frontmatter settings */
+	publishFrontmatterKey: "publish",
 	showCreatedTimestamp: true,
-	createdTimestampKey: "created",
 	showUpdatedTimestamp: true,
-	updatedTimestampKey: "modified",
 	showPublishedTimestamp: false,
-	publishedTimestampKey: "published",
-	timestampFormat: "MMM dd, yyyy h:mm a",
-
-	pathRewriteRules: "",
-
 	usePermalink: false,
-
-	useDatacore: false,
-	useDataview: true,
-	useExcalidraw: false,
-
-	useThemes: false,
 
 	includeAllFrontmatter: false,
 
-	applyEmbeds: true,
+	/**
+	 * @privateRemarks
+	 *
+	 * These values are not configurable, but are the defaults in Quartz.
+	 * They are included here in case the user wants to change them.
+	 * Or to nake it easier to adapt the plugin to future changes in Quartz.
+	 */
+	pathRewriteRules: "",
+	createdTimestampKey: "created",
+	updatedTimestampKey: "modified",
+	publishedTimestampKey: "published",
+	timestampFormat: "MMM dd, yyyy h:mm a",
 
-	publishFrontmatterKey: "publish",
+	/** Performance settings */
+	useCache: true,
+	syncCache: true,
+	cacheTimestamp: 0,
+	cache: "",
 
+	/** Integration settings */
+	/**
+	 * Enable Dataview integration.
+	 * This will allow the plugin to use Dataview queries in the published notes.
+	 *
+	 * Dataview documentation: {@link https://blacksmithgu.github.io/obsidian-dataview/}
+	 */
+	useDataview: true,
+	/**
+	 * Enable Excalidraw integration.
+	 * This will allow the plugin to use Excalidraw drawings in the published notes.
+	 *
+	 * Excalidraw documentation: {@link https://blacksmithgu.github.io/datacore/}
+	 */
+	useDatacore: false,
+	/**
+	 * Enable Excalidraw integration.
+	 * This will allow the plugin to use Excalidraw drawings in the published notes.
+	 *
+	 * Excalidraw documentation: {@link https://excalidraw-obsidian.online/wiki/welcome}
+	 */
+	useExcalidraw: false,
+
+	/** Themes settings */
+	/**
+	 * Enable themes integration.
+	 * This will allow the plugin to use themes in the published notes.
+	 *
+	 * Themes documentation: {@link https://github.com/saberzero1/quartz-themes}
+	 */
+	useThemes: false,
+
+	/** Plugin state variables */
 	lastUsedSettingsTab: "github",
+	noteSettingsIsInitialized: false,
 
+	/** Developer settings */
 	logLevel: undefined,
 };
 
@@ -58,18 +103,55 @@ Logger.useDefaults({
 	},
 });
 
+/**
+ * QuartzSyncer plugin main class.
+ */
 export default class QuartzSyncer extends Plugin {
 	settings!: QuartzSyncerSettings;
 	appVersion!: string;
+	datastore!: DataStore;
 
 	publishModal!: PublicationCenter;
 
+	/**
+	 * Called when the plugin is loaded.
+	 * Initializes the plugin, loads settings, and sets up commands and icons.
+	 */
 	async onload() {
 		this.appVersion = this.manifest.version;
 
+		this.datastore = new DataStore(this.manifest.id, this.appVersion);
+
 		await this.loadSettings();
 
-		this.settings.logLevel && Logger.setLevel(this.settings.logLevel);
+		if (this.settings.useCache && this.settings.syncCache) {
+			let timestamp = await this.datastore.persister.getItem("data.json");
+			let cacheData: string | undefined = undefined;
+
+			if (
+				timestamp === undefined ||
+				this.settings.cacheTimestamp === 0 ||
+				this.settings.cache === "" ||
+				this.settings.cache === undefined ||
+				(typeof timestamp === "number" &&
+					this.settings.cacheTimestamp < timestamp)
+			) {
+				const now = Date.now();
+
+				// No cached data found, save to data.json
+				[timestamp, cacheData] =
+					await this.datastore.saveToDataJson(now);
+				this.settings.cache = cacheData;
+				this.settings.cacheTimestamp = (timestamp as number) ?? now;
+				await this.saveSettings();
+			}
+
+			if (timestamp && timestamp !== this.settings.cacheTimestamp) {
+				await this.datastore.loadFromDataJson(this.settings.cache);
+			}
+		}
+
+		if (this.settings.logLevel) Logger.setLevel(this.settings.logLevel);
 
 		Logger.info("Initializing QuartzSyncer plugin v" + this.appVersion);
 
@@ -89,8 +171,16 @@ export default class QuartzSyncer extends Plugin {
 		);
 	}
 
+	/**
+	 * Called when the plugin is unloaded.
+	 * Cleans up resources and saves settings.
+	 */
 	onunload() {}
 
+	/**
+	 * Loads the plugin settings from data.json.
+	 * If the settings file does not exist, it initializes with default settings.
+	 */
 	async loadSettings() {
 		this.settings = Object.assign(
 			{},
@@ -99,10 +189,18 @@ export default class QuartzSyncer extends Plugin {
 		);
 	}
 
+	/**
+	 * Saves the plugin settings to data.json.
+	 * This method is called after any changes to the settings.
+	 */
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
 
+	/**
+	 * Adds commands to the plugin.
+	 * These commands can be triggered from the command palette or ribbon icon.
+	 */
 	async addCommands() {
 		if (this.settings["ENABLE_DEVELOPER_TOOLS"] && Platform.isDesktop) {
 			Logger.info("Developer tools enabled");
@@ -112,6 +210,7 @@ export default class QuartzSyncer extends Plugin {
 				this.app.vault,
 				this.app.metadataCache,
 				this.settings,
+				this.datastore,
 			);
 
 			import("./src/test/snapshot/generateSyncerSnapshot")
@@ -165,6 +264,13 @@ export default class QuartzSyncer extends Plugin {
 		});
 	}
 
+	/**
+	 * Retrieves the currently active file in the workspace.
+	 * If no file is active, it shows a notice to the user.
+	 *
+	 * @param workspace - The current workspace instance.
+	 * @returns The active file or null if no file is active.
+	 */
 	private getActiveFile(workspace: Workspace) {
 		const activeFile = workspace.getActiveFile();
 
@@ -179,6 +285,12 @@ export default class QuartzSyncer extends Plugin {
 		return activeFile;
 	}
 
+	/**
+	 * Sets the publication flag value in the frontmatter of the active file.
+	 * If no file is active, it does nothing.
+	 *
+	 * @param value - The value to set for the publication flag.
+	 */
 	async setPublishFlagValue(value: boolean) {
 		const activeFile = this.getActiveFile(this.app.workspace);
 
@@ -194,6 +306,10 @@ export default class QuartzSyncer extends Plugin {
 		engine.set(this.settings.publishFrontmatterKey, value).apply();
 	}
 
+	/**
+	 * Toggles the publication flag value in the frontmatter of the active file.
+	 * If no file is active, it does nothing.
+	 */
 	async togglePublishFlag() {
 		const activeFile = this.getActiveFile(this.app.workspace);
 
@@ -215,6 +331,10 @@ export default class QuartzSyncer extends Plugin {
 			.apply();
 	}
 
+	/**
+	 * Opens the publication center modal.
+	 * If the modal is not already created, it initializes it with the necessary components.
+	 */
 	openPublishModal() {
 		if (!this.publishModal) {
 			const siteManager = new QuartzSyncerSiteManager(
@@ -227,6 +347,7 @@ export default class QuartzSyncer extends Plugin {
 				this.app.vault,
 				this.app.metadataCache,
 				this.settings,
+				this.datastore,
 			);
 
 			const publishStatusManager = new PublishStatusManager(
