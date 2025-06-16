@@ -874,7 +874,7 @@ export class SyncerPageCompiler {
 							metaData = `${lastValue}`;
 						}
 
-						const blobPath = getLinkpath(blobName);
+						let blobPath = getLinkpath(blobName);
 
 						const linkedFile =
 							this.metadataCache.getFirstLinkpathDest(
@@ -885,36 +885,21 @@ export class SyncerPageCompiler {
 						if (!linkedFile) {
 							continue;
 						}
+
 						const blob = await this.vault.readBinary(linkedFile);
 						const blobBase64 = arrayBufferToBase64(blob);
 
-						let relativeEmbedPrefix = "";
+						blobPath = this.metadataCache.fileToLinktext(
+							linkedFile,
+							this.settings.vaultPath,
+						);
 
-						const embedDepthVaultPath =
-							this.settings.vaultPath !== "/" &&
-							this.settings.vaultPath !== ""
-								? this.settings.vaultPath.split("/").length - 1
-								: 0;
+						const blobFullPath =
+							this.metadataCache.getFirstLinkpathDest(
+								linkedFile.path,
+								this.settings.vaultPath,
+							)?.path ?? blobPath;
 
-						const embedPrefixVaultPath =
-							"../".repeat(embedDepthVaultPath) +
-							this.settings.vaultPath;
-
-						for (
-							let i = 0;
-							i < filePath.split("/").length - 1;
-							i++
-						) {
-							relativeEmbedPrefix += "../";
-						}
-
-						const cmsImgPath =
-							embedDepthVaultPath === 0
-								? `${relativeEmbedPrefix}${linkedFile.path}`
-								: `${relativeEmbedPrefix}${linkedFile.path}`.replace(
-										embedPrefixVaultPath,
-										"",
-									);
 						let name = "";
 
 						if (metaData && size) {
@@ -927,9 +912,12 @@ export class SyncerPageCompiler {
 							name = "";
 						}
 
-						const blobMarkdown = `![[${cmsImgPath}${name}]]`;
+						const blobMarkdown = `![[${blobFullPath}${name}]]`;
 
-						assets.push({ path: cmsImgPath, content: blobBase64 });
+						assets.push({
+							path: blobFullPath,
+							content: blobBase64,
+						});
 
 						blobText = blobText.replace(blobMatch, blobMarkdown);
 					} catch (_error) {
@@ -957,10 +945,7 @@ export class SyncerPageCompiler {
 						const pathStart = blobMatch.lastIndexOf("(") + 1;
 						const pathEnd = blobMatch.lastIndexOf(")");
 
-						const blobPath = blobMatch.substring(
-							pathStart,
-							pathEnd,
-						);
+						let blobPath = blobMatch.substring(pathStart, pathEnd);
 
 						if (blobPath.startsWith("http")) {
 							continue;
@@ -977,22 +962,27 @@ export class SyncerPageCompiler {
 						if (!linkedFile) {
 							continue;
 						}
+
 						const blob = await this.vault.readBinary(linkedFile);
 						const blobBase64 = arrayBufferToBase64(blob);
 
-						let relativeEmbedPrefix = "";
+						blobPath = this.metadataCache.fileToLinktext(
+							linkedFile,
+							this.settings.vaultPath,
+						);
 
-						for (
-							let i = 0;
-							i < filePath.split("/").length - 1;
-							i++
-						) {
-							relativeEmbedPrefix += "../";
-						}
+						const blobFullPath =
+							this.metadataCache.getFirstLinkpathDest(
+								linkedFile.path,
+								this.settings.vaultPath,
+							)?.path ?? blobPath;
 
-						const cmsImgPath = `${relativeEmbedPrefix}${linkedFile.path}`;
-						const blobMarkdown = `![${blobName}](${cmsImgPath})`;
-						assets.push({ path: cmsImgPath, content: blobBase64 });
+						const blobMarkdown = `![${blobName}](${blobFullPath})`;
+
+						assets.push({
+							path: blobFullPath,
+							content: blobBase64,
+						});
 
 						blobText = blobText.replace(blobMatch, blobMarkdown);
 					} catch {

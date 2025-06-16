@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-06-15T21:37:35Z+0200
+modified: 2025-06-16T00:06:24Z+0200
 publish: true
 ---
 
@@ -17,6 +17,7 @@ publish: true
 - New commands:
 	- Clear cache for current file.
 	- Clear cache for all files.
+		- Calling this command will prompt for confirmation.
 - Folder suggester no longer fetches all files instead of just folders.
 
 ## Planned

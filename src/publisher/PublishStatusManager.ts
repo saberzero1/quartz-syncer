@@ -99,42 +99,29 @@ export default class PublishStatusManager implements IPublishStatusManager {
 
 		const remoteBlobHashesArray = Object.entries(remoteBlobHashes);
 
-		const numberOfEntries = remoteBlobHashesArray.length;
+		const numberOfEntries = Object.entries(remoteNoteHashes).length;
 		let currentEntry = 0;
 
-		// TODO: This is the slow part, we should increment the progress bar here
 		if (this.publisher.settings.useCache) {
 			// Check remote cache and update if needed
 			for (const [path, sha] of remoteBlobHashesArray) {
 				if (!sha) {
+					continue;
+				}
+
+				const hash =
+					await this.publisher.datastore.loadRemoteHash(path);
+
+				if ((!hash || hash !== sha) && path.endsWith(".md")) {
 					currentEntry++;
 
 					if (controller) {
 						controller.setProgress(
 							Math.floor((currentEntry / numberOfEntries) * 100),
 						);
-
 						controller.setText(`Processing ${path}...`);
 					}
 
-					continue;
-				}
-
-				//const notePath = path.startsWith(this.settings.vaultPath) ? path.slict(this.settings.vaultPath.length + 1) : path;
-
-				const hash =
-					await this.publisher.datastore.loadRemoteHash(path);
-
-				currentEntry++;
-
-				if (controller) {
-					controller.setProgress(
-						Math.floor((currentEntry / numberOfEntries) * 100),
-					);
-					controller.setText(`Processing ${path}...`);
-				}
-
-				if ((!hash || hash !== sha) && path.endsWith(".md")) {
 					// Check if file exists in Obsidian vault
 					if (!this.publisher.vault.getAbstractFileByPath(path)) {
 						continue;
