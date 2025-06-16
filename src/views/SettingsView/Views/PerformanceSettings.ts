@@ -63,7 +63,7 @@ export class PerformanceSettings extends PluginSettingTab {
 	 */
 	initializeEnableCacheSetting = () => {
 		new Setting(this.settingsRootElement)
-			.setName("Cache")
+			.setName("Enable caching")
 			.setDesc(
 				"Enable or disable the Quartz Syncer cache. This can improve performance by storing compiled files and reducing the number of requests made to the GitHub API.",
 			)
@@ -96,7 +96,7 @@ export class PerformanceSettings extends PluginSettingTab {
 	initializeSyncCacheSetting = () => {
 		if (this.settings.settings.useCache) {
 			new Setting(this.settingsRootElement)
-				.setName("Sync cache")
+				.setName("Synchronize cache between devices")
 				.setDesc(
 					"Whether to write the cache to `data.json`. This is useful for syncing the cache across devices. It is recommended to enable this setting if you are using Quartz Syncer on multiple devices.",
 				)
@@ -122,7 +122,7 @@ export class PerformanceSettings extends PluginSettingTab {
 	initializePersistCacheSetting = () => {
 		if (this.settings.settings.useCache) {
 			new Setting(this.settingsRootElement)
-				.setName("Persist cache")
+				.setName("Persist cache after unload")
 				.setDesc(
 					"Whether to persist the cache when the plugin is unloaded. This is useful for users that start Obsidian with the plugin disabled.",
 				)
