@@ -65,7 +65,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	 */
 	useDataview: true,
 	/**
-	 * Enable Excalidraw integration.
+	 * Enable Datacore integration.
 	 * This will allow the plugin to use Excalidraw drawings in the published notes.
 	 *
 	 * Excalidraw documentation: {@link https://blacksmithgu.github.io/datacore/}
