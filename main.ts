@@ -126,10 +126,7 @@ export default class QuartzSyncer extends Plugin {
 
 		// Check if the plugin has been updated
 		// If so, clear the cache
-		if (
-			this.settings === undefined ||
-			this.settings.pluginVersion !== this.appVersion
-		) {
+		if (!this.settings || this.settings.pluginVersion !== this.appVersion) {
 			await this.clearCacheForAllFiles(true);
 			this.settings.pluginVersion = this.appVersion;
 		}
