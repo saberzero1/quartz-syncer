@@ -3,8 +3,6 @@ import { Notice } from "obsidian";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import { generateBlobHash } from "src/utils/utils";
 
-// TODO: Add eventlistener for when the DataStore is updated from data.json
-
 /** A piece of data that has been cached for a specific version and time. */
 export type QuartzSyncerCache = {
 	/** The version of the plugin that the data was written to cache with. */

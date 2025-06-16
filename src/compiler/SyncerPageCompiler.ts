@@ -1,7 +1,6 @@
 import {
 	App,
 	MetadataCache,
-	TFile,
 	Vault,
 	arrayBufferToBase64,
 	getLinkpath,
@@ -17,7 +16,6 @@ import {
 	sanitizePermalink,
 } from "src/utils/utils";
 import slugify from "@sindresorhus/slugify";
-import { fixMarkdownHeaderSyntax } from "src/utils/markdown";
 import {
 	CODEBLOCK_REGEX,
 	CODE_FENCE_REGEX,
@@ -33,7 +31,7 @@ import Logger from "js-logger";
 import { DataviewCompiler } from "src/compiler/DataviewCompiler";
 import { DatacoreCompiler } from "./DatacoreCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
-import { DataStore } from "src/datastore/DataStore";
+import { DataStore } from "src/publishFile/DataStore";
 
 /**
  * Interface for an asset that will be published.
@@ -993,33 +991,4 @@ export class SyncerPageCompiler {
 
 			return [blobText, assets];
 		};
-
-	/**
-	 * Generates a transclusion header for the given header name and transcluded file.
-	 * It replaces the \{\{title\}\} variable in the header name with the basename of the transcluded file.
-	 *
-	 * @deprecated Unused.
-	 *
-	 * @param headerName - The header name to generate.
-	 * @returns The generated header name with the \{\{title\}\} variable replaced.
-	 */
-	generateTransclusionHeader(
-		headerName: string | undefined,
-		transcludedFile: TFile,
-	) {
-		if (!headerName) {
-			return headerName;
-		}
-
-		const titleVariable = "{{title}}";
-
-		if (headerName.includes(titleVariable)) {
-			headerName = headerName.replace(
-				titleVariable,
-				transcludedFile.basename,
-			);
-		}
-
-		return fixMarkdownHeaderSyntax(headerName);
-	}
 }

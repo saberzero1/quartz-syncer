@@ -10,7 +10,7 @@ import {
 import QuartzSyncerSettings from "src/models/settings";
 import { hasPublishFlag } from "src/publishFile/Validator";
 import { FileMetadataManager } from "src/publishFile/FileMetaDataManager";
-import { DataStore } from "src/datastore/DataStore";
+import { DataStore } from "src/publishFile/DataStore";
 import { generateBlobHash } from "src/utils/utils";
 
 /**

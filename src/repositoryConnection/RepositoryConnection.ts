@@ -249,85 +249,6 @@ export class RepositoryConnection {
 	}
 
 	/**
-	 * Get a file from the repository by its SHA.
-	 * It retrieves the file content from the specified SHA and branch.
-	 *
-	 * @deprecated Unused.
-	 *
-	 * @param sha - The SHA of the file to retrieve.
-	 * @param branch - The branch to get the file from (optional).
-	 * @returns The file data if found, otherwise undefined.
-	 */
-	async deleteFile(
-		path: string,
-		{ branch, sha }: { branch?: string; sha?: string },
-	) {
-		path = this.setRepositoryPath(
-			this.getVaultPath(this.getRepositoryPath(path)),
-		);
-
-		try {
-			sha ??= await this.getFile(path, branch).then((file) => file?.sha);
-
-			if (!sha) {
-				console.error(
-					`cannot find file ${path} on github, not removing`,
-				);
-
-				return false;
-			}
-
-			const payload = {
-				...this.getBasePayload(),
-				path,
-				message: `Delete content ${path}`,
-				sha,
-				branch,
-			};
-
-			const result = await this.octokit.request(
-				"DELETE /repos/{owner}/{repo}/contents/{path}",
-				payload,
-			);
-
-			Logger.info(
-				`Deleted file ${path} from repository ${this.getRepositoryName()}`,
-			);
-
-			return result;
-		} catch (error) {
-			logger.error(error);
-
-			return false;
-		}
-	}
-
-	/**
-	 * Get the latest release from the repository.
-	 *
-	 * @deprecated Unused.
-	 *
-	 * @returns The latest release data if found, otherwise undefined.
-	 * @throws Will throw an error if the latest release cannot be retrieved.
-	 */
-	async getLatestRelease() {
-		try {
-			const release = await this.octokit.request(
-				"GET /repos/{owner}/{repo}/releases/latest",
-				this.getBasePayload(),
-			);
-
-			if (!release || !release.data) {
-				logger.error("Could not get latest release");
-			}
-
-			return release.data;
-		} catch (error) {
-			logger.error("Could not get latest release", error);
-		}
-	}
-
-	/**
 	 * Get the latest commit from the repository.
 	 *
 	 * @returns The latest commit data if found, otherwise undefined.
@@ -644,50 +565,6 @@ export class RepositoryConnection {
 				sha: newCommit.data.sha,
 			},
 		);
-	}
-
-	/**
-	 * Get information about the repository.
-	 *
-	 * @deprecated Unused.
-	 *
-	 * @returns The repository information if found, otherwise undefined.
-	 * @throws Will throw an error if the repository information cannot be retrieved.
-	 */
-	async getRepositoryInfo() {
-		const repoInfo = await this.octokit
-			.request("GET /repos/{owner}/{repo}", {
-				...this.getBasePayload(),
-			})
-			.catch((error) => {
-				logger.error(error);
-
-				logger.warn(
-					`Could not get repository info for ${this.getRepositoryName()}`,
-				);
-
-				return undefined;
-			});
-
-		return repoInfo?.data;
-	}
-
-	/**
-	 * Create a new branch in the repository.
-	 * It creates a new branch with the specified name and SHA.
-	 *
-	 * @deprecated Unused.
-	 *
-	 * @param branchName - The name of the new branch.
-	 * @param sha - The SHA of the commit to base the new branch on.
-	 * @throws Will throw an error if the branch cannot be created.
-	 */
-	async createBranch(branchName: string, sha: string) {
-		await this.octokit.request("POST /repos/{owner}/{repo}/git/refs", {
-			...this.getBasePayload(),
-			ref: `refs/heads/${branchName}`,
-			sha,
-		});
 	}
 }
 

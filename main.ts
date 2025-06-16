@@ -7,7 +7,7 @@ import PublishStatusManager from "src/publisher/PublishStatusManager";
 import ObsidianFrontMatterEngine from "src/publishFile/ObsidianFrontMatterEngine";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import { QuartzSyncerSettingTab } from "./src/views/QuartzSyncerSettingTab";
-import { DataStore } from "src/datastore/DataStore";
+import { DataStore } from "src/publishFile/DataStore";
 import Logger from "js-logger";
 
 /**
@@ -185,6 +185,8 @@ export default class QuartzSyncer extends Plugin {
 	 * Cleans up resources and saves settings.
 	 */
 	onunload() {
+		// Remove the datastore cache if it exists.
+		// This will also clear the cache when the plugin is updated.
 		this.clearCacheForAllFiles(true);
 	}
 
