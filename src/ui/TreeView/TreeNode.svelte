@@ -59,20 +59,6 @@
 	};
 
 	/**
-	 * Set the indeterminate state of the checkbox.
-	 * This is used to indicate that the node's children are in a mixed state.
-	 *
-	 * @param node - The HTMLInputElement representing the checkbox.
-	 * @param params - An object containing the indeterminate state.
-	 */
-	const setIndeterminate = (
-		node: HTMLInputElement,
-		params: { indeterminate: boolean },
-	) => {
-		node.indeterminate = params.indeterminate;
-	};
-
-	/**
 	 * Show the diff for the current node.
 	 * This function dispatches a 'showDiff' event with the current node.
 	 *
@@ -110,9 +96,7 @@
 							type="checkbox"
 							data-label={tree.name}
 							checked={tree.checked}
-							use:setIndeterminate={{
-								indeterminate: tree.indeterminate,
-							}}
+							indeterminate={tree.indeterminate}
 							on:click={toggleCheck}
 						/>
 					{/if}
@@ -123,9 +107,7 @@
 							type="checkbox"
 							data-label={tree.name}
 							checked={tree.checked}
-							use:setIndeterminate={{
-								indeterminate: tree.indeterminate,
-							}}
+							indeterminate={tree.indeterminate}
 							on:click={toggleCheck}
 						/>
 					{/if}
@@ -156,9 +138,7 @@
 						type="checkbox"
 						data-label={tree.name}
 						checked={tree.checked}
-						use:setIndeterminate={{
-							indeterminate: tree.indeterminate,
-						}}
+						indeterminate={tree.indeterminate}
 						on:click={toggleCheck}
 					/>
 				{/if}

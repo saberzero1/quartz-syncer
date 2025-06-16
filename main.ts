@@ -52,6 +52,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	/** Performance settings */
 	useCache: true,
 	syncCache: true,
+	persistCache: false,
 	cacheTimestamp: 0,
 	cache: "",
 
@@ -90,7 +91,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	/** Plugin state variables */
 	lastUsedSettingsTab: "github",
 	noteSettingsIsInitialized: false,
-	numberOfKnownNotesForPublishing: 0,
+	pluginVersion: "",
 
 	/** Developer settings */
 	logLevel: undefined,
@@ -121,9 +122,19 @@ export default class QuartzSyncer extends Plugin {
 	async onload() {
 		this.appVersion = this.manifest.version;
 
-		this.datastore = new DataStore(this.manifest.id, this.appVersion);
-
 		await this.loadSettings();
+
+		// Check if the plugin has been updated
+		// If so, clear the cache
+		if (
+			this.settings === undefined ||
+			this.settings.pluginVersion !== this.appVersion
+		) {
+			await this.clearCacheForAllFiles(true);
+			this.settings.pluginVersion = this.appVersion;
+		}
+
+		this.datastore = new DataStore(this.manifest.id, this.appVersion);
 
 		if (this.settings.useCache && this.settings.syncCache) {
 			let timestamp = await this.datastore.persister.getItem("data.json");
@@ -150,14 +161,6 @@ export default class QuartzSyncer extends Plugin {
 			if (timestamp && timestamp !== this.settings.cacheTimestamp) {
 				await this.datastore.loadFromDataJson(this.settings.cache);
 			}
-		}
-
-		if (this.settings.numberOfKnownNotesForPublishing === 0) {
-			// If the number of known notes is 0, we need to initialize it
-			// This will be used to track the number of notes that are marked for publishing
-			const allNotes = this.app.vault.getMarkdownFiles().length;
-			this.settings.numberOfKnownNotesForPublishing = allNotes;
-			await this.saveSettings();
 		}
 
 		if (this.settings.logLevel) Logger.setLevel(this.settings.logLevel);
@@ -187,7 +190,9 @@ export default class QuartzSyncer extends Plugin {
 	onunload() {
 		// Remove the datastore cache if it exists.
 		// This will also clear the cache when the plugin is updated.
-		this.clearCacheForAllFiles(true);
+		if (!this.settings.persistCache) {
+			this.clearCacheForAllFiles(true);
+		}
 	}
 
 	/**

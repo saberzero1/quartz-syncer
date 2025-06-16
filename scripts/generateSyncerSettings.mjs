@@ -26,6 +26,7 @@ const quartzSettings = {
 
 	useCache: true,
 	syncCache: true,
+	persistCache: false,
 	cacheTimestamp: 0,
 	cache: "",
 

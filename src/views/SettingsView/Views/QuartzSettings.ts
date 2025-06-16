@@ -1,4 +1,4 @@
-import { Setting, App, PluginSettingTab } from "obsidian";
+import { Setting, App, PluginSettingTab, normalizePath } from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 
@@ -110,7 +110,8 @@ export class QuartzSettings extends PluginSettingTab {
 					.setPlaceholder("content")
 					.setValue(this.settings.settings.contentFolder)
 					.onChange(async (value) => {
-						this.settings.settings.contentFolder = value;
+						this.settings.settings.contentFolder =
+							normalizePath(value);
 						await this.settings.saveSettings();
 					}),
 			);

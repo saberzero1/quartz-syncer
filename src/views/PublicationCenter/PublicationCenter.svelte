@@ -5,7 +5,7 @@
 		IPublishStatusManager,
 		PublishStatus,
 	} from "src/publisher/PublishStatusManager";
-	import { LoadingController } from "src/views/PublicationCenter/ProgressBar";
+	import { LoadingController } from "src/models/ProgressBar";
 	import TreeView from "src/ui/TreeView/TreeView.svelte";
 	import { onMount } from "svelte";
 	import Publisher from "src/publisher/Publisher";
@@ -15,11 +15,13 @@
 	export let publishStatusManager: IPublishStatusManager;
 	export let publisher: Publisher;
 	export let showDiff: (path: string) => void;
+	//export let toggle: (node: TreeNode) => void;
 	export let close: () => void;
 
 	let publishStatus: PublishStatus;
 	let showPublishingView: boolean = false;
 	let progressText = "Preparing to load...";
+	let progressIndexText = "Notes processed: 0/0";
 	let controller: LoadingController;
 	let publishController: LoadingController;
 
@@ -38,10 +40,19 @@
 	 * It is built from the publish status and updated reactively.
 	 *
 	 * @param tree - The root node of the tree.
-	 * @param pathComponents - The components of the path to insert into the tree.
+	 * @param filePath - The path to insert into the tree.
 	 */
-	function insertIntoTree(tree: TreeNode, pathComponents: string[]): void {
+	function insertIntoTree(tree: TreeNode, filePath: string): void {
 		let currentNode = tree;
+
+		const pathComponents = filePath.split("/");
+
+		// Check if the file is a remote-only file (deleted note)
+		// These files are not present in the local vault,
+		// and are therefore automatically marked for deletion.
+		const isRemoteOnlyFile = publishStatus.deletedNotePaths.some(
+			(note) => note.path === filePath,
+		);
 
 		for (let i = 0; i < pathComponents.length; i++) {
 			const part = pathComponents[i];
@@ -60,7 +71,7 @@
 					isRoot: false,
 					path: pathComponents.slice(0, i + 1).join("/"),
 					indeterminate: false,
-					checked: false,
+					checked: isRemoteOnlyFile,
 				};
 				currentNode.children.push(childNode);
 			}
@@ -90,63 +101,45 @@
 		};
 
 		for (const filePath of filePaths) {
-			const pathComponents = filePath.split("/");
-			insertIntoTree(root, pathComponents);
+			insertIntoTree(root, filePath);
 		}
 
 		return root;
 	}
 
-	// This function is a Svelte Action. It will be attached to the
-	// container div for the progress bar.
-	function progressBarAction(node: HTMLElement) {
-		// This code runs when the <div> is added to the DOM.
-
-		// Dynamically import and create the native Obsidian component
+	function loadingProgressBar(node: HTMLElement) {
 		const progressBar = new ProgressBarComponent(node);
 
-		// 2. Create the controller object that connects the data loader's
-		// calls to our UI elements.
 		controller = {
 			setProgress: (percentage) => {
-				// This directly calls the method on the native component instance.
 				progressBar.setValue(percentage);
 			},
+			setIndexText: (indexText) => {
+				progressIndexText = indexText;
+			},
 			setText: (message) => {
-				// This updates our local Svelte state, which is bound to the <p> tag.
 				progressText = message;
 			},
 		};
 
-		// An action can optionally return a `destroy` method.
-		// Svelte will call this automatically when the element is removed.
-		// While ProgressBarComponent doesn't have a public .destroy() method,
-		// this is where you would put any cleanup logic. Removing the parent
-		// `node` is typically sufficient for Obsidian components.
 		return {
-			destroy() {
-				// console.log("Progress bar container removed, cleanup complete.");
-			},
+			destroy() {},
 		};
 	}
 
 	function publishProgressBarAction(node: HTMLElement) {
-		// This code runs when the <div> is added to the DOM.
 		const progressBar = new ProgressBarComponent(node);
 
-		// 2. Create the controller object that connects the data loader's
-		// calls to our UI elements.
 		publishController = {
 			setProgress: (progress) => {
 				progressBar.setValue(progress);
 			},
+			setIndexText: () => {},
 			setText: () => {},
 		};
 
 		return {
-			destroy() {
-				// Cleanup logic if needed
-			},
+			destroy() {},
 		};
 	}
 
@@ -162,24 +155,6 @@
 
 		return cog;
 	};
-
-	/**
-	 * Returns a larger rotating cog icon element.
-	 * This is used to indicate a loading state in the publishing view.
-	 *
-	 * @returns An HTML element representing the large cog icon.
-	 */
-	/*const bigRotatingCog = () => {
-		let cog = getIcon("cog");
-
-		cog?.classList.add(
-			"quartz-syncer-rotate",
-			"quartz-syncer-cog",
-			"quartz-syncer-cog-big",
-		);
-
-		return cog;
-	};*/
 
 	$: publishedNotesTree =
 		publishStatus &&
@@ -370,9 +345,12 @@
 	{#if !publishStatus}
 		<div class="quartz-syncer-publisher-loading-msg">
 			<div
-				use:progressBarAction
+				use:loadingProgressBar
 				class="quartz-syncer-progress-bar-container"
 			/>
+			<div class="quartz-syncer-progress-bar-text">
+				{progressIndexText}
+			</div>
 			<div class="quartz-syncer-progress-bar-text">{progressText}</div>
 		</div>
 	{:else if !showPublishingView}

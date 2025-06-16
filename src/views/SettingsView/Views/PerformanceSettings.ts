@@ -37,6 +37,7 @@ export class PerformanceSettings extends PluginSettingTab {
 		this.initializePerformanceHeader();
 		this.initializeEnableCacheSetting();
 		this.initializeSyncCacheSetting();
+		this.initializePersistCacheSetting();
 		this.initializeClearCacheSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "performance";
@@ -104,6 +105,32 @@ export class PerformanceSettings extends PluginSettingTab {
 						.setValue(this.settings.settings.syncCache)
 						.onChange((value) => {
 							this.settings.settings.syncCache = value;
+							this.settings.saveSettings();
+						}),
+				);
+		}
+	};
+
+	/**
+	 * Initializes the persist cache setting.
+	 * This method creates a toggle for enabling or disabling the persistence of the cache.
+	 * When enabled, the cache will not be removed when the plugin is unloaded
+	 * This is useful for users that start Obsidian with the plugin disabled.
+	 * For example, when using plugins that lazy-load Obsidian plugins.
+	 * When disabled, the cache will be removed when the plugin is unloaded.
+	 */
+	initializePersistCacheSetting = () => {
+		if (this.settings.settings.useCache) {
+			new Setting(this.settingsRootElement)
+				.setName("Persist cache")
+				.setDesc(
+					"Whether to persist the cache when the plugin is unloaded. This is useful for users that start Obsidian with the plugin disabled.",
+				)
+				.addToggle((toggle) =>
+					toggle
+						.setValue(this.settings.settings.persistCache)
+						.onChange((value) => {
+							this.settings.settings.persistCache = value;
 							this.settings.saveSettings();
 						}),
 				);

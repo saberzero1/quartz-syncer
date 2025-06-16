@@ -2,7 +2,7 @@ import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteMa
 import Publisher from "src/publisher/Publisher";
 import { generateBlobHash } from "src/utils/utils";
 import { CompiledPublishFile } from "src/publishFile/PublishFile";
-import { LoadingController } from "src/views/PublicationCenter/ProgressBar";
+import { LoadingController } from "src/models/ProgressBar";
 
 /**
  * PublishStatusManager class.
@@ -45,7 +45,7 @@ export default class PublishStatusManager implements IPublishStatusManager {
 	private generateDeletedContentPaths(
 		remoteNoteHashes: { [key: string]: string },
 		marked: string[],
-	): Array<{ path: string; sha: string }> {
+	): Array<PathToRemove> {
 		const isJsFile = (key: string) => key.endsWith(".js");
 
 		const isMarkedForPublish = (key: string) =>
@@ -78,6 +78,8 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		const unpublishedNotes: Array<CompiledPublishFile> = [];
 		const publishedNotes: Array<CompiledPublishFile> = [];
 		const changedNotes: Array<CompiledPublishFile> = [];
+		const deletedNotePaths: Array<PathToRemove> = [];
+		const deletedBlobPaths: Array<PathToRemove> = [];
 
 		if (controller) {
 			controller.setText("Retrieving publish status...");
@@ -100,7 +102,8 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		const remoteBlobHashesArray = Object.entries(remoteBlobHashes);
 
 		const numberOfEntries = Object.entries(remoteNoteHashes).length;
-		let currentEntry = 0;
+		const padLength = numberOfEntries.toString().length;
+		let index = 0;
 
 		if (this.publisher.settings.useCache) {
 			// Check remote cache and update if needed
@@ -113,17 +116,22 @@ export default class PublishStatusManager implements IPublishStatusManager {
 					await this.publisher.datastore.loadRemoteHash(path);
 
 				if ((!hash || hash !== sha) && path.endsWith(".md")) {
-					currentEntry++;
-
 					if (controller) {
+						index++;
+
 						controller.setProgress(
-							Math.floor((currentEntry / numberOfEntries) * 100),
+							Math.floor((index / numberOfEntries) * 100),
 						);
+
+						controller.setIndexText(
+							`Notes processed: ${index.toString().padStart(padLength)}/${numberOfEntries}`,
+						);
+
 						controller.setText(`Processing ${path}...`);
 					}
 
 					// Check if file exists in Obsidian vault
-					if (!this.publisher.vault.getAbstractFileByPath(path)) {
+					if (!this.publisher.vault.getFileByPath(path)) {
 						continue;
 					}
 
@@ -187,15 +195,17 @@ export default class PublishStatusManager implements IPublishStatusManager {
 			}
 		}
 
-		const deletedNotePaths = this.generateDeletedContentPaths(
-			remoteNoteHashes,
-			marked.notes.map((f) => f.getVaultPath()),
+		deletedNotePaths.push(
+			...this.generateDeletedContentPaths(
+				remoteNoteHashes,
+				marked.notes.map((f) => f.getVaultPath()),
+			),
 		);
 
-		const deletedBlobPaths = this.generateDeletedContentPaths(
-			remoteBlobHashes,
-			marked.blobs,
+		deletedBlobPaths.push(
+			...this.generateDeletedContentPaths(remoteBlobHashes, marked.blobs),
 		);
+
 		// These might already be sorted, as getFilesMarkedForPublishing sorts already
 		publishedNotes.sort((a, b) => a.compare(b));
 		publishedNotes.sort((a, b) => a.compare(b));

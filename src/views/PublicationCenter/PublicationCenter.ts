@@ -1,11 +1,4 @@
-import {
-	type App,
-	Modal,
-	getIcon,
-	TFile,
-	ProgressBarComponent,
-	Vault,
-} from "obsidian";
+import { type App, Modal, getIcon, TFile, Vault } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import PublishStatusManager from "src/publisher/PublishStatusManager";
@@ -70,18 +63,6 @@ export class PublicationCenter {
 	}
 
 	/**
-	 * Creates a progress bar component for displaying the publishing progress.
-	 * It returns a new instance of ProgressBarComponent.
-	 *
-	 * @returns A ProgressBarComponent instance.
-	 */
-	private progressBar = (element?: HTMLElement) => {
-		const containerEl = element ?? document.createElement("div");
-
-		return new ProgressBarComponent(containerEl);
-	};
-
-	/**
 	 * Shows the diff between the remote and local versions of a note.
 	 * It retrieves the content of both versions, compares them, and displays the differences in a modal.
 	 *
@@ -120,7 +101,7 @@ export class PublicationCenter {
 
 				localFile = localContent ? localContent[0] : undefined;
 			} else {
-				localContent = this.vault.getAbstractFileByPath(localNotePath);
+				localContent = this.vault.getFileByPath(localNotePath);
 
 				if (!(localContent instanceof TFile)) {
 					localFile = "";
@@ -196,7 +177,6 @@ export class PublicationCenter {
 				props: {
 					publishStatusManager: this.publishStatusManager,
 					publisher: this.publisher,
-					progressBar: this.progressBar,
 					showDiff: this.showDiff,
 					close: () => {
 						this.modal.close();

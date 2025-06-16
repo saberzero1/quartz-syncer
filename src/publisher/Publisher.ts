@@ -78,15 +78,15 @@ export default class Publisher {
 	 * @returns A promise that resolves to an object containing notes and blobs to be published.
 	 */
 	async getFilesMarkedForPublishing(): Promise<MarkedForPublishing> {
-		const files = this.vault.getMarkdownFiles().filter((file) => {
-			if (
-				this.settings.vaultPath !== "/" &&
-				this.settings.vaultPath !== ""
-			)
-				return file.path.startsWith(this.settings.vaultPath);
+		const files = this.vault.getMarkdownFiles();
 
-			return true;
-		});
+		// Only include files that are within the vaultPath
+		if (this.settings.vaultPath !== "/") {
+			files.filter((file) => {
+				return file.path.startsWith(this.settings.vaultPath);
+			});
+		}
+
 		const notesToPublish: PublishFile[] = [];
 		const blobsToPublish: Set<string> = new Set();
 

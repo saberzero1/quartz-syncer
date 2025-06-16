@@ -41,6 +41,7 @@ export default interface QuartzSyncerSettings {
 	/** Performance settings */
 	useCache: boolean;
 	syncCache: boolean;
+	persistCache: boolean;
 	cacheTimestamp: number;
 	cache: string;
 
@@ -79,7 +80,7 @@ export default interface QuartzSyncerSettings {
 	/** Plugin state variables */
 	noteSettingsIsInitialized: boolean;
 	lastUsedSettingsTab: string;
-	numberOfKnownNotesForPublishing: number;
+	pluginVersion: string;
 
 	/** Developer settings */
 	ENABLE_DEVELOPER_TOOLS?: boolean;

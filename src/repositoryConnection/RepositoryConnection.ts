@@ -1,4 +1,5 @@
 import { Octokit } from "@octokit/core";
+import { normalizePath } from "obsidian";
 import Logger from "js-logger";
 import { CompiledPublishFile } from "src/publishFile/PublishFile";
 
@@ -107,6 +108,8 @@ export class RepositoryConnection {
 	 * @returns The vault path.
 	 */
 	getVaultPath(path: string) {
+		path = normalizePath(path);
+
 		const vaultPath = path.startsWith(this.vaultPath)
 			? path.replace(this.vaultPath, "")
 			: path;
@@ -123,11 +126,11 @@ export class RepositoryConnection {
 	 * @returns The repository path.
 	 */
 	setRepositoryPath(path: string) {
-		const separator = path.startsWith("/") ? "" : "/";
+		path = normalizePath(path);
 
 		const repositoryPath = path.startsWith(this.contentFolder)
 			? path
-			: `${this.contentFolder}${separator}${path}`;
+			: `${this.contentFolder}/${path}`;
 
 		return repositoryPath.startsWith("/")
 			? repositoryPath.slice(1)

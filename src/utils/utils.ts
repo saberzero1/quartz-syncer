@@ -1,39 +1,7 @@
 import slugify from "@sindresorhus/slugify";
 import sha1 from "crypto-js/sha1";
-import {
-	ProgressBarComponent,
-	sanitizeHTMLToDom,
-	htmlToMarkdown,
-} from "obsidian";
+import { sanitizeHTMLToDom, htmlToMarkdown } from "obsidian";
 import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
-
-/**
- * Creates a container for progress bar updates.
- *
- * @returns A new HTMLDivElement with a ProgressBarComponent inside.
- */
-function createProgressBarContainer(): HTMLDivElement {
-	const container = document.createElement("div");
-	container.classList.add("quartz-syncer-progress-bar-container");
-
-	return container;
-}
-
-/**
- * Increments the progress bar for the number of notes to publish.
- * @param progressBar - The Obsidian ProgressBarComponent to update.
- * @param increments - The number of increments to add to the counter.
- */
-function incrementProgressBar(
-	progressBar: ProgressBarComponent,
-	currentIndex: number,
-	maxValue: number,
-	increments: number = 1,
-): void {
-	const newValue = Math.clamp(currentIndex + increments, 0, maxValue);
-
-	progressBar.setValue(Math.floor((newValue / maxValue) * 100));
-}
 
 /**
  * Generates a URL path from a file path.
@@ -529,8 +497,6 @@ function unwrap(container: HTMLDivElement) {
 }
 
 export {
-	createProgressBarContainer,
-	incrementProgressBar,
 	generateUrlPath,
 	generateBlobHash,
 	wrapAround,
