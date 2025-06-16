@@ -13,7 +13,7 @@ import Logger from "js-logger";
 /**
  * QuartzSyncer plugin settings.
  * @remarks
- * This interface defines the defauult settings for the QuartzSyncer plugin.
+ * This interface defines the default settings for the QuartzSyncer plugin.
  */
 const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	/** GitHub settings */
