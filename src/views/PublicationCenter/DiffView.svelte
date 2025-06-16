@@ -12,7 +12,7 @@
 	</div>
 	<hr />
 	{#if diff}
-		<div>
+		<div class="quartz-syncer-diff-view-container">
 			{#each diff as part}
 				{#if part.added}
 					<pre

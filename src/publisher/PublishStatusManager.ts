@@ -135,8 +135,6 @@ export default class PublishStatusManager implements IPublishStatusManager {
 						continue;
 					}
 
-					// If the hash is different, update the remote file
-
 					const remoteContent =
 						await this.siteManager.getNoteContent(path);
 

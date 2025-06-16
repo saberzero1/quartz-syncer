@@ -7,9 +7,7 @@
 	export let enableShowDiff: boolean = false;
 	export let showDiff: (path: string) => void;
 
-	const treeMap: Record<string, TreeNode> = {
-		/* child label: parent node */
-	};
+	const treeMap: Record<string, TreeNode> = {};
 
 	/**
 	 * Initialize the treeMap with the parent-child relationships.
@@ -89,6 +87,7 @@
 		}
 		tree = tree;
 	}
+
 	// init the tree state
 	rebuildTree({ detail: { node: tree } }, false);
 </script>

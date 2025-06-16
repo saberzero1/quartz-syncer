@@ -64,10 +64,19 @@ button.quartz-syncer-publisher-button {
 	width: var(--modal-width, 100%);
 }
 
+body.is-mobile .modal:has(pre.quartz-syncer-diff-view) {
+	width: 100%;
+}
+
+body.is-mobile .quartz-syncer-diff-view-container {
+	overflow-x: auto;
+}
+
 pre.quartz-syncer-diff-view {
 	display: block;
-	white-space: pre-wrap;
+	white-space: pre;
 	word-wrap: break-word;
+	width: fit-content;
 }
 
 pre.quartz-syncer-diff-view.quartz-syncer-diff-added {
@@ -87,7 +96,7 @@ pre.quartz-syncer-diff-view.quartz-syncer-diff-removed {
 }
 
 .quartz-syncer-diff-line {
-	white-space: pre-wrap;
+	white-space: pre;
 	word-wrap: break-word;
 }
 

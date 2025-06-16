@@ -38,11 +38,8 @@
 	 * to notify the parent component to rebuild the entire tree's state.
 	 */
 	const toggleCheck = () => {
-		// update the current node's state here, the UI only need to represent it,
-		// don't need to bind the check state to the UI
 		tree.checked = !tree.checked;
 
-		// emit node 'toggle' event, notify parent compnent to rebuild the entire tree's state
 		dispatch("toggle", {
 			node: tree,
 		});
