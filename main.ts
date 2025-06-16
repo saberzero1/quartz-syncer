@@ -184,7 +184,9 @@ export default class QuartzSyncer extends Plugin {
 	 * Called when the plugin is unloaded.
 	 * Cleans up resources and saves settings.
 	 */
-	onunload() {}
+	onunload() {
+		this.clearCacheForAllFiles(true);
+	}
 
 	/**
 	 * Loads the plugin settings from data.json.
@@ -340,27 +342,37 @@ export default class QuartzSyncer extends Plugin {
 	 * This method removes all cached data from the datastore.
 	 * If the cache is disabled, it does nothing.
 	 * It will show a confirmation dialog before clearing the cache.
+	 *
+	 * @param force - If true, skips the confirmation dialog.
 	 */
-	async clearCacheForAllFiles() {
-		// Show confirmation dialog before clearing the cache
-		const confirmation = confirm(
-			"Are you sure you want to clear the Quartz Syncer cache for all files? This action cannot be undone.",
-		);
+	async clearCacheForAllFiles(force = false) {
+		if (!force) {
+			// Show confirmation dialog before clearing the cache
+			const confirmation = confirm(
+				"Are you sure you want to clear the Quartz Syncer cache for all files? This action cannot be undone.",
+			);
 
-		if (!confirmation) {
-			Logger.info("Cache clearing cancelled by user.");
-			new Notice("Cache clearing cancelled.");
+			if (!confirmation) {
+				Logger.info("Cache clearing cancelled by user.");
+				new Notice("Cache clearing cancelled.");
 
-			return;
-		}
+				return;
+			}
 
-		if (this.settings.useCache) {
-			await this.datastore.recreate();
-			Logger.info("Cache cleared for all files.");
-			new Notice("Cache cleared for all files.");
+			if (this.settings.useCache) {
+				await this.datastore.recreate();
+				Logger.info("Cache cleared for all files.");
+				new Notice("Cache cleared for all files.");
+			} else {
+				Logger.warn("Cache is disabled, no action taken.");
+				new Notice("Cache is disabled, no action taken.");
+			}
 		} else {
-			Logger.warn("Cache is disabled, no action taken.");
-			new Notice("Cache is disabled, no action taken.");
+			// If skipConfirmation is true, clear the cache without confirmation
+			// This is useful for automated tasks, suchs as when the plugin is unloaded
+			if (this.datastore) {
+				await this.datastore.persister.clear();
+			}
 		}
 	}
 

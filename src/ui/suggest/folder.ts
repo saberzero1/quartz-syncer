@@ -1,4 +1,4 @@
-import { App, AbstractInputSuggest } from "obsidian";
+import { App, AbstractInputSuggest, normalizePath } from "obsidian";
 
 /**
  * FolderSuggest class.
@@ -16,9 +16,7 @@ export class FolderSuggest extends AbstractInputSuggest<string> {
 
 		this.folders = this.app.vault
 			.getAllFolders(true)
-			.map((folder) =>
-				folder.path.endsWith("/") ? folder.path : folder.path + "/",
-			);
+			.map((folder) => normalizePath(folder.path));
 	}
 
 	/**

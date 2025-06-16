@@ -1,4 +1,10 @@
-import { Setting, App, PluginSettingTab, debounce } from "obsidian";
+import {
+	Setting,
+	App,
+	PluginSettingTab,
+	debounce,
+	normalizePath,
+} from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 import { FolderSuggest } from "src/ui/suggest/folder";
@@ -193,10 +199,13 @@ export class GithubSettings extends PluginSettingTab {
 				text.setPlaceholder("/")
 					.setValue(this.settings.settings.vaultPath)
 					.onChange(async (value) => {
-						if (value.length === 0 || !value.endsWith("/")) {
-							value += "/";
+						value = normalizePath(value.trim());
+
+						if (value === "/") {
+							value = "";
 						}
-						this.settings.settings.vaultPath = value;
+
+						this.settings.settings.vaultPath = `${value}/`;
 						await this.checkConnectionAndSaveSettings();
 					});
 			});
