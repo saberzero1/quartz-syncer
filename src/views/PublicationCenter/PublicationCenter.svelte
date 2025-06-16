@@ -15,7 +15,6 @@
 	export let publishStatusManager: IPublishStatusManager;
 	export let publisher: Publisher;
 	export let showDiff: (path: string) => void;
-	//export let toggle: (node: TreeNode) => void;
 	export let close: () => void;
 
 	let publishStatus: PublishStatus;

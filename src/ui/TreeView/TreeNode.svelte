@@ -5,7 +5,7 @@
 	};
 </script>
 
-<!-- TreeView with checkbox https://svelte.dev/repl/eca6f6392e294247b4f379fde3069274?version=3.46.6 -->
+<!-- TreeView with checkbox https://svelte.dev/playground/eca6f6392e294247b4f379fde3069274?version=5.34.3 -->
 
 <script lang="ts">
 	import { createEventDispatcher } from "svelte";
