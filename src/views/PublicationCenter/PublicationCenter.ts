@@ -1,13 +1,18 @@
-import { type App, Modal, getIcon, Vault, TFile } from "obsidian";
+import { type App, Modal, getIcon, TFile, Vault } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
-import { PublishFile } from "src/publishFile/PublishFile";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import PublishStatusManager from "src/publisher/PublishStatusManager";
 import Publisher from "src/publisher/Publisher";
+import { PublishFile } from "src/publishFile/PublishFile";
 import PublicationCenterSvelte from "src/views/PublicationCenter/PublicationCenter.svelte";
 import DiffView from "src/views/PublicationCenter/DiffView.svelte";
 import * as Diff from "diff";
 
+/**
+ * PublicationCenter class.
+ * This class represents the publication center UI for managing the publishing status of notes.
+ * It provides methods to open the modal, display the publication status, and show diffs between local and remote files.
+ */
 export class PublicationCenter {
 	modal: Modal;
 	settings: QuartzSyncerSettings;
@@ -40,6 +45,13 @@ export class PublicationCenter {
 		this.modal.contentEl.addClass("quartz-syncer-modal-content");
 	}
 
+	/**
+	 * Returns an icon element based on the provided name.
+	 * If the icon is not found, it returns a span element.
+	 *
+	 * @param name - The name of the icon to retrieve.
+	 * @returns A Node representing the icon.
+	 */
 	getIcon(name: string): Node {
 		const icon = getIcon(name) ?? document.createElement("span");
 
@@ -50,10 +62,27 @@ export class PublicationCenter {
 		return icon;
 	}
 
+	/**
+	 * Shows the diff between the remote and local versions of a note.
+	 * It retrieves the content of both versions, compares them, and displays the differences in a modal.
+	 *
+	 * @param notePath - The path of the note to compare.
+	 * @returns A promise that resolves when the diff is displayed.
+	 * @throws Will throw an error if the note content cannot be retrieved or compiled.
+	 */
 	private showDiff = async (notePath: string) => {
 		try {
-			const remoteContent =
-				await this.siteManager.getNoteContent(notePath);
+			let remoteContent, remoteFile, localContent, localFile;
+
+			if (this.settings.useCache) {
+				await this.publisher.datastore.loadRemoteFile(notePath);
+
+				remoteFile = remoteContent ? remoteContent[0] : undefined;
+			}
+
+			if (!remoteContent || !this.settings.useCache) {
+				remoteFile = await this.siteManager.getNoteContent(notePath);
+			}
 
 			let localNotePath = "";
 
@@ -66,28 +95,49 @@ export class PublicationCenter {
 				localNotePath = notePath;
 			}
 
-			const localFile = this.vault.getAbstractFileByPath(localNotePath);
+			if (this.settings.useCache) {
+				localContent =
+					await this.publisher.datastore.loadLocalFile(localNotePath);
 
-			if (localFile instanceof TFile) {
-				const localPublishFile = new PublishFile({
-					file: localFile,
-					vault: this.vault,
-					compiler: this.publisher.compiler,
-					metadataCache: this.publisher.metadataCache,
-					settings: this.settings,
-				});
+				localFile = localContent ? localContent[0] : undefined;
+			} else {
+				localContent = this.vault.getFileByPath(localNotePath);
 
-				const [localContent, _] =
-					await this.publisher.compiler.generateMarkdown(
-						localPublishFile,
-					);
+				if (!(localContent instanceof TFile)) {
+					localFile = "";
+				} else {
+					localContent =
+						await this.publisher.compiler.generateMarkdown(
+							new PublishFile({
+								file: localContent,
+								vault: this.vault,
+								compiler: this.publisher.compiler,
+								datastore: this.publisher.datastore,
+								metadataCache: this.publisher.metadataCache,
+								settings: this.settings,
+							}),
+						);
 
-				const diff = Diff.diffLines(remoteContent, localContent);
+					if (!localContent) {
+						throw new Error(
+							`Failed to compile local file: ${localNotePath}. Compiler returned null.`,
+						);
+					}
+
+					localFile = localContent[0];
+				}
+			}
+
+			if (remoteFile && localFile) {
+				const diff = Diff.diffLines(remoteFile, localFile);
 				let diffView: DiffView | undefined;
 				const diffModal = new Modal(this.modal.app);
+				const title = notePath.split("/").pop() || "Diff";
 
 				diffModal.titleEl
-					.createEl("span", { text: `${localFile.basename}` })
+					.createEl("span", {
+						text: `${title}`,
+					})
 					.prepend(this.getIcon("file-diff"));
 
 				diffModal.onOpen = () => {
@@ -109,6 +159,11 @@ export class PublicationCenter {
 			console.error(e);
 		}
 	};
+
+	/**
+	 * Opens the publication center modal.
+	 * It sets up the modal's content and behavior, including the publication status manager and publisher.
+	 */
 	open = () => {
 		this.modal.onClose = () => {
 			this.publicationCenterUi.$destroy();

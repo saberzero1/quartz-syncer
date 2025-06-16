@@ -8,13 +8,27 @@ import {
 import Logger from "js-logger";
 
 const logger = Logger.get("quartz-syncer-site-manager");
+
+/**
+ * PathRewriteRule interface.
+ * This interface defines a rule for rewriting paths in the Quartz site.
+ */
 export interface PathRewriteRule {
 	from: string;
 	to: string;
 }
 
+/**
+ * VaultPathRule interface.
+ * This interface extends PathRewriteRule and is used for vault path rules in the Quartz site.
+ * It is an alias for PathRewriteRule.
+ */
 export type VaultPathRule = PathRewriteRule;
 
+/**
+ * ContentTreeItem type.
+ * This type represents an item in the content tree of the Quartz site.
+ */
 type ContentTreeItem = {
 	path: string;
 	sha: string;
@@ -22,12 +36,13 @@ type ContentTreeItem = {
 };
 
 /**
+ * QuartzSyncerSiteManager class.
+ *
  * Manages the Quartz website contents by handling various site configurations, files,
  * and interactions with GitHub via Octokit. Responsible for operations like updating
- * environment variables, fetching and updating notes & blobs, and creating pull requests
- * for site changes.
+ * content for site changes or settings, retrieving note content, and managing
+ * repository connections.
  */
-
 export default class QuartzSyncerSiteManager {
 	settings: QuartzSyncerSettings;
 	metadataCache: MetadataCache;
@@ -55,6 +70,14 @@ export default class QuartzSyncerSiteManager {
 		});
 	}
 
+	/**
+	 * Updates the Quartz site with the current settings.
+	 * This method updates the `.env` file in the user's repository
+	 * with the current settings, such as timestamps and image resolution.
+	 * If the `.env` file already matches the current settings, it does nothing.
+	 *
+	 * @returns A promise that resolves when the update is complete.
+	 */
 	async updateEnv() {
 		const envValues = {
 			SHOW_CREATED_TIMESTAMP: this.settings.showCreatedTimestamp,
@@ -94,6 +117,12 @@ export default class QuartzSyncerSiteManager {
 		});
 	}
 
+	/**
+	 * Retrieves the content of a note from the Quartz repository.
+	 *
+	 * @param path - The path to the note in the Quartz repository.
+	 * @returns A promise that resolves when the update is complete.
+	 */
 	async getNoteContent(path: string): Promise<string> {
 		if (path.startsWith("/")) {
 			path = path.substring(1);
@@ -112,6 +141,12 @@ export default class QuartzSyncerSiteManager {
 		return content;
 	}
 
+	/**
+	 * Retrieves the note hashes from the content tree of the Quartz repository.
+	 *
+	 * @param contentTree - The content tree of the repository.
+	 * @returns A promise that resolves to the content tree of the repository.
+	 */
 	async getNoteHashes(
 		contentTree: NonNullable<TRepositoryContent>,
 	): Promise<Record<string, string>> {
@@ -131,7 +166,6 @@ export default class QuartzSyncerSiteManager {
 				this.settings.contentFolder,
 				"",
 			);
-			//.replace(this.settings.vaultPath, "");
 
 			const actualVaultPath = vaultPath.startsWith("/")
 				? vaultPath.substring(1)
@@ -142,6 +176,12 @@ export default class QuartzSyncerSiteManager {
 		return hashes;
 	}
 
+	/**
+	 * Retrieves the blob hashes from the content tree of the Quartz repository.
+	 *
+	 * @param contentTree - The content tree of the repository.
+	 * @returns A promise that resolves to a record of blob hashes.
+	 */
 	async getBlobHashes(
 		contentTree: NonNullable<TRepositoryContent>,
 	): Promise<Record<string, string>> {

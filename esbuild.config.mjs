@@ -21,14 +21,14 @@ esbuild.build({
 	bundle: true,
 	external: ['obsidian', 'electron', ...builtins],
 	format: 'cjs',
-	target: 'es2018',
+	target: 'es2024',
 	logLevel: "info",
 	sourcemap: prod ? false : 'inline',
 	treeShaking: true,
 	outfile: 'main.js',
 	plugins: [
 		esbuildSvelte({
-		  compilerOptions: { css: 'injected'},
+		  compilerOptions: { css: 'injected' },
 		  preprocess: sveltePreprocess(),
 		}),
 	  ],

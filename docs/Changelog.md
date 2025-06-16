@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-06-10T22:47:21Z+0200
+modified: 2025-06-16T22:38:07Z+0200
 publish: true
 ---
 
@@ -22,6 +22,31 @@ publish: true
 - Manage Quartz components.
 
 ## Released
+
+### Version 1.8.0
+
+- Significant performance improvements.
+- Added caching of compiled files to reduce processing time and GitHub API calls.
+	- The processed files are stored in Obsidian's [localStorage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage).
+- Added settings related to performance.
+	- Enable cache: whether to save compiled files to cache. Defaults to true.
+	- Sync cache: whether to save compiled files to the plugin's `data.json` as well. This is recommend for users that synchronize their vaults between multiple devices to ensure consistency. Defaults to true.
+	- Persist cache: whether to keep the cache in the localStorage when the plugin unloads. This is only recommended for users that start Obsidian with plugins disabled, such as when using the [Lazy Plugins](https://github.com/alangrainger/obsidian-lazy-plugins) plugin. Defaults to false.
+	- Clear cache: Clears the cache when pressed.
+- Improved preview performance.
+- Visual indicators for loading and publishing.
+	- Added loading bars to indicate progress.
+	- Added partial indicators for folders that have both checked and unchecked files.
+	- Automatically flag files for deletion that are in the remote repository, but not in the local vault.
+		- These are generally deleted, renamed, or moved.
+- Rewrote link resolution logic.
+- New commands:
+	- Clear cache for current file.
+	- Clear cache for all files.
+		- Calling this command will prompt for confirmation.
+- Folder suggester no longer fetches all files instead of just folders.
+- Added release GitHub Action.
+- Updated documentation.
 
 ### Version 1.7.1
 

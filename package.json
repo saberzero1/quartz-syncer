@@ -1,6 +1,6 @@
 {
 	"name": "quartz-syncer",
-	"version": "1.7.1",
+	"version": "1.8.0",
 	"description": "A plugin used for publishing notes to Quartz",
 	"main": "main.js",
 	"scripts": {
@@ -20,22 +20,25 @@
 	"author": "",
 	"license": "MIT",
 	"devDependencies": {
+		"@eslint/js": "^9.28.0",
 		"@tsconfig/svelte": "^5.0.2",
 		"@types/crypto-js": "^4.1.2",
 		"@types/diff": "^5.0.4",
 		"@types/jest": "^29.5.4",
 		"@types/luxon": "^3.3.2",
 		"@types/node": "^20.6.0",
-		"@typescript-eslint/eslint-plugin": "^6.7.0",
-		"@typescript-eslint/parser": "^6.7.0",
+		"@typescript-eslint/eslint-plugin": "^8.33.0",
+		"@typescript-eslint/parser": "^8.33.0",
 		"builtin-modules": "^3.3.0",
 		"copyfiles": "^2.4.1",
 		"dotenv": "^16.3.1",
 		"esbuild": "^0.25.5",
 		"esbuild-svelte": "^0.8.0",
-		"eslint": "^8.49.0",
+		"eslint": "^9.28.0",
+		"eslint-config-prettier": "^10.1.5",
 		"eslint-plugin-prettier": "^5.0.0",
-		"eslint-plugin-svelte": "^2.33.2",
+		"eslint-plugin-svelte": "^2.46.1",
+		"eslint-plugin-tsdoc": "^0.4.0",
 		"husky": "^8.0.3",
 		"jest": "^29.7.0",
 		"lint-staged": "^16.1.0",
@@ -46,7 +49,8 @@
 		"svelte-preprocess": "^5.0.4",
 		"ts-jest": "^29.1.1",
 		"tslib": "^2.6.2",
-		"typescript": "^5.2.2"
+		"typescript": "^5.2.2",
+		"typescript-eslint": "^8.34.0"
 	},
 	"dependencies": {
 		"@blacksmithgu/datacore": "^0.1.24",
@@ -57,6 +61,7 @@
 		"diff": "^5.1.0",
 		"js-base64": "^3.7.5",
 		"js-logger": "^1.6.1",
+		"localforage": "^1.10.0",
 		"luxon": "^3.4.3",
 		"lz-string": "^1.5.0",
 		"obsidian-dataview": "^0.5.68"

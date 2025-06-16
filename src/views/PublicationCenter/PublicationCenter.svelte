@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { getIcon } from "obsidian";
+	import { getIcon, ProgressBarComponent } from "obsidian";
 	import TreeNode from "src/models/TreeNode";
 	import {
 		IPublishStatusManager,
 		PublishStatus,
 	} from "src/publisher/PublishStatusManager";
+	import { LoadingController } from "src/models/ProgressBar";
 	import TreeView from "src/ui/TreeView/TreeView.svelte";
 	import { onMount } from "svelte";
 	import Publisher from "src/publisher/Publisher";
@@ -18,15 +19,39 @@
 
 	let publishStatus: PublishStatus;
 	let showPublishingView: boolean = false;
+	let progressText = "Preparing to load...";
+	let progressIndexText = "Notes processed: 0/0";
+	let controller: LoadingController;
+	let publishController: LoadingController;
 
+	/**
+	 * The tree representing the published notes.
+	 * It is built from the publish status and updated reactively.
+	 */
 	async function getPublishStatus() {
-		publishStatus = await publishStatusManager.getPublishStatus();
+		publishStatus = await publishStatusManager.getPublishStatus(controller);
 	}
 
 	onMount(getPublishStatus);
 
-	function insertIntoTree(tree: TreeNode, pathComponents: string[]): void {
+	/**
+	 * The tree representing the published notes.
+	 * It is built from the publish status and updated reactively.
+	 *
+	 * @param tree - The root node of the tree.
+	 * @param filePath - The path to insert into the tree.
+	 */
+	function insertIntoTree(tree: TreeNode, filePath: string): void {
 		let currentNode = tree;
+
+		const pathComponents = filePath.split("/");
+
+		// Check if the file is a remote-only file (deleted note)
+		// These files are not present in the local vault,
+		// and are therefore automatically marked for deletion.
+		const isRemoteOnlyFile = publishStatus.deletedNotePaths.some(
+			(note) => note.path === filePath,
+		);
 
 		for (let i = 0; i < pathComponents.length; i++) {
 			const part = pathComponents[i];
@@ -45,7 +70,7 @@
 					isRoot: false,
 					path: pathComponents.slice(0, i + 1).join("/"),
 					indeterminate: false,
-					checked: false,
+					checked: isRemoteOnlyFile,
 				};
 				currentNode.children.push(childNode);
 			}
@@ -54,6 +79,14 @@
 		}
 	}
 
+	/**
+	 * Converts an array of file paths into a tree structure.
+	 * Each path is split by '/' and inserted into the tree.
+	 *
+	 * @param filePaths - An array of file paths to convert into a tree.
+	 * @param rootName - The name of the root node in the tree.
+	 * @returns A TreeNode representing the root of the tree.
+	 */
 	function filePathsToTree(
 		filePaths: string[],
 		rootName: string = "root",
@@ -67,28 +100,57 @@
 		};
 
 		for (const filePath of filePaths) {
-			const pathComponents = filePath.split("/");
-			insertIntoTree(root, pathComponents);
+			insertIntoTree(root, filePath);
 		}
 
 		return root;
 	}
 
+	function loadingProgressBar(node: HTMLElement) {
+		const progressBar = new ProgressBarComponent(node);
+
+		controller = {
+			setProgress: (percentage) => {
+				progressBar.setValue(percentage);
+			},
+			setIndexText: (indexText) => {
+				progressIndexText = indexText;
+			},
+			setText: (message) => {
+				progressText = message;
+			},
+		};
+
+		return {
+			destroy() {},
+		};
+	}
+
+	function publishProgressBarAction(node: HTMLElement) {
+		const progressBar = new ProgressBarComponent(node);
+
+		publishController = {
+			setProgress: (progress) => {
+				progressBar.setValue(progress);
+			},
+			setIndexText: () => {},
+			setText: () => {},
+		};
+
+		return {
+			destroy() {},
+		};
+	}
+
+	/**
+	 * Returns an icon element with the specified name.
+	 * If the icon is not found, it returns null.
+	 *
+	 * @returns An HTML element representing the icon, or null if not found.
+	 */
 	const rotatingCog = () => {
 		let cog = getIcon("cog");
 		cog?.classList.add("quartz-syncer-rotate", "quartz-syncer-cog");
-
-		return cog;
-	};
-	//TODO: move to class
-	const bigRotatingCog = () => {
-		let cog = getIcon("cog");
-
-		cog?.classList.add(
-			"quartz-syncer-rotate",
-			"quartz-syncer-cog",
-			"quartz-syncer-cog-big",
-		);
 
 		return cog;
 	};
@@ -166,6 +228,15 @@
 				pathsToDelete.length)) *
 		100;
 
+	$: publishController?.setProgress(publishProgress);
+
+	/**
+	 * Traverses the tree and collects the paths of all leaf nodes that are checked.
+	 * This is used to determine which notes are marked for publishing.
+	 *
+	 * @param tree - The root node of the tree to traverse.
+	 * @returns An array of paths for the checked leaf nodes.
+	 */
 	const traverseTree = (tree: TreeNode): Array<string> => {
 		const paths: Array<string> = [];
 
@@ -190,6 +261,11 @@
 	let publishedPaths: Array<string> = [];
 	let failedPublish: Array<string> = [];
 
+	/**
+	 * Publishes the notes that are marked for publishing.
+	 * It collects the paths of unpublished and changed notes, as well as deleted notes,
+	 * and then calls the publisher to publish them in batches.
+	 */
 	const publishMarkedNotes = async () => {
 		if (!unpublishedNoteTree || !changedNotesTree) return;
 
@@ -262,11 +338,19 @@
 </script>
 
 <div>
-	<hr class="quartz-syncer-publisher-title-separator" />
+	{#if publishStatus}
+		<hr class="quartz-syncer-publisher-title-separator" />
+	{/if}
 	{#if !publishStatus}
 		<div class="quartz-syncer-publisher-loading-msg">
-			{@html bigRotatingCog()?.outerHTML}
-			<div>Calculating publication status from GitHub</div>
+			<div
+				use:loadingProgressBar
+				class="quartz-syncer-progress-bar-container"
+			/>
+			<div class="quartz-syncer-progress-bar-text">
+				{progressIndexText}
+			</div>
+			<div class="quartz-syncer-progress-bar-text">{progressText}</div>
 		</div>
 	{:else if !showPublishingView}
 		<TreeView tree={unpublishedNoteTree ?? emptyNode} {showDiff} />
@@ -314,8 +398,8 @@
 				{/if}
 				<div class="quartz-syncer-publisher-loading-container">
 					<div
-						class="quartz-syncer-publisher-loading-bar"
-						style="width: {publishProgress}%"
+						use:publishProgressBarAction
+						class="quartz-syncer-progress-bar-container"
 					/>
 				</div>
 			</div>

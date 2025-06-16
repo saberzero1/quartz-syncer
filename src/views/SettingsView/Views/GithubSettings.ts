@@ -1,9 +1,19 @@
-import { Setting, App, PluginSettingTab, debounce } from "obsidian";
+import {
+	Setting,
+	App,
+	PluginSettingTab,
+	debounce,
+	normalizePath,
+} from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 import { FolderSuggest } from "src/ui/suggest/folder";
 import { Octokit } from "@octokit/core";
 
+/**
+ * GithubSettings class.
+ * This class is responsible for managing the frontmatter settings of the Quartz Syncer plugin.
+ */
 export class GithubSettings extends PluginSettingTab {
 	app: App;
 	plugin: QuartzSyncer;
@@ -32,6 +42,10 @@ export class GithubSettings extends PluginSettingTab {
 		);
 	}
 
+	/**
+	 * Displays the GitHub settings in the settings tab.
+	 * This method initializes the settings UI for managing Quartz Syncer's GitHub settings.
+	 */
 	display() {
 		this.settingsRootElement.empty();
 		this.settingsRootElement.addClass("quartz-syncer-github-settings");
@@ -46,6 +60,10 @@ export class GithubSettings extends PluginSettingTab {
 		this.settings.saveSettings();
 	}
 
+	/**
+	 * Initializes the GitHub header in the settings tab.
+	 * This method sets up the connection status indicator and displays the GitHub repository information.
+	 */
 	initializeGitHubHeader = () => {
 		this.checkConnectionAndSaveSettings();
 
@@ -68,11 +86,19 @@ export class GithubSettings extends PluginSettingTab {
 			.nameEl.append(connectionStatusElement);
 	};
 
+	/**
+	 * Checks the connection to the GitHub repository and saves the settings.
+	 * This method updates the connection status and saves the current settings.
+	 */
 	checkConnectionAndSaveSettings = async () => {
 		this.settings.saveSettings();
 		this.debouncedUpdateConnectionStatus();
 	};
 
+	/**
+	 * Updates the connection status by checking the GitHub repository.
+	 * This method uses Octokit to verify the connection and updates the UI accordingly.
+	 */
 	updateConnectionStatus = async () => {
 		const oktokit = new Octokit({
 			auth: this.settings.settings.githubToken,
@@ -93,7 +119,7 @@ export class GithubSettings extends PluginSettingTab {
 				// Token has "contents" permissions
 				this.connectionStatus = "connected";
 			}
-		} catch (error) {
+		} catch (_error) {
 			this.connectionStatus = "error";
 		}
 		this.updateConnectionStatusIndicator();
@@ -105,6 +131,11 @@ export class GithubSettings extends PluginSettingTab {
 		true,
 	);
 
+	/**
+	 * Updates the connection status indicator in the UI.
+	 * This method updates the text and CSS classes of the connection status element
+	 * based on the current connection status.
+	 */
 	updateConnectionStatusIndicator = () => {
 		if (this.connectionStatusElement.parentElement === null) {
 			return;
@@ -150,6 +181,10 @@ export class GithubSettings extends PluginSettingTab {
 		}
 	};
 
+	/**
+	 * Initializes the GitHub vault folder setting in the settings tab.
+	 * This method allows the user to specify the root folder of their Quartz website in their Obsidian vault.
+	 */
 	private initializeGitHubVaultFolder() {
 		const app = this.settings.app;
 
@@ -164,14 +199,22 @@ export class GithubSettings extends PluginSettingTab {
 				text.setPlaceholder("/")
 					.setValue(this.settings.settings.vaultPath)
 					.onChange(async (value) => {
-						if (value.length === 0 || !value.endsWith("/")) {
-							value += "/";
+						value = normalizePath(value.trim());
+
+						if (value === "/") {
+							value = "";
 						}
-						this.settings.settings.vaultPath = value;
+
+						this.settings.settings.vaultPath = `${value}/`;
 						await this.checkConnectionAndSaveSettings();
 					});
 			});
 	}
+
+	/**
+	 * Initializes the GitHub repository name setting in the settings tab.
+	 * This method allows the user to specify the name of their Quartz repository on GitHub.
+	 */
 	private initializeGitHubRepoSetting() {
 		new Setting(this.settingsRootElement)
 			.setName("Repository name")
@@ -191,6 +234,10 @@ export class GithubSettings extends PluginSettingTab {
 			);
 	}
 
+	/**
+	 * Initializes the GitHub username setting in the settings tab.
+	 * This method allows the user to specify their GitHub username that owns the Quartz repository.
+	 */
 	private initializeGitHubUserNameSetting() {
 		new Setting(this.settingsRootElement)
 			.setName("Username")
@@ -206,6 +253,10 @@ export class GithubSettings extends PluginSettingTab {
 			);
 	}
 
+	/**
+	 * Initializes the GitHub access token setting in the settings tab.
+	 * This method provides instructions for generating a GitHub access token with the required permissions.
+	 */
 	private initializeGitHubTokenSetting() {
 		const desc = document.createDocumentFragment();
 

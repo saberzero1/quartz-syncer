@@ -3,6 +3,10 @@ import { sanitizePermalink } from "src/utils/utils";
 import QuartzSyncerSettings from "src/models/settings";
 import { PublishFile } from "src/publishFile/PublishFile";
 
+/**
+ * TFrontmatter type.
+ * This type represents the frontmatter of a file.
+ */
 export type TFrontmatter = Record<string, unknown> & {
 	title?: string;
 	description?: string;
@@ -12,15 +16,27 @@ export type TFrontmatter = Record<string, unknown> & {
 	tags?: string;
 };
 
+/**
+ * TPublishedFrontMatter type.
+ * This type represents the frontmatter of a published file.
+ * It extends the TFrontmatter type with additional properties.
+ */
 export type TPublishedFrontMatter = Record<string, unknown> & {
 	title?: string;
-	tags?: string[];
 	description?: string;
 	aliases?: string;
 	permalink?: string;
 	draft?: boolean;
+	tags?: string[];
 };
 
+/**
+ * FrontmatterCompiler class.
+ * This class is responsible for compiling the frontmatter of a file.
+ * It adds the permalink, default pass-throughs, timestamps, tags, CSS classes, and social image to the frontmatter.
+ *
+ * Documentation: {@link https://saberzero1.github.io/quartz-syncer-docs/Settings/Note-properties/}
+ */
 export class FrontmatterCompiler {
 	private readonly settings: QuartzSyncerSettings;
 
@@ -28,6 +44,14 @@ export class FrontmatterCompiler {
 		this.settings = settings;
 	}
 
+	/**
+	 * Compiles the frontmatter of a file.
+	 * It adds the permalink, default pass-throughs, timestamps, tags, CSS classes, and social image to the frontmatter.
+	 *
+	 * @param file - The file to compile the frontmatter for.
+	 * @param frontmatter - The frontmatter of the file.
+	 * @returns The compiled frontmatter as a string.
+	 */
 	compile(file: PublishFile, frontmatter: FrontMatterCache): string {
 		const fileFrontMatter = { ...frontmatter };
 		delete fileFrontMatter["position"];
@@ -76,7 +100,12 @@ export class FrontmatterCompiler {
 	}
 
 	/**
-	 * Adds the permalink to the compiled frontmatter if specified in user settings
+	 * Adds the permalink to the compiled frontmatter if specified in user settings.
+	 *
+	 * @param file - The file to compile the frontmatter for.
+	 * @param baseFrontMatter - The base frontmatter of the file.
+	 * @param newFrontMatter - The new frontmatter to be compiled.
+	 * @returns A function that takes the base frontmatter and new frontmatter, and returns the updated frontmatter with the permalink added.
 	 */
 	private addPermalink =
 		(file: PublishFile) =>
@@ -127,7 +156,12 @@ export class FrontmatterCompiler {
 		};
 
 	/**
-	 * Adds the default pass-throughs to the compiled frontmatter
+	 * Adds the default pass-throughs to the compiled frontmatter.
+	 * This includes all the frontmatter that Quartz uses by default.
+	 *
+	 * @param baseFrontMatter - The base frontmatter of the file.
+	 * @param newFrontMatter - The new frontmatter to be compiled.
+	 * @returns The new frontmatter with the default pass-throughs added.
 	 */
 	private addDefaultPassThrough(
 		baseFrontMatter: TFrontmatter,
@@ -168,7 +202,11 @@ export class FrontmatterCompiler {
 	}
 
 	/**
-	 * Adds the tags to the compiled frontmatter if specified in user settings
+	 * Adds the tags to the compiled frontmatter if specified in user settings.
+	 *
+	 * @param fileFrontMatter - The frontmatter of the file.
+	 * @param publishedFrontMatterWithoutTags - The frontmatter of the published file without tags.
+	 * @returns The published frontmatter with the tags added.
 	 */
 	private addTags(
 		fileFrontMatter: TFrontmatter,
@@ -205,7 +243,11 @@ export class FrontmatterCompiler {
 	}
 
 	/**
-	 * Adds the css classes to the compiled frontmatter if specified in user settings
+	 * Adds the css classes to the compiled frontmatter if specified in user settings.
+	 *
+	 * @param baseFrontMatter - The base frontmatter of the file.
+	 * @param newFrontMatter - The new frontmatter to be compiled.
+	 * @returns The new frontmatter with the CSS classes added.
 	 */
 	private addCSSClasses(
 		baseFrontMatter: TFrontmatter,
@@ -265,7 +307,11 @@ export class FrontmatterCompiler {
 	}
 
 	/**
-	 * Adds the social image to the compiled frontmatter if specified in user settings
+	 * Adds the social image to the compiled frontmatter if specified in user settings.
+	 *
+	 * @param baseFrontMatter - The base frontmatter of the file.
+	 * @param newFrontMatter - The new frontmatter to be compiled.
+	 * @returns The new frontmatter with the social image added.
 	 */
 	private addSocialImage(
 		baseFrontMatter: TFrontmatter,
@@ -296,7 +342,12 @@ export class FrontmatterCompiler {
 	}
 
 	/**
-	 * Adds the created, updated, and published timestamps to the compiled frontmatter if specified in user settings
+	 * Adds the created, updated, and published timestamps to the compiled frontmatter if specified in user settings.
+	 *
+	 * @param file - The file to compile the frontmatter for.
+	 * @param baseFrontMatter - The base frontmatter of the file.
+	 * @param newFrontMatter - The new frontmatter to be compiled.
+	 * @returns The new frontmatter with the timestamps added.
 	 */
 	private addTimestampsFrontmatter =
 		(file: PublishFile) =>

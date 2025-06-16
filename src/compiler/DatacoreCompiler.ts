@@ -2,10 +2,24 @@ import { DatacoreApi } from "@blacksmithgu/datacore/build/library/index";
 import { App, Component, Notice } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
-import { delay, isPluginEnabled, sanitizeHTMLToString } from "src/utils/utils";
+import {
+	delay,
+	isPluginEnabled,
+	sanitizeHTMLToString,
+	surroundWithCalloutBlock,
+	sanitizeQuery,
+} from "src/utils/utils";
 import { datacoreCard } from "src/utils/styles";
 import Logger from "js-logger";
 
+/**
+ * DatacoreCompiler class.
+ * This class is responsible for compiling Datacore queries in the text.
+ * It uses the Datacore API to execute the queries and replace them with the results.
+ * It also handles the callout blocks and CSS injection.
+ *
+ * Documentation: {@link https://saberzero1.github.io/quartz-syncer-docs/Settings/Integrations/Datacore}
+ */
 export class DatacoreCompiler {
 	app: App;
 	datacore: DatacoreApi | undefined;
@@ -17,6 +31,14 @@ export class DatacoreCompiler {
 		this.serializer = new XMLSerializer();
 	}
 
+	/**
+	 * Compiles the text by replacing Datacore queries with their results.
+	 * It also injects the necessary CSS for the Datacore cards.
+	 *
+	 * @param file - The PublishFile object representing the file being compiled.
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 * @throws If the Datacore API is not available, a notice is shown to the user.
+	 */
 	compile: TCompilerStep = (file) => async (text) => {
 		let replacedText = text;
 
@@ -46,7 +68,7 @@ export class DatacoreCompiler {
 				const query = queryBlock[1];
 
 				const { isInsideCalloutDepth, finalQuery } =
-					this.sanitizeQuery(query);
+					sanitizeQuery(query);
 
 				const queryResult = await tryExecuteJs(finalQuery, file, dcApi);
 
@@ -60,10 +82,7 @@ export class DatacoreCompiler {
 				if (isInsideCalloutDepth > 0) {
 					replacedText = replacedText.replace(
 						block,
-						this.surroundWithCalloutBlock(
-							result,
-							isInsideCalloutDepth,
-						),
+						surroundWithCalloutBlock(result, isInsideCalloutDepth),
 					);
 				} else {
 					replacedText = replacedText.replace(block, result);
@@ -83,7 +102,7 @@ export class DatacoreCompiler {
 				const query = queryBlock[1];
 
 				const { isInsideCalloutDepth, finalQuery } =
-					this.sanitizeQuery(query);
+					sanitizeQuery(query);
 
 				const queryResult = await tryExecuteJsx(
 					finalQuery,
@@ -101,10 +120,7 @@ export class DatacoreCompiler {
 				if (isInsideCalloutDepth > 0) {
 					replacedText = replacedText.replace(
 						block,
-						this.surroundWithCalloutBlock(
-							result,
-							isInsideCalloutDepth,
-						),
+						surroundWithCalloutBlock(result, isInsideCalloutDepth),
 					);
 				} else {
 					replacedText = replacedText.replace(block, result);
@@ -124,7 +140,7 @@ export class DatacoreCompiler {
 				const query = queryBlock[1];
 
 				const { isInsideCalloutDepth, finalQuery } =
-					this.sanitizeQuery(query);
+					sanitizeQuery(query);
 
 				const queryResult = await tryExecuteTs(finalQuery, file, dcApi);
 
@@ -138,10 +154,7 @@ export class DatacoreCompiler {
 				if (isInsideCalloutDepth > 0) {
 					replacedText = replacedText.replace(
 						block,
-						this.surroundWithCalloutBlock(
-							result,
-							isInsideCalloutDepth,
-						),
+						surroundWithCalloutBlock(result, isInsideCalloutDepth),
 					);
 				} else {
 					replacedText = replacedText.replace(block, result);
@@ -161,7 +174,7 @@ export class DatacoreCompiler {
 				const query = queryBlock[1];
 
 				const { isInsideCalloutDepth, finalQuery } =
-					this.sanitizeQuery(query);
+					sanitizeQuery(query);
 
 				const queryResult = await tryExecuteTsx(
 					finalQuery,
@@ -179,10 +192,7 @@ export class DatacoreCompiler {
 				if (isInsideCalloutDepth > 0) {
 					replacedText = replacedText.replace(
 						block,
-						this.surroundWithCalloutBlock(
-							result,
-							isInsideCalloutDepth,
-						),
+						surroundWithCalloutBlock(result, isInsideCalloutDepth),
 					);
 				} else {
 					replacedText = replacedText.replace(block, result);
@@ -205,67 +215,20 @@ export class DatacoreCompiler {
 
 		return replacedText + injectCSS;
 	};
-
-	/**
-	 * Splits input in lines.
-	 * Prepends the callout/quote sign to each line,
-	 * returns all the lines as a single string
-	 *
-	 */
-	surroundWithCalloutBlock(input: string, depth: number = 1): string {
-		const tmp = input.split("\n");
-
-		const calloutSymbol = "> ".repeat(depth);
-
-		return " " + tmp.join(`\n${calloutSymbol}`);
-	}
-
-	/**
-	 * Checks if a query is inside a callout block.
-	 * Removes the callout symbols and re-join sanitized parts.
-	 * Also returns the boolean that indicates if the query was inside a callout.
-	 * @param query
-	 * @returns
-	 */
-	sanitizeQuery(query: string): {
-		isInsideCalloutDepth: number;
-		finalQuery: string;
-	} {
-		let isInsideCalloutDepth = 0;
-		const parts = query.split("\n");
-		const sanitized = [];
-
-		for (const part of parts) {
-			let depthPivot = 0;
-
-			if (part.startsWith(">")) {
-				depthPivot += 1;
-				let intermediate = part.substring(1).trim();
-
-				while (intermediate.startsWith(">")) {
-					intermediate = intermediate.substring(1).trim();
-					depthPivot += 1;
-				}
-				sanitized.push(intermediate);
-			} else {
-				sanitized.push(part);
-			}
-			isInsideCalloutDepth = Math.max(isInsideCalloutDepth, depthPivot);
-		}
-		let finalQuery = query;
-
-		if (isInsideCalloutDepth > 0) {
-			finalQuery = sanitized.join("\n");
-		}
-
-		return { isInsideCalloutDepth, finalQuery };
-	}
 }
 
-// https://blacksmithgu.github.io/datacore/code-views
-// This is the suggested way to access the Datacore API
-// According to the documentation.
-// This will hopefully change in the future when the API stabilizes.
+/**
+ * Gets the Datacore API from the window object if the plugin is enabled.
+ * If the plugin is not enabled, it returns undefined.
+ *
+ * @remarks
+ * The method for accessing the Datacore API is based on the documentation provided by the Datacore plugin.
+ * This will likely change in the future when the API stabilizes.
+ *
+ * Relevant documentation: {@link https://blacksmithgu.github.io/datacore/code-views}
+ *
+ * @returns The DatacoreApi instance or undefined if the plugin is not enabled.
+ */
 function getDatacoreApi(): DatacoreApi | undefined {
 	if (isPluginEnabled("datacore")) {
 		//@ts-expect-error If datacore is enabled, it should be available on the window object
@@ -275,6 +238,15 @@ function getDatacoreApi(): DatacoreApi | undefined {
 	return undefined;
 }
 
+/**
+ * Attempts to execute a DatacoreJS query and returns the result as an HTMLDivElement.
+ * If the execution fails, it tries to execute the query as a DatacoreJSX query.
+ *
+ * @param query - The DatacoreJS query to execute.
+ * @param file - The PublishFile object representing the file being compiled.
+ * @param dcApi - The DatacoreApi instance to use for executing the query.
+ * @returns A promise that resolves to an HTMLDivElement containing the result of the query execution.
+ */
 async function tryExecuteJs(
 	query: string,
 	file: PublishFile,
@@ -303,6 +275,15 @@ async function tryExecuteJs(
 	return div;
 }
 
+/**
+ * Attempts to execute a DatacoreJSX query and returns the result as an HTMLDivElement.
+ * If the execution fails, it returns the div without any modifications.
+ *
+ * @param query - The DatacoreJSX query to execute.
+ * @param file - The PublishFile object representing the file being compiled.
+ * @param dcApi - The DatacoreApi instance to use for executing the query.
+ * @returns A promise that resolves to an HTMLDivElement containing the result of the query execution.
+ */
 async function tryExecuteJsx(
 	query: string,
 	file: PublishFile,
@@ -331,6 +312,15 @@ async function tryExecuteJsx(
 	return div;
 }
 
+/**
+ * Attempts to execute a DatacoreTS query and returns the result as an HTMLDivElement.
+ * If the execution fails, it tries to execute the query as a DatacoreTSX query.
+ *
+ * @param query - The DatacoreTS query to execute.
+ * @param file - The PublishFile object representing the file being compiled.
+ * @param dcApi - The DatacoreApi instance to use for executing the query.
+ * @returns A promise that resolves to an HTMLDivElement containing the result of the query execution.
+ */
 async function tryExecuteTs(
 	query: string,
 	file: PublishFile,
@@ -359,6 +349,15 @@ async function tryExecuteTs(
 	return div;
 }
 
+/**
+ * Attempts to execute a DatacoreTSX query and returns the result as an HTMLDivElement.
+ * If the execution fails, it returns the div without any modifications.
+ *
+ * @param query - The DatacoreTSX query to execute.
+ * @param file - The PublishFile object representing the file being compiled.
+ * @param dcApi - The DatacoreApi instance to use for executing the query.
+ * @returns A promise that resolves to an HTMLDivElement containing the result of the query execution.
+ */
 async function tryExecuteTsx(
 	query: string,
 	file: PublishFile,
@@ -387,6 +386,13 @@ async function tryExecuteTsx(
 	return div;
 }
 
+/**
+ * Checks if the HTMLDivElement contains a Datacore card.
+ * This is determined by checking if the class list contains "datacore-card".
+ *
+ * @param html - The HTMLDivElement to check.
+ * @returns True if the HTMLDivElement contains a Datacore card, false otherwise.
+ */
 function flagInjects(html: HTMLDivElement) {
 	const classList =
 		html.classList.length === 0

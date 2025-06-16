@@ -7,9 +7,14 @@
 	export let enableShowDiff: boolean = false;
 	export let showDiff: (path: string) => void;
 
-	const treeMap: Record<string, TreeNode> = {
-		/* child label: parent node */
-	};
+	const treeMap: Record<string, TreeNode> = {};
+
+	/**
+	 * Initialize the treeMap with the parent-child relationships.
+	 * This is used to quickly find the parent of a node when rebuilding the tree.
+	 *
+	 * @param tree - The root node of the tree.
+	 */
 	function initTreeMap(tree: TreeNode) {
 		if (tree.children) {
 			for (const child of tree.children) {
@@ -18,8 +23,17 @@
 			}
 		}
 	}
+
 	initTreeMap(tree);
 
+	/**
+	 * Rebuild the children of a node based on its checked state.
+	 * If checkAsParent is true, the children will inherit the parent's checked state.
+	 * If false, the children will only be updated based on their own checked state.
+	 *
+	 * @param node - The node whose children are to be rebuilt.
+	 * @param checkAsParent - Whether to set the children's checked state based on the parent's checked state.
+	 */
 	function rebuildChildren(node: TreeNode, checkAsParent = true) {
 		if (node.children) {
 			for (const child of node.children) {
@@ -34,6 +48,14 @@
 		}
 	}
 
+	/**
+	 * Rebuild the tree state based on the toggled node.
+	 * This function updates the checked and indeterminate states of the parent nodes
+	 * based on the state of their children.
+	 *
+	 * @param e - The event object containing the toggled node.
+	 * @param checkAsParent - Whether to set the children's checked state based on the parent's checked state.
+	 */
 	function rebuildTree(
 		e: { detail: { node: TreeNode } },
 		checkAsParent = true,
@@ -65,6 +87,7 @@
 		}
 		tree = tree;
 	}
+
 	// init the tree state
 	rebuildTree({ detail: { node: tree } }, false);
 </script>

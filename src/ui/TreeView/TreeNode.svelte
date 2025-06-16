@@ -5,7 +5,7 @@
 	};
 </script>
 
-<!-- TreeView with checkbox https://svelte.dev/repl/eca6f6392e294247b4f379fde3069274?version=3.46.6 -->
+<!-- TreeView with checkbox https://svelte.dev/playground/eca6f6392e294247b4f379fde3069274?version=5.34.3 -->
 
 <script lang="ts">
 	import { createEventDispatcher } from "svelte";
@@ -20,38 +20,58 @@
 	let { isRoot } = tree;
 
 	let expanded = _expansionState[tree.path] || false;
+
+	/**
+	 * Toggle the expansion state of the current node.
+	 * This function updates the expanded state and toggles the arrow icon.
+	 * It is called when the user clicks on the node's name or the arrow icon.
+	 */
 	const toggleExpansion = () => {
 		expanded = _expansionState[tree.path] = !expanded;
 	};
 
 	$: arrowDown = expanded;
 
+	/**
+	 * Toggle the check state of the current node.
+	 * This function updates the node's checked state and emits a 'toggle' event
+	 * to notify the parent component to rebuild the entire tree's state.
+	 */
 	const toggleCheck = () => {
-		// update the current node's state here, the UI only need to represent it,
-		// don't need to bind the check state to the UI
 		tree.checked = !tree.checked;
 
-		// emit node 'toggle' event, notify parent compnent to rebuild the entire tree's state
 		dispatch("toggle", {
 			node: tree,
 		});
 	};
+
+	/**
+	 * Dispatch a 'toggle' event when the checkbox is clicked.
+	 * This is used to update the tree's state in the parent component.
+	 *
+	 * @param e - The event object containing the node that was toggled.
+	 */
 	const dispatchChecked = (e: { detail: { node: TreeNode } }) => {
 		dispatch("toggle", { node: e.detail.node });
 	};
 
-	const setIndeterminate = (
-		node: HTMLInputElement,
-		params: { indeterminate: boolean },
-	) => {
-		node.indeterminate = params.indeterminate;
-	};
-
+	/**
+	 * Show the diff for the current node.
+	 * This function dispatches a 'showDiff' event with the current node.
+	 *
+	 * @param e - The MouseEvent that triggered the function.
+	 */
 	const showDiff = (e: MouseEvent) => {
 		e.stopPropagation();
 		dispatch("showDiff", { node: tree });
 	};
 
+	/**
+	 * Dispatch a 'showDiff' event with the current node.
+	 * This is used to notify the parent component to show the diff for the node.
+	 *
+	 * @param node - The TreeNode for which to show the diff.
+	 */
 	const dispatchShowDiff = (node: TreeNode) => {
 		dispatch("showDiff", { node });
 	};
@@ -73,9 +93,7 @@
 							type="checkbox"
 							data-label={tree.name}
 							checked={tree.checked}
-							use:setIndeterminate={{
-								indeterminate: tree.indeterminate,
-							}}
+							indeterminate={tree.indeterminate}
 							on:click={toggleCheck}
 						/>
 					{/if}
@@ -86,9 +104,7 @@
 							type="checkbox"
 							data-label={tree.name}
 							checked={tree.checked}
-							use:setIndeterminate={{
-								indeterminate: tree.indeterminate,
-							}}
+							indeterminate={tree.indeterminate}
 							on:click={toggleCheck}
 						/>
 					{/if}
@@ -119,9 +135,7 @@
 						type="checkbox"
 						data-label={tree.name}
 						checked={tree.checked}
-						use:setIndeterminate={{
-							indeterminate: tree.indeterminate,
-						}}
+						indeterminate={tree.indeterminate}
 						on:click={toggleCheck}
 					/>
 				{/if}

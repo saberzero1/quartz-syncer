@@ -19,9 +19,21 @@
 .quartz-syncer-publisher-loading-msg {
 	font-size: var(--font-ui-larger);
 	display: flex;
+	flex-grow: 0; /* Prevnets the loading message from stretching the container */
 	align-items: center;
 	flex-direction: column;
 }
+
+.quartz-syncer-progress-bar-container {
+	width: 100%;
+}
+.quartz-syncer-progress-bar-text {
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 button.quartz-syncer-publisher-button {
 	background-color: var(--interactive-accent);
 	color: var(--text-on-accent);
@@ -47,11 +59,24 @@ button.quartz-syncer-publisher-button {
 }
 
 /* Quartz Syncer Diff View */
+.modal:has(pre.quartz-syncer-diff-view) {
+	max-width: var(--modal-max-width, 100%);
+	width: var(--modal-width, 100%);
+}
+
+body.is-mobile .modal:has(pre.quartz-syncer-diff-view) {
+	width: 100%;
+}
+
+body.is-mobile .quartz-syncer-diff-view-container {
+	overflow-x: auto;
+}
 
 pre.quartz-syncer-diff-view {
 	display: block;
-	white-space: pre-wrap;
+	white-space: pre;
 	word-wrap: break-word;
+	width: fit-content;
 }
 
 pre.quartz-syncer-diff-view.quartz-syncer-diff-added {
@@ -71,7 +96,7 @@ pre.quartz-syncer-diff-view.quartz-syncer-diff-removed {
 }
 
 .quartz-syncer-diff-line {
-	white-space: pre-wrap;
+	white-space: pre;
 	word-wrap: break-word;
 }
 
@@ -275,6 +300,13 @@ input[type="checkbox"]:indeterminate:after {
 	height: 40px;
 }
 
+/* Progress bar */
+.quartz-syncer-progress-bar-container {
+	width: 100%;
+	height: 40px;
+	margin-top: 10px;
+}
+
 /* Publication center */
 .quartz-syncer-modal-title {
 }
@@ -308,6 +340,7 @@ input[type="checkbox"]:indeterminate:after {
 	font-size: var(--font-text-size);
 
 	display: flex;
+	flex-shrink: 0;
 	flex-direction: row;
 	white-space: nowrap;
 
@@ -394,7 +427,7 @@ input[type="checkbox"]:indeterminate:after {
 .quartz-syncer-setting-header .quartz-syncer-setting-tab-group {
 	display: flex;
 	align-items: flex-end;
-	flex-wrap: wrap;
+	overflow-x: auto;
 	width: 100%;
 }
 
