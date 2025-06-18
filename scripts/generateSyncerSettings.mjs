@@ -21,6 +21,7 @@ const quartzSettings = {
 	useDatacore: false,
 	useDataview: true,
 	useExcalidraw: false,
+	useFantasyStatblock: false,
 
 	useThemes: false,
 

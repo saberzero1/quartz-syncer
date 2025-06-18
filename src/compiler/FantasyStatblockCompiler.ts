@@ -2,8 +2,19 @@ import { App, Component, Notice } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { isPluginEnabled, delay } from "src/utils/utils";
+import { fantasyStatblock } from "src/utils/styles";
 import Logger from "js-logger";
 
+/**
+ * FantasyStatblockCompiler is responsible for compiling FantasyStatblocks queries
+ * in the text of a PublishFile.
+ *
+ * It replaces the queries with their rendered results and injects the necessary CSS
+ * for the FantasyStatblock renders.
+ * It uses the FantasyStatblock API to render the queries.
+ *
+ * Documentation: {@link https://plugins.javalent.com/statblocks}
+ */
 export class FantasyStatblockCompiler {
 	app: App;
 	fantasyStatblockApi: FantasyStatblockApi | undefined;
@@ -25,12 +36,13 @@ export class FantasyStatblockCompiler {
 	 */
 	compile: TCompilerStep = (file) => async (text) => {
 		let replacedText = text;
+		let injectCSS = false;
 
 		if (!this.fantasyStatblockApi) return text;
 
 		const fantasyStatblockApi = this.fantasyStatblockApi;
 
-		const fantasyStatblockRegex = /```statblock\s(.+?)```/gms;
+		const fantasyStatblockRegex = /(```statblock\s.+?```)/gms;
 
 		const fantasyStatblockMatches = text.matchAll(fantasyStatblockRegex);
 
@@ -49,18 +61,54 @@ export class FantasyStatblockCompiler {
 				);
 
 				if (renderedDiv) {
+					// Remove redunant elements
+					const selectorsToRemove = [
+						".clickable-icon.extra-setting-button",
+						".statblock-inline-item.action-container",
+					];
+
+					selectorsToRemove.forEach((selector) => {
+						const elements = renderedDiv.querySelectorAll(selector);
+						elements.forEach((el) => el.remove());
+					});
+
+					// Wrap all modifiers textConetn in parantheses
+					const modifiers = renderedDiv.querySelectorAll(
+						"span.calculated-modifier",
+					);
+
+					// Apply `::before` and `::after` styles directly
+					modifiers.forEach((modifier) => {
+						if (modifier.textContent) {
+							modifier.textContent = `(${modifier.textContent})`;
+						}
+					});
+
+					injectCSS = true;
+
 					const renderedHTML =
 						this.serializer.serializeToString(renderedDiv);
 
 					replacedText = replacedText.replace(
 						statblock[0],
-						renderedHTML,
+						renderedHTML.replace(
+							' xmlns="http://www.w3.org/1999/xhtml"',
+							"",
+						),
 					);
 				}
 			} catch (error) {
 				Logger.error(error);
 				new Notice(`FantasyStatblock execution error: ${error}`);
 			}
+		}
+
+		if (injectCSS) {
+			// Inject the CSS for FantasyStatblock renders
+			replacedText += `
+
+<style>${fantasyStatblock}</style>
+`;
 		}
 
 		return replacedText;
@@ -76,7 +124,7 @@ export class FantasyStatblockCompiler {
  * @returns The FantasyStatblockApi instance or undefined if the plugin is not enabled.
  */
 function getFantasyStatblockApi(): FantasyStatblockApi | undefined {
-	if (isPluginEnabled("fantasy-statblock")) {
+	if (isPluginEnabled("obsidian-5e-statblocks")) {
 		//@ts-expect-error If datacore is enabled, it should be available on the window object
 		return window.FantasyStatblocks as FantasyStatblockApi;
 	}
@@ -126,6 +174,11 @@ async function tryRenderStatblock(
 	return div;
 }
 
+/**
+ * FantasyStatblockApi is a class that provides methods to render FantasyStatblocks queries
+ * using the FantasyStatblock API.
+ * These mappings match the FantasyStatblock Obsidian plugin.
+ */
 declare class FantasyStatblockApi {
 	fantasyStatblockApi: FantasyStatblockApi;
 	constructor(fantasyStatblockApi: FantasyStatblockApi);
