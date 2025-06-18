@@ -60,7 +60,7 @@ export class FantasyStatblocksCompiler {
 				);
 
 				if (renderedDiv) {
-					// Remove redunant elements
+					// Remove redundant elements
 					const selectorsToRemove = [
 						".clickable-icon.extra-setting-button",
 						".statblock-inline-item.action-container",
