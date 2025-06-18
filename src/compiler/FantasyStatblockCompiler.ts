@@ -46,8 +46,6 @@ export class FantasyStatblockCompiler {
 
 		const fantasyStatblockMatches = text.matchAll(fantasyStatblockRegex);
 
-		if (!fantasyStatblockMatches) return text;
-
 		for (const statblock of fantasyStatblockMatches) {
 			const query = statblock[1].trim();
 
@@ -133,8 +131,7 @@ function getFantasyStatblockApi(): FantasyStatblockApi | undefined {
 }
 
 /**
- * Attempts to execute a DatacoreJS query and returns the result as an HTMLDivElement.
- * If the execution fails, it tries to execute the query as a DatacoreJSX query.
+ * Attempts to execute a Fantasy Statblocks query and returns the result as an HTMLDivElement.
  *
  * @param query - The FantasyStatblock query to execute.
  * @param file - The PublishFile object representing the file being compiled.
@@ -160,7 +157,7 @@ async function tryRenderStatblock(
 	} catch (error) {
 		Logger.error(error);
 
-		new Notice(`DatacoreJS execution error: ${error}, trying JSX...`);
+		new Notice(`Fantasy Statblocks execution error: ${error}.`);
 
 		return div;
 	}
