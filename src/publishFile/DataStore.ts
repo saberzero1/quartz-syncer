@@ -31,15 +31,17 @@ export class DataStore {
 	/**
 	 * Create a new DataStore instance for caching metadata about files and sections.
 	 *
+	 * @param vaultName - The name of the vault to use for the cache instance.
 	 * @param appId - The application ID to use for the cache instance.
 	 * @param version - The version of the application to use for the cache instance.
 	 */
 	public constructor(
+		public vaultName: string,
 		public appId: string,
 		public version: string,
 	) {
 		this.persister = localforage.createInstance({
-			name: `quartz-syncer/cache/${appId}/${version}`,
+			name: `quartz-syncer/cache/${vaultName}/${appId}/${version}`,
 			driver: [localforage.INDEXEDDB],
 			description:
 				"Cache metadata about files and sections in the quartz syncer index.",
