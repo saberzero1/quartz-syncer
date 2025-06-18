@@ -233,6 +233,7 @@ function renderPromise(
 			// Ensure the timeout is cleared if the observer resolves first
 			const observer = new MutationObserver(() => {
 				if (div.querySelector(selector)) {
+					observer.disconnect();
 					clearTimeout(timeout);
 				}
 			});
