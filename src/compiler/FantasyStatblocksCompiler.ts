@@ -15,14 +15,14 @@ import Logger from "js-logger";
  *
  * Documentation: {@link https://plugins.javalent.com/statblocks}
  */
-export class FantasyStatblockCompiler {
+export class FantasyStatblocksCompiler {
 	app: App;
-	fantasyStatblockApi: FantasyStatblockApi | undefined;
+	fantasyStatblocksApi: FantasyStatblocksApi | undefined;
 	serializer: XMLSerializer;
 
 	constructor(app: App) {
 		this.app = app;
-		this.fantasyStatblockApi = getFantasyStatblockApi();
+		this.fantasyStatblocksApi = getFantasyStatblocksApi();
 		this.serializer = new XMLSerializer();
 	}
 
@@ -38,15 +38,15 @@ export class FantasyStatblockCompiler {
 		let replacedText = text;
 		let injectCSS = false;
 
-		if (!this.fantasyStatblockApi) return text;
+		if (!this.fantasyStatblocksApi) return text;
 
-		const fantasyStatblockApi = this.fantasyStatblockApi;
+		const fantasyStatblocksApi = this.fantasyStatblocksApi;
 
-		const fantasyStatblockRegex = /(```statblock\s.+?```)/gms;
+		const fantasyStatblocksRegex = /(```statblock\s.+?```)/gms;
 
-		const fantasyStatblockMatches = text.matchAll(fantasyStatblockRegex);
+		const fantasyStatblocksMatches = text.matchAll(fantasyStatblocksRegex);
 
-		for (const statblock of fantasyStatblockMatches) {
+		for (const statblock of fantasyStatblocksMatches) {
 			const query = statblock[1].trim();
 
 			if (!query) continue;
@@ -55,7 +55,7 @@ export class FantasyStatblockCompiler {
 				const renderedDiv = await tryRenderStatblock(
 					query,
 					file,
-					fantasyStatblockApi,
+					fantasyStatblocksApi,
 				);
 
 				if (renderedDiv) {
@@ -121,10 +121,10 @@ export class FantasyStatblockCompiler {
  *
  * @returns The FantasyStatblockApi instance or undefined if the plugin is not enabled.
  */
-function getFantasyStatblockApi(): FantasyStatblockApi | undefined {
+function getFantasyStatblocksApi(): FantasyStatblocksApi | undefined {
 	if (isPluginEnabled("obsidian-5e-statblocks")) {
 		//@ts-expect-error If datacore is enabled, it should be available on the window object
-		return window.FantasyStatblocks as FantasyStatblockApi;
+		return window.FantasyStatblocks as FantasyStatblocksApi;
 	}
 
 	return undefined;
@@ -135,20 +135,20 @@ function getFantasyStatblockApi(): FantasyStatblockApi | undefined {
  *
  * @param query - The FantasyStatblocks query to execute.
  * @param file - The PublishFile object representing the file being compiled.
- * @param fantasyStatblockApi - The FantasyStatblockApi instance to use for executing the query.
+ * @param fantasyStatblocksApi - The FantasyStatblockApi instance to use for executing the query.
  * @returns A promise that resolves to an HTMLDivElement containing the result of the query execution.
  */
 async function tryRenderStatblock(
 	query: string,
 	file: PublishFile,
-	fantasyStatblockApi: FantasyStatblockApi,
+	fantasyStatblocksApi: FantasyStatblocksApi,
 ) {
 	const div = createEl("div");
 	const component = new Component();
 	component.load();
 
 	try {
-		fantasyStatblockApi.renderMarkdown(
+		fantasyStatblocksApi.renderMarkdown(
 			query,
 			div,
 			file.getPath(),
@@ -176,9 +176,9 @@ async function tryRenderStatblock(
  * using the FantasyStatblocks API.
  * These mappings match the FantasyStatblocks Obsidian plugin.
  */
-declare class FantasyStatblockApi {
-	fantasyStatblockApi: FantasyStatblockApi;
-	constructor(fantasyStatblockApi: FantasyStatblockApi);
+declare class FantasyStatblocksApi {
+	fantasyStatblocksApi: FantasyStatblocksApi;
+	constructor(fantasyStatblockApi: FantasyStatblocksApi);
 
 	/**
 	 * Renders markdown string to an HTML element using Obsidian's Markdown renderer.

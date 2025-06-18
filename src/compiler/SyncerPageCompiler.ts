@@ -30,7 +30,7 @@ import {
 import Logger from "js-logger";
 import { DataviewCompiler } from "src/compiler/DataviewCompiler";
 import { DatacoreCompiler } from "./DatacoreCompiler";
-import { FantasyStatblockCompiler } from "./FantasyStatblockCompiler";
+import { FantasyStatblocksCompiler } from "./FantasyStatblocksCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { DataStore } from "src/publishFile/DataStore";
 
@@ -284,9 +284,11 @@ export class SyncerPageCompiler {
 			return text;
 		}
 
-		const fantasyStatblockCompiler = new FantasyStatblockCompiler(this.app);
+		const fantasyStatblocksCompiler = new FantasyStatblocksCompiler(
+			this.app,
+		);
 
-		return await fantasyStatblockCompiler.compile(file)(text);
+		return await fantasyStatblocksCompiler.compile(file)(text);
 	};
 
 	/**
