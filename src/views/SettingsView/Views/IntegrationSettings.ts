@@ -38,7 +38,7 @@ export class IntegrationSettings extends PluginSettingTab {
 		this.initializeDataviewSetting();
 		this.initializeDatacoreSetting();
 		this.initializeExcalidrawSetting();
-		this.initializeFantasyStatblockSetting();
+		this.initializeFantasyStatblocksSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "integration";
 		this.settings.saveSettings();
@@ -154,8 +154,8 @@ export class IntegrationSettings extends PluginSettingTab {
 	 * This method creates a toggle for enabling/disabling Fantasy Statblocks integration.
 	 * It checks if the Fantasy Statblocks plugin is enabled and updates the settings accordingly.
 	 */
-	private initializeFantasyStatblockSetting() {
-		const fantasyStatblockEnabled = isPluginEnabled(
+	private initializeFantasyStatblocksSetting() {
+		const fantasyStatblocksEnabled = isPluginEnabled(
 			"obsidian-5e-statblocks",
 		);
 
@@ -168,18 +168,18 @@ export class IntegrationSettings extends PluginSettingTab {
 				toggle
 					.setValue(
 						this.settings.settings.useFantasyStatblocks &&
-							fantasyStatblockEnabled,
+							fantasyStatblocksEnabled,
 					)
-					.setDisabled(!fantasyStatblockEnabled)
+					.setDisabled(!fantasyStatblocksEnabled)
 					.onChange(async (value) => {
 						this.settings.settings.useFantasyStatblocks =
-							value && fantasyStatblockEnabled;
+							value && fantasyStatblocksEnabled;
 						await this.settings.saveSettings();
 					}),
 			)
 			.setClass(
 				`${
-					fantasyStatblockEnabled
+					fantasyStatblocksEnabled
 						? "quartz-syncer-settings-enabled"
 						: "quartz-syncer-settings-disabled"
 				}`,
