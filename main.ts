@@ -79,12 +79,12 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	 */
 	useExcalidraw: false,
 	/**
-	 * Enable Fantasy Statblock integration.
-	 * This will allow the plugin to use Fantasy Statblock queries in the published notes.
+	 * Enable Fantasy Statblocks integration.
+	 * This will allow the plugin to use Fantasy Statblocks queries in the published notes.
 	 *
-	 * Fantasy Statblock documentation: {@link https://plugins.javalent.com/statblocks}
+	 * Fantasy Statblocks documentation: {@link https://plugins.javalent.com/statblocks}
 	 */
-	useFantasyStatblock: false,
+	useFantasyStatblocks: false,
 
 	/** Themes settings */
 	/**

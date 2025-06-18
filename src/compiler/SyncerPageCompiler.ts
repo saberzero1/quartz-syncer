@@ -280,7 +280,7 @@ export class SyncerPageCompiler {
 	};
 
 	convertFantasyStatblocks = (file: PublishFile) => async (text: string) => {
-		if (!this.settings.useFantasyStatblock) {
+		if (!this.settings.useFantasyStatblocks) {
 			return text;
 		}
 

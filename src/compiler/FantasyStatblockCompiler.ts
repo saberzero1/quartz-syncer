@@ -2,7 +2,7 @@ import { App, Component, Notice } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { isPluginEnabled, delay } from "src/utils/utils";
-import { fantasyStatblock } from "src/utils/styles";
+import { fantasyStatblocks } from "src/utils/styles";
 import Logger from "js-logger";
 
 /**
@@ -10,8 +10,8 @@ import Logger from "js-logger";
  * in the text of a PublishFile.
  *
  * It replaces the queries with their rendered results and injects the necessary CSS
- * for the FantasyStatblock renders.
- * It uses the FantasyStatblock API to render the queries.
+ * for the FantasyStatblocks renders.
+ * It uses the FantasyStatblocks API to render the queries.
  *
  * Documentation: {@link https://plugins.javalent.com/statblocks}
  */
@@ -28,11 +28,11 @@ export class FantasyStatblockCompiler {
 
 	/**
 	 * Compiles the text by replacing FantasyStatblocks queries with their results.
-	 * It also injects the necessary CSS for the FantasyStatblock renders.
+	 * It also injects the necessary CSS for the FantasyStatblocks renders.
 	 *
 	 * @param file - The PublishFile object representing the file being compiled.
 	 * @returns A function that takes the text to compile and returns the compiled text.
-	 * @throws If the FantasyStatblock API is not available, a notice is shown to the user.
+	 * @throws If the FantasyStatblocks API is not available, a notice is shown to the user.
 	 */
 	compile: TCompilerStep = (file) => async (text) => {
 		let replacedText = text;
@@ -70,7 +70,7 @@ export class FantasyStatblockCompiler {
 						elements.forEach((el) => el.remove());
 					});
 
-					// Wrap all modifiers textConetn in parantheses
+					// Wrap all modifiers textContent in parentheses
 					const modifiers = renderedDiv.querySelectorAll(
 						"span.calculated-modifier",
 					);
@@ -97,15 +97,15 @@ export class FantasyStatblockCompiler {
 				}
 			} catch (error) {
 				Logger.error(error);
-				new Notice(`FantasyStatblock execution error: ${error}`);
+				new Notice(`FantasyStatblocks execution error: ${error}`);
 			}
 		}
 
 		if (injectCSS) {
-			// Inject the CSS for FantasyStatblock renders
+			// Inject the CSS for FantasyStatblocks renders
 			replacedText += `
 
-<style>${fantasyStatblock}</style>
+<style>${fantasyStatblocks}</style>
 `;
 		}
 
@@ -114,7 +114,7 @@ export class FantasyStatblockCompiler {
 }
 
 /**
- * Gets the FantasyStatblock API from the window object if the plugin is enabled.
+ * Gets the FantasyStatblocks API from the window object if the plugin is enabled.
  * If the plugin is not enabled, it returns undefined.
  *
  * Relevant documentation: {@link https://blacksmithgu.github.io/datacore/code-views}
@@ -133,7 +133,7 @@ function getFantasyStatblockApi(): FantasyStatblockApi | undefined {
 /**
  * Attempts to execute a Fantasy Statblocks query and returns the result as an HTMLDivElement.
  *
- * @param query - The FantasyStatblock query to execute.
+ * @param query - The FantasyStatblocks query to execute.
  * @param file - The PublishFile object representing the file being compiled.
  * @param fantasyStatblockApi - The FantasyStatblockApi instance to use for executing the query.
  * @returns A promise that resolves to an HTMLDivElement containing the result of the query execution.
@@ -173,8 +173,8 @@ async function tryRenderStatblock(
 
 /**
  * FantasyStatblockApi is a class that provides methods to render FantasyStatblocks queries
- * using the FantasyStatblock API.
- * These mappings match the FantasyStatblock Obsidian plugin.
+ * using the FantasyStatblocks API.
+ * These mappings match the FantasyStatblocks Obsidian plugin.
  */
 declare class FantasyStatblockApi {
 	fantasyStatblockApi: FantasyStatblockApi;

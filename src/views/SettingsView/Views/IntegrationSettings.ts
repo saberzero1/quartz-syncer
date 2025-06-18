@@ -150,9 +150,9 @@ export class IntegrationSettings extends PluginSettingTab {
 	}
 
 	/**
-	 * Initializes the Fantasy Statblock setting.
-	 * This method creates a toggle for enabling/disabling Fantasy Statblock integration.
-	 * It checks if the Fantasy Statblock plugin is enabled and updates the settings accordingly.
+	 * Initializes the Fantasy Statblocks setting.
+	 * This method creates a toggle for enabling/disabling Fantasy Statblocks integration.
+	 * It checks if the Fantasy Statblocks plugin is enabled and updates the settings accordingly.
 	 */
 	private initializeFantasyStatblockSetting() {
 		const fantasyStatblockEnabled = isPluginEnabled(
@@ -167,12 +167,12 @@ export class IntegrationSettings extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(
-						this.settings.settings.useFantasyStatblock &&
+						this.settings.settings.useFantasyStatblocks &&
 							fantasyStatblockEnabled,
 					)
 					.setDisabled(!fantasyStatblockEnabled)
 					.onChange(async (value) => {
-						this.settings.settings.useFantasyStatblock =
+						this.settings.settings.useFantasyStatblocks =
 							value && fantasyStatblockEnabled;
 						await this.settings.saveSettings();
 					}),
