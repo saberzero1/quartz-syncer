@@ -131,7 +131,11 @@ export default class QuartzSyncer extends Plugin {
 			this.settings.pluginVersion = this.appVersion;
 		}
 
-		this.datastore = new DataStore(this.manifest.id, this.appVersion);
+		this.datastore = new DataStore(
+			this.app.vault.getName(),
+			this.manifest.id,
+			this.appVersion,
+		);
 
 		if (this.settings.useCache && this.settings.syncCache) {
 			let timestamp = await this.datastore.persister.getItem("data.json");
