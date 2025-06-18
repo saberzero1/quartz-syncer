@@ -1,7 +1,7 @@
 import { App, Component, Notice } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
-import { isPluginEnabled, delay } from "src/utils/utils";
+import { isPluginEnabled } from "src/utils/utils";
 import { fantasyStatblocks } from "src/utils/styles";
 import Logger from "js-logger";
 
@@ -161,12 +161,16 @@ async function tryRenderStatblock(
 
 		return div;
 	}
-	let counter = 0;
 
-	while (!div.querySelector(".statblock") && counter < 100) {
-		await delay(5);
-		counter++;
-	}
+	await new Promise<void>((resolve) => {
+		const observer = new MutationObserver(() => {
+			if (div.querySelector(".statblock")) {
+				observer.disconnect();
+				resolve();
+			}
+		});
+		observer.observe(div, { childList: true, subtree: true });
+	});
 
 	return div;
 }
