@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-06-16T22:38:07Z+0200
+modified: 2025-06-18T13:17:40Z+0200
 publish: true
 ---
 
@@ -22,6 +22,11 @@ publish: true
 - Manage Quartz components.
 
 ## Released
+
+### Version 1.8.1
+
+- Fixed caching to be vault-specific.
+- Updated documentation1.
 
 ### Version 1.8.0
 
