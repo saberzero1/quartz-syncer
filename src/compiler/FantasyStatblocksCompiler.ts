@@ -4,6 +4,7 @@ import { PublishFile } from "src/publishFile/PublishFile";
 import { isPluginEnabled } from "src/utils/utils";
 import { fantasyStatblocks } from "src/utils/styles";
 import Logger from "js-logger";
+import { FANTASY_STATBLOCKS_PLUGIN_ID } from "src/ui/suggest/constants";
 
 /**
  * FantasyStatblockCompiler is responsible for compiling FantasyStatblocks queries
@@ -122,7 +123,7 @@ export class FantasyStatblocksCompiler {
  * @returns The FantasyStatblockApi instance or undefined if the plugin is not enabled.
  */
 function getFantasyStatblocksApi(): FantasyStatblocksApi | undefined {
-	if (isPluginEnabled("obsidian-5e-statblocks")) {
+	if (isPluginEnabled(FANTASY_STATBLOCKS_PLUGIN_ID)) {
 		//@ts-expect-error If datacore is enabled, it should be available on the window object
 		return window.FantasyStatblocks as FantasyStatblocksApi;
 	}

@@ -11,6 +11,7 @@ import {
 } from "src/utils/utils";
 import { datacoreCard } from "src/utils/styles";
 import Logger from "js-logger";
+import { DATACORE_PLUGIN_ID } from "src/ui/suggest/constants";
 
 /**
  * DatacoreCompiler class.
@@ -230,7 +231,7 @@ export class DatacoreCompiler {
  * @returns The DatacoreApi instance or undefined if the plugin is not enabled.
  */
 function getDatacoreApi(): DatacoreApi | undefined {
-	if (isPluginEnabled("datacore")) {
+	if (isPluginEnabled(DATACORE_PLUGIN_ID)) {
 		//@ts-expect-error If datacore is enabled, it should be available on the window object
 		return window.datacore as DatacoreApi;
 	}
