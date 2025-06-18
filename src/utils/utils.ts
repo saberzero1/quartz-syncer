@@ -199,7 +199,7 @@ function cleanQueryResult(markdown: string): string {
 }
 
 /**
- * Delays the execution of a promise until a specific element is rendered in the DOM.
+ * Delays the execution of a promise until a specific selector is observed in the DOM.
  * It uses a MutationObserver to watch for changes in the specified HTMLDivElement.
  * If the element with the specified selector is found, it resolves the promise.
  * If the element is not found within the specified milliseconds, it rejects the promise with a timeout error.

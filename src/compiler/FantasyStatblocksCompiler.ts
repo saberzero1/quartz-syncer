@@ -124,7 +124,7 @@ export class FantasyStatblocksCompiler {
  */
 function getFantasyStatblocksApi(): FantasyStatblocksApi | undefined {
 	if (isPluginEnabled(FANTASY_STATBLOCKS_PLUGIN_ID)) {
-		//@ts-expect-error If datacore is enabled, it should be available on the window object
+		//@ts-expect-error If Fantasy Statblocks is enabled, it should be available on the window object
 		return window.FantasyStatblocks as FantasyStatblocksApi;
 	}
 
