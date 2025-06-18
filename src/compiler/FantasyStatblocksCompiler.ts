@@ -163,15 +163,34 @@ async function tryRenderStatblock(
 		return div;
 	}
 
-	await new Promise<void>((resolve) => {
-		const observer = new MutationObserver(() => {
-			if (div.querySelector(".statblock")) {
-				observer.disconnect();
-				resolve();
-			}
-		});
-		observer.observe(div, { childList: true, subtree: true });
-	});
+	await Promise.race([
+		new Promise<void>((resolve) => {
+			const observer = new MutationObserver(() => {
+				if (div.querySelector(".statblock")) {
+					observer.disconnect();
+					resolve();
+				}
+			});
+			observer.observe(div, { childList: true, subtree: true });
+		}),
+		new Promise<void>((_, reject) => {
+			const timeout = setTimeout(() => {
+				reject(
+					new Error(
+						"Timeout: .statblock element was not injected within the expected time.",
+					),
+				);
+			}, 5000); // 5 seconds timeout
+
+			// Ensure the timeout is cleared if the observer resolves first
+			const observer = new MutationObserver(() => {
+				if (div.querySelector(".statblock")) {
+					clearTimeout(timeout);
+				}
+			});
+			observer.observe(div, { childList: true, subtree: true });
+		}),
+	]);
 
 	return div;
 }
