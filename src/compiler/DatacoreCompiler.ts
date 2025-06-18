@@ -3,7 +3,7 @@ import { App, Component, Notice } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import {
-	delay,
+	renderPromise,
 	isPluginEnabled,
 	sanitizeHTMLToString,
 	surroundWithCalloutBlock,
@@ -266,12 +266,11 @@ async function tryExecuteJs(
 
 		return tryExecuteJsx(query, file, dcApi);
 	}
-	let counter = 0;
 
-	while (!div.querySelector("[data-tag-name]") && counter < 100) {
-		await delay(5);
-		counter++;
-	}
+	await renderPromise(
+		div,
+		'[class*=datacore], [__self="[Object object]"], [__source="[Object object]"]',
+	);
 
 	return div;
 }
@@ -303,12 +302,11 @@ async function tryExecuteJsx(
 
 		return div;
 	}
-	let counter = 0;
 
-	while (!div.querySelector("[data-tag-name]") && counter < 100) {
-		await delay(5);
-		counter++;
-	}
+	await renderPromise(
+		div,
+		'[class*=datacore], [__self="[Object object]"], [__source="[Object object]"]',
+	);
 
 	return div;
 }
@@ -340,12 +338,11 @@ async function tryExecuteTs(
 
 		return tryExecuteTsx(query, file, dcApi);
 	}
-	let counter = 0;
 
-	while (!div.querySelector("[data-tag-name]") && counter < 100) {
-		await delay(5);
-		counter++;
-	}
+	await renderPromise(
+		div,
+		'[class*=datacore], [__self="[Object object]"], [__source="[Object object]"]',
+	);
 
 	return div;
 }
@@ -377,12 +374,11 @@ async function tryExecuteTsx(
 
 		return div;
 	}
-	let counter = 0;
 
-	while (!div.querySelector("[data-tag-name]") && counter < 100) {
-		await delay(5);
-		counter++;
-	}
+	await renderPromise(
+		div,
+		'[class*=datacore], [__self="[Object object]"], [__source="[Object object]"]',
+	);
 
 	return div;
 }

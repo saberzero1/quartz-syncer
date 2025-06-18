@@ -1,13 +1,13 @@
 import { App, Component, Notice } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
-import { isPluginEnabled } from "src/utils/utils";
+import { isPluginEnabled, renderPromise } from "src/utils/utils";
 import { fantasyStatblocks } from "src/utils/styles";
 import Logger from "js-logger";
 import { FANTASY_STATBLOCKS_PLUGIN_ID } from "src/ui/suggest/constants";
 
 /**
- * FantasyStatblockCompiler is responsible for compiling FantasyStatblocks queries
+ * FantasyStatblocksCompiler is responsible for compiling FantasyStatblocks queries
  * in the text of a PublishFile.
  *
  * It replaces the queries with their rendered results and injects the necessary CSS
@@ -118,7 +118,7 @@ export class FantasyStatblocksCompiler {
  * Gets the FantasyStatblocks API from the window object if the plugin is enabled.
  * If the plugin is not enabled, it returns undefined.
  *
- * Relevant documentation: {@link https://blacksmithgu.github.io/datacore/code-views}
+ * Relevant documentation: {@link https://plugins.javalent.com/statblocks}
  *
  * @returns The FantasyStatblockApi instance or undefined if the plugin is not enabled.
  */
@@ -163,34 +163,7 @@ async function tryRenderStatblock(
 		return div;
 	}
 
-	await Promise.race([
-		new Promise<void>((resolve) => {
-			const observer = new MutationObserver(() => {
-				if (div.querySelector(".statblock")) {
-					observer.disconnect();
-					resolve();
-				}
-			});
-			observer.observe(div, { childList: true, subtree: true });
-		}),
-		new Promise<void>((_, reject) => {
-			const timeout = setTimeout(() => {
-				reject(
-					new Error(
-						"Timeout: .statblock element was not injected within the expected time.",
-					),
-				);
-			}, 5000); // 5 seconds timeout
-
-			// Ensure the timeout is cleared if the observer resolves first
-			const observer = new MutationObserver(() => {
-				if (div.querySelector(".statblock")) {
-					clearTimeout(timeout);
-				}
-			});
-			observer.observe(div, { childList: true, subtree: true });
-		}),
-	]);
+	await renderPromise(div, ".statblock", 5000);
 
 	return div;
 }
