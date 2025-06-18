@@ -2,6 +2,11 @@ import { Setting, App, PluginSettingTab } from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 import { isPluginEnabled } from "src/utils/utils";
+import {
+	DATACORE_PLUGIN_ID,
+	DATAVIEW_PLUGIN_ID,
+	FANTASY_STATBLOCKS_PLUGIN_ID,
+} from "src/ui/suggest/constants";
 
 /**
  * IntegrationSettings class.
@@ -38,6 +43,7 @@ export class IntegrationSettings extends PluginSettingTab {
 		this.initializeDataviewSetting();
 		this.initializeDatacoreSetting();
 		this.initializeExcalidrawSetting();
+		this.initializeFantasyStatblocksSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "integration";
 		this.settings.saveSettings();
@@ -62,7 +68,7 @@ export class IntegrationSettings extends PluginSettingTab {
 	 * It checks if the Datacore plugin is enabled and updates the settings accordingly.
 	 */
 	private initializeDatacoreSetting() {
-		const datacoreEnabled = isPluginEnabled("datacore");
+		const datacoreEnabled = isPluginEnabled(DATACORE_PLUGIN_ID);
 
 		new Setting(this.settingsRootElement)
 			.setName("Enable Datacore integration")
@@ -96,7 +102,7 @@ export class IntegrationSettings extends PluginSettingTab {
 	 * It checks if the Dataview plugin is enabled and updates the settings accordingly.
 	 */
 	private initializeDataviewSetting() {
-		const dataviewEnabled = isPluginEnabled("dataview");
+		const dataviewEnabled = isPluginEnabled(DATAVIEW_PLUGIN_ID);
 
 		new Setting(this.settingsRootElement)
 			.setName("Enable Dataview integration")
@@ -146,5 +152,42 @@ export class IntegrationSettings extends PluginSettingTab {
 					}),
 			)
 			.setClass("quartz-syncer-settings-upcoming");
+	}
+
+	/**
+	 * Initializes the Fantasy Statblocks setting.
+	 * This method creates a toggle for enabling/disabling Fantasy Statblocks integration.
+	 * It checks if the Fantasy Statblocks plugin is enabled and updates the settings accordingly.
+	 */
+	private initializeFantasyStatblocksSetting() {
+		const fantasyStatblocksEnabled = isPluginEnabled(
+			FANTASY_STATBLOCKS_PLUGIN_ID,
+		);
+
+		new Setting(this.settingsRootElement)
+			.setName("Enable Fantasy Statblocks integration")
+			.setDesc(
+				"Converts Fantasy Statblocks queries into Quartz-compatible format.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(
+						this.settings.settings.useFantasyStatblocks &&
+							fantasyStatblocksEnabled,
+					)
+					.setDisabled(!fantasyStatblocksEnabled)
+					.onChange(async (value) => {
+						this.settings.settings.useFantasyStatblocks =
+							value && fantasyStatblocksEnabled;
+						await this.settings.saveSettings();
+					}),
+			)
+			.setClass(
+				`${
+					fantasyStatblocksEnabled
+						? "quartz-syncer-settings-enabled"
+						: "quartz-syncer-settings-disabled"
+				}`,
+			);
 	}
 }

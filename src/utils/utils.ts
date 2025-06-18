@@ -183,6 +183,12 @@ function cleanQueryResult(markdown: string): string {
 		`<a href="tags/$2" class="tag-link">$1</a>`,
 	);
 
+	// Convert `#tag` to `<a href="tags/tag" class="tag-link">tag</a>`
+	markdown = markdown.replace(
+		/#([\w\\/]+)/g,
+		`<a href="tags/$1" class="tag-link">$1</a>`,
+	);
+
 	// remove `.md` extension from file links
 	markdown = markdown.replace(/(\[.*?\]\()(.+?)\.md(\))/g, "$1$2$3");
 
@@ -193,16 +199,47 @@ function cleanQueryResult(markdown: string): string {
 }
 
 /**
- * Delays the execution for a specified number of milliseconds.
- * This is useful for creating pauses in asynchronous operations.
+ * Delays the execution of a promise until a specific selector is observed in the DOM.
+ * It uses a MutationObserver to watch for changes in the specified HTMLDivElement.
+ * If the element with the specified selector is found, it resolves the promise.
+ * If the element is not found within the specified milliseconds, it rejects the promise with a timeout error.
  *
+ * @param div - The HTMLDivElement to observe for the presence of a `.statblock` element.
+ * @param selector - The CSS selector to observe for changes in the div.
  * @param milliseconds - The number of milliseconds to delay.
  * @returns A promise that resolves after the specified delay.
  */
-function delay(milliseconds: number) {
-	return new Promise((resolve, _) => {
-		setTimeout(resolve, milliseconds);
-	});
+function renderPromise(
+	div: HTMLDivElement,
+	selector: string,
+	milliseconds: number = 5000,
+) {
+	return Promise.race([
+		new Promise<void>((resolve) => {
+			const observer = new MutationObserver(() => {
+				if (div.querySelector(selector)) {
+					observer.disconnect();
+					resolve();
+				}
+			});
+			observer.observe(div, { childList: true, subtree: true });
+		}),
+		new Promise<void>((resolve, _) => {
+			const timeout = setTimeout(() => {
+				observer.disconnect();
+				resolve();
+			}, milliseconds);
+
+			// Ensure the timeout is cleared if the observer resolves first
+			const observer = new MutationObserver(() => {
+				if (div.querySelector(selector)) {
+					observer.disconnect();
+					clearTimeout(timeout);
+				}
+			});
+			observer.observe(div, { childList: true, subtree: true });
+		}),
+	]);
 }
 
 /**
@@ -507,7 +544,7 @@ export {
 	sanitizePermalink,
 	isPluginEnabled,
 	cleanQueryResult,
-	delay,
+	renderPromise,
 	sanitizeHTMLToString,
 	surroundWithCalloutBlock,
 	sanitizeQuery,

@@ -30,6 +30,7 @@ import {
 import Logger from "js-logger";
 import { DataviewCompiler } from "src/compiler/DataviewCompiler";
 import { DatacoreCompiler } from "./DatacoreCompiler";
+import { FantasyStatblocksCompiler } from "./FantasyStatblocksCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { DataStore } from "src/publishFile/DataStore";
 
@@ -151,6 +152,7 @@ export class SyncerPageCompiler {
 			this.createTranscludedText(0),
 			this.convertDataViews,
 			this.convertDataCores,
+			this.convertFantasyStatblocks,
 			this.convertLinksToFullPath,
 			this.removeObsidianComments,
 			this.createSvgEmbeds,
@@ -275,6 +277,18 @@ export class SyncerPageCompiler {
 		const datacoreCompiler = new DatacoreCompiler(this.app);
 
 		return await datacoreCompiler.compile(file)(text);
+	};
+
+	convertFantasyStatblocks = (file: PublishFile) => async (text: string) => {
+		if (!this.settings.useFantasyStatblocks) {
+			return text;
+		}
+
+		const fantasyStatblocksCompiler = new FantasyStatblocksCompiler(
+			this.app,
+		);
+
+		return await fantasyStatblocksCompiler.compile(file)(text);
 	};
 
 	/**

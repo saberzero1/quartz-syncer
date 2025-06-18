@@ -2,7 +2,7 @@ import { Component, Notice, htmlToMarkdown } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import {
 	cleanQueryResult,
-	delay,
+	renderPromise,
 	escapeRegExp,
 	surroundWithCalloutBlock,
 	sanitizeQuery,
@@ -255,12 +255,8 @@ async function tryExecuteJs(
 	const component = new Component();
 	component.load();
 	await dvApi.executeJs(query, div, component, file.getPath());
-	let counter = 0;
 
-	while (!div.querySelector("[data-tag-name]") && counter < 100) {
-		await delay(5);
-		counter++;
-	}
+	await renderPromise(div, "[data-tag-name]");
 
 	const markdown = htmlToMarkdown(div) || "";
 

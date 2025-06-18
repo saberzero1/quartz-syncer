@@ -67,6 +67,13 @@ export default interface QuartzSyncerSettings {
 	 * Excalidraw documentation: {@link https://excalidraw-obsidian.online/wiki/welcome}
 	 */
 	useExcalidraw: boolean;
+	/**
+	 * Enable Fantasy Statblocks integration.
+	 * This will allow the plugin to use Fantasy Statblocks queries in the published notes.
+	 *
+	 * Fantasy Statblocks documentation: {@link https://plugins.javalent.com/statblocks}
+	 */
+	useFantasyStatblocks: boolean;
 
 	/** Themes settings */
 	/**

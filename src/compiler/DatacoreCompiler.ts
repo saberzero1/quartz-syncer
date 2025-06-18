@@ -3,7 +3,7 @@ import { App, Component, Notice } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import {
-	delay,
+	renderPromise,
 	isPluginEnabled,
 	sanitizeHTMLToString,
 	surroundWithCalloutBlock,
@@ -11,6 +11,7 @@ import {
 } from "src/utils/utils";
 import { datacoreCard } from "src/utils/styles";
 import Logger from "js-logger";
+import { DATACORE_PLUGIN_ID } from "src/ui/suggest/constants";
 
 /**
  * DatacoreCompiler class.
@@ -230,7 +231,7 @@ export class DatacoreCompiler {
  * @returns The DatacoreApi instance or undefined if the plugin is not enabled.
  */
 function getDatacoreApi(): DatacoreApi | undefined {
-	if (isPluginEnabled("datacore")) {
+	if (isPluginEnabled(DATACORE_PLUGIN_ID)) {
 		//@ts-expect-error If datacore is enabled, it should be available on the window object
 		return window.datacore as DatacoreApi;
 	}
@@ -265,12 +266,11 @@ async function tryExecuteJs(
 
 		return tryExecuteJsx(query, file, dcApi);
 	}
-	let counter = 0;
 
-	while (!div.querySelector("[data-tag-name]") && counter < 100) {
-		await delay(5);
-		counter++;
-	}
+	await renderPromise(
+		div,
+		'[class*=datacore], [__self="[Object object]"], [__source="[Object object]"]',
+	);
 
 	return div;
 }
@@ -302,12 +302,11 @@ async function tryExecuteJsx(
 
 		return div;
 	}
-	let counter = 0;
 
-	while (!div.querySelector("[data-tag-name]") && counter < 100) {
-		await delay(5);
-		counter++;
-	}
+	await renderPromise(
+		div,
+		'[class*=datacore], [__self="[Object object]"], [__source="[Object object]"]',
+	);
 
 	return div;
 }
@@ -339,12 +338,11 @@ async function tryExecuteTs(
 
 		return tryExecuteTsx(query, file, dcApi);
 	}
-	let counter = 0;
 
-	while (!div.querySelector("[data-tag-name]") && counter < 100) {
-		await delay(5);
-		counter++;
-	}
+	await renderPromise(
+		div,
+		'[class*=datacore], [__self="[Object object]"], [__source="[Object object]"]',
+	);
 
 	return div;
 }
@@ -376,12 +374,11 @@ async function tryExecuteTsx(
 
 		return div;
 	}
-	let counter = 0;
 
-	while (!div.querySelector("[data-tag-name]") && counter < 100) {
-		await delay(5);
-		counter++;
-	}
+	await renderPromise(
+		div,
+		'[class*=datacore], [__self="[Object object]"], [__source="[Object object]"]',
+	);
 
 	return div;
 }
