@@ -54,7 +54,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	syncCache: true,
 	persistCache: false,
 	cacheTimestamp: 0,
-	cache: "",
+	cache: "{}",
 
 	/** Integration settings */
 	/**
@@ -131,46 +131,6 @@ export default class QuartzSyncer extends Plugin {
 
 		await this.loadSettings();
 
-		// Check if the plugin has been updated
-		// If so, clear the cache
-		if (!this.settings || this.settings.pluginVersion !== this.appVersion) {
-			await this.clearCacheForAllFiles(true);
-			this.settings.pluginVersion = this.appVersion;
-		}
-
-		this.datastore = new DataStore(
-			this.app.vault.getName(),
-			this.manifest.id,
-			this.appVersion,
-		);
-
-		if (this.settings.useCache && this.settings.syncCache) {
-			let timestamp = await this.datastore.persister.getItem("data.json");
-			let cacheData: string | undefined = undefined;
-
-			if (
-				timestamp === undefined ||
-				this.settings.cacheTimestamp === 0 ||
-				this.settings.cache === "" ||
-				this.settings.cache === undefined ||
-				(typeof timestamp === "number" &&
-					this.settings.cacheTimestamp < timestamp)
-			) {
-				const now = Date.now();
-
-				// No cached data found, save to data.json
-				[timestamp, cacheData] =
-					await this.datastore.saveToDataJson(now);
-				this.settings.cache = cacheData;
-				this.settings.cacheTimestamp = (timestamp as number) ?? now;
-				await this.saveSettings();
-			}
-
-			if (timestamp && timestamp !== this.settings.cacheTimestamp) {
-				await this.datastore.loadFromDataJson(this.settings.cache);
-			}
-		}
-
 		if (this.settings.logLevel) Logger.setLevel(this.settings.logLevel);
 
 		Logger.info("Initializing QuartzSyncer plugin v" + this.appVersion);
@@ -201,18 +161,49 @@ export default class QuartzSyncer extends Plugin {
 		if (!this.settings.persistCache) {
 			this.clearCacheForAllFiles(true);
 		}
+
+		super.onunload();
+	}
+
+	/**
+	 * Called when the plugin settings are changed externally.
+	 * This method can be used to handle changes made to the settings outside of the plugin.
+	 */
+	async onExternalSettingsChange() {
+		Logger.info("External settings change detected, reloading settings.");
+
+		await this.compareDataToCache();
 	}
 
 	/**
 	 * Loads the plugin settings from data.json.
 	 * If the settings file does not exist, it initializes with default settings.
+	 *
+	 * @param initialLoad - If true, indicates that this is the initial load of the plugin.
 	 */
-	async loadSettings() {
+	async loadSettings(): Promise<void> {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
 			await this.loadData(),
 		);
+
+		if (!this.datastore && this.settings.useCache) {
+			this.datastore = new DataStore(
+				this.app.vault.getName(),
+				this.manifest.id,
+				this.appVersion,
+			);
+		}
+
+		// Check if the plugin has been updated
+		// If so, clear the cache
+		if (!this.settings || this.settings.pluginVersion !== this.appVersion) {
+			await this.clearCacheForAllFiles(true);
+			this.settings.pluginVersion = this.appVersion;
+		}
+
+		await this.compareDataToCache();
 	}
 
 	/**
@@ -233,6 +224,7 @@ export default class QuartzSyncer extends Plugin {
 
 			const publisher = new Publisher(
 				this.app,
+				this,
 				this.app.vault,
 				this.app.metadataCache,
 				this.settings,
@@ -344,6 +336,15 @@ export default class QuartzSyncer extends Plugin {
 
 		if (this.settings.useCache) {
 			await this.datastore.persister.removeItem(cacheKey);
+			// Update the cache timestamp to invalidate the cache on next access.
+			this.settings.cacheTimestamp = Date.now();
+
+			await this.saveSettings().then(() =>
+				this.datastore.setLastUpdateTimestamp(
+					this.settings.cacheTimestamp,
+					this,
+				),
+			);
 			Logger.info(`Cache cleared for file: ${activeFile.path}`);
 			new Notice(`Cache cleared for file: ${activeFile.path}`);
 		} else {
@@ -375,7 +376,18 @@ export default class QuartzSyncer extends Plugin {
 			}
 
 			if (this.settings.useCache) {
-				await this.datastore.recreate();
+				this.settings.cache = "{}";
+				// Update the cache timestamp to invalidate the cache on next access.
+				this.settings.cacheTimestamp = Date.now();
+
+				await this.saveSettings()
+					.then(() =>
+						this.datastore.setLastUpdateTimestamp(
+							this.settings.cacheTimestamp,
+							this,
+						),
+					)
+					.then(() => this.datastore.recreate());
 				Logger.info("Cache cleared for all files.");
 				new Notice("Cache cleared for all files.");
 			} else {
@@ -386,7 +398,12 @@ export default class QuartzSyncer extends Plugin {
 			// If skipConfirmation is true, clear the cache without confirmation
 			// This is useful for automated tasks, suchs as when the plugin is unloaded
 			if (this.datastore) {
-				await this.datastore.persister.clear();
+				this.settings.cache = "{}";
+				this.settings.cacheTimestamp = Date.now();
+
+				await this.saveSettings().then(() =>
+					this.datastore.persister.clear(),
+				);
 			}
 		}
 	}
@@ -450,6 +467,7 @@ export default class QuartzSyncer extends Plugin {
 
 			const publisher = new Publisher(
 				this.app,
+				this,
 				this.app.vault,
 				this.app.metadataCache,
 				this.settings,
@@ -470,5 +488,32 @@ export default class QuartzSyncer extends Plugin {
 			);
 		}
 		this.publishModal.open();
+	}
+
+	/**
+	 * Compares the current data.json cache with the saved cache.
+	 * If the cache is outdated, it loads the data from the saved cache.
+	 * If the cache is up-to-date, it does nothing.
+	 *
+	 * @remarks
+	 * This method is called on plugin load and when settings are changed.
+	 */
+	async compareDataToCache() {
+		if (!this.settings.useCache || !this.settings.syncCache) {
+			return;
+		}
+
+		let timestamp: number | null =
+			await this.datastore.getLastUpdateTimestamp();
+
+		if (timestamp === null) {
+			timestamp = 0; // Initialize timestamp if no cache is found
+		}
+
+		if (timestamp < this.settings.cacheTimestamp) {
+			await this.datastore.saveToDataJson(timestamp, this);
+		} else {
+			await this.datastore.loadFromDataJson(timestamp, this);
+		}
 	}
 }

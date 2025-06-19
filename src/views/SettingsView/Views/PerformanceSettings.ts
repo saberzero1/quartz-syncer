@@ -156,6 +156,8 @@ export class PerformanceSettings extends PluginSettingTab {
 						.onClick(async () => {
 							// Drop all data from the datastore
 							await this.plugin.datastore.dropAllFiles();
+							this.settings.settings.cache = "{}";
+							this.settings.saveSettings();
 							new Notice("Quartz Syncer cache cleared.");
 						}),
 				);

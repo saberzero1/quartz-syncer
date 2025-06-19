@@ -24,7 +24,7 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 			);
 			siteManager.updateEnv();
 			this.plugin.settings.noteSettingsIsInitialized = true;
-			this.plugin.saveData(this.plugin.settings);
+			this.plugin.saveSettings();
 		}
 	}
 
@@ -40,7 +40,7 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 			this.plugin,
 			containerEl,
 			this.plugin.settings,
-			async () => await this.plugin.saveData(this.plugin.settings),
+			this.plugin.datastore,
 		);
 
 		await settingView.initialize();

@@ -10,6 +10,7 @@ import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteMa
 import QuartzSyncerSettings from "src/models/settings";
 import QuartzSyncer from "main";
 import QuartzSyncerSettingTabCollection from "src/models/SyncerTab";
+import { DataStore } from "src/publishFile/DataStore";
 import { GithubSettings } from "./Views/GithubSettings";
 import { QuartzSettings } from "./Views/QuartzSettings";
 import { FrontmatterSettings } from "./Views/FrontmatterSettings";
@@ -27,6 +28,7 @@ export default class SettingView {
 	app: App;
 	plugin: QuartzSyncer;
 	settings: QuartzSyncerSettings;
+	datastore: DataStore;
 	saveSettings: () => Promise<void>;
 	private settingsRootElement: HTMLElement;
 
@@ -41,7 +43,7 @@ export default class SettingView {
 		plugin: QuartzSyncer,
 		settingsRootElement: HTMLElement,
 		settings: QuartzSyncerSettings,
-		saveSettings: () => Promise<void>,
+		datastore: DataStore,
 	) {
 		this.app = app;
 		this.plugin = plugin;
@@ -54,7 +56,8 @@ export default class SettingView {
 			this.settingsRootElement.classList.add("quartz-syncer-mobile");
 
 		this.settings = settings;
-		this.saveSettings = saveSettings;
+		this.datastore = datastore;
+		this.saveSettings = () => plugin.saveSettings();
 	}
 
 	/**

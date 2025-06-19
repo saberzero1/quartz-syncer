@@ -10,6 +10,7 @@ import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { CompiledPublishFile, PublishFile } from "src/publishFile/PublishFile";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import { DataStore } from "src/publishFile/DataStore";
+import QuartzSyncer from "main";
 import Logger from "js-logger";
 
 /**
@@ -27,6 +28,7 @@ export interface MarkedForPublishing {
  */
 export default class Publisher {
 	app: App;
+	plugin: QuartzSyncer;
 	vault: Vault;
 	metadataCache: MetadataCache;
 	compiler: SyncerPageCompiler;
@@ -37,12 +39,14 @@ export default class Publisher {
 
 	constructor(
 		app: App,
+		plugin: QuartzSyncer,
 		vault: Vault,
 		metadataCache: MetadataCache,
 		settings: QuartzSyncerSettings,
 		datastore: DataStore,
 	) {
 		this.app = app;
+		this.plugin = plugin;
 		this.vault = vault;
 		this.metadataCache = metadataCache;
 		this.settings = settings;
