@@ -19,9 +19,9 @@ import { ThemesSettings } from "./Views/ThemesSettings";
 export default class SettingView {
 	app: App;
 	plugin: QuartzSyncer;
+	settingsRootElement: HTMLElement;
 	settings: QuartzSyncerSettings;
 	datastore: DataStore;
-	private settingsRootElement: HTMLElement;
 
 	constructor(
 		app: App,
