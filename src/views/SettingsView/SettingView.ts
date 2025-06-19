@@ -21,7 +21,6 @@ export default class SettingView {
 	plugin: QuartzSyncer;
 	settings: QuartzSyncerSettings;
 	datastore: DataStore;
-	saveSettings: () => Promise<void>;
 	private settingsRootElement: HTMLElement;
 
 	constructor(
@@ -43,7 +42,6 @@ export default class SettingView {
 
 		this.settings = settings;
 		this.datastore = datastore;
-		this.saveSettings = () => plugin.saveSettings();
 	}
 
 	/**

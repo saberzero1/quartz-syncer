@@ -98,10 +98,6 @@ export class FantasyStatblocksCompiler {
 				}
 			} catch (error) {
 				Logger.error(error);
-
-				new Notice(
-					`Quartz Syncer: FantasyStatblocks execution error: ${error}`,
-				);
 			}
 		}
 

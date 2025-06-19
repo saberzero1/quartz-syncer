@@ -175,12 +175,6 @@ export default class PublishStatusManager implements IPublishStatusManager {
 			);
 
 			if (this.publisher.settings.syncCache) {
-				// Update the timestamp of the cache
-				/*await this.publisher.datastore.setLastUpdateTimestamp(
-					Date.now(),
-					this.publisher.plugin,
-				);*/
-
 				// Check if shared cache needs to be updated
 				await this.publisher.plugin.compareDataToCache();
 			}
