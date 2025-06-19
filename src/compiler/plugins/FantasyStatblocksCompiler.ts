@@ -98,7 +98,6 @@ export class FantasyStatblocksCompiler {
 				}
 			} catch (error) {
 				Logger.error(error);
-				new Notice(`FantasyStatblocks execution error: ${error}`);
 			}
 		}
 
@@ -158,7 +157,9 @@ async function tryRenderStatblock(
 	} catch (error) {
 		Logger.error(error);
 
-		new Notice(`Fantasy Statblocks execution error: ${error}.`);
+		new Notice(
+			`Quartz Syncer: Fantasy Statblocks execution error: ${error}.`,
+		);
 
 		return div;
 	}

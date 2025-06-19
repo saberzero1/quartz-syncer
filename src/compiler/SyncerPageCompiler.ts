@@ -28,10 +28,8 @@ import {
 	FILE_REGEX,
 } from "src/utils/regexes";
 import Logger from "js-logger";
-import { DataviewCompiler } from "src/compiler/DataviewCompiler";
-import { DatacoreCompiler } from "./DatacoreCompiler";
-import { FantasyStatblocksCompiler } from "./FantasyStatblocksCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
+import { PluginCompiler } from "src/compiler/PluginCompiler";
 import { DataStore } from "src/publishFile/DataStore";
 
 /**
@@ -150,9 +148,7 @@ export class SyncerPageCompiler {
 		const COMPILE_STEPS: TCompilerStep[] = [
 			this.convertFrontMatter,
 			this.createTranscludedText(0),
-			this.convertDataViews,
-			this.convertDataCores,
-			this.convertFantasyStatblocks,
+			this.convertIntegrations,
 			this.convertLinksToFullPath,
 			this.removeObsidianComments,
 			this.createSvgEmbeds,
@@ -246,49 +242,16 @@ export class SyncerPageCompiler {
 	};
 
 	/**
-	 * Converts Dataview queries in the text to their results.
-	 * It uses the DataviewCompiler to compile the text.
+	 * Converts plugin integrations in the text to their results.
 	 *
-	 * @param file - The file to compile the Dataview queries for.
 	 * @returns A function that takes the text to compile and returns the compiled text.
 	 */
-	convertDataViews: TCompilerStep = (file) => async (text) => {
-		if (!this.settings.useDataview) {
-			return text;
-		}
+	convertIntegrations: TCompilerStep = (file) => async (text) => {
+		const pluginCompiler = new PluginCompiler(this.app, this.settings);
 
-		const dataviewCompiler = new DataviewCompiler();
+		text = await pluginCompiler.compile(file)(text);
 
-		return await dataviewCompiler.compile(file)(text);
-	};
-
-	/**
-	 * Converts Datacore queries in the text to their results.
-	 * It uses the DatacoreCompiler to compile the text.
-	 *
-	 * @param file - The file to compile the Datacore queries for.
-	 * @returns A function that takes the text to compile and returns the compiled text.
-	 */
-	convertDataCores = (file: PublishFile) => async (text: string) => {
-		if (!this.settings.useDatacore) {
-			return text;
-		}
-
-		const datacoreCompiler = new DatacoreCompiler(this.app);
-
-		return await datacoreCompiler.compile(file)(text);
-	};
-
-	convertFantasyStatblocks = (file: PublishFile) => async (text: string) => {
-		if (!this.settings.useFantasyStatblocks) {
-			return text;
-		}
-
-		const fantasyStatblocksCompiler = new FantasyStatblocksCompiler(
-			this.app,
-		);
-
-		return await fantasyStatblocksCompiler.compile(file)(text);
+		return text;
 	};
 
 	/**

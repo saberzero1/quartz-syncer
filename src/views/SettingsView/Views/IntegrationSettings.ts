@@ -46,7 +46,7 @@ export class IntegrationSettings extends PluginSettingTab {
 		this.initializeFantasyStatblocksSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "integration";
-		this.settings.saveSettings();
+		this.settings.plugin.saveSettings();
 	}
 
 	/**
@@ -84,7 +84,7 @@ export class IntegrationSettings extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.settings.settings.useDatacore =
 							value && datacoreEnabled;
-						await this.settings.saveSettings();
+						await this.settings.plugin.saveSettings();
 					}),
 			)
 			.setClass(
@@ -118,7 +118,7 @@ export class IntegrationSettings extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.settings.settings.useDataview =
 							value && dataviewEnabled;
-						await this.settings.saveSettings();
+						await this.settings.plugin.saveSettings();
 					}),
 			)
 			.setClass(
@@ -148,7 +148,7 @@ export class IntegrationSettings extends PluginSettingTab {
 					.setDisabled(true)
 					.onChange(async (value) => {
 						this.settings.settings.useExcalidraw = value;
-						await this.settings.saveSettings();
+						await this.settings.plugin.saveSettings();
 					}),
 			)
 			.setClass("quartz-syncer-settings-upcoming");
@@ -179,7 +179,7 @@ export class IntegrationSettings extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.settings.settings.useFantasyStatblocks =
 							value && fantasyStatblocksEnabled;
-						await this.settings.saveSettings();
+						await this.settings.plugin.saveSettings();
 					}),
 			)
 			.setClass(

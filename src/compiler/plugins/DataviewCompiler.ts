@@ -1,4 +1,4 @@
-import { Component, Notice, htmlToMarkdown } from "obsidian";
+import { App, Component, Notice, htmlToMarkdown } from "obsidian";
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import {
 	cleanQueryResult,
@@ -21,7 +21,13 @@ import Logger from "js-logger";
  * Documentation: {@link https://saberzero1.github.io/quartz-syncer-docs/Settings/Integrations/Dataview}
  */
 export class DataviewCompiler {
-	constructor() {}
+	app: App;
+	dataview: DataviewApi | undefined;
+
+	constructor(app: App) {
+		this.app = app;
+		this.dataview = getAPI();
+	}
 
 	/**
 	 * Compiles the text by replacing Dataview queries with their results.
@@ -35,7 +41,7 @@ export class DataviewCompiler {
 	compile: TCompilerStep = (file) => async (text) => {
 		let replacedText = text;
 		const dataViewRegex = /```dataview\s(.+?)```/gms;
-		const dvApi = getAPI();
+		const dvApi = this.dataview;
 
 		if (!dvApi) return replacedText;
 		const matches = text.matchAll(dataViewRegex);
@@ -99,7 +105,7 @@ export class DataviewCompiler {
 				console.log(e);
 
 				new Notice(
-					"Unable to render dataview query. Please update the dataview plugin to the latest version.",
+					"Quartz Syncer: Unable to render dataview query. Please update the dataview plugin to the latest version.",
 				);
 
 				return queryBlock[0];
@@ -123,7 +129,7 @@ export class DataviewCompiler {
 				console.log(e);
 
 				new Notice(
-					"Unable to render dataviewjs query. Please update the dataview plugin to the latest version.",
+					"Quartz Syncer: Unable to render dataviewjs query. Please update the dataview plugin to the latest version.",
 				);
 
 				return queryBlock[0];
@@ -148,7 +154,7 @@ export class DataviewCompiler {
 				console.log(e);
 
 				new Notice(
-					"Unable to render inline dataview query. Please update the dataview plugin to the latest version.",
+					"Quartz Syncer: Unable to render inline dataview query. Please update the dataview plugin to the latest version.",
 				);
 
 				return inlineQuery[0];
@@ -180,7 +186,7 @@ export class DataviewCompiler {
 				Logger.error(e);
 
 				new Notice(
-					"Unable to render inline dataviewjs query. Please update the dataview plugin to the latest version.",
+					"Quartz Syncer: Unable to render inline dataviewjs query. Please update the dataview plugin to the latest version.",
 				);
 
 				return inlineJsQuery[0];

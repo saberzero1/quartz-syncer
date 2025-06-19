@@ -38,7 +38,7 @@ export class ThemesSettings extends PluginSettingTab {
 		this.initializeThemeSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "themes";
-		this.settings.saveSettings();
+		this.settings.plugin.saveSettings();
 	}
 
 	/**
@@ -69,7 +69,7 @@ export class ThemesSettings extends PluginSettingTab {
 					.setDisabled(true)
 					.onChange((value) => {
 						this.settings.settings.useThemes = value;
-						this.settings.saveSettings();
+						this.settings.plugin.saveSettings();
 					}),
 			)
 			.setClass("quartz-syncer-settings-upcoming");

@@ -1,13 +1,10 @@
 import type QuartzSyncerSettings from "src/models/settings";
-import { type MetadataCache, Notice } from "obsidian";
+import { type MetadataCache } from "obsidian";
 import { Base64 } from "js-base64";
 import {
 	RepositoryConnection,
 	TRepositoryContent,
 } from "src/repositoryConnection/RepositoryConnection";
-import Logger from "js-logger";
-
-const logger = Logger.get("quartz-syncer-site-manager");
 
 /**
  * PathRewriteRule interface.
@@ -67,53 +64,6 @@ export default class QuartzSyncerSiteManager {
 			quartzRepository: settings.githubRepo,
 			contentFolder: settings.contentFolder,
 			vaultPath: settings.vaultPath,
-		});
-	}
-
-	/**
-	 * Updates the Quartz site with the current settings.
-	 * This method updates the `.env` file in the user's repository
-	 * with the current settings, such as timestamps and image resolution.
-	 * If the `.env` file already matches the current settings, it does nothing.
-	 *
-	 * @returns A promise that resolves when the update is complete.
-	 */
-	async updateEnv() {
-		const envValues = {
-			SHOW_CREATED_TIMESTAMP: this.settings.showCreatedTimestamp,
-			SHOW_UPDATED_TIMESTAMP: this.settings.showUpdatedTimestamp,
-			SHOW_PUBLISHED_TIMESTAMP: this.settings.showPublishedTimestamp,
-			TIMESTAMP_FORMAT: this.settings.timestampFormat,
-			USE_FULL_RESOLUTION_IMAGES: this.settings.useFullResolutionImages,
-		} as Record<string, string | boolean>;
-
-		const keysToSet = {
-			...envValues,
-		};
-
-		const envSettings = Object.entries(keysToSet)
-			.map(([key, value]) => `${key}=${value}`)
-			.join("\n");
-
-		const base64Settings = Base64.encode(envSettings);
-
-		const currentFile = await this.userSyncerConnection.getFile(".env");
-
-		const decodedCurrentFile = Base64.decode(currentFile?.content ?? "");
-
-		if (decodedCurrentFile === envSettings) {
-			logger.info("No changes to .env file");
-
-			new Notice("Settings already up to date!");
-
-			return;
-		}
-
-		await this.userSyncerConnection.updateFile({
-			path: ".env",
-			content: base64Settings,
-			message: "Update settings",
-			sha: currentFile?.sha,
 		});
 	}
 

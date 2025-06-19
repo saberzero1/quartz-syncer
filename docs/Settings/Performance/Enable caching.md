@@ -2,14 +2,11 @@
 title: Enable caching
 description: Whether to cache note compilation results to greatly improve performance.
 created: 2025-06-12T22:44:54Z+0200
-modified: 2025-06-14T09:04:26Z+0200
+modified: 2025-06-19T08:17:08Z+0200
+publish: true
 tags: [settings/performance]
 default_value: "true"
 ---
-
-> [!WARNING] Upcoming feature
->
-> This feature is expected to be released with version `1.8.0`
 
 ```mermaid
 flowchart TD

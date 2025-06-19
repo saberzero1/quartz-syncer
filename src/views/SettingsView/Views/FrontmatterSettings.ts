@@ -43,7 +43,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 		this.initializeIncludeAllFrontmatterSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "frontmatter";
-		this.settings.saveSettings();
+		this.settings.plugin.saveSettings();
 	}
 
 	/**
@@ -78,7 +78,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 							value = "publish";
 						}
 						this.settings.settings.publishFrontmatterKey = value;
-						await this.settings.saveSettings();
+						await this.settings.plugin.saveSettings();
 					}),
 			);
 	}
@@ -99,7 +99,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 					.setValue(this.settings.settings.includeAllFrontmatter)
 					.onChange(async (value) => {
 						this.settings.settings.includeAllFrontmatter = value;
-						await this.settings.saveSettings();
+						await this.settings.plugin.saveSettings();
 						this.display();
 					}),
 			);
@@ -124,7 +124,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 						)
 						.onChange(async (value) => {
 							this.settings.settings.showCreatedTimestamp = value;
-							await this.settings.saveSettings();
+							await this.settings.plugin.saveSettings();
 						}),
 				);
 		}
@@ -149,7 +149,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 						)
 						.onChange(async (value) => {
 							this.settings.settings.showUpdatedTimestamp = value;
-							await this.settings.saveSettings();
+							await this.settings.plugin.saveSettings();
 						}),
 				);
 		}
@@ -175,7 +175,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 						.onChange(async (value) => {
 							this.settings.settings.showPublishedTimestamp =
 								value;
-							await this.settings.saveSettings();
+							await this.settings.plugin.saveSettings();
 						}),
 				);
 		}
@@ -198,7 +198,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 					.setDisabled(this.settings.settings.includeAllFrontmatter)
 					.onChange(async (value) => {
 						this.settings.settings.usePermalink = value;
-						await this.settings.saveSettings();
+						await this.settings.plugin.saveSettings();
 					}),
 			);
 	}

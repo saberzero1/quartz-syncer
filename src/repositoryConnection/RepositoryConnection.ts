@@ -277,21 +277,17 @@ export class RepositoryConnection {
 	}
 
 	/**
-	 * Update a file in the repository.
+	 * Mutate an arbitrary file in the repository.
 	 * It updates the file content at the specified path and branch.
 	 *
 	 * @param path - The path of the file to update.
-	 * @param sha - The SHA of the file to update (optional).
+	 * @param sha - The SHA of the file to update (optional). Set to null to delete the file.
 	 * @param content - The new content of the file.
 	 * @param branch - The branch to update the file in (optional).
 	 * @param message - The commit message for the update (optional).
 	 * @returns The response data from the update request.
 	 */
-	async updateFile({ path, sha, content, branch, message }: IPutPayload) {
-		path = this.setRepositoryPath(
-			this.getVaultPath(this.getRepositoryPath(path)),
-		);
-
+	async mutateFile({ path, sha, content, branch, message }: IPutPayload) {
 		const payload = {
 			...this.getBasePayload(),
 			path,

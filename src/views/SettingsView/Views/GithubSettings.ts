@@ -57,7 +57,7 @@ export class GithubSettings extends PluginSettingTab {
 		this.initializeGitHubVaultFolder();
 
 		this.settings.settings.lastUsedSettingsTab = "github";
-		this.settings.saveSettings();
+		this.settings.plugin.saveSettings();
 	}
 
 	/**
@@ -91,7 +91,7 @@ export class GithubSettings extends PluginSettingTab {
 	 * This method updates the connection status and saves the current settings.
 	 */
 	checkConnectionAndSaveSettings = async () => {
-		this.settings.saveSettings();
+		this.settings.plugin.saveSettings();
 		this.debouncedUpdateConnectionStatus();
 	};
 

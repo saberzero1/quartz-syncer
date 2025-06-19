@@ -39,7 +39,7 @@ export class QuartzSettings extends PluginSettingTab {
 		this.initializeApplyEmbedsSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "quartz";
-		this.settings.saveSettings();
+		this.settings.plugin.saveSettings();
 	}
 
 	/**
@@ -70,7 +70,7 @@ export class QuartzSettings extends PluginSettingTab {
 					.setValue(this.settings.settings.useFullResolutionImages)
 					.onChange(async (value) => {
 						this.settings.settings.useFullResolutionImages = value;
-						await this.settings.saveSettings();
+						await this.settings.plugin.saveSettings();
 					}),
 			);
 	}
@@ -90,7 +90,7 @@ export class QuartzSettings extends PluginSettingTab {
 					.setValue(this.settings.settings.applyEmbeds)
 					.onChange(async (value) => {
 						this.settings.settings.applyEmbeds = value;
-						await this.settings.saveSettings();
+						await this.settings.plugin.saveSettings();
 					}),
 			);
 	}
@@ -112,7 +112,7 @@ export class QuartzSettings extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.settings.settings.contentFolder =
 							normalizePath(value);
-						await this.settings.saveSettings();
+						await this.settings.plugin.saveSettings();
 					}),
 			);
 	}

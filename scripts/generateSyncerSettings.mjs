@@ -29,7 +29,7 @@ const quartzSettings = {
 	syncCache: true,
 	persistCache: false,
 	cacheTimestamp: 0,
-	cache: "",
+	cache: "{}",
 
 	includeAllFrontmatter: false,
 

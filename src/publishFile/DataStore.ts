@@ -1,4 +1,5 @@
 import localforage from "localforage";
+import QuartzSyncer from "main";
 import { Notice } from "obsidian";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import { generateBlobHash } from "src/utils/utils";
@@ -390,9 +391,13 @@ export class DataStore {
 	 * Serializes the data store to data.json file.
 	 *
 	 * @param timestamp - The UNIX epoch time in milliseconds to set for the data.
+	 * @param plugin - The QuartzSyncer plugin instance to use for saving settings.
 	 * @returns A promise that resolves to a tuple containing the saved timestamp and the DataStore as JSON string.
 	 */
-	public async saveToDataJson(timestamp: number): Promise<[number, string]> {
+	public async saveToDataJson(
+		timestamp: number,
+		plugin: QuartzSyncer,
+	): Promise<void> {
 		const data: Record<string, QuartzSyncerCache> = {};
 		const keys = await this.allKeys();
 
@@ -409,29 +414,36 @@ export class DataStore {
 		Object.keys(data).sort();
 
 		const jsonData = JSON.stringify(data, null, 2);
-		timestamp = Date.now();
 
-		await this.persister.setItem("data.json", timestamp);
+		plugin.settings.cache = jsonData;
 
-		new Notice("Quartz Syncer cache saved to data.json.");
+		await plugin.saveSettings();
+		await this.setLastUpdateTimestamp(timestamp, plugin);
 
-		return [timestamp, jsonData];
+		new Notice("Quartz Syncer: cache saved to data.json.");
 	}
 
 	/**
 	 * Load the data store from data.json file.
 	 *
-	 * @param cache - The JSON string containing the cache data.
+	 * @param timestamp - The UNIX epoch time in milliseconds to set for the data.
+	 * @param plugin - The QuartzSyncer plugin instance to use for loading settings.
 	 * @returns A promise that resolves when the cache is loaded from.
 	 */
-	public async loadFromDataJson(cache: string): Promise<void> {
+	public async loadFromDataJson(
+		timestamp: number,
+		plugin: QuartzSyncer,
+	): Promise<void> {
+		const cache = plugin.settings.cache;
 		const data: Record<string, QuartzSyncerCache> = JSON.parse(cache);
 
 		for (const [key, value] of Object.entries(data)) {
 			await this.persister.setItem(key, value);
 		}
 
-		new Notice("Quartz Syncer cache loaded from data.json.");
+		await this.setLastUpdateTimestamp(timestamp, plugin);
+
+		new Notice("Quartz Syncer: cache loaded from data.json.");
 
 		return;
 	}
@@ -466,5 +478,35 @@ export class DataStore {
 	 */
 	public fileKey(path: string): string {
 		return "file:" + path;
+	}
+
+	/**
+	 * Get the timestamp of the last cache update.
+	 * @returns A promise that resolves to the timestamp of the last cache update, or null if not found.
+	 */
+	public async getLastUpdateTimestamp(): Promise<number | null> {
+		const timestamp = await this.persister.getItem("data.json");
+
+		if (timestamp) {
+			return timestamp as number;
+		}
+
+		return null; // No cached timestamp found
+	}
+
+	/**
+	 * Set the timestamp of the last cache update.
+	 * @param timestamp - The UNIX epoch time in milliseconds to set for the last update.
+	 * @param plugin - The QuartzSyncer plugin instance to use for saving settings.
+	 * @returns A promise that resolves when the timestamp is set.
+	 */
+	public async setLastUpdateTimestamp(
+		timestamp: number,
+		plugin: QuartzSyncer,
+	): Promise<void> {
+		plugin.settings.cacheTimestamp = timestamp;
+
+		await this.persister.setItem("data.json", timestamp);
+		await plugin.saveSettings();
 	}
 }

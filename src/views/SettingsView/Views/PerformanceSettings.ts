@@ -41,7 +41,7 @@ export class PerformanceSettings extends PluginSettingTab {
 		this.initializeClearCacheSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "performance";
-		this.settings.saveSettings();
+		this.settings.plugin.saveSettings();
 	}
 
 	/**
@@ -72,14 +72,14 @@ export class PerformanceSettings extends PluginSettingTab {
 					.setValue(this.settings.settings.useCache)
 					.onChange((value) => {
 						this.settings.settings.useCache = value;
-						this.settings.saveSettings();
+						this.settings.plugin.saveSettings();
 
 						if (!value) {
 							// If cache is disabled, clear the cache
 							this.plugin.datastore.persister.clear();
 
 							new Notice(
-								"Cache disabled. All cached data will be cleared.",
+								"Quartz Syncer: Cache disabled. All cached data will be cleared.",
 							);
 						}
 
@@ -105,7 +105,7 @@ export class PerformanceSettings extends PluginSettingTab {
 						.setValue(this.settings.settings.syncCache)
 						.onChange((value) => {
 							this.settings.settings.syncCache = value;
-							this.settings.saveSettings();
+							this.settings.plugin.saveSettings();
 						}),
 				);
 		}
@@ -131,7 +131,7 @@ export class PerformanceSettings extends PluginSettingTab {
 						.setValue(this.settings.settings.persistCache)
 						.onChange((value) => {
 							this.settings.settings.persistCache = value;
-							this.settings.saveSettings();
+							this.settings.plugin.saveSettings();
 						}),
 				);
 		}
@@ -156,7 +156,9 @@ export class PerformanceSettings extends PluginSettingTab {
 						.onClick(async () => {
 							// Drop all data from the datastore
 							await this.plugin.datastore.dropAllFiles();
-							new Notice("Quartz Syncer cache cleared.");
+							this.settings.settings.cache = "{}";
+							this.settings.plugin.saveSettings();
+							new Notice("Quartz Syncer: cache cleared.");
 						}),
 				);
 		}

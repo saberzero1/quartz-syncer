@@ -1,6 +1,5 @@
 import { PluginSettingTab, App } from "obsidian";
 import QuartzSyncer from "main";
-import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import SettingView from "src/views/SettingsView/SettingView";
 
 /**
@@ -18,13 +17,8 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 
 		if (!this.plugin.settings.noteSettingsIsInitialized) {
-			const siteManager = new QuartzSyncerSiteManager(
-				this.app.metadataCache,
-				this.plugin.settings,
-			);
-			siteManager.updateEnv();
 			this.plugin.settings.noteSettingsIsInitialized = true;
-			this.plugin.saveData(this.plugin.settings);
+			this.plugin.saveSettings();
 		}
 	}
 
@@ -40,7 +34,7 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 			this.plugin,
 			containerEl,
 			this.plugin.settings,
-			async () => await this.plugin.saveData(this.plugin.settings),
+			this.plugin.datastore,
 		);
 
 		await settingView.initialize();

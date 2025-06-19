@@ -173,6 +173,11 @@ export default class PublishStatusManager implements IPublishStatusManager {
 			await this.publisher.datastore.synchronize(
 				marked["notes"].map((f) => f.getPath()),
 			);
+
+			if (this.publisher.settings.syncCache) {
+				// Check if shared cache needs to be updated
+				await this.publisher.plugin.compareDataToCache();
+			}
 		}
 
 		for (const file of marked.notes) {

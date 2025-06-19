@@ -2,7 +2,7 @@
 title: Datacore
 description: Whether to enable support for the Datacore plugin. Requires Datacore to be installed and enabled.
 created: 2025-06-09T20:48:56Z+0200
-modified: 2025-06-13T21:30:16Z+0200
+modified: 2025-06-19T14:58:50Z+0200
 publish: true
 tags: [datacore, integration, settings/integrations]
 default_value: "false"
