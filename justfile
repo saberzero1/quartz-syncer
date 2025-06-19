@@ -31,3 +31,4 @@ check:
 
 tag version:
 	git tag -a "{{version}}" -m "Release version {{version}}"
+	git push origin tag "{{version}}"
