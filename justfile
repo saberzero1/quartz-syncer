@@ -28,3 +28,6 @@ check:
 	npm run test
 	npm run check-formatting
 	npm run typecheck
+
+tag version:
+	git tag -a "{{VERSION}}" -m "Release version {{VERSION}}"
