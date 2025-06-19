@@ -339,11 +339,11 @@ export default class QuartzSyncer extends Plugin {
 			// Update the cache timestamp to invalidate the cache on next access.
 			this.settings.cacheTimestamp = Date.now();
 
-			await this.saveSettings().then(() =>
-				this.datastore.setLastUpdateTimestamp(
-					this.settings.cacheTimestamp,
-					this,
-				),
+			await this.saveSettings();
+
+			await this.datastore.setLastUpdateTimestamp(
+				this.settings.cacheTimestamp,
+				this,
 			);
 			Logger.info(`Cache cleared for file: ${activeFile.path}`);
 
@@ -383,14 +383,13 @@ export default class QuartzSyncer extends Plugin {
 				// Update the cache timestamp to invalidate the cache on next access.
 				this.settings.cacheTimestamp = Date.now();
 
-				await this.saveSettings()
-					.then(() =>
-						this.datastore.setLastUpdateTimestamp(
-							this.settings.cacheTimestamp,
-							this,
-						),
-					)
-					.then(() => this.datastore.recreate());
+				await this.saveSettings();
+
+				await this.datastore.setLastUpdateTimestamp(
+					this.settings.cacheTimestamp,
+					this,
+				);
+				await this.datastore.recreate();
 				Logger.info("Cache cleared for all files.");
 				new Notice("Quartz Syncer: Cache cleared for all files.");
 			} else {
@@ -407,9 +406,8 @@ export default class QuartzSyncer extends Plugin {
 				this.settings.cache = "{}";
 				this.settings.cacheTimestamp = Date.now();
 
-				await this.saveSettings().then(() =>
-					this.datastore.persister.clear(),
-				);
+				await this.saveSettings();
+				await this.datastore.persister.clear();
 			}
 		}
 	}

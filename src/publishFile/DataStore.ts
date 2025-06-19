@@ -417,9 +417,8 @@ export class DataStore {
 
 		plugin.settings.cache = jsonData;
 
-		await plugin
-			.saveSettings()
-			.then(() => this.setLastUpdateTimestamp(timestamp, plugin));
+		await plugin.saveSettings();
+		await this.setLastUpdateTimestamp(timestamp, plugin);
 
 		new Notice("Quartz Syncer: cache saved to data.json.");
 	}
@@ -507,8 +506,7 @@ export class DataStore {
 	): Promise<void> {
 		plugin.settings.cacheTimestamp = timestamp;
 
-		await this.persister
-			.setItem("data.json", timestamp)
-			.then(() => plugin.saveSettings());
+		await this.persister.setItem("data.json", timestamp);
+		await plugin.saveSettings();
 	}
 }
