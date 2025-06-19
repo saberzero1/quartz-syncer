@@ -30,4 +30,4 @@ check:
 	npm run typecheck
 
 tag version:
-	git tag -a "{{VERSION}}" -m "Release version {{VERSION}}"
+	git tag -a "{{version}}" -m "Release version {{version}}"
