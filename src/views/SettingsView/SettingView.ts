@@ -1,12 +1,4 @@
-import {
-	App,
-	debounce,
-	getIcon,
-	MetadataCache,
-	Notice,
-	Platform,
-} from "obsidian";
-import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
+import { App, getIcon, Platform } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
 import QuartzSyncer from "main";
 import QuartzSyncerSettingTabCollection from "src/models/SyncerTab";
@@ -31,12 +23,6 @@ export default class SettingView {
 	datastore: DataStore;
 	saveSettings: () => Promise<void>;
 	private settingsRootElement: HTMLElement;
-
-	debouncedSaveAndUpdate = debounce(
-		this.saveSiteSettingsAndUpdateEnv,
-		500,
-		true,
-	);
 
 	constructor(
 		app: App,
@@ -231,41 +217,6 @@ export default class SettingView {
 			this.settings.lastUsedSettingsTab ?? "github",
 			settingTabs,
 		);
-	}
-
-	/**
-	 * Saves the site settings and updates the environment.
-	 * It shows a notice to the user and handles any errors that may occur during the update.
-	 *
-	 * @param metadataCache - The metadata cache to use for updating the environment.
-	 * @param settings - The current settings of the Quartz Syncer plugin.
-	 * @param saveSettings - A function to save the settings after updating.
-	 */
-	private async saveSiteSettingsAndUpdateEnv(
-		metadataCache: MetadataCache,
-		settings: QuartzSyncerSettings,
-		saveSettings: () => Promise<void>,
-	) {
-		new Notice("Updating settings...");
-		let updateFailed = false;
-
-		try {
-			const quartzManager = new QuartzSyncerSiteManager(
-				metadataCache,
-				settings,
-			);
-			await quartzManager.updateEnv();
-		} catch {
-			new Notice(
-				"Failed to update settings. Make sure you have an internet connection.",
-			);
-			updateFailed = true;
-		}
-
-		if (!updateFailed) {
-			new Notice("Settings successfully updated!");
-			await saveSettings();
-		}
 	}
 
 	/**

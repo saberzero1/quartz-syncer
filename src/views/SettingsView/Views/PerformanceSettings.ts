@@ -79,7 +79,7 @@ export class PerformanceSettings extends PluginSettingTab {
 							this.plugin.datastore.persister.clear();
 
 							new Notice(
-								"Cache disabled. All cached data will be cleared.",
+								"Quartz Syncer: Cache disabled. All cached data will be cleared.",
 							);
 						}
 
@@ -158,7 +158,7 @@ export class PerformanceSettings extends PluginSettingTab {
 							await this.plugin.datastore.dropAllFiles();
 							this.settings.settings.cache = "{}";
 							this.settings.saveSettings();
-							new Notice("Quartz Syncer cache cleared.");
+							new Notice("Quartz Syncer: cache cleared.");
 						}),
 				);
 		}

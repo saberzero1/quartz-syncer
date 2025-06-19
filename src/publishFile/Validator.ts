@@ -26,7 +26,7 @@ export function isPublishFrontmatterValid(
 ): boolean {
 	if (!hasPublishFlag(flag, frontMatter)) {
 		new Notice(
-			"Note does not have the publish: true set. Please add this and try again.",
+			"Quartz Syncer: Note does not have the publish: true set. Please add this and try again.",
 		);
 
 		return false;

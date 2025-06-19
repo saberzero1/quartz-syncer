@@ -1,4 +1,4 @@
-import { App, MetadataCache, Notice, TFile, Vault } from "obsidian";
+import { App, MetadataCache, TFile, Vault } from "obsidian";
 import { getRewriteRules } from "src/utils/utils";
 import {
 	hasPublishFlag,
@@ -209,92 +209,6 @@ export default class Publisher {
 			console.error(error);
 
 			return false;
-		}
-	}
-
-	/**
-	 * Uploads a file to GitHub.
-	 *
-	 * @param path - The path of the file in the repository.
-	 * @param content - The content of the file to upload.
-	 * @param remoteFileHash - The SHA of the file, if it exists.
-	 * @returns A promise that resolves to the result of the upload operation.
-	 */
-	private async uploadToGithub(
-		path: string,
-		content: string,
-		remoteFileHash?: string,
-	) {
-		this.validateSettings();
-		let message = `Update content ${path}`;
-
-		const userSyncerConnection = new RepositoryConnection({
-			quartzRepository: this.settings.githubRepo,
-			githubUserName: this.settings.githubUserName,
-			githubToken: this.settings.githubToken,
-			contentFolder: this.settings.contentFolder,
-			vaultPath: this.settings.vaultPath,
-		});
-
-		if (!remoteFileHash) {
-			const file = await userSyncerConnection.getFile(path).catch(() => {
-				// file does not exist
-				Logger.info(`File ${path} does not exist, adding`);
-			});
-			remoteFileHash = file?.sha;
-
-			if (!remoteFileHash) {
-				message = `Add content ${path}`;
-			}
-		}
-
-		return await userSyncerConnection.updateFile({
-			content,
-			path,
-			message,
-			sha: remoteFileHash,
-		});
-	}
-
-	/**
-	 * Validates the plugin settings.
-	 *
-	 * @throws shows a notice if any required setting is missing.
-	 */
-	validateSettings() {
-		if (!this.settings.githubRepo) {
-			new Notice(
-				"Config error: You need to define a GitHub repo in the plugin settings",
-			);
-			throw {};
-		}
-
-		if (!this.settings.githubUserName) {
-			new Notice(
-				"Config error: You need to define a GitHub Username in the plugin settings",
-			);
-			throw {};
-		}
-
-		if (!this.settings.githubToken) {
-			new Notice(
-				"Config error: You need to define a GitHub Token in the plugin settings",
-			);
-			throw {};
-		}
-
-		if (!this.settings.contentFolder) {
-			new Notice(
-				"Config error: You need to define a Content Folder in the plugin settings",
-			);
-			throw {};
-		}
-
-		if (!this.settings.vaultPath) {
-			new Notice(
-				"Config error: You need to define a Vault Folder in the plugin settings",
-			);
-			throw {};
 		}
 	}
 }

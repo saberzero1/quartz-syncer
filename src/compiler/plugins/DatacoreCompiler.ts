@@ -91,7 +91,7 @@ export class DatacoreCompiler {
 			} catch (error) {
 				console.log(error);
 
-				new Notice(`DatacoreJS query error: ${error}`);
+				new Notice(`Quartz Syncer: DatacoreJS query error: ${error}`);
 
 				return queryBlock[0];
 			}
@@ -129,7 +129,7 @@ export class DatacoreCompiler {
 			} catch (error) {
 				console.log(error);
 
-				new Notice(`DatacoreJSX query error: ${error}`);
+				new Notice(`Quartz Syncer: DatacoreJSX query error: ${error}`);
 
 				return queryBlock[0];
 			}
@@ -163,7 +163,7 @@ export class DatacoreCompiler {
 			} catch (error) {
 				console.log(error);
 
-				new Notice(`DatacoreTS query error: ${error}`);
+				new Notice(`Quartz Syncer: DatacoreTS query error: ${error}`);
 
 				return queryBlock[0];
 			}
@@ -201,7 +201,7 @@ export class DatacoreCompiler {
 			} catch (error) {
 				console.log(error);
 
-				new Notice(`DatacoreTSX query error: ${error}`);
+				new Notice(`Quartz Syncer: DatacoreTSX query error: ${error}`);
 
 				return queryBlock[0];
 			}
@@ -262,7 +262,9 @@ async function tryExecuteJs(
 	} catch (error) {
 		Logger.error(error);
 
-		new Notice(`DatacoreJS execution error: ${error}, trying JSX...`);
+		new Notice(
+			`Quartz Syncer: DatacoreJS execution error: ${error}, trying JSX...`,
+		);
 
 		return tryExecuteJsx(query, file, dcApi);
 	}
@@ -298,7 +300,7 @@ async function tryExecuteJsx(
 	} catch (error) {
 		Logger.error(error);
 
-		new Notice(`DatacoreJSX execution error: ${error}`);
+		new Notice(`Quartz Syncer: DatacoreJSX execution error: ${error}`);
 
 		return div;
 	}
@@ -334,7 +336,9 @@ async function tryExecuteTs(
 	} catch (error) {
 		Logger.error(error);
 
-		new Notice(`DatacoreTS execution error: ${error}, trying TSX...`);
+		new Notice(
+			`Quartz Syncer: DatacoreTS execution error: ${error}, trying TSX...`,
+		);
 
 		return tryExecuteTsx(query, file, dcApi);
 	}
@@ -370,7 +374,7 @@ async function tryExecuteTsx(
 	} catch (error) {
 		Logger.error(error);
 
-		new Notice(`DatacoreTSX execution error: ${error}`);
+		new Notice(`Quartz Syncer: DatacoreTSX execution error: ${error}`);
 
 		return div;
 	}

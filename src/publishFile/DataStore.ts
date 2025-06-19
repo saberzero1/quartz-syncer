@@ -421,7 +421,7 @@ export class DataStore {
 			.saveSettings()
 			.then(() => this.setLastUpdateTimestamp(timestamp, plugin));
 
-		new Notice("Quartz Syncer cache saved to data.json.");
+		new Notice("Quartz Syncer: cache saved to data.json.");
 	}
 
 	/**
@@ -444,7 +444,7 @@ export class DataStore {
 
 		await this.setLastUpdateTimestamp(timestamp, plugin);
 
-		new Notice("Quartz Syncer cache loaded from data.json.");
+		new Notice("Quartz Syncer: cache loaded from data.json.");
 
 		return;
 	}

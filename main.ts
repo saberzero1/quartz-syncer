@@ -312,7 +312,7 @@ export default class QuartzSyncer extends Plugin {
 
 		if (!activeFile) {
 			new Notice(
-				"No file is open/active. Please open a file and try again.",
+				"Quartz Syncer: No file is open/active. Please open a file and try again.",
 			);
 
 			return null;
@@ -346,10 +346,13 @@ export default class QuartzSyncer extends Plugin {
 				),
 			);
 			Logger.info(`Cache cleared for file: ${activeFile.path}`);
-			new Notice(`Cache cleared for file: ${activeFile.path}`);
+
+			new Notice(
+				`Quartz Syncer: Cache cleared for file: ${activeFile.path}`,
+			);
 		} else {
 			Logger.warn("Cache is disabled, no action taken.");
-			new Notice("Cache is disabled, no action taken.");
+			new Notice("Quartz Syncer: Cache is disabled, no action taken.");
 		}
 	}
 
@@ -370,7 +373,7 @@ export default class QuartzSyncer extends Plugin {
 
 			if (!confirmation) {
 				Logger.info("Cache clearing cancelled by user.");
-				new Notice("Cache clearing cancelled.");
+				new Notice("Quartz Syncer: Cache clearing cancelled.");
 
 				return;
 			}
@@ -389,10 +392,13 @@ export default class QuartzSyncer extends Plugin {
 					)
 					.then(() => this.datastore.recreate());
 				Logger.info("Cache cleared for all files.");
-				new Notice("Cache cleared for all files.");
+				new Notice("Quartz Syncer: Cache cleared for all files.");
 			} else {
 				Logger.warn("Cache is disabled, no action taken.");
-				new Notice("Cache is disabled, no action taken.");
+
+				new Notice(
+					"Quartz Syncer: Cache is disabled, no action taken.",
+				);
 			}
 		} else {
 			// If skipConfirmation is true, clear the cache without confirmation
