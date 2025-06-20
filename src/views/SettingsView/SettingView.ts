@@ -57,19 +57,11 @@ export default class SettingView {
 
 	/**
 	 * Initializes the settings view.
-	 * It creates the title, description, header, and content sections.
+	 * It creates the description, header, and content sections.
 	 * It also sets up the tabs and their corresponding settings views.
 	 */
 	async initialize() {
 		this.settingsRootElement.empty();
-
-		const title = this.settingsRootElement.createEl("div", {
-			cls: "quartz-syncer-setting-title",
-		});
-
-		title.createEl("h1", {
-			text: "Quartz Syncer",
-		});
 
 		const descriptionDiv = this.settingsRootElement.createEl("div", {
 			cls: "quartz-syncer-settings-description",
