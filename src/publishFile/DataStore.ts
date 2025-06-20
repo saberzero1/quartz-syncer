@@ -1,6 +1,5 @@
 import localforage from "localforage";
 import QuartzSyncer from "main";
-import { Notice } from "obsidian";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import { generateBlobHash } from "src/utils/utils";
 
@@ -419,8 +418,6 @@ export class DataStore {
 
 		await plugin.saveSettings();
 		await this.setLastUpdateTimestamp(timestamp, plugin);
-
-		new Notice("Quartz Syncer: cache saved to data.json.");
 	}
 
 	/**
@@ -442,8 +439,6 @@ export class DataStore {
 		}
 
 		await this.setLastUpdateTimestamp(timestamp, plugin);
-
-		new Notice("Quartz Syncer: cache loaded from data.json.");
 
 		return;
 	}
