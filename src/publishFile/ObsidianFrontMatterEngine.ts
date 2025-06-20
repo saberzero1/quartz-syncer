@@ -1,4 +1,4 @@
-import { MetadataCache, TFile, Vault } from "obsidian";
+import { MetadataCache, TFile, Vault, FileManager } from "obsidian";
 
 /**
  * IFonrtMatterEngine interface.
@@ -19,13 +19,20 @@ export default class ObsidianFrontMatterEngine implements IFrontMatterEngine {
 	metadataCache: MetadataCache;
 	file: TFile;
 	vault: Vault;
+	fileManager: FileManager;
 
 	generatedFrontMatter: Record<string, unknown> = {};
 
-	constructor(vault: Vault, metadataCache: MetadataCache, file: TFile) {
+	constructor(
+		vault: Vault,
+		metadataCache: MetadataCache,
+		file: TFile,
+		fileManager: FileManager,
+	) {
 		this.metadataCache = metadataCache;
 		this.vault = vault;
 		this.file = file;
+		this.fileManager = fileManager;
 	}
 
 	/**
@@ -75,20 +82,11 @@ export default class ObsidianFrontMatterEngine implements IFrontMatterEngine {
 	async apply(): Promise<void> {
 		const newFrontMatter = this.getFrontMatterSnapshot();
 
-		const content = await this.vault.cachedRead(this.file);
-		const frontmatterRegex = /^\s*?---\n([\s\S]*?)\n---/g;
-		const yaml = this.frontMatterToYaml(newFrontMatter);
-		let newContent = "";
-
-		if (content.match(frontmatterRegex)) {
-			newContent = content.replace(frontmatterRegex, (_match) => {
-				return yaml;
-			});
-		} else {
-			newContent = `${yaml}\n${content}`;
-		}
-
-		await this.vault.modify(this.file, newContent);
+		await this.fileManager.processFrontMatter(this.file, (frontMatter) => {
+			for (const key of Object.keys(newFrontMatter)) {
+				frontMatter[key] = newFrontMatter[key];
+			}
+		});
 	}
 
 	/**

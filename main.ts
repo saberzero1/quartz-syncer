@@ -234,8 +234,8 @@ export default class QuartzSyncer extends Plugin {
 			import("./src/test/snapshot/generateSyncerSnapshot")
 				.then((snapshotGen) => {
 					this.addCommand({
-						id: "generate-syncer-snapshot",
-						name: "Generate Syncer Snapshot",
+						id: "generate-snapshot",
+						name: "Generate snapshot",
 						callback: async () => {
 							await snapshotGen.generateSyncerSnapshot(
 								this.settings,
@@ -429,6 +429,7 @@ export default class QuartzSyncer extends Plugin {
 			this.app.vault,
 			this.app.metadataCache,
 			activeFile,
+			this.app.fileManager,
 		);
 		engine.set(this.settings.publishFrontmatterKey, value).apply();
 	}
@@ -448,6 +449,7 @@ export default class QuartzSyncer extends Plugin {
 			this.app.vault,
 			this.app.metadataCache,
 			activeFile,
+			this.app.fileManager,
 		);
 
 		engine

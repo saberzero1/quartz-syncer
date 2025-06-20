@@ -237,12 +237,6 @@ input[type="checkbox"]:indeterminate:after {
 	margin-top: var(--heading-spacing);
 }
 
-.quartz-syncer-settings-title {
-	font-weight: 900;
-	margin-bottom: 12px;
-	margin-top: 6px;
-}
-
 .quartz-syncer-settings-description {
 	margin-bottom: 10px;
 }

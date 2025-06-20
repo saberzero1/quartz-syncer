@@ -47,7 +47,7 @@ export class ThemesSettings extends PluginSettingTab {
 	 */
 	initializeThemesHeader = () => {
 		new Setting(this.settingsRootElement)
-			.setName("Quartz Themes")
+			.setName("Themes")
 			.setDesc(
 				"Quartz Themes is a project that aims to regularly convert Obsidian themes to a Quartz-compatible format. Quartz Syncer will install the chosen theme in Quartz from the Quartz Themes repository.",
 			)
