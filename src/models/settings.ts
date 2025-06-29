@@ -18,6 +18,7 @@ export default interface QuartzSyncerSettings {
 
 	/** Frontmatter settings */
 	publishFrontmatterKey: string;
+	allNotesPublishableByDefault: boolean;
 	showCreatedTimestamp: boolean;
 	showUpdatedTimestamp: boolean;
 	showPublishedTimestamp: boolean;

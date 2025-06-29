@@ -49,6 +49,7 @@ Path Rewriting:
 Subfolder:subfolder-rewritten
 Path Rewriting/Subfolder:this-will-never-hit`,
 	publishFrontmatterKey: "publish",
+	allNotesPublishableByDefault: false,
 	usePermalink: true,
 
 	lastUsedSettingsTab: "github",

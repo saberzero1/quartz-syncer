@@ -1,0 +1,16 @@
+views:
+  - type: table
+    name: Table
+  - type: cards
+    name: Card View
+    filters:
+      and:
+        - '!file.path.startsWith("tags/")'
+        - file.ext == "md"
+    order:
+      - tags
+      - file.name
+      - description
+    sort:
+      - property: file.path
+        direction: ASC

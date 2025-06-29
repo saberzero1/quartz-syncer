@@ -73,7 +73,11 @@ export default class Publisher {
 	shouldPublish(file: TFile): boolean {
 		const frontMatter = this.metadataCache.getCache(file.path)?.frontmatter;
 
-		return hasPublishFlag(this.settings.publishFrontmatterKey, frontMatter);
+		return hasPublishFlag(
+			this.settings.publishFrontmatterKey,
+			frontMatter,
+			this.settings.allNotesPublishableByDefault,
+		);
 	}
 
 	/**
@@ -171,6 +175,7 @@ export default class Publisher {
 			isPublishFrontmatterValid(
 				this.settings.publishFrontmatterKey,
 				f.frontmatter,
+				this.settings.allNotesPublishableByDefault,
 			),
 		);
 

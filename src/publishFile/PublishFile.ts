@@ -154,6 +154,7 @@ export class PublishFile {
 		return hasPublishFlag(
 			this.settings.publishFrontmatterKey,
 			this.frontmatter,
+			this.settings.allNotesPublishableByDefault,
 		);
 	}
 
