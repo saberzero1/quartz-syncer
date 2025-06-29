@@ -106,6 +106,13 @@
 		return root;
 	}
 
+	/**
+	 * A Svelte action that initializes a progress bar component
+	 * and provides methods to update its progress and text.
+	 *
+	 * @param node - The HTML element to attach the progress bar to.
+	 * @returns An object with a destroy method to clean up the action.
+	 */
 	function loadingProgressBar(node: HTMLElement) {
 		const progressBar = new ProgressBarComponent(node);
 
@@ -126,6 +133,14 @@
 		};
 	}
 
+	/**
+	 * A Svelte action that initializes a progress bar component
+	 * specifically for the publishing process.
+	 * It provides methods to update the progress of the publishing action.
+	 *
+	 * @param node - The HTML element to attach the progress bar to.
+	 * @returns An object with a destroy method to clean up the action.
+	 */
 	function publishProgressBarAction(node: HTMLElement) {
 		const progressBar = new ProgressBarComponent(node);
 
