@@ -36,6 +36,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 
 		this.initializeFrontmatterHeader();
 		this.initializePublishFrontmatterKeySetting();
+		this.initializeAllNotesPublishableByDefaultSetting();
 		this.initializeShowCreatedTimestampSetting();
 		this.initializeShowUpdatedTimestampSetting();
 		this.initializeShowPublishedTimestampSetting();
@@ -64,21 +65,49 @@ export class FrontmatterSettings extends PluginSettingTab {
 	 * This method allows users to set the key used to mark notes as eligible for publication.
 	 */
 	private initializePublishFrontmatterKeySetting() {
+		if (!this.settings.settings.allNotesPublishableByDefault) {
+			new Setting(this.settingsRootElement)
+				.setName("Publish key")
+				.setDesc(
+					'Note property key used to mark a note as eligible to publish. Quartz Syncer will ignore all notes without this property. By default "publish".',
+				)
+				.addText((text) =>
+					text
+						.setPlaceholder("publish")
+						.setValue(this.settings.settings.publishFrontmatterKey)
+						.onChange(async (value) => {
+							if (value.length === 0) {
+								value = "publish";
+							}
+
+							this.settings.settings.publishFrontmatterKey =
+								value;
+							await this.settings.plugin.saveSettings();
+						}),
+				);
+		}
+	}
+
+	/**
+	 * Initializes the setting to make all notes publishable by default.
+	 * This method allows users to override the publish key setting and make all notes eligible for publication.
+	 */
+	private initializeAllNotesPublishableByDefaultSetting() {
 		new Setting(this.settingsRootElement)
-			.setName("Publish key")
+			.setName("All notes publishable by default")
 			.setDesc(
-				'Note property key used to mark a note as eligible to publish. Quartz Syncer will ignore all notes without this property. By default "publish".',
+				"Make all notes publishable by default. This will override the publish key setting and make all notes eligible for publication.",
 			)
-			.addText((text) =>
-				text
-					.setPlaceholder("publish")
-					.setValue(this.settings.settings.publishFrontmatterKey)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(
+						this.settings.settings.allNotesPublishableByDefault,
+					)
 					.onChange(async (value) => {
-						if (value.length === 0) {
-							value = "publish";
-						}
-						this.settings.settings.publishFrontmatterKey = value;
+						this.settings.settings.allNotesPublishableByDefault =
+							value;
 						await this.settings.plugin.saveSettings();
+						this.display();
 					}),
 			);
 	}

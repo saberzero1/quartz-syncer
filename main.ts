@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	/** Frontmatter settings */
 	publishFrontmatterKey: "publish",
+	allNotesPublishableByDefault: false,
 	showCreatedTimestamp: true,
 	showUpdatedTimestamp: true,
 	showPublishedTimestamp: false,
