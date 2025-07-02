@@ -31,13 +31,13 @@ export class FileMetadataManager {
 	getCreatedAt(): string {
 		const createdKeys = this.settings.createdTimestampKey.split(",");
 
-		createdKeys.forEach((key) => {
+		for (const key of createdKeys) {
 			const customCreatedDate = this.frontmatter[key.trim()];
 
 			if (customCreatedDate) {
 				return customCreatedDate;
 			}
-		});
+		}
 
 		return DateTime.fromMillis(this.file.stat.ctime).toISO() as string;
 	}
@@ -52,13 +52,13 @@ export class FileMetadataManager {
 	getUpdatedAt(): string {
 		const updatedKeys = this.settings.updatedTimestampKey.split(",");
 
-		updatedKeys.forEach((key) => {
+		for (const key of updatedKeys) {
 			const customUpdatedDate = this.frontmatter[key.trim()];
 
 			if (customUpdatedDate) {
 				return customUpdatedDate;
 			}
-		});
+		}
 
 		return DateTime.fromMillis(this.file.stat.mtime).toISO() as string;
 	}
@@ -73,13 +73,13 @@ export class FileMetadataManager {
 	getPublishedAt(): string {
 		const publishedKeys = this.settings.publishedTimestampKey.split(",");
 
-		publishedKeys.forEach((key) => {
+		for (const key of publishedKeys) {
 			const customPublishedDate = this.frontmatter[key.trim()];
 
 			if (customPublishedDate) {
 				return customPublishedDate;
 			}
-		});
+		}
 
 		return DateTime.fromMillis(this.file.stat.mtime).toISO() as string;
 	}
