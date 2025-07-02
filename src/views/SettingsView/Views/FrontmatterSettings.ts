@@ -342,7 +342,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 			new Setting(this.settingsRootElement)
 				.setName("Published timestamp keys")
 				.setDesc(
-					"Comma-separated list of keys to look for to determine the published timestamp. By default, Quartz Syncer will look for 'published', 'published_at', and 'date_published'.",
+					"Comma-separated list of keys to look for to determine the published timestamp. By default, Quartz Syncer will look for 'published', 'publishDate', and 'date'.",
 				)
 				.addText((text) =>
 					text
