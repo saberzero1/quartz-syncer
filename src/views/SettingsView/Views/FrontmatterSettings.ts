@@ -38,10 +38,50 @@ export class FrontmatterSettings extends PluginSettingTab {
 		this.initializePublishFrontmatterKeySetting();
 		this.initializeAllNotesPublishableByDefaultSetting();
 		this.initializeShowCreatedTimestampSetting();
+		this.initializeCreatedTimestampKeysSetting();
 		this.initializeShowUpdatedTimestampSetting();
+		this.initializeUpdatedTimestampKeysSetting();
 		this.initializeShowPublishedTimestampSetting();
+		this.initializePublishedTimestampKeysSetting();
 		this.initializeEnablePermalinkSetting();
 		this.initializeIncludeAllFrontmatterSetting();
+
+		// Set defaults for users that upgraded instead of fresh install.
+		const oldCreatedDefaults = ["created"];
+
+		if (
+			this.settings.settings.createdTimestampKey === "" ||
+			oldCreatedDefaults.includes(
+				this.settings.settings.createdTimestampKey,
+			)
+		) {
+			this.settings.settings.createdTimestampKey =
+				"created, created_at, date";
+		}
+
+		const oldUpdatedDefaults = ["modified"];
+
+		if (
+			this.settings.settings.updatedTimestampKey === "" ||
+			oldUpdatedDefaults.includes(
+				this.settings.settings.updatedTimestampKey,
+			)
+		) {
+			this.settings.settings.updatedTimestampKey =
+				"modified, lastmod, updated, last-modified";
+		}
+
+		const oldPublishedDefaults = ["published"];
+
+		if (
+			this.settings.settings.publishedTimestampKey === "" ||
+			oldPublishedDefaults.includes(
+				this.settings.settings.publishedTimestampKey,
+			)
+		) {
+			this.settings.settings.publishedTimestampKey =
+				"published, publishDate, date";
+		}
 
 		this.settings.settings.lastUsedSettingsTab = "frontmatter";
 		this.settings.plugin.saveSettings();
@@ -154,6 +194,44 @@ export class FrontmatterSettings extends PluginSettingTab {
 						.onChange(async (value) => {
 							this.settings.settings.showCreatedTimestamp = value;
 							await this.settings.plugin.saveSettings();
+							this.display();
+						}),
+				);
+		}
+	}
+
+	/**
+	 * Initializes the setting to configure the created timestamp keys.
+	 * This method allows users to configure a comma-separated list of keys to look for to determine the created timestamp.
+	 */
+	private initializeCreatedTimestampKeysSetting() {
+		if (
+			!this.settings.settings.includeAllFrontmatter &&
+			this.settings.settings.showCreatedTimestamp
+		) {
+			new Setting(this.settingsRootElement)
+				.setName("Created timestamp keys")
+				.setDesc(
+					"Comma-separated list of keys to look for to determine the created timestamp. By default, Quartz Syncer will look for 'created', 'created_at', and 'date'.",
+				)
+				.addText((text) =>
+					text
+						.setPlaceholder("created, created_at, date")
+						.setValue(this.settings.settings.createdTimestampKey)
+						.setDisabled(
+							this.settings.settings.includeAllFrontmatter,
+						)
+						.onChange(async (value) => {
+							if (
+								value.length === 0 ||
+								this.settings.settings.createdTimestampKey ===
+									""
+							) {
+								value = "created, created_at, date";
+							}
+
+							this.settings.settings.createdTimestampKey = value;
+							await this.settings.plugin.saveSettings();
 						}),
 				);
 		}
@@ -179,6 +257,47 @@ export class FrontmatterSettings extends PluginSettingTab {
 						.onChange(async (value) => {
 							this.settings.settings.showUpdatedTimestamp = value;
 							await this.settings.plugin.saveSettings();
+							this.display();
+						}),
+				);
+		}
+	}
+
+	/**
+	 * Initializes the setting to configure the updated timestamp keys.
+	 * This method allows users to configure a comma-separated list of keys to look for to determine the updated timestamp.
+	 */
+	private initializeUpdatedTimestampKeysSetting() {
+		if (
+			!this.settings.settings.includeAllFrontmatter &&
+			this.settings.settings.showUpdatedTimestamp
+		) {
+			new Setting(this.settingsRootElement)
+				.setName("Modified timestamp keys")
+				.setDesc(
+					"Comma-separated list of keys to look for to determine the modified timestamp. By default, Quartz Syncer will look for 'modified', 'lastmod', 'updated', and 'last-modified'.",
+				)
+				.addText((text) =>
+					text
+						.setPlaceholder(
+							"modified, lastmod, updated, last-modified",
+						)
+						.setValue(this.settings.settings.updatedTimestampKey)
+						.setDisabled(
+							this.settings.settings.includeAllFrontmatter,
+						)
+						.onChange(async (value) => {
+							if (
+								value.length === 0 ||
+								this.settings.settings.updatedTimestampKey ===
+									""
+							) {
+								value =
+									"modified, lastmod, updated, last-modified";
+							}
+
+							this.settings.settings.updatedTimestampKey = value;
+							await this.settings.plugin.saveSettings();
 						}),
 				);
 		}
@@ -203,6 +322,45 @@ export class FrontmatterSettings extends PluginSettingTab {
 						)
 						.onChange(async (value) => {
 							this.settings.settings.showPublishedTimestamp =
+								value;
+							await this.settings.plugin.saveSettings();
+							this.display();
+						}),
+				);
+		}
+	}
+
+	/**
+	 * Initializes the setting to configure the published timestamp keys.
+	 * This method allows users to configure a comma-separated list of keys to look for to determine the published timestamp.
+	 */
+	private initializePublishedTimestampKeysSetting() {
+		if (
+			!this.settings.settings.includeAllFrontmatter &&
+			this.settings.settings.showPublishedTimestamp
+		) {
+			new Setting(this.settingsRootElement)
+				.setName("Published timestamp keys")
+				.setDesc(
+					"Comma-separated list of keys to look for to determine the published timestamp. By default, Quartz Syncer will look for 'published', 'publishDate', and 'date'.",
+				)
+				.addText((text) =>
+					text
+						.setPlaceholder("published, publishDate, date")
+						.setValue(this.settings.settings.publishedTimestampKey)
+						.setDisabled(
+							this.settings.settings.includeAllFrontmatter,
+						)
+						.onChange(async (value) => {
+							if (
+								value.length === 0 ||
+								this.settings.settings.publishedTimestampKey ===
+									""
+							) {
+								value = "published, publishDate, date";
+							}
+
+							this.settings.settings.publishedTimestampKey =
 								value;
 							await this.settings.plugin.saveSettings();
 						}),

@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-06-29T17:39:40Z+0200
+modified: 2025-07-02T23:21:55Z+0200
 publish: true
 ---
 
@@ -23,12 +23,19 @@ publish: true
 
 ## Released
 
+### 1.8.6
+
+- Added options to configure the keys used for the created, updated, and published timestamps.
+	- Supports a comma-separated list of options to check. Quartz Syncer will use the first matching value per note.
+	- Defaults to the options recognized by Quartz.
+- Updated documentation.
+
 ### 1.8.5
 
 - Added setting option to override the need for a publish flag in the note properties.
 	- This option is disabled by default.
 - Added documentation for previously undocumented functions.
--  Updated documentation.
+- Updated documentation.
 
 ### Version 1.8.4
 
