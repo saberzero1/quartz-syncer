@@ -254,7 +254,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 			new Setting(this.settingsRootElement)
 				.setName("Modified timestamp keys")
 				.setDesc(
-					"Comma-separated list of keys to look for to determine the modified timestamp. By default, Quartz Syncer will look for 'modified', 'updated', and 'last_modified'.",
+					"Comma-separated list of keys to look for to determine the modified timestamp. By default, Quartz Syncer will look for 'modified', 'lastmod', 'updated', and 'last-modified'.",
 				)
 				.addText((text) =>
 					text
