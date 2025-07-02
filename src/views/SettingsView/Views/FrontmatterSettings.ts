@@ -46,18 +46,39 @@ export class FrontmatterSettings extends PluginSettingTab {
 		this.initializeEnablePermalinkSetting();
 		this.initializeIncludeAllFrontmatterSetting();
 
-		// Set defaults for users that upgraded instead of freash install.
-		if (this.settings.settings.createdTimestampKey === "") {
+		// Set defaults for users that upgraded instead of fresh install.
+		const oldCreatedDefaults = ["created"];
+
+		if (
+			this.settings.settings.createdTimestampKey === "" ||
+			oldCreatedDefaults.includes(
+				this.settings.settings.createdTimestampKey,
+			)
+		) {
 			this.settings.settings.createdTimestampKey =
 				"created, created_at, date";
 		}
 
-		if (this.settings.settings.updatedTimestampKey === "") {
+		const oldUpdatedDefaults = ["modified"];
+
+		if (
+			this.settings.settings.updatedTimestampKey === "" ||
+			oldUpdatedDefaults.includes(
+				this.settings.settings.updatedTimestampKey,
+			)
+		) {
 			this.settings.settings.updatedTimestampKey =
 				"modified, lastmod, updated, last-modified";
 		}
 
-		if (this.settings.settings.publishedTimestampKey === "") {
+		const oldPublishedDefaults = ["published"];
+
+		if (
+			this.settings.settings.publishedTimestampKey === "" ||
+			oldPublishedDefaults.includes(
+				this.settings.settings.publishedTimestampKey,
+			)
+		) {
 			this.settings.settings.publishedTimestampKey =
 				"published, publishDate, date";
 		}
