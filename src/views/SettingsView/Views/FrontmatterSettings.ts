@@ -180,8 +180,8 @@ export class FrontmatterSettings extends PluginSettingTab {
 	}
 
 	/**
-	 * Initializes the setting to configure the created timestamp keus.
-	 * This method allows users to configure a comma-spearated list of keys to look for to determine the created timestamp.
+	 * Initializes the setting to configure the created timestamp keys.
+	 * This method allows users to configure a comma-separated list of keys to look for to determine the created timestamp.
 	 */
 	private initializeCreatedTimestampKeysSetting() {
 		if (
