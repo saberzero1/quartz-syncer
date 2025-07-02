@@ -244,7 +244,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 
 	/**
 	 * Initializes the setting to configure the updated timestamp keys.
-	 * This method allows users to configure a comma-spearated list of keys to look for to determine the updated timestamp.
+	 * This method allows users to configure a comma-separated list of keys to look for to determine the updated timestamp.
 	 */
 	private initializeUpdatedTimestampKeysSetting() {
 		if (
@@ -311,7 +311,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 
 	/**
 	 * Initializes the setting to configure the published timestamp keys.
-	 * This method allows users to configure a comma-spearated list of keys to look for to determine the published timestamp.
+	 * This method allows users to configure a comma-separated list of keys to look for to determine the published timestamp.
 	 */
 	private initializePublishedTimestampKeysSetting() {
 		if (
