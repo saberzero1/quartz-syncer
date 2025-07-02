@@ -45,9 +45,9 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	 * Or to nake it easier to adapt the plugin to future changes in Quartz.
 	 */
 	pathRewriteRules: "",
-	createdTimestampKey: "created",
-	updatedTimestampKey: "modified",
-	publishedTimestampKey: "published",
+	createdTimestampKey: "created, created_at, date",
+	updatedTimestampKey: "modified, lastmod, updated, last-modified",
+	publishedTimestampKey: "published, publishDate, date",
 	timestampFormat: "MMM dd, yyyy h:mm a",
 
 	/** Performance settings */

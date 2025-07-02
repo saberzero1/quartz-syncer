@@ -368,27 +368,30 @@ export class FrontmatterCompiler {
 			const publishedAt = file.meta.getPublishedAt();
 
 			if (createdAt && (showCreatedTimestamp || overridden)) {
-				newFrontMatter["created"] =
-					baseFrontMatter["created"] ??
-					baseFrontMatter["date"] ??
-					createdAt;
+				newFrontMatter["created"] = overridden
+					? (baseFrontMatter["created"] ??
+						baseFrontMatter["date"] ??
+						createdAt)
+					: createdAt;
 			}
 
 			if (updatedAt && (showUpdatedTimestamp || overridden)) {
-				newFrontMatter["modified"] =
-					baseFrontMatter["modified"] ??
-					baseFrontMatter["lastmod"] ??
-					baseFrontMatter["updated"] ??
-					baseFrontMatter["last-modified"] ??
-					updatedAt;
+				newFrontMatter["modified"] = overridden
+					? (baseFrontMatter["modified"] ??
+						baseFrontMatter["lastmod"] ??
+						baseFrontMatter["updated"] ??
+						baseFrontMatter["last-modified"] ??
+						updatedAt)
+					: updatedAt;
 			}
 
 			if (publishedAt && (showPublishedTimestamp || overridden)) {
-				newFrontMatter["published"] =
-					baseFrontMatter["published"] ??
-					baseFrontMatter["publishDate"] ??
-					baseFrontMatter["date"] ??
-					updatedAt;
+				newFrontMatter["published"] = overridden
+					? (baseFrontMatter["published"] ??
+						baseFrontMatter["publishDate"] ??
+						baseFrontMatter["date"] ??
+						publishedAt)
+					: publishedAt;
 			}
 
 			return newFrontMatter;

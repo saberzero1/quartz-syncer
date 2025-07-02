@@ -29,17 +29,15 @@ export class FileMetadataManager {
 	 * @returns The created date as an ISO string.
 	 */
 	getCreatedAt(): string {
-		const createdKey = this.settings.createdTimestampKey;
+		const createdKeys = this.settings.createdTimestampKey.split(",");
 
-		if (createdKey) {
-			const customCreatedDate = this.frontmatter[createdKey];
+		createdKeys.forEach((key) => {
+			const customCreatedDate = this.frontmatter[key.trim()];
 
-			if (!customCreatedDate) {
-				return "";
+			if (customCreatedDate) {
+				return customCreatedDate;
 			}
-
-			return customCreatedDate;
-		}
+		});
 
 		return DateTime.fromMillis(this.file.stat.ctime).toISO() as string;
 	}
@@ -52,17 +50,15 @@ export class FileMetadataManager {
 	 * @returns The updated date as an ISO string.
 	 */
 	getUpdatedAt(): string {
-		const updatedKey = this.settings.updatedTimestampKey;
+		const updatedKeys = this.settings.updatedTimestampKey.split(",");
 
-		if (updatedKey) {
-			const customUpdatedDate = this.frontmatter[updatedKey];
+		updatedKeys.forEach((key) => {
+			const customUpdatedDate = this.frontmatter[key.trim()];
 
-			if (!customUpdatedDate) {
-				return "";
+			if (customUpdatedDate) {
+				return customUpdatedDate;
 			}
-
-			return this.frontmatter[updatedKey];
-		}
+		});
 
 		return DateTime.fromMillis(this.file.stat.mtime).toISO() as string;
 	}
@@ -75,17 +71,15 @@ export class FileMetadataManager {
 	 * @returns The published date as an ISO string.
 	 */
 	getPublishedAt(): string {
-		const publishedKey = this.settings.publishedTimestampKey;
+		const publishedKeys = this.settings.publishedTimestampKey.split(",");
 
-		if (publishedKey) {
-			const customPublishedDate = this.frontmatter[publishedKey];
+		publishedKeys.forEach((key) => {
+			const customPublishedDate = this.frontmatter[key.trim()];
 
-			if (!customPublishedDate) {
-				return "";
+			if (customPublishedDate) {
+				return customPublishedDate;
 			}
-
-			return customPublishedDate;
-		}
+		});
 
 		return DateTime.fromMillis(this.file.stat.mtime).toISO() as string;
 	}
