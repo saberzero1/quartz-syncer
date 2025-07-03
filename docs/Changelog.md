@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-07-02T23:21:55Z+0200
+modified: 2025-07-03T14:31:57Z+0200
 publish: true
 ---
 
@@ -22,6 +22,12 @@ publish: true
 - Manage Quartz components.
 
 ## Released
+
+### 1.8.7
+
+- Added support for Dataview [inline fields](https://blacksmithgu.github.io/obsidian-dataview/annotation/add-metadata/#inline-fields)
+	- This works for inline fields defined inside Obsidian comment syntax as well (`%%`)
+- Updated documentation.
 
 ### 1.8.6
 
