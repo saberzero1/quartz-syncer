@@ -8,7 +8,7 @@ import prettierConfig from "eslint-config-prettier";
 export default [
 	// 1. Global ignores
 	{
-		ignores: ["**/*.js", ".svelte-kit/", "build/**", "jest.config.js", "scripts/*", "src/testVault/*", "content/*", "docs/*"],
+		ignores: ["**/*.js", ".svelte-kit/", "build/**", "jest.config.js", "scripts/*", "version-bump.mjs", "src/testVault/*", "content/*", "docs/*"],
 
 	},
 
