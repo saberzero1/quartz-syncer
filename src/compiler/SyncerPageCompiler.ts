@@ -236,7 +236,7 @@ export class SyncerPageCompiler {
 	 * @returns A function that takes the text to compile and returns the compiled text.
 	 */
 	convertFrontMatter: TCompilerStep = (file) => (text) => {
-		const compiledFrontmatter = file.getCompiledFrontmatter();
+		const compiledFrontmatter = file.getCompiledFrontmatter(text);
 
 		return text.replace(FRONTMATTER_REGEX, () => compiledFrontmatter);
 	};

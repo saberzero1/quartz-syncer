@@ -12,6 +12,10 @@ import { hasPublishFlag } from "src/publishFile/Validator";
 import { FileMetadataManager } from "src/publishFile/FileMetaDataManager";
 import { DataStore } from "src/publishFile/DataStore";
 import { generateBlobHash } from "src/utils/utils";
+import {
+	DATAVIEW_FIELD_REGEX,
+	DATAVIEW_INLINE_FIELD_REGEX,
+} from "src/utils/regexes";
 
 /**
  * IPublishFileProps interface.
@@ -242,13 +246,38 @@ export class PublishFile {
 	 * Retrieves the compiled frontmatter for the file.
 	 * It uses the FrontmatterCompiler to compile the frontmatter metadata.
 	 *
+	 * @param text - The text content of the file, used for compilation.
 	 * @returns The compiled frontmatter as an object.
 	 */
-	getCompiledFrontmatter() {
+	getCompiledFrontmatter(text: string) {
+		const convertDataviewFields = !!this.settings.useDataview;
+
 		const frontmatterCompiler = new FrontmatterCompiler(this.settings);
 
 		const metadata =
 			this.metadataCache.getCache(this.file.path)?.frontmatter ?? {};
+
+		if (convertDataviewFields) {
+			const fieldMatches = text.matchAll(DATAVIEW_FIELD_REGEX);
+
+			const inlineFieldMatches = text.matchAll(
+				DATAVIEW_INLINE_FIELD_REGEX,
+			);
+
+			for (const match of fieldMatches) {
+				if (match[1] && match[2]) {
+					metadata[match[1]] = match[2];
+				}
+			}
+
+			for (const match of inlineFieldMatches) {
+				if (match[1] && match[2]) {
+					metadata[match[1]] = match[2];
+				} else if (match[3] && match[4]) {
+					metadata[match[3]] = match[4];
+				}
+			}
+		}
 
 		return frontmatterCompiler.compile(this, metadata);
 	}
