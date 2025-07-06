@@ -887,17 +887,23 @@ export class SyncerPageCompiler {
 							name = "";
 						}
 
-						// Apply the same path rewriting logic used for notes
-						const rewrittenPath = getSyncerPathForNote(
-							blobFullPath,
-							this.rewriteRule,
-						);
-						// Convert the path to Quartz format with /img/user/ prefix
-						const quartzImagePath = `/img/user/${rewrittenPath.replace(/ /g, "%20")}`;
-						const blobMarkdown = `![${blobName}${name}](${quartzImagePath})`;
+						// Remove vaultPath prefix if the asset path starts with it
+						let assetPath = blobFullPath;
+
+						if (
+							this.settings.vaultPath !== "/" &&
+							this.settings.vaultPath !== "" &&
+							assetPath.startsWith(this.settings.vaultPath)
+						) {
+							assetPath = assetPath.substring(
+								this.settings.vaultPath.length,
+							);
+						}
+
+						const blobMarkdown = `![${blobName}${name}](${assetPath.replace(/ /g, "%20")})`;
 
 						assets.push({
-							path: quartzImagePath,
+							path: assetPath,
 							content: blobBase64,
 						});
 
@@ -959,17 +965,23 @@ export class SyncerPageCompiler {
 								this.settings.vaultPath,
 							)?.path ?? blobPath;
 
-						// Apply the same path rewriting logic used for notes
-						const rewrittenPath = getSyncerPathForNote(
-							blobFullPath,
-							this.rewriteRule,
-						);
-						// Convert the path to Quartz format with /img/user/ prefix
-						const quartzImagePath = `/img/user/${rewrittenPath.replace(/ /g, "%20")}`;
-						const blobMarkdown = `![${blobName}](${quartzImagePath})`;
+						// Remove vaultPath prefix if the asset path starts with it
+						let assetPath = blobFullPath;
+
+						if (
+							this.settings.vaultPath !== "/" &&
+							this.settings.vaultPath !== "" &&
+							assetPath.startsWith(this.settings.vaultPath)
+						) {
+							assetPath = assetPath.substring(
+								this.settings.vaultPath.length,
+							);
+						}
+
+						const blobMarkdown = `![${blobName}](${assetPath.replace(/ /g, "%20")})`;
 
 						assets.push({
-							path: quartzImagePath,
+							path: assetPath,
 							content: blobBase64,
 						});
 
