@@ -888,7 +888,7 @@ export class SyncerPageCompiler {
 						}
 
 						// Convert the path to Quartz format with /img/user/ prefix
-						const quartzImagePath = `/img/user/${encodeURIComponent(blobFullPath)}`;
+						const quartzImagePath = `/img/user/${blobFullPath.replace(/ /g, '%20')}`;
 						const blobMarkdown = `![${blobName}${name}](${quartzImagePath})`;
 
 						assets.push({
@@ -955,7 +955,7 @@ export class SyncerPageCompiler {
 							)?.path ?? blobPath;
 
 						// Convert the path to Quartz format with /img/user/ prefix
-						const quartzImagePath = `/img/user/${encodeURIComponent(blobFullPath)}`;
+						const quartzImagePath = `/img/user/${blobFullPath.replace(/ /g, '%20')}`;
 						const blobMarkdown = `![${blobName}](${quartzImagePath})`;
 
 						assets.push({
