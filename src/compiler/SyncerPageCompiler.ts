@@ -887,10 +887,12 @@ export class SyncerPageCompiler {
 							name = "";
 						}
 
-						const blobMarkdown = `![[${blobFullPath}${name}]]`;
+						// Convert the path to Quartz format with /img/user/ prefix
+						const quartzImagePath = `/img/user/${encodeURIComponent(blobFullPath)}`;
+						const blobMarkdown = `![${blobName}${name}](${quartzImagePath})`;
 
 						assets.push({
-							path: blobFullPath,
+							path: quartzImagePath,
 							content: blobBase64,
 						});
 
@@ -952,10 +954,12 @@ export class SyncerPageCompiler {
 								this.settings.vaultPath,
 							)?.path ?? blobPath;
 
-						const blobMarkdown = `![${blobName}](${blobFullPath})`;
+						// Convert the path to Quartz format with /img/user/ prefix
+						const quartzImagePath = `/img/user/${encodeURIComponent(blobFullPath)}`;
+						const blobMarkdown = `![${blobName}](${quartzImagePath})`;
 
 						assets.push({
-							path: blobFullPath,
+							path: quartzImagePath,
 							content: blobBase64,
 						});
 
