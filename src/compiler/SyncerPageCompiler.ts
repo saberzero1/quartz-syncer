@@ -887,8 +887,13 @@ export class SyncerPageCompiler {
 							name = "";
 						}
 
+						// Apply the same path rewriting logic used for notes
+						const rewrittenPath = getSyncerPathForNote(
+							blobFullPath,
+							this.rewriteRule,
+						);
 						// Convert the path to Quartz format with /img/user/ prefix
-						const quartzImagePath = `/img/user/${blobFullPath.replace(/ /g, '%20')}`;
+						const quartzImagePath = `/img/user/${rewrittenPath.replace(/ /g, "%20")}`;
 						const blobMarkdown = `![${blobName}${name}](${quartzImagePath})`;
 
 						assets.push({
@@ -954,8 +959,13 @@ export class SyncerPageCompiler {
 								this.settings.vaultPath,
 							)?.path ?? blobPath;
 
+						// Apply the same path rewriting logic used for notes
+						const rewrittenPath = getSyncerPathForNote(
+							blobFullPath,
+							this.rewriteRule,
+						);
 						// Convert the path to Quartz format with /img/user/ prefix
-						const quartzImagePath = `/img/user/${blobFullPath.replace(/ /g, '%20')}`;
+						const quartzImagePath = `/img/user/${rewrittenPath.replace(/ /g, "%20")}`;
 						const blobMarkdown = `![${blobName}](${quartzImagePath})`;
 
 						assets.push({
