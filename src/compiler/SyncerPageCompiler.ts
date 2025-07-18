@@ -14,6 +14,7 @@ import {
 	getSyncerPathForNote,
 	getRewriteRules,
 	sanitizePermalink,
+	escapeRegExp,
 } from "src/utils/utils";
 import slugify from "@sindresorhus/slugify";
 import {
@@ -175,12 +176,14 @@ export class SyncerPageCompiler {
 	 */
 	applyVaultPath: TCompilerStep = () => (text) => {
 		const wikilinkRegex = new RegExp(
-			"\\[\\[" + this.settings.vaultPath + "(.*?)\\]\\]",
+			"\\[\\[" + escapeRegExp(this.settings.vaultPath) + "(.*?)\\]\\]",
 			"g",
 		);
 
 		const markdownLinkRegex = new RegExp(
-			"\\[(.*?)\\]\\(" + this.settings.vaultPath + "(.*?)\\)",
+			"\\[(.*?)\\]\\(" +
+				escapeRegExp(this.settings.vaultPath) +
+				"(.*?)\\)",
 			"g",
 		);
 
@@ -965,6 +968,8 @@ export class SyncerPageCompiler {
 					}
 				}
 			}
+
+			blobText = await this.applyVaultPath(file)(blobText);
 
 			return [blobText, assets];
 		};

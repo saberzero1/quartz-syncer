@@ -34,3 +34,4 @@ content/.obsidian/workspace.json
 
 # Documentation
 docs/.obsidian
+docs/**/_*.md

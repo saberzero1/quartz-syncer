@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-07-03T14:31:57Z+0200
+modified: 2025-07-18T21:38:14Z+0200
 publish: true
 ---
 
