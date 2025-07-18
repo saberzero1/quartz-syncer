@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-07-18T23:07:25Z+0200
+modified: 2025-07-18T23:28:13Z+0200
 publish: true
 ---
 
@@ -25,7 +25,7 @@ publish: true
 
 ### 1.8.8
 
-- Fixed asset paths not properly getting rewritten when the `vaultPath` setting was set to a non-root path.
+- Fixed asset paths not getting rewritten correctly when the `vaultPath` setting was set to a non-root path.
 - Updated documentation.
 
 ### 1.8.7
