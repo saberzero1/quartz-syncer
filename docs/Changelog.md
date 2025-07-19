@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-07-18T23:28:13Z+0200
+modified: 2025-07-19T11:56:08Z+0200
 publish: true
 ---
 
@@ -22,6 +22,11 @@ publish: true
 - Manage Quartz components.
 
 ## Released
+
+### 1.8.9
+
+- Added support for the [Auto Card Link](https://github.com/nekoshita/obsidian-auto-card-link) plugin.
+- Updated documentation.
 
 ### 1.8.8
 
