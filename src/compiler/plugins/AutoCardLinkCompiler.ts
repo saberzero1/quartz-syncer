@@ -5,6 +5,14 @@ import { autoCardLink } from "src/utils/styles";
 import Logger from "js-logger";
 import { AUTO_CARD_LINK_PLUGIN_ID } from "src/ui/suggest/constants";
 
+/**
+ * AutoCardLinkCompiler is responsible for compiling Auto Card Link queries
+ * in the text of a PublishFile.
+ * It replaces the queries with their rendered results and injects the necessary CSS
+ * for the Auto Card Link renders.
+ *
+ * Documentation: {@link https://github.com/nekoshita/obsidian-auto-card-link}
+ */
 export class AutoCardLinkCompiler {
 	app: App;
 	serializer: XMLSerializer;
@@ -14,6 +22,14 @@ export class AutoCardLinkCompiler {
 		this.serializer = new XMLSerializer();
 	}
 
+	/**
+	 * Compiles the text by replacing Auto Card Link queries with their results.
+	 * It also injects the necessary CSS for the Auto Card Link renders.
+	 *
+	 * @param _file - The PublishFile object representing the file being compiled.
+	 * @returns A function that takes the text to compile and returns the compiled text.
+	 * @throws If the Auto Card Link plugin is not enabled, it returns the original text.
+	 */
 	compile: TCompilerStep = (_file) => async (text) => {
 		let replacedText = text;
 
@@ -62,6 +78,13 @@ export class AutoCardLinkCompiler {
 		return replacedText + injectCSS;
 	};
 
+	/**
+	 * Attempts to render a card link from the provided source string.
+	 * It parses the YAML metadata and generates the corresponding HTML element.
+	 *
+	 * @param source - The source string containing the YAML metadata for the card link.
+	 * @returns A Promise that resolves to an HTMLElement containing the rendered card link.
+	 */
 	async tryRenderCardLink(source: string) {
 		const div = createEl("div");
 
@@ -90,6 +113,15 @@ export class AutoCardLinkCompiler {
 		return div;
 	}
 
+	/**
+	 * Parses the YAML metadata from the provided source string and returns a LinkMetadata object.
+	 * It extracts the required fields (url, title) and optional fields (description, host, favicon, image).
+	 *
+	 * @param source - The source string containing the YAML metadata.
+	 * @returns A LinkMetadata object containing the parsed data.
+	 * @throws YamlParseError if the YAML parsing fails.
+	 * @throws NoRequiredParamsError if required parameters are missing.
+	 */
 	private parseLinkMetadataFromYaml(source: string): LinkMetadata {
 		let yaml: Partial<LinkMetadata>;
 
@@ -136,6 +168,13 @@ export class AutoCardLinkCompiler {
 		};
 	}
 
+	/**
+	 * Generates an error element with the provided error message.
+	 * This element is used to display errors related to card links.
+	 *
+	 * @param errorMsg - The error message to display.
+	 * @returns An HTMLElement containing the error message.
+	 */
 	private genErrorEl(errorMsg: string): HTMLElement {
 		const containerEl = createEl("div");
 		containerEl.addClass("auto-card-link-error-container");
@@ -147,6 +186,13 @@ export class AutoCardLinkCompiler {
 		return containerEl;
 	}
 
+	/**
+	 * Generates an HTML element representing a card link based on the provided LinkMetadata.
+	 * This element includes the title, description, host, and image (if available).
+	 *
+	 * @param data - The LinkMetadata object containing the link information.
+	 * @returns An HTMLElement representing the card link.
+	 */
 	private genLinkEl(data: LinkMetadata): HTMLElement {
 		const containerEl = createEl("div");
 		containerEl.addClass("auto-card-link-container");
@@ -197,6 +243,13 @@ export class AutoCardLinkCompiler {
 		return containerEl;
 	}
 
+	/**
+	 * Retrieves the local image path from the provided link.
+	 * It removes the surrounding brackets and resolves the link to a local path.
+	 *
+	 * @param link - The link to the image, which may be a local Obsidian link.
+	 * @returns The resolved local image path.
+	 */
 	private getLocalImagePath(link: string): string {
 		link = link.slice(2, -2); // remove [[]]
 
