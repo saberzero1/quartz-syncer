@@ -3,6 +3,7 @@ import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 import { isPluginEnabled } from "src/utils/utils";
 import {
+	AUTO_CARD_LINK_PLUGIN_ID,
 	DATACORE_PLUGIN_ID,
 	DATAVIEW_PLUGIN_ID,
 	FANTASY_STATBLOCKS_PLUGIN_ID,
@@ -40,6 +41,7 @@ export class IntegrationSettings extends PluginSettingTab {
 		this.settingsRootElement.addClass("quartz-syncer-github-settings");
 
 		this.initializePluginIntegrationHeader();
+		this.initializeAutoCardLinkSetting();
 		this.initializeDataviewSetting();
 		this.initializeDatacoreSetting();
 		this.initializeExcalidrawSetting();
@@ -61,6 +63,41 @@ export class IntegrationSettings extends PluginSettingTab {
 			)
 			.setHeading();
 	};
+
+	/**
+	 * Initializes the Auto Card Link setting.
+	 * This method creates a toggle for enabling/disabling Auto Card Link integration.
+	 * It checks if the Auto Card Link plugin is enabled and updates the settings accordingly.
+	 */
+	private initializeAutoCardLinkSetting() {
+		const autoCardLinkEnabled = isPluginEnabled(AUTO_CARD_LINK_PLUGIN_ID);
+
+		new Setting(this.settingsRootElement)
+			.setName("Enable Auto Card Link integration")
+			.setDesc(
+				"Converts Auto Card Link queries into Quartz-compatible markdown.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(
+						this.settings.settings.useAutoCardLink &&
+							autoCardLinkEnabled,
+					)
+					.setDisabled(!autoCardLinkEnabled)
+					.onChange(async (value) => {
+						this.settings.settings.useAutoCardLink =
+							value && autoCardLinkEnabled;
+						await this.settings.plugin.saveSettings();
+					}),
+			)
+			.setClass(
+				`${
+					autoCardLinkEnabled
+						? "quartz-syncer-settings-enabled"
+						: "quartz-syncer-settings-disabled"
+				}`,
+			);
+	}
 
 	/**
 	 * Initializes the Datacore setting.

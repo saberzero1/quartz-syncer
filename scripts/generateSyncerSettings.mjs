@@ -18,6 +18,7 @@ const quartzSettings = {
 
 	contentFolder: "content",
 	vaultPath: "/",
+	useAutoCardLink: false,
 	useDatacore: false,
 	useDataview: true,
 	useExcalidraw: false,

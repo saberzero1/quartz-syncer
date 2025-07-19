@@ -48,6 +48,13 @@ export default interface QuartzSyncerSettings {
 
 	/** Integration settings */
 	/**
+	 * Enable Auto Card Link integration.
+	 * This will allow the plugin to use Auto Card Link queries in the published notes.
+	 *
+	 * Auto Card Link documentation: {@link https://github.com/nekoshita/obsidian-auto-card-link}
+	 */
+	useAutoCardLink: boolean;
+	/**
 	 * Enable Dataview integration.
 	 * This will allow the plugin to use Dataview queries in the published notes.
 	 *

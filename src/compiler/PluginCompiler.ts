@@ -1,3 +1,4 @@
+import { AutoCardLinkCompiler } from "./plugins/AutoCardLinkCompiler";
 import { DataviewCompiler } from "src/compiler/plugins/DataviewCompiler";
 import { DatacoreCompiler } from "./plugins/DatacoreCompiler";
 import { FantasyStatblocksCompiler } from "./plugins/FantasyStatblocksCompiler";
@@ -8,6 +9,7 @@ import QuartzSyncerSettings from "src/models/settings";
 
 type IntegrationTarget = {
 	compiler:
+		| typeof AutoCardLinkCompiler
 		| typeof DataviewCompiler
 		| typeof DatacoreCompiler
 		| typeof FantasyStatblocksCompiler;
@@ -29,6 +31,10 @@ export class PluginCompiler {
 
 	integrationTargets = (): IntegrationTarget[] => {
 		return [
+			{
+				compiler: AutoCardLinkCompiler,
+				enabled: this.settings.useAutoCardLink,
+			},
 			{
 				compiler: DataviewCompiler,
 				enabled: this.settings.useDataview,
