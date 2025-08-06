@@ -86,7 +86,7 @@ export default class Publisher {
 	 * @returns A promise that resolves to an object containing notes and blobs to be published.
 	 */
 	async getFilesMarkedForPublishing(): Promise<MarkedForPublishing> {
-		const vaultIsRoot = this.settings.vaultPath == "/";
+		const vaultIsRoot = this.settings.vaultPath === "/";
 
 		// Only include files that are within the vaultPath
 		const files = this.vault
