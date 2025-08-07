@@ -55,15 +55,44 @@ export class DataStore {
 	 */
 	public async recreate() {
 		await localforage.dropInstance({
-			name: "quartz-syncer/cache/" + this.appId,
+			name: `quartz-syncer/cache/${this.vaultName}/${this.appId}/${this.version}`,
 		});
 
+		await this.dropOutdatedCache();
+
 		this.persister = localforage.createInstance({
-			name: "quartz-syncer/cache/" + this.appId,
+			name: `quartz-syncer/cache/${this.vaultName}/${this.appId}/${this.version}`,
 			driver: [localforage.INDEXEDDB],
 			description:
 				"Cache metadata about files and sections in the quartz syncer index.",
 		});
+	}
+
+	/**
+	 * Drop outdated cache instance. This is used to clear the cache when the version changes.
+	 *
+	 * returns A promise that resolves when the cache is dropped.
+	 */
+	public async dropOutdatedCache(): Promise<void> {
+		// Get all IndexedDB instances
+		const instances = await indexedDB.databases();
+
+		// Filter instances that match the current vault and app ID
+		const matchingInstances = instances.filter(
+			(instance) =>
+				instance.name &&
+				instance.name.startsWith(
+					`quartz-syncer/cache/${this.vaultName}/${this.appId}/`,
+				) &&
+				instance.name !==
+					`quartz-syncer/cache/${this.vaultName}/${this.appId}/${this.version}`, // Exclude the current version
+		);
+
+		// Drop each matching instance
+		for (const instance of matchingInstances) {
+			// instance.name is guaranteed to be non-null due to the filter above
+			indexedDB.deleteDatabase(instance.name!);
+		}
 	}
 
 	/**
