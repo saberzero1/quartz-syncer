@@ -313,16 +313,20 @@ function sanitizeHTMLToString(
 	div: HTMLDivElement,
 	serializer: XMLSerializer,
 ): string {
+	const styleTags = div.querySelectorAll("style");
+
 	// Let Obsidian handle the sanitization
 	const sanitizedHtml = sanitizeHTMLToDom(div.innerHTML);
 
 	let container = document.createElement("div");
 	container.appendChild(sanitizedHtml);
 
-	removeUnwantedElements(container, "script, style, link, meta, title");
+	removeUnwantedElements(container, "script, link, meta, title");
 
 	// Remove unwanted attributes from internal links
-	const internalLinks = container.querySelectorAll("a.internal-link, a.tag");
+	const internalLinks = container.querySelectorAll(
+		"a.internal-link, a.tag, a:not(.external-link):not(.internal-link):not(.tag)",
+	);
 
 	if (internalLinks.length > 0) {
 		cleanAnchorLinks(container);
@@ -372,10 +376,36 @@ function sanitizeHTMLToString(
 		return cleanQueryResult(result);
 	}
 
+	styleTags.forEach((styleTag) => {
+		container.append(styleTag);
+	});
+
+	cleanDatacoreAttributes(container);
+
 	// Serialize the sanitized HTML back to a string
 	const serializedHtml = serializer.serializeToString(container);
 
 	return serializedHtml.replace(' xmlns="http://www.w3.org/1999/xhtml"', "");
+}
+
+/**
+ * Cleans datacore attributes from the container.
+ * This is useful for removing Obsidian-specific attributes that are not needed in Quartz.
+ *
+ * @param container - The HTMLDivElement containing the HTML content to clean.
+ */
+function cleanDatacoreAttributes(container: HTMLDivElement): void {
+	const datacoreAttributes = ["__source", "__self"];
+
+	const elements = container.querySelectorAll(
+		`${datacoreAttributes.map((attr) => `[${attr}]`).join(", ")}`,
+	);
+
+	elements.forEach((element) => {
+		datacoreAttributes.forEach((attr) => {
+			element.removeAttribute(attr);
+		});
+	});
 }
 
 /**
@@ -480,12 +510,22 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
  * @param container - The HTMLDivElement containing the anchor links to clean.
  */
 function cleanAnchorLinks(container: HTMLDivElement): void {
-	const internalLinks = container.querySelectorAll("a.internal-link, a.tag");
+	const internalLinks = container.querySelectorAll(
+		"a.internal-link, a.tag, a:not(.external-link):not(.internal-link):not(.tag)",
+	);
 
 	internalLinks.forEach((link) => {
 		link.removeAttribute("target");
 		link.removeAttribute("rel");
 		link.removeAttribute("data-href");
+
+		if (link.hasAttribute("href")) {
+			if (link.getAttribute("href")?.startsWith("http")) {
+				link.classList.add("external-link");
+			} else {
+				link.classList.add("internal-link");
+			}
+		}
 	});
 }
 
