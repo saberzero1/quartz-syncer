@@ -192,7 +192,13 @@ export class IntegrationSettings extends PluginSettingTab {
 						await this.settings.plugin.saveSettings();
 					}),
 			)
-			.setClass("quartz-syncer-settings-upcoming");
+			.setClass(
+				`${
+					excalidrawEnabled
+						? "quartz-syncer-settings-enabled"
+						: "quartz-syncer-settings-disabled"
+				}`,
+			);
 	}
 
 	/**
