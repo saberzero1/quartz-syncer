@@ -174,9 +174,7 @@ export class IntegrationSettings extends PluginSettingTab {
 	 * It currently disables the toggle as Excalidraw integration is not yet implemented.
 	 */
 	private initializeExcalidrawSetting() {
-		const excalidrawEnabled = isPluginEnabled(
-			EXCALIDRAW_PLUGIN_ID,
-		);
+		const excalidrawEnabled = isPluginEnabled(EXCALIDRAW_PLUGIN_ID);
 
 		new Setting(this.settingsRootElement)
 			.setName("Enable Excalidraw integration")
