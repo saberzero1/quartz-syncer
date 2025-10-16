@@ -38,15 +38,15 @@ export declare class ExcalidrawAutomate {
 
 	/**
 	 * utility function to generate EmbeddedFilesLoader object
-	 * @param isDark
+	 * @param isDark -
 	 * @returns
 	 */
 	getEmbeddedFilesLoader(isDark?: boolean): unknown;
 
 	/**
 	 * utility function to generate ExportSettings object
-	 * @param withBackground
-	 * @param withTheme
+	 * @param withBackground -
+	 * @param withTheme -
 	 * @returns
 	 */
 	getExportSettings(

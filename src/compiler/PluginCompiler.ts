@@ -57,7 +57,6 @@ export class PluginCompiler {
 	};
 
 	compile: TCompilerStep = (file: PublishFile) => {
-		console.log(this.settings.useExcalidraw);
 		return async (text: string) => {
 			let compiledText = text;
 
