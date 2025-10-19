@@ -7,12 +7,6 @@ const BaseOctokit = OctokitCore.plugin(retry, throttling);
 export class Octokit extends BaseOctokit {
 	constructor(options: OctokitOptions) {
 		super({
-			request: {
-				timeout: 5000,
-			},
-			retry: {
-				doNotRetry: ["429"],
-			},
 			throttle: {
 				onRateLimit: (
 					retryAfter: number,
