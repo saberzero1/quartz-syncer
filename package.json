@@ -54,7 +54,9 @@
 	},
 	"dependencies": {
 		"@blacksmithgu/datacore": "^0.1.24",
-		"@octokit/core": "^5.0.0",
+		"@octokit/core": "^7.0.5",
+		"@octokit/plugin-retry": "^8.0.2",
+		"@octokit/plugin-throttling": "^11.0.2",
 		"@sindresorhus/slugify": "^1.1.2",
 		"axios": "^1.5.0",
 		"crypto-js": "^4.1.1",

@@ -30,6 +30,7 @@ type ContentTreeItem = {
 	path: string;
 	sha: string;
 	type: string;
+	mode: string;
 };
 
 /**

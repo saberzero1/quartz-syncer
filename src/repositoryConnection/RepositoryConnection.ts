@@ -1,4 +1,4 @@
-import { Octokit } from "@octokit/core";
+import { Octokit } from "./OctokitClient";
 import { normalizePath } from "obsidian";
 import Logger from "js-logger";
 import { CompiledPublishFile } from "src/publishFile/PublishFile";
