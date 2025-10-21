@@ -6,13 +6,15 @@ import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { App } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
+import { ExcalidrawCompiler } from "./plugins/ExcalidrawCompiler";
 
 type IntegrationTarget = {
 	compiler:
 		| typeof AutoCardLinkCompiler
 		| typeof DataviewCompiler
 		| typeof DatacoreCompiler
-		| typeof FantasyStatblocksCompiler;
+		| typeof FantasyStatblocksCompiler
+		| typeof ExcalidrawCompiler;
 	enabled: boolean;
 };
 
@@ -46,6 +48,10 @@ export class PluginCompiler {
 			{
 				compiler: FantasyStatblocksCompiler,
 				enabled: this.settings.useFantasyStatblocks,
+			},
+			{
+				compiler: ExcalidrawCompiler,
+				enabled: this.settings.useExcalidraw,
 			},
 		];
 	};

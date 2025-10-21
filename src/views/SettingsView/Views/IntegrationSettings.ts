@@ -6,6 +6,7 @@ import {
 	AUTO_CARD_LINK_PLUGIN_ID,
 	DATACORE_PLUGIN_ID,
 	DATAVIEW_PLUGIN_ID,
+	EXCALIDRAW_PLUGIN_ID,
 	FANTASY_STATBLOCKS_PLUGIN_ID,
 } from "src/ui/suggest/constants";
 
@@ -173,6 +174,8 @@ export class IntegrationSettings extends PluginSettingTab {
 	 * It currently disables the toggle as Excalidraw integration is not yet implemented.
 	 */
 	private initializeExcalidrawSetting() {
+		const excalidrawEnabled = isPluginEnabled(EXCALIDRAW_PLUGIN_ID);
+
 		new Setting(this.settingsRootElement)
 			.setName("Enable Excalidraw integration")
 			.setDesc(
@@ -181,14 +184,19 @@ export class IntegrationSettings extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.settings.settings.useExcalidraw)
-					.setValue(false)
-					.setDisabled(true)
+					.setDisabled(!excalidrawEnabled)
 					.onChange(async (value) => {
 						this.settings.settings.useExcalidraw = value;
 						await this.settings.plugin.saveSettings();
 					}),
 			)
-			.setClass("quartz-syncer-settings-upcoming");
+			.setClass(
+				`${
+					excalidrawEnabled
+						? "quartz-syncer-settings-enabled"
+						: "quartz-syncer-settings-disabled"
+				}`,
+			);
 	}
 
 	/**
