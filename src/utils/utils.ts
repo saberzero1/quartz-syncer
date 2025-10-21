@@ -581,6 +581,21 @@ function unwrap(container: HTMLDivElement) {
 	return container;
 }
 
+/**
+ * Creates an image element with the SVG embedded as a data URL.
+ *
+ * @param svgElement - The SVG element to embed in the image.
+ * @returns The image element with the SVG embedded as a data URL.
+ */
+function svgToData(svgElement: SVGSVGElement): string {
+	const serializer = new XMLSerializer();
+	const svgString = serializer.serializeToString(svgElement);
+
+	const encodedData = btoa(unescape(encodeURIComponent(svgString)));
+
+	return `data:image/svg+xml;base64,${encodedData}`;
+}
+
 export {
 	generateUrlPath,
 	generateBlobHash,
@@ -596,4 +611,6 @@ export {
 	sanitizeHTMLToString,
 	surroundWithCalloutBlock,
 	sanitizeQuery,
+	removeUnwantedElements,
+	svgToData,
 };

@@ -1,24 +1,21 @@
 ---
-created: 2025-10-21T09:34:46Z+0200
-modified: 2025-10-21T10:03:03Z+0200
-tags: [excalidraw]
-excalidraw-plugin: parsed
----
 
+excalidraw-plugin: parsed
+tags: [excalidraw]
+
+---
 ==⚠  Switch to EXCALIDRAW VIEW in the MORE OPTIONS menu of this document. ⚠== You can decompress Drawing data with the command palette: 'Decompress current Excalidraw file'. For more info check in plugin settings under 'Saving'
+
 
 # Excalidraw Data
 
 ## Text Elements
+Hello Quartz ^bCQ6oAfE
 
-Hello Quartz ^A9Kr3Ra1
-
-Hi ^G56kEjhe
+Hi ^Mlj8nSMy
 
 %%
-
 ## Drawing
-
 ```json
 {
 	"type": "excalidraw",
@@ -26,12 +23,12 @@ Hi ^G56kEjhe
 	"source": "https://github.com/zsviczian/obsidian-excalidraw-plugin/releases/tag/2.16.1",
 	"elements": [
 		{
-			"id": "r8Qz0UJv2MzTlOPaQwDgo",
+			"id": "9ul0YKiTcVUf8q9REaJMT",
 			"type": "rectangle",
-			"x": -125.1640625,
-			"y": -333.40625,
-			"width": 304.49609375,
-			"height": 88.80078125,
+			"x": -114.203125,
+			"y": -382.2890625,
+			"width": 290.1640625,
+			"height": 106.1171875,
 			"angle": 0,
 			"strokeColor": "#1e1e1e",
 			"backgroundColor": "#b2f2bb",
@@ -46,29 +43,29 @@ Hi ^G56kEjhe
 			"roundness": {
 				"type": 3
 			},
-			"seed": 2053132168,
+			"seed": 1485142924,
 			"version": 97,
-			"versionNonce": 355453320,
+			"versionNonce": 1316967220,
 			"isDeleted": false,
 			"boundElements": [
 				{
 					"type": "text",
-					"id": "A9Kr3Ra1"
+					"id": "bCQ6oAfE"
 				},
 				{
-					"id": "TIqNqn_x4BU_aBQoCSN3p",
+					"id": "tLAmbnYo_6wHYmhbUDwYZ",
 					"type": "arrow"
 				}
 			],
-			"updated": 1761032250069,
+			"updated": 1761044864195,
 			"link": null,
 			"locked": false
 		},
 		{
-			"id": "A9Kr3Ra1",
+			"id": "bCQ6oAfE",
 			"type": "text",
-			"x": -33.105979919433594,
-			"y": -301.505859375,
+			"x": -29.311058044433594,
+			"y": -341.73046875,
 			"width": 120.37992858886719,
 			"height": 25,
 			"angle": 0,
@@ -83,12 +80,12 @@ Hi ^G56kEjhe
 			"frameId": null,
 			"index": "a1",
 			"roundness": null,
-			"seed": 1042738824,
-			"version": 17,
-			"versionNonce": 405516024,
+			"seed": 1866216716,
+			"version": 29,
+			"versionNonce": 1846978996,
 			"isDeleted": false,
-			"boundElements": [],
-			"updated": 1761032176423,
+			"boundElements": null,
+			"updated": 1761044862307,
 			"link": null,
 			"locked": false,
 			"text": "Hello Quartz",
@@ -97,22 +94,22 @@ Hi ^G56kEjhe
 			"fontFamily": 5,
 			"textAlign": "center",
 			"verticalAlign": "middle",
-			"containerId": "r8Qz0UJv2MzTlOPaQwDgo",
+			"containerId": "9ul0YKiTcVUf8q9REaJMT",
 			"originalText": "Hello Quartz",
 			"autoResize": true,
 			"lineHeight": 1.25
 		},
 		{
-			"id": "TIqNqn_x4BU_aBQoCSN3p",
-			"type": "arrow",
-			"x": 23.63855790834004,
-			"y": -241.5546875,
-			"width": 0.9974024851305572,
-			"height": 96.40069003389218,
+			"id": "SBxBd1lXK_k5o5G8zf-VN",
+			"type": "diamond",
+			"x": -40.671875,
+			"y": -152.37890625,
+			"width": 129.359375,
+			"height": 126.296875,
 			"angle": 0,
 			"strokeColor": "#1e1e1e",
-			"backgroundColor": "transparent",
-			"fillStyle": "solid",
+			"backgroundColor": "#ffec99",
+			"fillStyle": "cross-hatch",
 			"strokeWidth": 2,
 			"strokeStyle": "solid",
 			"roughness": 1,
@@ -123,83 +120,29 @@ Hi ^G56kEjhe
 			"roundness": {
 				"type": 2
 			},
-			"seed": 606604168,
-			"version": 199,
-			"versionNonce": 818303112,
-			"isDeleted": false,
-			"boundElements": [],
-			"updated": 1761033187022,
-			"link": null,
-			"locked": false,
-			"points": [
-				[
-					0,
-					0
-				],
-				[
-					-0.9974024851305572,
-					96.40069003389218
-				]
-			],
-			"lastCommittedPoint": null,
-			"startBinding": {
-				"elementId": "r8Qz0UJv2MzTlOPaQwDgo",
-				"focus": 0.019289331114062704,
-				"gap": 3.05078125
-			},
-			"endBinding": {
-				"elementId": "t20qcd9VpaHTKUjWVPSuf",
-				"focus": 0.024959531493142027,
-				"gap": 5.195433098621308
-			},
-			"startArrowhead": null,
-			"endArrowhead": "arrow",
-			"elbowed": false
-		},
-		{
-			"id": "t20qcd9VpaHTKUjWVPSuf",
-			"type": "diamond",
-			"x": -38.63671875,
-			"y": -144.2890625,
-			"width": 118.23828125,
-			"height": 135.8046875,
-			"angle": 0,
-			"strokeColor": "#1e1e1e",
-			"backgroundColor": "#ffec99",
-			"fillStyle": "hachure",
-			"strokeWidth": 2,
-			"strokeStyle": "solid",
-			"roughness": 1,
-			"opacity": 100,
-			"groupIds": [],
-			"frameId": null,
-			"index": "a3",
-			"roundness": {
-				"type": 2
-			},
-			"seed": 430054136,
-			"version": 81,
-			"versionNonce": 1476874488,
+			"seed": 624171956,
+			"version": 340,
+			"versionNonce": 1176789772,
 			"isDeleted": false,
 			"boundElements": [
 				{
-					"id": "TIqNqn_x4BU_aBQoCSN3p",
-					"type": "arrow"
+					"type": "text",
+					"id": "Mlj8nSMy"
 				},
 				{
-					"type": "text",
-					"id": "G56kEjhe"
+					"id": "tLAmbnYo_6wHYmhbUDwYZ",
+					"type": "arrow"
 				}
 			],
-			"updated": 1761032245077,
+			"updated": 1761044856883,
 			"link": null,
 			"locked": false
 		},
 		{
-			"id": "G56kEjhe",
+			"id": "Mlj8nSMy",
 			"type": "text",
-			"x": 12.252861022949219,
-			"y": -88.837890625,
+			"x": 15.997978210449219,
+			"y": -101.8046875,
 			"width": 16.339981079101562,
 			"height": 25,
 			"angle": 0,
@@ -212,14 +155,14 @@ Hi ^G56kEjhe
 			"opacity": 100,
 			"groupIds": [],
 			"frameId": null,
-			"index": "a4",
+			"index": "a3",
 			"roundness": null,
-			"seed": 1857154184,
-			"version": 10,
-			"versionNonce": 1634068984,
+			"seed": 215544588,
+			"version": 188,
+			"versionNonce": 1789523980,
 			"isDeleted": false,
-			"boundElements": [],
-			"updated": 1761032214142,
+			"boundElements": null,
+			"updated": 1761044833019,
 			"link": null,
 			"locked": false,
 			"text": "Hi",
@@ -228,10 +171,64 @@ Hi ^G56kEjhe
 			"fontFamily": 5,
 			"textAlign": "center",
 			"verticalAlign": "middle",
-			"containerId": "t20qcd9VpaHTKUjWVPSuf",
+			"containerId": "SBxBd1lXK_k5o5G8zf-VN",
 			"originalText": "Hi",
 			"autoResize": true,
 			"lineHeight": 1.25
+		},
+		{
+			"id": "tLAmbnYo_6wHYmhbUDwYZ",
+			"type": "arrow",
+			"x": 22.98828125,
+			"y": -276.3125,
+			"width": 2.88671875,
+			"height": 124.296875,
+			"angle": 0,
+			"strokeColor": "#1e1e1e",
+			"backgroundColor": "transparent",
+			"fillStyle": "solid",
+			"strokeWidth": 2,
+			"strokeStyle": "solid",
+			"roughness": 1,
+			"opacity": 100,
+			"groupIds": [],
+			"frameId": null,
+			"index": "a4",
+			"roundness": {
+				"type": 2
+			},
+			"seed": 927230004,
+			"version": 266,
+			"versionNonce": 1348519732,
+			"isDeleted": false,
+			"boundElements": null,
+			"updated": 1761044850223,
+			"link": null,
+			"locked": false,
+			"points": [
+				[
+					0,
+					0
+				],
+				[
+					2.88671875,
+					124.296875
+				]
+			],
+			"lastCommittedPoint": null,
+			"startBinding": {
+				"elementId": "9ul0YKiTcVUf8q9REaJMT",
+				"focus": 0.06232892722297201,
+				"gap": 1
+			},
+			"endBinding": {
+				"elementId": "SBxBd1lXK_k5o5G8zf-VN",
+				"focus": 0.05265901120314198,
+				"gap": 3.7569877781664296
+			},
+			"startArrowhead": null,
+			"endArrowhead": "arrow",
+			"elbowed": false
 		}
 	],
 	"appState": {
@@ -251,10 +248,10 @@ Hi ^G56kEjhe
 		"currentItemEndArrowhead": "arrow",
 		"currentItemArrowType": "round",
 		"currentItemFrameRole": null,
-		"scrollX": 266.541015625,
-		"scrollY": 433.791015625,
+		"scrollX": 361.75,
+		"scrollY": 525.69140625,
 		"zoom": {
-			"value": 2
+			"value": 1
 		},
 		"currentItemRoundness": "round",
 		"gridSize": 20,
@@ -285,5 +282,4 @@ Hi ^G56kEjhe
 	"files": {}
 }
 ```
-
 %%
