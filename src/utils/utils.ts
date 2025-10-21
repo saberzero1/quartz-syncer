@@ -1,6 +1,6 @@
 import slugify from "@sindresorhus/slugify";
 import sha1 from "crypto-js/sha1";
-import { sanitizeHTMLToDom, htmlToMarkdown } from "obsidian";
+import { sanitizeHTMLToDom, htmlToMarkdown, Notice } from "obsidian";
 import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
 
 /**
@@ -206,40 +206,48 @@ function cleanQueryResult(markdown: string): string {
  *
  * @param div - The HTMLDivElement to observe for the presence of a `.statblock` element.
  * @param selector - The CSS selector to observe for changes in the div.
- * @param milliseconds - The number of milliseconds to delay.
+ * @param timeout - The number of milliseconds to delay.
+ * @param interval - The interval to keep chacking after the selector is found.
  * @returns A promise that resolves after the specified delay.
  */
 function renderPromise(
 	div: HTMLDivElement,
 	selector: string,
-	milliseconds: number = 5000,
+	timeout: number = 5000,
+	interval: number = 500,
 ) {
-	return Promise.race([
-		new Promise<void>((resolve) => {
-			const observer = new MutationObserver(() => {
-				if (div.querySelector(selector)) {
-					observer.disconnect();
-					resolve();
-				}
-			});
-			observer.observe(div, { childList: true, subtree: true });
-		}),
-		new Promise<void>((resolve, _) => {
-			const timeout = setTimeout(() => {
+	return new Promise<void>((resolve, reject) => {
+		let intervalTimer: NodeJS.Timeout;
+
+		const observer = new MutationObserver(() => {
+			clearTimeout(intervalTimer);
+
+			intervalTimer = setTimeout(() => {
+				cleanUp();
+				resolve();
+			}, interval);
+
+			/*
+			if (div.querySelector(selector)) {
 				observer.disconnect();
 				resolve();
-			}, milliseconds);
+			}
+			*/
+		});
 
-			// Ensure the timeout is cleared if the observer resolves first
-			const observer = new MutationObserver(() => {
-				if (div.querySelector(selector)) {
-					observer.disconnect();
-					clearTimeout(timeout);
-				}
-			});
-			observer.observe(div, { childList: true, subtree: true });
-		}),
-	]);
+		const cleanUp = () => {
+			observer.disconnect();
+			clearTimeout(intervalTimer);
+			clearTimeout(timeoutTimer);
+		};
+
+		observer.observe(div, { childList: true, subtree: true });
+
+		const timeoutTimer = setTimeout(() => {
+			cleanUp();
+			reject(new Notice(`Timeout waiting for selector: ${selector}`));
+		}, timeout);
+	});
 }
 
 /**

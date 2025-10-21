@@ -169,7 +169,7 @@ export class ExcalidrawCompiler {
 function getExcalidrawApi(): ExcalidrawApi | undefined {
 	if (isPluginEnabled("obsidian-excalidraw-plugin")) {
 		//@ts-expect-error If Excalidraw is enabled, it should be available on the window object
-		return Window.ExcalidrawAutomate as ExcalidrawApi;
+		return window.ExcalidrawAutomate as ExcalidrawApi;
 	}
 
 	return undefined;

@@ -255,7 +255,6 @@ async function tryExecuteJs(
 ) {
 	const div = createEl("div");
 	const component = new Component();
-	component.load();
 
 	try {
 		dcApi.executeJs(query, div, component, file.getPath());
@@ -268,6 +267,8 @@ async function tryExecuteJs(
 
 		return tryExecuteJsx(query, file, dcApi);
 	}
+
+	component.load();
 
 	await renderPromise(
 		div,
@@ -293,7 +294,6 @@ async function tryExecuteJsx(
 ) {
 	const div = createEl("div");
 	const component = new Component();
-	component.load();
 
 	try {
 		dcApi.executeJsx(query, div, component, file.getPath());
@@ -304,6 +304,8 @@ async function tryExecuteJsx(
 
 		return div;
 	}
+
+	component.load();
 
 	await renderPromise(
 		div,
@@ -329,7 +331,6 @@ async function tryExecuteTs(
 ) {
 	const div = createEl("div");
 	const component = new Component();
-	component.load();
 
 	try {
 		dcApi.executeTs(query, div, component, file.getPath());
@@ -342,6 +343,8 @@ async function tryExecuteTs(
 
 		return tryExecuteTsx(query, file, dcApi);
 	}
+
+	component.load();
 
 	await renderPromise(
 		div,
@@ -367,7 +370,6 @@ async function tryExecuteTsx(
 ) {
 	const div = createEl("div");
 	const component = new Component();
-	component.load();
 
 	try {
 		dcApi.executeTsx(query, div, component, file.getPath());
@@ -378,6 +380,8 @@ async function tryExecuteTsx(
 
 		return div;
 	}
+
+	component.load();
 
 	await renderPromise(
 		div,
