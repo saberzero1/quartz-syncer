@@ -38,7 +38,7 @@ npm run lint && npm run check-formatting && npm run typecheck && npm run build &
 **Also runs**: CodeQL security scanning (weekly + on PRs), Release workflow (on tags)
 
 **Fix CI failures**:
-- Lint: `npm run lint-fix && npm run format`
+- Lint: `npm run format && npm run lint-fix`
 - Types: Fix errors from `npm run typecheck`
 - Tests: Fix failures from `npm run test`
 
