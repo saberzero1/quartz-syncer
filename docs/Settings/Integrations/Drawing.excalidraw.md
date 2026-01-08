@@ -1,21 +1,24 @@
 ---
-
-excalidraw-plugin: parsed
+created: 2025-10-21T13:06:16Z+0200
+modified: 2026-01-08T16:44:44Z+0100
 tags: [excalidraw]
-
+excalidraw-plugin: parsed
 ---
-==⚠  Switch to EXCALIDRAW VIEW in the MORE OPTIONS menu of this document. ⚠== You can decompress Drawing data with the command palette: 'Decompress current Excalidraw file'. For more info check in plugin settings under 'Saving'
 
+==⚠  Switch to EXCALIDRAW VIEW in the MORE OPTIONS menu of this document. ⚠== You can decompress Drawing data with the command palette: 'Decompress current Excalidraw file'. For more info check in plugin settings under 'Saving'
 
 # Excalidraw Data
 
 ## Text Elements
+
 Hello Quartz ^bCQ6oAfE
 
 Hi ^Mlj8nSMy
 
 %%
+
 ## Drawing
+
 ```json
 {
 	"type": "excalidraw",
@@ -282,4 +285,5 @@ Hi ^Mlj8nSMy
 	"files": {}
 }
 ```
+
 %%

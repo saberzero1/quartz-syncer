@@ -2,218 +2,104 @@
 title: Setup Guide
 description: Instructions for setting up Quartz Syncer plugin.
 created: 2025-05-05T12:00:00Z+0200
-modified: 2025-05-31T13:01:56Z+0200
+modified: 2026-01-08T17:16:24Z+0100
 publish: true
 tags: [guides]
 ---
 
-> [!WARNING]- A GitHub account is required to use Quartz and Quartz Syncer
-> You can sign up for free [here](https://github.com/signup).
-
 > [!WARNING] Set up Quartz first
-> This plugin manages Quartz content from Obsidian. Please set up Quartz if you have not already. See instructions below.
->
+> This plugin manages Quartz content from Obsidian. Please set up Quartz on your Git provider before continuing.
 
-## Set up Quartz
+## Choose Your Git Provider
 
-### Create Quartz GitHub repository
+Quartz Syncer supports any Git provider. Choose your provider for complete setup instructions:
 
-If you haven't set up a Quartz repository on GitHub yet, [click here](https://github.com/new?template_name=quartz&template_owner=jackyzha0) to create it using the Quartz template.
+| Provider | Guide | Hosting |
+|----------|-------|---------|
+| **GitHub** | [[GitHub Setup]] | GitHub Pages (built-in) |
+| **GitLab** | [[GitLab Setup]] | GitLab Pages (built-in) |
+| **Codeberg** | [[Codeberg Setup]] | Codeberg Pages (built-in) |
+| **Bitbucket** | [[Bitbucket Setup]] | Netlify, Cloudflare, Vercel |
+| **Other** | See [Generic Setup](#generic-setup) below | Varies |
 
-### Configure Quartz settings
+Each guide covers:
 
-#### Configure `quartz.config.ts`
+1. Creating a Quartz repository
+2. Configuring automatic deployment
+3. Generating an access token
+4. Configuring Quartz Syncer
 
-Configure the following settings in the `quartz.config.ts` file:
+## Generic Setup
 
-(Below example only shows a subset of all settings. Please do not remove any settings.)
+For Git providers not listed above, follow these general steps:
 
-```ts title="quartz.config.ts" {3,6,12,25}
+### 1. Create a Quartz Repository
+
+Clone or fork the [Quartz repository](https://github.com/jackyzha0/quartz) to your Git provider.
+
+### 2. Configure Hosting
+
+Set up a CI/CD pipeline to build and deploy Quartz. The build process is:
+
+```bash
+npm ci
+npx quartz build
+# Deploy the 'public' folder to your hosting service
+```
+
+Popular hosting options:
+
+- [Netlify](https://netlify.com)
+- [Cloudflare Pages](https://pages.cloudflare.com)
+- [Vercel](https://vercel.com)
+
+See the [Quartz hosting documentation](https://quartz.jzhao.xyz/hosting) for more options.
+
+### 3. Generate an Access Token
+
+Create a personal access token with write access to your repository. The exact steps vary by provider.
+
+### 4. Configure Quartz Syncer
+
+In Obsidian, go to **Settings** > **Community Plugins** > **Quartz Syncer** and configure:
+
+| Setting | Value |
+|---------|-------|
+| **Remote URL** | `https://<provider>/<user>/<repo>.git` |
+| **Branch** | Your Quartz branch (usually `v4` or `main`) |
+| **Provider** | Select your provider or "Custom" |
+| **Authentication Type** | Username & Token/Password |
+| **Username** | Your username (or `oauth2` for some providers) |
+| **Access Token** | Your generated token |
+
+A green checkmark indicates a successful connection.
+
+## Configure Quartz
+
+After setting up your repository and Quartz Syncer, configure Quartz itself:
+
+### `quartz.config.ts`
+
+Update these key settings in `quartz.config.ts`:
+
+```ts
 const config: QuartzConfig = {
   configuration: {
-    pageTitle: "Quartz 4",
-    // Change to your desired site title
-    ...
-    baseUrl: "quartz.jzhao.xyz",
-    // Change to your site URL without https://.
-    // This is your own domain,
-    // or "<github-user-name>.github.io/<repository-name>" when using GitHub Pages.
-    // See below for details
-    ...
-    defaultDateType: "modified",
-    // Change to tell Quartz what date to display on notes
-    // Valid options:
-    // "created", use when the note was created.
-    // "modified", use when the note was last modified.
-    // "published", use when the note was published.
-    // See Quartz docs for details.
-    ...
-    }
-  }
+    pageTitle: "Your Site Title",
+    baseUrl: "your-site.example.com", // Without https://
+    defaultDateType: "modified", // or "created", "published"
+  },
   plugins: {
     transformers: [
-      ...
       Plugin.CrawlLinks({ markdownLinkResolution: "shortest" }),
-      // Sets how Quartz should resolve links between notes.
-      // Should match the settings you use in Obsidian.
-      // Valid options:
-      // "shortest"
-      // "relative"
-      // "absolute"
-      ...
-    ]
-    ...
-  }
+      // Should match your Obsidian link settings
+    ],
+  },
 }
 ```
 
-#### Configure automatic deployment
+## That's It
 
-If you haven't already, set up Quartz to automatically deploy on push:
+You're ready to publish notes to Quartz using Quartz Syncer.
 
-> [!INFO] GitHub Pages setup (recommended)
-> In your GitHub repository, go to `Settings > Pages` and set `Source` to "GitHub Actions".
->
-> Next, add one of the following deploy scripts:
-> > [!EXAMPLE]- Option 1: Default Quartz
-> > For using Quartz without adding an Obsidian Theme.
-> >
-> > Add the following script as `.github/workflows/deploy.yaml`:
-> >
-> > ```yaml title=".github/workflows/deploy.yaml"
-> > name: Deploy Quartz site to GitHub Pages
-> > 
-> > on:
-> >   push:
-> >     branches:
-> >       - v4
-> > 
-> > permissions:
-> >   contents: read
-> >   pages: write
-> >   id-token: write
-> > 
-> > concurrency:
-> >   group: "pages"
-> >   cancel-in-progress: false
-> > 
-> > jobs:
-> >   build:
-> >     runs-on: ubuntu-22.04
-> >     steps:
-> >       - uses: actions/checkout@v4
-> >         with:
-> >           fetch-depth: 0 # Fetch all history for git info
-> >       - uses: actions/setup-node@v4
-> >         with:
-> >           node-version: 22
-> >       - name: Install Dependencies
-> >         run: npm ci
-> >       - name: Build Quartz
-> >         run: npx quartz build
-> >       - name: Upload artifact
-> >         uses: actions/upload-pages-artifact@v3
-> >         with:
-> >           path: public
-> >  
-> >   deploy:
-> >     needs: build
-> >     environment:
-> >       name: github-pages
-> >       url: ${{ steps.deployment.outputs.page_url }}
-> >     runs-on: ubuntu-latest
-> >     steps:
-> >       - name: Deploy to GitHub Pages
-> >         id: deployment
-> >         uses: actions/deploy-pages@v4
-> > ```
->
-> > [!EXAMPLE]- Option 2: Quartz with Quartz Themes
-> > For using an Obsidian Theme with Quartz.
-> >
-> > > [!IMPORTANT] Don't forget to replace `THEME_NAME` with your Obsidian theme of choice
-> > > A list of theme options can be [found here](https://github.com/saberzero1/quartz-themes?tab=readme-ov-file#supported-themes).
-> >
-> > Add the following script as `.github/workflows/deploy.yaml`:
-> >
-> > ```yaml title=".github/workflows/deploy.yaml" {8-9, 32-33}
-> > name: Deploy Quartz site to GitHub Pages
-> > 
-> > on:
-> >   push:
-> >     branches:
-> >       - v4
-> > 
-> > env:
-> >   THEME_NAME: tokyo-night
-> > 
-> > permissions:
-> >   contents: read
-> >   pages: write
-> >   id-token: write
-> > 
-> > concurrency:
-> >   group: "pages"
-> >   cancel-in-progress: false
-> > 
-> > jobs:
-> >   build:
-> >     runs-on: ubuntu-22.04
-> >     steps:
-> >       - uses: actions/checkout@v4
-> >         with:
-> >           fetch-depth: 0 # Fetch all history for git info
-> >       - uses: actions/setup-node@v4
-> >         with:
-> >           node-version: 22
-> >       - name: Install Dependencies
-> >         run: npm ci
-> >       - name: Fetch Quartz Theme
-> >         run: curl -s -S https://raw.githubusercontent.com/saberzero1/quartz-themes/master/action.sh | bash -s -- $THEME_NAME 
-> >       - name: Build Quartz
-> >         run: npx quartz build
-> >       - name: Upload artifact
-> >         uses: actions/upload-pages-artifact@v3
-> >         with:
-> >           path: public
-> >  
-> >   deploy:
-> >     needs: build
-> >     environment:
-> >       name: github-pages
-> >       url: ${{ steps.deployment.outputs.page_url }}
-> >     runs-on: ubuntu-latest
-> >     steps:
-> >       - name: Deploy to GitHub Pages
-> >         id: deployment
-> >         uses: actions/deploy-pages@v4
-> > ```
-
-For other options, see the [Quartz docs on hosting](https://quartz.jzhao.xyz/hosting).
-
-![[Generating an access token#Generating a fine-grained access token]]
-
-## Set up Quartz Syncer
-
-In Obsidian, open `Settings > Community Plugins > Quartz Syncer > Options` and configure the following fields:
-
-- GitHub repo name: the name of your repository on GitHub.
-- GitHub username: the name of the GitHub user (or organization) the repository belongs to.
-- GitHub token: the [[Generating an access token#Generating a fine-grained access token|generated authentication token]] to allow Quartz Syncer to manage your Quartz content folder.
-
-> [!EXAMPLE]- Configuration Example
-> Using the original Quartz repository as an example:
->
-> The repository is hosted at <https://github.com/jackyzha0/quartz>.
->
-> - *Repository name*: `quartz`
-> - *Username*: `jackyzha0`
-> - *GitHub token*: generated token. usually starts with `github_pat_` or `ghp_`.
-
-After setting all three fields, you should get a green checkmark in the Quartz Syncer options. If not, check [[Authentication|the relevant troubleshooting page]] for help.
-
-## That's it
-
-You should now be able to start publishing to Quartz using Quartz Syncer.
-
-For further details, check the [[Usage Guide]].
+For usage instructions, see the [[Usage Guide]].

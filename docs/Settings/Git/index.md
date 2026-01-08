@@ -1,10 +1,10 @@
 ---
-title: GitHub
-description: Quartz Syncer settings related to GitHub.
-created: 2025-05-15T10:59:23Z+0200
-modified: 2025-05-20T20:31:59Z+0200
+title: Git
+description: Quartz Syncer settings related to Git repository configuration.
+created: 2026-01-08T14:00:00Z+0100
+modified: 2026-01-08T14:00:00Z+0100
 publish: true
-tags: [settings/github]
+tags: [settings/git]
 ---
 
 ```dataview
