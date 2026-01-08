@@ -17,6 +17,8 @@ export type QuartzSyncerCache = {
 	localData?: TCompiledFile | null;
 	/** Remote file data, if available. */
 	remoteData?: TCompiledFile | null;
+	/** Whether the file contains dynamic content (Dataview, Datacore, etc.) that depends on other files. */
+	hasDynamicContent?: boolean;
 };
 
 /**
@@ -111,10 +113,30 @@ export class DataStore {
 		)) as QuartzSyncerCache;
 
 		if (data && data.localData) {
+			// Files with dynamic content (Dataview, Datacore) must always recompile
+			// because their output depends on data from other files
+			if (data.hasDynamicContent) {
+				return true;
+			}
+
 			return data.time < timestamp || data.version !== this.version;
 		}
 
 		return true; // No cached data found, consider it outdated
+	}
+
+	/**
+	 * Check if a cached file has dynamic content flag set.
+	 *
+	 * @param path - The file path to check.
+	 * @returns A promise that resolves to true if the file has dynamic content, false otherwise.
+	 */
+	public async hasDynamicContentFlag(path: string): Promise<boolean> {
+		const data = (await this.persister.getItem(
+			this.fileKey(path),
+		)) as QuartzSyncerCache;
+
+		return data?.hasDynamicContent ?? false;
 	}
 
 	/**
@@ -202,11 +224,13 @@ export class DataStore {
 	 * @param path - The file path to store the local file for.
 	 * @param timestamp - The UNIX epoch time in milliseconds to set for the data.
 	 * @param data - The local file data to store.
+	 * @param hasDynamicContent - Whether the file contains dynamic content (Dataview, Datacore, etc.).
 	 */
 	public async storeLocalFile(
 		path: string,
 		timestamp: number,
 		data: TCompiledFile,
+		hasDynamicContent?: boolean,
 	): Promise<void> {
 		const existingData = (await this.persister.getItem(
 			this.fileKey(path),
@@ -219,6 +243,8 @@ export class DataStore {
 			localHash: existingData?.localHash ?? generateBlobHash(data[0]),
 			remoteData: existingData?.remoteData ?? null, // Preserve remote data if it exists
 			remoteHash: existingData?.remoteHash, // Preserve remote hash if it exists
+			hasDynamicContent:
+				hasDynamicContent ?? existingData?.hasDynamicContent,
 		});
 	}
 
@@ -245,6 +271,7 @@ export class DataStore {
 			localHash: existingData?.localHash, // Preserve local hash if it exists
 			remoteData: data,
 			remoteHash: existingData?.remoteHash, // Preserve remote hash if it exists
+			hasDynamicContent: existingData?.hasDynamicContent, // Preserve dynamic content flag
 		});
 	}
 
@@ -311,6 +338,7 @@ export class DataStore {
 			localHash: hash,
 			remoteData: existingData?.remoteData ?? null, // Preserve remote data if it exists
 			remoteHash: existingData?.remoteHash, // Preserve remote hash if it exists
+			hasDynamicContent: existingData?.hasDynamicContent, // Preserve dynamic content flag
 		});
 	}
 
@@ -338,6 +366,7 @@ export class DataStore {
 			localHash: existingData?.localHash, // Preserve local hash if it exists
 			remoteData: existingData?.remoteData ?? null, // Preserve remote data if it exists
 			remoteHash: hash,
+			hasDynamicContent: existingData?.hasDynamicContent, // Preserve dynamic content flag
 		});
 	}
 

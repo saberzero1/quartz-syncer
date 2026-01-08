@@ -26,6 +26,13 @@ esbuild.build({
 	sourcemap: prod ? false : 'inline',
 	treeShaking: true,
 	outfile: 'main.js',
+	inject: ['./esbuild-buffer-shim.js'],
+	define: {
+		'global': 'globalThis',
+	},
+	alias: {
+		'buffer': 'buffer-es6',
+	},
 	plugins: [
 		esbuildSvelte({
 		  compilerOptions: { css: 'injected' },

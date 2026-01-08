@@ -6,7 +6,6 @@ import Publisher from "src/publisher/Publisher";
 import { PublishFile } from "src/publishFile/PublishFile";
 import PublicationCenterSvelte from "src/views/PublicationCenter/PublicationCenter.svelte";
 import DiffView from "src/views/PublicationCenter/DiffView.svelte";
-import * as Diff from "diff";
 
 /**
  * PublicationCenter class.
@@ -129,7 +128,6 @@ export class PublicationCenter {
 			}
 
 			if (remoteFile && localFile) {
-				const diff = Diff.diffLines(remoteFile, localFile);
 				let diffView: DiffView | undefined;
 				const diffModal = new Modal(this.modal.app);
 				const title = notePath.split("/").pop() || "Diff";
@@ -143,11 +141,16 @@ export class PublicationCenter {
 				diffModal.onOpen = () => {
 					diffView = new DiffView({
 						target: diffModal.contentEl,
-						props: { diff: diff },
+						props: {
+							oldContent: remoteFile,
+							newContent: localFile,
+							fileName: title,
+							defaultViewStyle: this.settings.diffViewStyle,
+						},
 					});
 				};
 
-				this.modal.onClose = () => {
+				diffModal.onClose = () => {
 					if (diffView) {
 						diffView.$destroy();
 					}

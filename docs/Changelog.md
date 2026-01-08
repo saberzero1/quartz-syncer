@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2025-08-07T09:11:03Z+0200
+modified: 2026-01-08T14:46:23Z+0100
 publish: true
 ---
 
@@ -23,6 +23,27 @@ publish: true
 - Manage Quartz components.
 
 ## Released
+
+### Version 1.9.0
+
+- Replaced Octokit-based implementation with Isomorphic Git-based implementation.
+	- This change resolves a few longstanding issues, as well as address a few frequent requests:
+		- No longer dependent on Octokit, and therefore GitHub as Git host.
+		- Significant performance improvements.
+		- No longer suffers from GitHub API rate limits, mostly due to direct Git calls.
+			- Please let us know if you still run into issue regarding rate limits.
+- Added support for GitLab, Bitbucket, Gitea, Codeberg, and Self-hosted instances.
+- Added new diff viewer in the Publication Center.
+	- Split view (side-by-side comparison) and Unified view options.
+	- Configurable default view style in Settings > UI.
+	- Responsive design: defaults to split view on desktop, unified view on mobile.
+	- Synced scrolling between panes in split view.
+- Improved cache invalidation for dynamic content.
+	- Files containing Dataview or Datacore queries are now automatically detected.
+	- Dynamic files always recompile to ensure query results are up-to-date.
+	- Hash comparison determines if output actually changed, preventing unnecessary updates.
+- Added UI settings tab for configuring user interface preferences.
+- Updated documentation.
 
 ### Version 1.8.10
 

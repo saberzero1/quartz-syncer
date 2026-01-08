@@ -35,13 +35,6 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		throw new Error("Method not implemented.");
 	}
 
-	/**
-	 * Generates paths for deleted content based on remote hashes and marked files.
-	 *
-	 * @param remoteNoteHashes - The hashes of remote notes.
-	 * @param marked - The list of marked files.
-	 * @returns An array of objects containing the path and SHA of deleted content.
-	 */
 	private generateDeletedContentPaths(
 		remoteNoteHashes: { [key: string]: string },
 		marked: string[],

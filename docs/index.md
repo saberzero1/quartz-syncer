@@ -2,12 +2,14 @@
 title: Quartz Syncer Documentation
 description: Quartz Syncer allows you to manage your Quartz site content from Obsidian.
 created: 2025-04-20T00:00:00Z+0200
-modified: 2025-06-20T23:39:32Z+0200
+modified: 2026-01-08T13:30:00Z+0100
 publish: true
 aliases: [home]
 ---
 
 [Quartz Syncer](https://github.com/saberzero1/quartz-syncer) is an [Obsidian](https://obsidian.md/) plugin for managing and publishing notes to [Quartz](https://quartz.jzhao.xyz/), the fast, batteries-included static-site generator that transforms Markdown content into fully functional websites.
+
+Quartz Syncer supports multiple Git providers including GitHub, GitLab, Bitbucket, Codeberg, Gitea, and self-hosted instances.
 
 Quartz Syncer fully utilizes the capabilities of Obsidian to enable features that would otherwise be hard or impossible to replicate in Quartz, like [[Settings/Integrations/index|integrating Obsidian plugins]], such as [[Settings/Integrations/Dataview|Dataview]], [[Settings/Integrations/Datacore|Datacore]], and [[Fantasy Statblocks]], precompiling [[Apply embeds|embeddings]], or [[Configuring a specific folder for Quartz content|using a specific folder for Quartz content, instead of the entire vault]].
 

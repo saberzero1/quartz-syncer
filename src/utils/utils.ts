@@ -396,12 +396,6 @@ function sanitizeHTMLToString(
 	return serializedHtml.replace(' xmlns="http://www.w3.org/1999/xhtml"', "");
 }
 
-/**
- * Cleans datacore attributes from the container.
- * This is useful for removing Obsidian-specific attributes that are not needed in Quartz.
- *
- * @param container - The HTMLDivElement containing the HTML content to clean.
- */
 function cleanDatacoreAttributes(container: HTMLDivElement): void {
 	const datacoreAttributes = ["__source", "__self"];
 
@@ -416,14 +410,6 @@ function cleanDatacoreAttributes(container: HTMLDivElement): void {
 	});
 }
 
-/**
- * Converts callouts in the container to a Quartz-compatible format.
- * This function replaces the callout elements with a Quartz-compatible blockquote format.
- * It handles attributes, icons, and content structure to ensure compatibility with Quartz.
- *
- * @param container - The HTMLDivElement containing the callouts to convert.
- * @returns The container with callouts converted to Quartz-compatible format.
- */
 function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 	const callouts = container.querySelectorAll(".callout");
 
@@ -510,13 +496,6 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 	return container;
 }
 
-/**
- * Cleans anchor links in the container by removing target, rel, and data-href attributes.
- * This is useful for internal links and tags to ensure they do not have unnecessary attributes
- * that could interfere with Quartz' SPA-navigation or styling.
- *
- * @param container - The HTMLDivElement containing the anchor links to clean.
- */
 function cleanAnchorLinks(container: HTMLDivElement): void {
 	const internalLinks = container.querySelectorAll(
 		"a.internal-link, a.tag, a:not(.external-link):not(.internal-link):not(.tag)",
@@ -555,13 +534,6 @@ function removeUnwantedElements(
 	});
 }
 
-/**
- * Unwraps the container by removing wrapper elements that might have been added by Obsidian.
- * It replaces the container with its first child if it has no attributes and only one child.
- *
- * @param container - The HTMLDivElement to unwrap.
- * @returns The unwrapped container.
- */
 function unwrap(container: HTMLDivElement) {
 	// Remove wrapper elements that might have been added by Obsidian
 	while (

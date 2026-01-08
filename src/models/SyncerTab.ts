@@ -1,21 +1,19 @@
 import { QuartzSettings } from "src/views/SettingsView/Views/QuartzSettings";
-import { GithubSettings } from "src/views/SettingsView/Views/GithubSettings";
+import { GitSettings } from "src/views/SettingsView/Views/GitSettings";
 import { PerformanceSettings } from "src/views/SettingsView/Views/PerformanceSettings";
 import { FrontmatterSettings } from "src/views/SettingsView/Views/FrontmatterSettings";
 import { IntegrationSettings } from "src/views/SettingsView/Views/IntegrationSettings";
 import { ThemesSettings } from "src/views/SettingsView/Views/ThemesSettings";
+import { UISettings } from "src/views/SettingsView/Views/UISettings";
 
-/**
- * QuartzSyncerSettingTabCollection type.
- * This type represents a collection of setting tabs for the QuartzSyncer plugin.
- */
 type QuartzSyncerSettingTabCollection = (
 	| QuartzSettings
-	| GithubSettings
+	| GitSettings
 	| FrontmatterSettings
 	| IntegrationSettings
 	| PerformanceSettings
 	| ThemesSettings
+	| UISettings
 )[];
 
 export default QuartzSyncerSettingTabCollection;

@@ -1,15 +1,72 @@
 import { ILogLevel } from "js-logger";
 
 /**
+ * Git authentication configuration.
+ * Supports multiple authentication methods for different Git providers.
+ */
+export type GitAuthType = "none" | "basic" | "bearer";
+
+export interface GitAuth {
+	type: GitAuthType;
+	/** Username for basic auth (e.g., GitHub username, 'oauth2' for GitLab) */
+	username?: string;
+	/** Secret token/password for authentication */
+	secret?: string;
+}
+
+/**
+ * Git provider hints for UI customization.
+ * Used to provide provider-specific guidance in the settings UI.
+ */
+export type GitProviderHint =
+	| "github"
+	| "gitlab"
+	| "bitbucket"
+	| "gitea"
+	| "custom";
+
+export type DiffViewStyle = "split" | "unified" | "auto";
+
+/**
+ * Generic Git remote settings.
+ * Works with any Git provider (GitHub, GitLab, Bitbucket, self-hosted, etc.)
+ */
+export interface GitRemoteSettings {
+	/** Full remote URL (e.g., https://github.com/user/repo.git) */
+	remoteUrl: string;
+	/** Branch to sync with (e.g., main, master) */
+	branch: string;
+	/** CORS proxy URL for browser environments (optional) */
+	corsProxyUrl?: string;
+	/** Authentication configuration */
+	auth: GitAuth;
+	/** Provider hint for UI customization (optional) */
+	providerHint?: GitProviderHint;
+}
+
+/**
  * QuartzSyncer plugin settings.
  * Saved to data.json, changing requires a migration
  */
 export default interface QuartzSyncerSettings {
-	/** GitHub settings */
-	githubRepo: string;
-	githubUserName: string;
-	githubToken: string;
+	/** Git remote settings (generic, works with any provider) */
+	git: GitRemoteSettings;
+
+	/** Vault path settings */
 	vaultPath: string;
+
+	/**
+	 * @deprecated Use git.remoteUrl instead. Kept for migration.
+	 */
+	githubRepo?: string;
+	/**
+	 * @deprecated Use git.auth.username instead. Kept for migration.
+	 */
+	githubUserName?: string;
+	/**
+	 * @deprecated Use git.auth.secret instead. Kept for migration.
+	 */
+	githubToken?: string;
 
 	/** Quartz settings */
 	contentFolder: string;
@@ -96,6 +153,9 @@ export default interface QuartzSyncerSettings {
 	noteSettingsIsInitialized: boolean;
 	lastUsedSettingsTab: string;
 	pluginVersion: string;
+
+	/** UI settings */
+	diffViewStyle: DiffViewStyle;
 
 	/** Developer settings */
 	ENABLE_DEVELOPER_TOOLS?: boolean;

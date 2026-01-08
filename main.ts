@@ -16,11 +16,23 @@ import Logger from "js-logger";
  * This interface defines the default settings for the QuartzSyncer plugin.
  */
 const DEFAULT_SETTINGS: QuartzSyncerSettings = {
-	/** GitHub settings */
-	githubRepo: "quartz",
-	githubUserName: "",
-	githubToken: "",
+	git: {
+		remoteUrl: "",
+		branch: "v4",
+		corsProxyUrl: "",
+		auth: {
+			type: "basic",
+			username: "",
+			secret: "",
+		},
+		providerHint: "github",
+	},
 	vaultPath: "/",
+
+	// Deprecated fields kept for migration
+	githubRepo: undefined,
+	githubUserName: undefined,
+	githubToken: undefined,
 
 	/** Quartz settings */
 	contentFolder: "content",
@@ -104,12 +116,16 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	useThemes: false,
 
 	/** Plugin state variables */
-	lastUsedSettingsTab: "github",
+	lastUsedSettingsTab: "git",
 	noteSettingsIsInitialized: false,
 	pluginVersion: "",
 
+	/** UI settings */
+	diffViewStyle: "auto",
+
 	/** Developer settings */
-	logLevel: undefined,
+	ENABLE_DEVELOPER_TOOLS: false,
+	logLevel: Logger.OFF,
 };
 
 Logger.useDefaults({
@@ -196,6 +212,8 @@ export default class QuartzSyncer extends Plugin {
 			await this.loadData(),
 		);
 
+		this.migrateGitHubSettings();
+
 		if (!this.datastore && this.settings.useCache) {
 			this.datastore = new DataStore(
 				this.app.vault.getName(),
@@ -212,6 +230,51 @@ export default class QuartzSyncer extends Plugin {
 		}
 
 		await this.compareDataToCache();
+	}
+
+	/**
+	 * Migrates legacy GitHub-specific settings to the new generic Git settings.
+	 * This ensures backwards compatibility for users upgrading from older versions.
+	 */
+	private migrateGitHubSettings(): void {
+		const hasLegacySettings =
+			this.settings.githubRepo ||
+			this.settings.githubUserName ||
+			this.settings.githubToken;
+
+		const hasNewSettings = this.settings.git?.remoteUrl;
+
+		if (hasLegacySettings && !hasNewSettings) {
+			Logger.info(
+				"Migrating legacy GitHub settings to generic Git settings",
+			);
+
+			const githubRepo = this.settings.githubRepo || "quartz";
+			const githubUserName = this.settings.githubUserName || "";
+			const githubToken = this.settings.githubToken || "";
+
+			this.settings.git = {
+				remoteUrl: githubUserName
+					? `https://github.com/${githubUserName}/${githubRepo}.git`
+					: "",
+				branch: "v4",
+				corsProxyUrl: "",
+				auth: {
+					type: "basic",
+					username: githubUserName,
+					secret: githubToken,
+				},
+				providerHint: "github",
+			};
+
+			if (this.settings.lastUsedSettingsTab === "github") {
+				this.settings.lastUsedSettingsTab = "git";
+			}
+
+			this.settings.githubRepo = undefined;
+			this.settings.githubUserName = undefined;
+			this.settings.githubToken = undefined;
+		}
 	}
 
 	/**

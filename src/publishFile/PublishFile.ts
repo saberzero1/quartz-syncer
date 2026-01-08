@@ -16,6 +16,7 @@ import {
 	DATAVIEW_FIELD_REGEX,
 	DATAVIEW_INLINE_FIELD_REGEX,
 } from "src/utils/regexes";
+import { hasDynamicContent } from "src/utils/dynamicContent";
 
 /**
  * IPublishFileProps interface.
@@ -68,11 +69,10 @@ export class PublishFile {
 	}
 
 	/**
-	 * Returns the created date of the file.
-	 * If a custom created date is specified in the frontmatter, it returns that.
-	 * Otherwise, it returns the file's creation time.
+	 * Compiles the file for publishing.
+	 * Uses caching when enabled, detecting dynamic content for proper cache invalidation.
 	 *
-	 * @returns The created date as an ISO string.
+	 * @returns A promise that resolves to a CompiledPublishFile instance.
 	 */
 	async compile(): Promise<CompiledPublishFile> {
 		let compiledFile: TCompiledFile;
@@ -94,7 +94,9 @@ export class PublishFile {
 			if (cachedFile && !outdated) {
 				storedFile = cachedFile;
 			} else {
-				// If the file is not cached or outdated, compile it
+				const rawContent = await this.vault.cachedRead(this.file);
+				const isDynamic = hasDynamicContent(rawContent);
+
 				storedFile = await this.compiler.generateMarkdown(this);
 
 				if (!storedFile) {
@@ -109,6 +111,7 @@ export class PublishFile {
 					this.file.path,
 					this.file.stat.mtime,
 					storedFile,
+					isDynamic,
 				);
 
 				await this.datastore.storeLocalHash(
@@ -139,7 +142,7 @@ export class PublishFile {
 	/**
 	 * Returns the type of the file based on its extension.
 	 *
-	 * @returns The created date as an ISO string.
+	 * @returns The file type: "excalidraw" or "markdown".
 	 */
 	getType(): "excalidraw" | "markdown" {
 		if (this.file.name.endsWith(".excalidraw")) {
@@ -306,9 +309,9 @@ export class CompiledPublishFile extends PublishFile {
 	}
 
 	/**
-	 * Returns the compiled file content as a string.
+	 * Sets the remote hash for the compiled file.
 	 *
-	 * @returns The compiled file content as a string.
+	 * @param hash - The SHA hash of the remote file.
 	 */
 	setRemoteHash(hash: string) {
 		this.remoteHash = hash;

@@ -65,7 +65,7 @@ export class PerformanceSettings extends PluginSettingTab {
 		new Setting(this.settingsRootElement)
 			.setName("Enable caching")
 			.setDesc(
-				"Enable or disable the Quartz Syncer cache. This can improve performance by storing compiled files and reducing the number of requests made to the GitHub API.",
+				"Enable or disable the Quartz Syncer cache. This can improve performance by storing compiled files locally.",
 			)
 			.addToggle((toggle) =>
 				toggle
@@ -140,14 +140,14 @@ export class PerformanceSettings extends PluginSettingTab {
 	/**
 	 * Initializes the clear cache setting.
 	 * This method creates a button for clearing the Quartz Syncer cache.
-	 * When clicked, it will remove all cached files and force a re-fetch of all data from the GitHub repository.
+	 * When clicked, it will remove all cached files and force a re-fetch of all data from the remote repository.
 	 */
 	initializeClearCacheSetting = () => {
 		if (this.settings.settings.useCache) {
 			new Setting(this.settingsRootElement)
 				.setName("Clear cache")
 				.setDesc(
-					"Clear the Quartz Syncer cache. This will remove all cached files and force a re-fetch of all data from the GitHub repository.",
+					"Clear the Quartz Syncer cache. This will remove all cached files and force a re-fetch of all data from the remote repository.",
 				)
 				.addButton((button) =>
 					button

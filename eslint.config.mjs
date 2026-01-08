@@ -43,6 +43,11 @@ export default [
 	{
 		files: ["**/*.svelte"],
 		languageOptions: {
+			globals: {
+				window: "readonly",
+				document: "readonly",
+				requestAnimationFrame: "readonly",
+			},
 			parserOptions: {
 				projectService: true,
 				parser: typescriptEslint.parser,

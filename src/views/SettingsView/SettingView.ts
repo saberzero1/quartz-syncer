@@ -3,12 +3,13 @@ import QuartzSyncerSettings from "src/models/settings";
 import QuartzSyncer from "main";
 import QuartzSyncerSettingTabCollection from "src/models/SyncerTab";
 import { DataStore } from "src/publishFile/DataStore";
-import { GithubSettings } from "./Views/GithubSettings";
+import { GitSettings } from "./Views/GitSettings";
 import { QuartzSettings } from "./Views/QuartzSettings";
 import { FrontmatterSettings } from "./Views/FrontmatterSettings";
 import { IntegrationSettings } from "./Views/IntegrationSettings";
 import { PerformanceSettings } from "./Views/PerformanceSettings";
 import { ThemesSettings } from "./Views/ThemesSettings";
+import { UISettings } from "./Views/UISettings";
 
 /**
  * SettingView class.
@@ -115,19 +116,21 @@ export default class SettingView {
 			cls: "quartz-syncer-setting-tab-group",
 		});
 
-		const githubTab = this.createTab("GitHub", "github");
+		const gitTab = this.createTab("Git", "git-branch");
 		const quartzTab = this.createTab("Quartz", "quartz-syncer-icon");
 		const frontmatterTab = this.createTab("Frontmatter", "archive");
 		const integrationTab = this.createTab("Integration", "cable");
 		const performanceTab = this.createTab("Performance", "zap");
 		const themesTab = this.createTab("Themes", "palette");
+		const uiTab = this.createTab("UI", "layout");
 
-		headerTabGroup.appendChild(githubTab);
+		headerTabGroup.appendChild(gitTab);
 		headerTabGroup.appendChild(quartzTab);
 		headerTabGroup.appendChild(frontmatterTab);
 		headerTabGroup.appendChild(integrationTab);
 		headerTabGroup.appendChild(performanceTab);
 		headerTabGroup.appendChild(themesTab);
+		headerTabGroup.appendChild(uiTab);
 
 		const content = this.settingsRootElement.createEl("div", {
 			cls: "quartz-syncer-setting-content",
@@ -136,11 +139,11 @@ export default class SettingView {
 		const settingTabs: QuartzSyncerSettingTabCollection = [];
 
 		settingTabs.push(
-			new GithubSettings(
+			new GitSettings(
 				this.app,
 				this.plugin,
 				this,
-				this.createSettingsTab(content, "GitHub"),
+				this.createSettingsTab(content, "Git"),
 			),
 		);
 
@@ -189,6 +192,15 @@ export default class SettingView {
 			),
 		);
 
+		settingTabs.push(
+			new UISettings(
+				this.app,
+				this.plugin,
+				this,
+				this.createSettingsTab(content, "UI"),
+			),
+		);
+
 		const tabs = this.settingsRootElement.querySelectorAll(
 			"[data-quartz-syncer-tab]",
 		);
@@ -204,7 +216,7 @@ export default class SettingView {
 		});
 
 		this.setActiveTab(
-			this.settings.lastUsedSettingsTab ?? "github",
+			this.settings.lastUsedSettingsTab ?? "git",
 			settingTabs,
 		);
 	}
