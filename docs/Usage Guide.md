@@ -2,7 +2,7 @@
 title: Usage Guide
 description: Details on using Quartz Syncer.
 created: 2025-05-05T00:00:00Z+0200
-modified: 2025-05-20T12:06:55Z+0200
+modified: 2026-01-08T13:30:00Z+0100
 publish: true
 tags: [guides]
 ---
@@ -43,7 +43,9 @@ Open the publication center (see above for instructions). Your eligible notes wi
 
 - **Unpublished notes**: notes that are in your Obsidian vault, but not in your Quartz repository. Any notes checked here will be published to Quartz.
 - **Changed notes**: notes that are in your Obsidian vault and in your Quartz repository, but they don't match. This is usually because the note has been changed in your vault. Any notes checked here will be updated in Quartz.
-	- You can click the icon next to your note's title to preview the exact changes that will be made.
+	- Click on a file to open the diff viewer and see exactly what changes will be made.
+	- The diff viewer supports two modes: **Split view** (side-by-side comparison) and **Unified view** (interleaved changes). Toggle between them using the buttons at the top of the viewer.
+	- Configure the default view style in **Settings > UI > Diff view style**.
 - **Published notes (select to unpublished)**: notes that are in your in your Quartz repository. Any notes checked here will be unpublished and removed from your Quartz repository. Notes deleted from your vault need to be unpublished here to remove them from Quartz.
 - **Unchanged  notes**: a list of all unchanged notes that are currently published in your Quartz repository. It includes only unchanged notes that are also in your vault.
 

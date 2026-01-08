@@ -2,7 +2,7 @@
 title: Datacore
 description: Whether to enable support for the Datacore plugin. Requires Datacore to be installed and enabled.
 created: 2025-06-09T20:48:56Z+0200
-modified: 2025-08-07T09:21:00Z+0200
+modified: 2026-01-08T13:30:00Z+0100
 publish: true
 tags: [datacore, integration, settings/integrations]
 default_value: "false"
@@ -11,6 +11,12 @@ default_value: "false"
 > [!WARNING] Datacore is still in early development
 >
 > Not all features may work correctly
+
+## Cache behavior
+
+Files containing Datacore queries are automatically detected and flagged as containing dynamic content. These files are always recompiled when you open the Publication Center, ensuring query results reflect the current state of your vault.
+
+The output is then compared against the published version—if the compiled result is identical, the file won't appear as changed.
 
 ## Supported features
 

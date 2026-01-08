@@ -33,6 +33,17 @@ publish: true
 		- No longer suffers from GitHub API rate limits, mostly due to direct Git calls.
 			- Please let us know if you still run into issue regarding rate limits.
 - Added support for GitLab, Bitbucket, Gitea, Codeberg, and Self-hosted instances.
+- Added new diff viewer in the Publication Center.
+	- Split view (side-by-side comparison) and Unified view options.
+	- Configurable default view style in Settings > UI.
+	- Responsive design: defaults to split view on desktop, unified view on mobile.
+	- Synced scrolling between panes in split view.
+- Improved cache invalidation for dynamic content.
+	- Files containing Dataview or Datacore queries are now automatically detected.
+	- Dynamic files always recompile to ensure query results are up-to-date.
+	- Hash comparison determines if output actually changed, preventing unnecessary updates.
+- Added UI settings tab for configuring user interface preferences.
+- Updated documentation.
 
 ### Version 1.8.10
 
