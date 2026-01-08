@@ -3,6 +3,10 @@ import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 import type { DiffViewStyle } from "src/models/settings";
 
+/**
+ * UISettings class.
+ * Manages the user interface settings for the Quartz Syncer plugin.
+ */
 export class UISettings extends PluginSettingTab {
 	app: App;
 	plugin: QuartzSyncer;

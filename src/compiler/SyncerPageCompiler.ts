@@ -267,12 +267,6 @@ export class SyncerPageCompiler {
 		return text.replace(DATAVIEW_LINK_TARGET_BLANK_REGEX, "");
 	};
 
-	/**
-	 * Strips away code fences, front matter, and Excalidraw drawings from the text.
-	 * It uses regular expressions to find and remove these elements.
-	 *
-	 * @returns A function that takes the text to compile and returns the compiled text.
-	 */
 	private stripAwayCodeFencesAndFrontmatter: TCompilerStep = () => (text) => {
 		let textToBeProcessed = text;
 		textToBeProcessed = textToBeProcessed.replace(EXCALIDRAW_REGEX, "");

@@ -46,6 +46,12 @@ export default class QuartzSyncerSiteManager {
 		});
 	}
 
+	/**
+	 * Retrieves the content of a note from the remote repository.
+	 *
+	 * @param path - The path to the note file.
+	 * @returns A promise that resolves to the note content as a string.
+	 */
 	async getNoteContent(path: string): Promise<string> {
 		if (path.startsWith("/")) {
 			path = path.substring(1);
@@ -64,6 +70,12 @@ export default class QuartzSyncerSiteManager {
 		return content;
 	}
 
+	/**
+	 * Extracts note hashes from the repository content tree.
+	 *
+	 * @param contentTree - The repository content tree.
+	 * @returns A promise that resolves to a record mapping note paths to their hashes.
+	 */
 	async getNoteHashes(
 		contentTree: NonNullable<TRepositoryContent>,
 	): Promise<Record<string, string>> {
@@ -93,6 +105,12 @@ export default class QuartzSyncerSiteManager {
 		return hashes;
 	}
 
+	/**
+	 * Extracts blob hashes from the repository content tree.
+	 *
+	 * @param contentTree - The repository content tree.
+	 * @returns A promise that resolves to a record mapping blob paths to their hashes.
+	 */
 	async getBlobHashes(
 		contentTree: NonNullable<TRepositoryContent>,
 	): Promise<Record<string, string>> {
