@@ -276,11 +276,6 @@
 	let publishedPaths: Array<string> = [];
 	let failedPublish: Array<string> = [];
 
-	/**
-	 * Publishes the notes that are marked for publishing.
-	 * It collects the paths of unpublished and changed notes, as well as deleted notes,
-	 * and then calls the publisher to publish them in batches.
-	 */
 	const publishMarkedNotes = async () => {
 		if (!unpublishedNoteTree || !changedNotesTree) return;
 
@@ -323,24 +318,14 @@
 		publishedPaths = [...processingPaths];
 		processingPaths = [];
 
-		processingPaths = [...notesToDelete, ...blobsToDelete];
-		await publisher.deleteBatch(notesToDelete);
+		const allPathsToDelete = [...notesToDelete, ...blobsToDelete];
+		if (allPathsToDelete.length > 0) {
+			processingPaths = [...allPathsToDelete];
+			await publisher.deleteBatch(allPathsToDelete);
 
-		processingPaths = processingPaths.filter(
-			(p) => !notesToDelete.includes(p),
-		);
-		publishedPaths = [...publishedPaths, ...notesToDelete];
-
-		processingPaths = [...blobsToDelete];
-		await publisher.deleteBatch(blobsToDelete);
-
-		processingPaths = processingPaths.filter(
-			(p) => !blobsToDelete.includes(p),
-		);
-		publishedPaths = [...publishedPaths, ...blobsToDelete];
-
-		publishedPaths = [...publishedPaths, ...processingPaths];
-		processingPaths = [];
+			publishedPaths = [...publishedPaths, ...allPathsToDelete];
+			processingPaths = [];
+		}
 	};
 
 	const emptyNode: TreeNode = {
