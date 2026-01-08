@@ -122,7 +122,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	/** Developer settings */
 	ENABLE_DEVELOPER_TOOLS: false,
-	logLevel: Logger.WARN,
+	logLevel: Logger.OFF,
 };
 
 Logger.useDefaults({

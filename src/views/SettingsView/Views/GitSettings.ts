@@ -99,6 +99,7 @@ export class GitSettings extends PluginSettingTab {
 			this.remoteBranches = [];
 			this.defaultBranch = null;
 			this.updateConnectionStatusIndicator();
+
 			return;
 		}
 
@@ -250,6 +251,7 @@ export class GitSettings extends PluginSettingTab {
 				}
 
 				const currentBranch = this.settings.settings.git.branch;
+
 				if (
 					currentBranch &&
 					this.remoteBranches.includes(currentBranch)
@@ -338,10 +340,12 @@ export class GitSettings extends PluginSettingTab {
 
 		if (providerHint === "gitlab") {
 			placeholder = "oauth2 or username";
+
 			description =
 				"Use 'oauth2' for personal access tokens, or your username";
 		} else if (providerHint === "bitbucket") {
 			placeholder = "x-token-auth or username";
+
 			description =
 				"Use 'x-token-auth' for app passwords, or your username";
 		}
@@ -367,7 +371,7 @@ export class GitSettings extends PluginSettingTab {
 
 		const providerHint = this.settings.settings.git.providerHint;
 		let name = "Access Token";
-		let placeholder = "token";
+		const placeholder = "token";
 		let description = "Your personal access token or password";
 
 		if (providerHint === "github") {
@@ -378,12 +382,14 @@ export class GitSettings extends PluginSettingTab {
 				"A GitLab Personal Access Token with 'write_repository' scope";
 		} else if (providerHint === "bitbucket") {
 			name = "App Password";
+
 			description =
 				"A Bitbucket App Password with repository write access";
 		}
 
 		const desc = document.createDocumentFragment();
 		desc.createEl("span", { text: description + ". " });
+
 		desc.createEl("a", {
 			text: "Documentation",
 			href: "https://saberzero1.github.io/quartz-syncer-docs/Guides/Generating-an-access-token",
@@ -405,9 +411,11 @@ export class GitSettings extends PluginSettingTab {
 
 	private initializeCorsProxySetting() {
 		const desc = document.createDocumentFragment();
+
 		desc.createEl("span", {
 			text: "A CORS proxy URL for browser environments. Required on mobile/web if your Git server doesn't support CORS. ",
 		});
+
 		desc.createEl("a", {
 			text: "Learn more",
 			href: "https://github.com/isomorphic-git/cors-proxy",

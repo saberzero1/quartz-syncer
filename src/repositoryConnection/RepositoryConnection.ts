@@ -13,6 +13,7 @@ async function collectBody(
 	if (!body) return undefined;
 
 	const chunks: Uint8Array[] = [];
+
 	for await (const chunk of body) {
 		chunks.push(chunk);
 	}
@@ -20,10 +21,12 @@ async function collectBody(
 	const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
 	const result = new Uint8Array(totalLength);
 	let offset = 0;
+
 	for (const chunk of chunks) {
 		result.set(chunk, offset);
 		offset += chunk.length;
 	}
+
 	return result;
 }
 
@@ -43,6 +46,7 @@ const obsidianHttpClient: HttpClient = {
 			});
 
 			const responseHeaders: Record<string, string> = {};
+
 			if (response.headers) {
 				for (const [key, value] of Object.entries(response.headers)) {
 					responseHeaders[key.toLowerCase()] = value;
@@ -122,21 +126,25 @@ export class RepositoryConnection {
 				);
 			}
 		}
+
 		return this.fs;
 	}
 
 	private getFsName(): string {
 		const urlHash = this.hashString(this.remoteUrl + this.branch);
+
 		return `quartz-syncer-${urlHash}`;
 	}
 
 	private hashString(str: string): string {
 		let hash = 0;
+
 		for (let i = 0; i < str.length; i++) {
 			const char = str.charCodeAt(i);
 			hash = (hash << 5) - hash + char;
 			hash = hash & hash;
 		}
+
 		return Math.abs(hash).toString(36);
 	}
 
@@ -145,6 +153,7 @@ export class RepositoryConnection {
 			if (this.auth.type === "none") {
 				return undefined;
 			}
+
 			if (this.auth.type === "bearer") {
 				return {
 					headers: {
@@ -152,6 +161,7 @@ export class RepositoryConnection {
 					},
 				};
 			}
+
 			return {
 				username: this.auth.username || "",
 				password: this.auth.secret || "",
@@ -189,6 +199,7 @@ export class RepositoryConnection {
 	getRepositoryName(): string {
 		try {
 			const url = new URL(this.remoteUrl);
+
 			return url.pathname.replace(/^\//, "").replace(/\.git$/, "");
 		} catch {
 			return this.remoteUrl;
@@ -249,6 +260,7 @@ export class RepositoryConnection {
 		try {
 			await this.getFs().promises.stat(this.dir);
 			const remotes = await git.listRemotes({ ...this.getGitConfig() });
+
 			return remotes.length > 0;
 		} catch {
 			return false;
@@ -259,7 +271,7 @@ export class RepositoryConnection {
 		try {
 			await this.getFs().promises.mkdir(path);
 		} catch {
-			// eslint-disable-next-line no-empty
+			logger.debug(`Directory ${path} already exists`);
 		}
 	}
 
@@ -269,8 +281,10 @@ export class RepositoryConnection {
 		}
 
 		const isExistingRepo = await this.checkExistingRepo();
+
 		if (isExistingRepo) {
 			this.initialized = true;
+
 			return;
 		}
 
@@ -442,6 +456,7 @@ export class RepositoryConnection {
 			};
 		} catch (error) {
 			logger.error("Could not get latest commit", error);
+
 			return undefined;
 		}
 	}
@@ -468,12 +483,14 @@ export class RepositoryConnection {
 
 			const normalizeFilePath = (path: string): string => {
 				let previous;
+
 				do {
 					previous = path;
 					path = path.replace(/\.\.\//g, "");
 				} while (path !== previous);
 
 				path = this.getVaultPath(path);
+
 				return path.startsWith("/")
 					? `${this.contentFolder}${path}`
 					: `${this.contentFolder}/${path}`;
@@ -485,6 +502,7 @@ export class RepositoryConnection {
 
 				try {
 					await this.getFs().promises.unlink(fullPath);
+
 					await git.remove({
 						...this.getGitConfig(),
 						filepath: normalizedPath,
@@ -540,12 +558,14 @@ export class RepositoryConnection {
 
 			const normalizeFilePath = (path: string): string => {
 				let previous;
+
 				do {
 					previous = path;
 					path = path.replace(/\.\.\//g, "");
 				} while (path !== previous);
 
 				path = this.getVaultPath(path);
+
 				return path.startsWith("/")
 					? `${this.contentFolder}${path}`
 					: `${this.contentFolder}/${path}`;
@@ -559,10 +579,11 @@ export class RepositoryConnection {
 				for (const part of parts) {
 					if (!part) continue;
 					currentPath = `${currentPath}/${part}`;
+
 					try {
 						await this.getFs().promises.mkdir(currentPath);
 					} catch {
-						// eslint-disable-next-line no-empty
+						logger.debug(`Directory ${currentPath} already exists`);
 					}
 				}
 			};
@@ -574,6 +595,7 @@ export class RepositoryConnection {
 
 				await ensureDirectory(normalizedPath);
 				await this.getFs().promises.writeFile(fullPath, text);
+
 				await git.add({
 					...this.getGitConfig(),
 					filepath: normalizedPath,
@@ -589,10 +611,12 @@ export class RepositoryConnection {
 						atob(asset.content),
 						(c) => c.charCodeAt(0),
 					);
+
 					await this.getFs().promises.writeFile(
 						assetFullPath,
 						binaryContent,
 					);
+
 					await git.add({
 						...this.getGitConfig(),
 						filepath: assetPath,
@@ -629,15 +653,18 @@ export class RepositoryConnection {
 				corsProxy: this.corsProxyUrl,
 				onAuth: this.getOnAuth(),
 			});
+
 			return true;
 		} catch (error) {
 			logger.error("Connection test failed", error);
+
 			return false;
 		}
 	}
 
 	async clearLocalCache(): Promise<void> {
 		const fsName = this.getFsName();
+
 		try {
 			if (typeof indexedDB !== "undefined") {
 				indexedDB.deleteDatabase(fsName);
@@ -659,6 +686,7 @@ export class RepositoryConnection {
 			if (auth.type === "none") {
 				return undefined;
 			}
+
 			if (auth.type === "bearer") {
 				return () => ({
 					headers: {
@@ -666,6 +694,7 @@ export class RepositoryConnection {
 					},
 				});
 			}
+
 			return () => ({
 				username: auth.username || "",
 				password: auth.secret || "",
@@ -688,6 +717,7 @@ export class RepositoryConnection {
 
 			let defaultBranch: string | null = null;
 			const headRef = refs.find((ref) => ref.ref === "HEAD");
+
 			if (headRef?.target) {
 				defaultBranch = headRef.target.replace("refs/heads/", "");
 			}
@@ -695,6 +725,7 @@ export class RepositoryConnection {
 			return { branches, defaultBranch };
 		} catch (error) {
 			logger.error("Failed to fetch remote branches", error);
+
 			return { branches: [], defaultBranch: null };
 		}
 	}
