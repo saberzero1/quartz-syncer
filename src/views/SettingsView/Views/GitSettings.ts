@@ -218,14 +218,26 @@ export class GitSettings extends PluginSettingTab {
 	private autoDetectProvider(url: string) {
 		let hint: GitProviderHint = "custom";
 
-		if (url.includes("github.com")) {
-			hint = "github";
-		} else if (url.includes("gitlab.com") || url.includes("gitlab")) {
-			hint = "gitlab";
-		} else if (url.includes("bitbucket.org")) {
-			hint = "bitbucket";
-		} else if (url.includes("gitea") || url.includes("codeberg")) {
-			hint = "gitea";
+		try {
+			const hostname = new URL(url).hostname.toLowerCase();
+
+			if (hostname === "github.com" || hostname.endsWith(".github.com")) {
+				hint = "github";
+			} else if (
+				hostname === "gitlab.com" ||
+				hostname.endsWith(".gitlab.com")
+			) {
+				hint = "gitlab";
+			} else if (
+				hostname === "bitbucket.org" ||
+				hostname.endsWith(".bitbucket.org")
+			) {
+				hint = "bitbucket";
+			} else if (hostname === "codeberg.org") {
+				hint = "gitea";
+			}
+		} catch {
+			hint = "custom";
 		}
 
 		this.settings.settings.git.providerHint = hint;
