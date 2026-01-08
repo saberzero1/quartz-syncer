@@ -32,7 +32,7 @@ export default class QuartzSyncerSiteManager {
 		this.baseSyncerConnection = new RepositoryConnection({
 			gitSettings: {
 				remoteUrl: "https://github.com/saberzero1/quartz.git",
-				branch: "main",
+				branch: "v4",
 				auth: { type: "none" },
 			},
 			contentFolder: "content",

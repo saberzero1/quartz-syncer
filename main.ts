@@ -18,7 +18,7 @@ import Logger from "js-logger";
 const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	git: {
 		remoteUrl: "",
-		branch: "main",
+		branch: "v4",
 		corsProxyUrl: "",
 		auth: {
 			type: "basic",
@@ -257,7 +257,7 @@ export default class QuartzSyncer extends Plugin {
 				remoteUrl: githubUserName
 					? `https://github.com/${githubUserName}/${githubRepo}.git`
 					: "",
-				branch: "main",
+				branch: "v4",
 				corsProxyUrl: "",
 				auth: {
 					type: "basic",
