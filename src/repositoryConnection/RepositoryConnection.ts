@@ -472,13 +472,29 @@ export class RepositoryConnection {
 				url: this.remoteUrl,
 				ref: this.branch,
 				singleBranch: true,
-				depth: 1,
+			});
+
+			const remoteCommit = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+			});
+
+			await git.checkout({
+				...this.getGitConfig(),
+				ref: remoteCommit,
+				force: true,
+			});
+
+			await git.branch({
+				...this.getGitConfig(),
+				ref: this.branch,
+				object: remoteCommit,
+				force: true,
 			});
 
 			await git.checkout({
 				...this.getGitConfig(),
 				ref: this.branch,
-				force: true,
 			});
 
 			const normalizeFilePath = (path: string): string => {
@@ -547,13 +563,29 @@ export class RepositoryConnection {
 				url: this.remoteUrl,
 				ref: this.branch,
 				singleBranch: true,
-				depth: 1,
+			});
+
+			const remoteCommit = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+			});
+
+			await git.checkout({
+				...this.getGitConfig(),
+				ref: remoteCommit,
+				force: true,
+			});
+
+			await git.branch({
+				...this.getGitConfig(),
+				ref: this.branch,
+				object: remoteCommit,
+				force: true,
 			});
 
 			await git.checkout({
 				...this.getGitConfig(),
 				ref: this.branch,
-				force: true,
 			});
 
 			const normalizeFilePath = (path: string): string => {
