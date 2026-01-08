@@ -16,6 +16,7 @@ import {
 	DATAVIEW_FIELD_REGEX,
 	DATAVIEW_INLINE_FIELD_REGEX,
 } from "src/utils/regexes";
+import { hasDynamicContent } from "src/utils/dynamicContent";
 
 /**
  * IPublishFileProps interface.
@@ -94,7 +95,9 @@ export class PublishFile {
 			if (cachedFile && !outdated) {
 				storedFile = cachedFile;
 			} else {
-				// If the file is not cached or outdated, compile it
+				const rawContent = await this.vault.cachedRead(this.file);
+				const isDynamic = hasDynamicContent(rawContent);
+
 				storedFile = await this.compiler.generateMarkdown(this);
 
 				if (!storedFile) {
@@ -109,6 +112,7 @@ export class PublishFile {
 					this.file.path,
 					this.file.stat.mtime,
 					storedFile,
+					isDynamic,
 				);
 
 				await this.datastore.storeLocalHash(
