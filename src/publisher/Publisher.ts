@@ -142,9 +142,7 @@ export default class Publisher {
 
 		try {
 			const userQuartzConnection = new RepositoryConnection({
-				quartzRepository: this.settings.githubRepo,
-				githubUserName: this.settings.githubUserName,
-				githubToken: this.settings.githubToken,
+				gitSettings: this.settings.git,
 				contentFolder: this.settings.contentFolder,
 				vaultPath: this.settings.vaultPath,
 			});
@@ -187,9 +185,7 @@ export default class Publisher {
 
 		try {
 			const userQuartzConnection = new RepositoryConnection({
-				quartzRepository: this.settings.githubRepo,
-				githubUserName: this.settings.githubUserName,
-				githubToken: this.settings.githubToken,
+				gitSettings: this.settings.git,
 				contentFolder: this.settings.contentFolder,
 				vaultPath: this.settings.vaultPath,
 			});

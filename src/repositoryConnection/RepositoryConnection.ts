@@ -1,95 +1,201 @@
-import { Octokit } from "@octokit/core";
-import { normalizePath } from "obsidian";
+import git, { HttpClient } from "isomorphic-git";
+import LightningFS from "@isomorphic-git/lightning-fs";
+import { normalizePath, requestUrl } from "obsidian";
 import Logger from "js-logger";
 import { CompiledPublishFile } from "src/publishFile/PublishFile";
+import { GitAuth, GitRemoteSettings } from "src/models/settings";
 
 const logger = Logger.get("repository-connection");
-const oktokitLogger = Logger.get("octokit");
 
-/**
- * IOctokitterInput interface.
- * This interface defines the input parameters required to create a RepositoryConnection instance.
- */
-interface IOctokitterInput {
-	githubToken: string;
-	githubUserName: string;
-	quartzRepository: string;
+async function collectBody(
+	body: AsyncIterableIterator<Uint8Array> | undefined,
+): Promise<Uint8Array | undefined> {
+	if (!body) return undefined;
+
+	const chunks: Uint8Array[] = [];
+	for await (const chunk of body) {
+		chunks.push(chunk);
+	}
+
+	const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+	const result = new Uint8Array(totalLength);
+	let offset = 0;
+	for (const chunk of chunks) {
+		result.set(chunk, offset);
+		offset += chunk.length;
+	}
+	return result;
+}
+
+const obsidianHttpClient: HttpClient = {
+	async request(config) {
+		const { url, method = "GET", headers = {}, body } = config;
+
+		try {
+			const bodyData = await collectBody(body);
+
+			const response = await requestUrl({
+				url,
+				method,
+				headers,
+				body: bodyData ? (bodyData.buffer as ArrayBuffer) : undefined,
+				throw: false,
+			});
+
+			const responseHeaders: Record<string, string> = {};
+			if (response.headers) {
+				for (const [key, value] of Object.entries(response.headers)) {
+					responseHeaders[key.toLowerCase()] = value;
+				}
+			}
+
+			const responseBody = new Uint8Array(response.arrayBuffer);
+
+			async function* bodyIterator(): AsyncIterableIterator<Uint8Array> {
+				yield responseBody;
+			}
+
+			return {
+				url,
+				method,
+				headers: responseHeaders,
+				body: bodyIterator(),
+				statusCode: response.status,
+				statusMessage:
+					response.status >= 200 && response.status < 300
+						? "OK"
+						: "Error",
+			};
+		} catch (error) {
+			logger.error("HTTP request failed", error);
+			throw error;
+		}
+	},
+};
+
+interface IRepositoryConnectionInput {
+	gitSettings: GitRemoteSettings;
 	contentFolder: string;
 	vaultPath: string;
 }
 
-/**
- * IPutPayload interface.
- * This interface defines the payload structure for updating files in the repository.
- */
-interface IPutPayload {
+interface TreeEntry {
 	path: string;
-	sha?: string;
-	content: string;
-	branch?: string;
-	message?: string;
+	oid: string;
+	type: "blob" | "tree" | "commit";
 }
 
-/**
- * RepositoryConnection class.
- * This class manages the connection to a GitHub repository using Octokit.
- * It provides methods to interact with the repository, such as getting content,
- * updating files, deleting files, and managing branches.
- * It also handles the conversion between repository paths and vault paths.
- */
 export class RepositoryConnection {
-	private githubUserName: string;
-	private quartzRepository: string;
-	octokit: Octokit;
+	private remoteUrl: string;
+	private branch: string;
+	private corsProxyUrl: string | undefined;
+	private auth: GitAuth;
+	private fs: LightningFS | null = null;
+	private dir: string;
 	contentFolder: string;
 	vaultPath: string;
+	private initialized: boolean = false;
 
 	constructor({
-		quartzRepository,
-		githubToken,
-		githubUserName,
+		gitSettings,
 		contentFolder,
 		vaultPath,
-	}: IOctokitterInput) {
-		this.quartzRepository = quartzRepository;
-		this.githubUserName = githubUserName;
-
-		this.octokit = new Octokit({ auth: githubToken, log: oktokitLogger });
-
+	}: IRepositoryConnectionInput) {
+		this.remoteUrl = gitSettings.remoteUrl;
+		this.branch = gitSettings.branch || "main";
+		this.corsProxyUrl = gitSettings.corsProxyUrl || undefined;
+		this.auth = gitSettings.auth;
 		this.contentFolder = contentFolder;
 		this.vaultPath = vaultPath;
+		this.dir = "/repo";
 	}
 
-	/**
-	 * Get the full repository name in the format "username/repository".
-	 *
-	 * @returns The full repository name.
-	 */
-	getRepositoryName() {
-		return this.githubUserName + "/" + this.quartzRepository;
+	private getFs(): LightningFS {
+		if (!this.fs) {
+			try {
+				const fsName = this.getFsName();
+				this.fs = new LightningFS(fsName);
+			} catch (error) {
+				logger.error("Failed to initialize LightningFS", error);
+				throw new Error(
+					"Failed to initialize filesystem. IndexedDB may not be available on this platform.",
+				);
+			}
+		}
+		return this.fs;
 	}
 
-	/**
-	 * Get the base payload for Octokit requests.
-	 *
-	 * @returns An object containing the owner and repo properties.
-	 */
-	getBasePayload() {
-		return {
-			owner: this.githubUserName,
-			repo: this.quartzRepository,
+	private getFsName(): string {
+		const urlHash = this.hashString(this.remoteUrl + this.branch);
+		return `quartz-syncer-${urlHash}`;
+	}
+
+	private hashString(str: string): string {
+		let hash = 0;
+		for (let i = 0; i < str.length; i++) {
+			const char = str.charCodeAt(i);
+			hash = (hash << 5) - hash + char;
+			hash = hash & hash;
+		}
+		return Math.abs(hash).toString(36);
+	}
+
+	private getOnAuth() {
+		return () => {
+			if (this.auth.type === "none") {
+				return undefined;
+			}
+			if (this.auth.type === "bearer") {
+				return {
+					headers: {
+						Authorization: `Bearer ${this.auth.secret}`,
+					},
+				};
+			}
+			return {
+				username: this.auth.username || "",
+				password: this.auth.secret || "",
+			};
 		};
 	}
 
-	/**
-	 * Get the repository path from a given path.
-	 * If the path starts with the content folder, it removes that part.
-	 * If the resulting path starts with a slash, it removes that as well.
-	 *
-	 * @param path - The path to convert.
-	 * @returns The repository path.
-	 */
-	getRepositoryPath(path: string) {
+	private getGitConfig() {
+		const config: {
+			fs: LightningFS;
+			http: typeof obsidianHttpClient;
+			dir: string;
+			corsProxy?: string;
+			onAuth?: () =>
+				| { username: string; password: string }
+				| { headers: { Authorization: string } }
+				| undefined;
+		} = {
+			fs: this.getFs(),
+			http: obsidianHttpClient,
+			dir: this.dir,
+		};
+
+		if (this.corsProxyUrl) {
+			config.corsProxy = this.corsProxyUrl;
+		}
+
+		if (this.auth.type !== "none") {
+			config.onAuth = this.getOnAuth();
+		}
+
+		return config;
+	}
+
+	getRepositoryName(): string {
+		try {
+			const url = new URL(this.remoteUrl);
+			return url.pathname.replace(/^\//, "").replace(/\.git$/, "");
+		} catch {
+			return this.remoteUrl;
+		}
+	}
+
+	getRepositoryPath(path: string): string {
 		const repositoryPath = path.startsWith(this.contentFolder)
 			? path.replace(this.contentFolder, "")
 			: path;
@@ -99,15 +205,7 @@ export class RepositoryConnection {
 			: repositoryPath;
 	}
 
-	/**
-	 * Get the vault path from a given path.
-	 * If the path starts with the vault path, it removes that part.
-	 * If the resulting path starts with a slash, it removes that as well.
-	 *
-	 * @param path - The path to convert.
-	 * @returns The vault path.
-	 */
-	getVaultPath(path: string) {
+	getVaultPath(path: string): string {
 		path = normalizePath(path);
 
 		const vaultPath = path.startsWith(this.vaultPath)
@@ -117,15 +215,7 @@ export class RepositoryConnection {
 		return vaultPath.startsWith("/") ? vaultPath.slice(1) : vaultPath;
 	}
 
-	/**
-	 * Set the repository path from a given path.
-	 * If the path does not start with the content folder, it prepends it.
-	 * If the resulting path starts with a slash, it removes that as well.
-	 *
-	 * @param path - The path to convert.
-	 * @returns The repository path.
-	 */
-	setRepositoryPath(path: string) {
+	setRepositoryPath(path: string): string {
 		path = normalizePath(path);
 
 		const repositoryPath = path.startsWith(this.contentFolder)
@@ -137,15 +227,7 @@ export class RepositoryConnection {
 			: repositoryPath;
 	}
 
-	/**
-	 * Set the vault path from a given path.
-	 * If the path does not start with the vault path, it prepends it.
-	 * If the resulting path starts with a slash, it removes that as well.
-	 *
-	 * @param path - The path to convert.
-	 * @returns The vault path.
-	 */
-	setVaultPath(path: string) {
+	setVaultPath(path: string): string {
 		const separator = path.startsWith("/") ? "" : "/";
 
 		const vaultPath = path.startsWith(this.vaultPath)
@@ -155,70 +237,139 @@ export class RepositoryConnection {
 		return vaultPath.startsWith("/") ? vaultPath.slice(1) : vaultPath;
 	}
 
-	/**
-	 * Convert a repository path to a vault path.
-	 * It first converts the path to a repository path and then sets it as a vault path.
-	 *
-	 * @param path - The repository path to convert.
-	 * @returns The vault path.
-	 */
-	repositoryToVaultPath(path: string) {
+	repositoryToVaultPath(path: string): string {
 		return this.setVaultPath(this.getRepositoryPath(path));
 	}
 
-	/**
-	 * Convert a vault path to a repository path.
-	 * It first converts the path to a vault path and then sets it as a repository path.
-	 *
-	 * @param path - The vault path to convert.
-	 * @returns The repository path.
-	 */
-	repositoryToRepositoryPath(path: string) {
+	repositoryToRepositoryPath(path: string): string {
 		return this.setRepositoryPath(this.getVaultPath(path));
 	}
 
-	/**
-	 * Get filetree with path and sha of each file from repository
-	 *
-	 * @param branch - The branch to get the content from.
-	 * @returns The content of the repository as a tree structure.
-	 * @throws Will throw an error if the content cannot be retrieved.
-	 */
-	async getContent(branch: string) {
+	private async checkExistingRepo(): Promise<boolean> {
 		try {
-			const response = await this.octokit.request(
-				`GET /repos/{owner}/{repo}/git/trees/{tree_sha}`,
-				{
-					...this.getBasePayload(),
-					tree_sha: branch,
-					recursive: "true",
-					// invalidate cache
-					headers: {
-						"If-None-Match": "",
-					},
-				},
-			);
+			await this.getFs().promises.stat(this.dir);
+			const remotes = await git.listRemotes({ ...this.getGitConfig() });
+			return remotes.length > 0;
+		} catch {
+			return false;
+		}
+	}
 
-			if (response.status === 200) {
-				return response.data;
-			}
-		} catch (_error) {
+	private async createDirIfNotExists(path: string): Promise<void> {
+		try {
+			await this.getFs().promises.mkdir(path);
+		} catch {
+			// eslint-disable-next-line no-empty
+		}
+	}
+
+	private async ensureRepoInitialized(): Promise<void> {
+		if (this.initialized) {
+			return;
+		}
+
+		const isExistingRepo = await this.checkExistingRepo();
+		if (isExistingRepo) {
+			this.initialized = true;
+			return;
+		}
+
+		logger.info(`Cloning repository ${this.getRepositoryName()}`);
+
+		await this.createDirIfNotExists(this.dir);
+
+		try {
+			await git.clone({
+				...this.getGitConfig(),
+				url: this.remoteUrl,
+				ref: this.branch,
+				singleBranch: true,
+				depth: 1,
+				noCheckout: false,
+			});
+			this.initialized = true;
+		} catch (error) {
+			logger.error("Failed to clone repository", error);
+			throw new Error(
+				`Could not clone repository ${this.getRepositoryName()}: ${error}`,
+			);
+		}
+	}
+
+	async getContent(
+		_branch?: string,
+	): Promise<
+		{ tree: TreeEntry[]; sha: string; truncated: boolean } | undefined
+	> {
+		try {
+			await this.ensureRepoInitialized();
+
+			await git.fetch({
+				...this.getGitConfig(),
+				url: this.remoteUrl,
+				ref: this.branch,
+				singleBranch: true,
+			});
+
+			const commitOid = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+			});
+
+			const { commit } = await git.readCommit({
+				...this.getGitConfig(),
+				oid: commitOid,
+			});
+
+			const treeEntries: TreeEntry[] = [];
+
+			const readTreeRecursive = async (
+				treeOid: string,
+				prefix: string = "",
+			) => {
+				const { tree } = await git.readTree({
+					...this.getGitConfig(),
+					oid: treeOid,
+				});
+
+				for (const entry of tree) {
+					const fullPath = prefix
+						? `${prefix}/${entry.path}`
+						: entry.path;
+
+					treeEntries.push({
+						path: fullPath,
+						oid: entry.oid,
+						type: entry.type as "blob" | "tree" | "commit",
+					});
+
+					if (entry.type === "tree") {
+						await readTreeRecursive(entry.oid, fullPath);
+					}
+				}
+			};
+
+			await readTreeRecursive(commit.tree);
+
+			return {
+				tree: treeEntries,
+				sha: commitOid,
+				truncated: false,
+			};
+		} catch (error) {
+			logger.error("Could not get repository content", error);
 			throw new Error(
 				`Could not get files from repository ${this.getRepositoryName()}`,
 			);
 		}
 	}
 
-	/**
-	 * Get a file from the repository.
-	 * It retrieves the file content from the specified path and branch.
-	 *
-	 * @param path - The path of the file to retrieve.
-	 * @param branch - The branch to get the file from (optional).
-	 * @returns The file data if found, otherwise undefined.
-	 * @throws Will throw an error if the file cannot be retrieved.
-	 */
-	async getFile(path: string, branch?: string) {
+	async getFile(
+		path: string,
+		_branch?: string,
+	): Promise<
+		{ content: string; sha: string; path: string; type: "file" } | undefined
+	> {
 		path = this.setRepositoryPath(
 			this.getVaultPath(this.getRepositoryPath(path)),
 		);
@@ -228,350 +379,327 @@ export class RepositoryConnection {
 		);
 
 		try {
-			const response = await this.octokit.request(
-				"GET /repos/{owner}/{repo}/contents/{path}",
-				{
-					...this.getBasePayload(),
-					path,
-					ref: branch,
-				},
-			);
+			await this.ensureRepoInitialized();
 
-			if (
-				response.status === 200 &&
-				!Array.isArray(response.data) &&
-				response.data.type === "file"
-			) {
-				return response.data;
-			}
-		} catch (_error) {
+			const commitOid = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+			});
+
+			const { blob, oid } = await git.readBlob({
+				...this.getGitConfig(),
+				oid: commitOid,
+				filepath: path,
+			});
+
+			const content = Buffer.from(blob).toString("base64");
+
+			return {
+				content,
+				sha: oid,
+				path,
+				type: "file",
+			};
+		} catch (error) {
+			logger.error(`Could not get file ${path}`, error);
 			throw new Error(
 				`Could not get file ${path} from repository ${this.getRepositoryName()}`,
 			);
 		}
 	}
 
-	/**
-	 * Get the latest commit from the repository.
-	 *
-	 * @returns The latest commit data if found, otherwise undefined.
-	 * @throws Will throw an error if the latest commit cannot be retrieved.
-	 */
 	async getLatestCommit(): Promise<
 		{ sha: string; commit: { tree: { sha: string } } } | undefined
 	> {
 		try {
-			const latestCommit = await this.octokit.request(
-				`GET /repos/{owner}/{repo}/commits/HEAD?cacheBust=${Date.now()}`,
-				this.getBasePayload(),
-			);
+			await this.ensureRepoInitialized();
 
-			if (!latestCommit || !latestCommit.data) {
-				logger.error("Could not get latest commit");
-			}
+			await git.fetch({
+				...this.getGitConfig(),
+				url: this.remoteUrl,
+				ref: this.branch,
+				singleBranch: true,
+				depth: 1,
+			});
 
-			return latestCommit.data;
+			const commitOid = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+			});
+
+			const { commit } = await git.readCommit({
+				...this.getGitConfig(),
+				oid: commitOid,
+			});
+
+			return {
+				sha: commitOid,
+				commit: {
+					tree: {
+						sha: commit.tree,
+					},
+				},
+			};
 		} catch (error) {
 			logger.error("Could not get latest commit", error);
+			return undefined;
 		}
 	}
 
-	/**
-	 * Mutate an arbitrary file in the repository.
-	 * It updates the file content at the specified path and branch.
-	 *
-	 * @param path - The path of the file to update.
-	 * @param sha - The SHA of the file to update (optional). Set to null to delete the file.
-	 * @param content - The new content of the file.
-	 * @param branch - The branch to update the file in (optional).
-	 * @param message - The commit message for the update (optional).
-	 * @returns The response data from the update request.
-	 */
-	async mutateFile({ path, sha, content, branch, message }: IPutPayload) {
-		const payload = {
-			...this.getBasePayload(),
-			path,
-			message: message ?? `Update file ${path}`,
-			content,
-			sha,
-			branch,
+	async deleteFiles(filePaths: string[]): Promise<void> {
+		if (filePaths.length === 0) return;
+
+		try {
+			await this.ensureRepoInitialized();
+
+			await git.fetch({
+				...this.getGitConfig(),
+				url: this.remoteUrl,
+				ref: this.branch,
+				singleBranch: true,
+				depth: 1,
+			});
+
+			await git.checkout({
+				...this.getGitConfig(),
+				ref: this.branch,
+				force: true,
+			});
+
+			const normalizeFilePath = (path: string): string => {
+				let previous;
+				do {
+					previous = path;
+					path = path.replace(/\.\.\//g, "");
+				} while (path !== previous);
+
+				path = this.getVaultPath(path);
+				return path.startsWith("/")
+					? `${this.contentFolder}${path}`
+					: `${this.contentFolder}/${path}`;
+			};
+
+			for (const filePath of filePaths) {
+				const normalizedPath = normalizeFilePath(filePath);
+				const fullPath = `${this.dir}/${normalizedPath}`;
+
+				try {
+					await this.getFs().promises.unlink(fullPath);
+					await git.remove({
+						...this.getGitConfig(),
+						filepath: normalizedPath,
+					});
+				} catch (error) {
+					logger.warn(
+						`Could not delete file ${normalizedPath}`,
+						error,
+					);
+				}
+			}
+
+			await git.commit({
+				...this.getGitConfig(),
+				message: "Deleted multiple files",
+				author: {
+					name: "Quartz Syncer",
+					email: "quartz-syncer@obsidian.md",
+				},
+			});
+
+			await git.push({
+				...this.getGitConfig(),
+				url: this.remoteUrl,
+				remote: "origin",
+				ref: this.branch,
+			});
+		} catch (error) {
+			logger.error("Failed to delete files", error);
+			throw error;
+		}
+	}
+
+	async updateFiles(files: CompiledPublishFile[]): Promise<void> {
+		if (files.length === 0) return;
+
+		try {
+			await this.ensureRepoInitialized();
+
+			await git.fetch({
+				...this.getGitConfig(),
+				url: this.remoteUrl,
+				ref: this.branch,
+				singleBranch: true,
+				depth: 1,
+			});
+
+			await git.checkout({
+				...this.getGitConfig(),
+				ref: this.branch,
+				force: true,
+			});
+
+			const normalizeFilePath = (path: string): string => {
+				let previous;
+				do {
+					previous = path;
+					path = path.replace(/\.\.\//g, "");
+				} while (path !== previous);
+
+				path = this.getVaultPath(path);
+				return path.startsWith("/")
+					? `${this.contentFolder}${path}`
+					: `${this.contentFolder}/${path}`;
+			};
+
+			const ensureDirectory = async (filePath: string): Promise<void> => {
+				const parts = filePath.split("/");
+				parts.pop();
+				let currentPath = this.dir;
+
+				for (const part of parts) {
+					if (!part) continue;
+					currentPath = `${currentPath}/${part}`;
+					try {
+						await this.getFs().promises.mkdir(currentPath);
+					} catch {
+						// eslint-disable-next-line no-empty
+					}
+				}
+			};
+
+			for (const file of files) {
+				const [text, metadata] = file.compiledFile;
+				const normalizedPath = normalizeFilePath(file.getPath());
+				const fullPath = `${this.dir}/${normalizedPath}`;
+
+				await ensureDirectory(normalizedPath);
+				await this.getFs().promises.writeFile(fullPath, text);
+				await git.add({
+					...this.getGitConfig(),
+					filepath: normalizedPath,
+				});
+
+				for (const asset of metadata.blobs) {
+					const assetPath = normalizeFilePath(asset.path);
+					const assetFullPath = `${this.dir}/${assetPath}`;
+
+					await ensureDirectory(assetPath);
+
+					const binaryContent = Uint8Array.from(
+						atob(asset.content),
+						(c) => c.charCodeAt(0),
+					);
+					await this.getFs().promises.writeFile(
+						assetFullPath,
+						binaryContent,
+					);
+					await git.add({
+						...this.getGitConfig(),
+						filepath: assetPath,
+					});
+				}
+			}
+
+			await git.commit({
+				...this.getGitConfig(),
+				message: "Published multiple files",
+				author: {
+					name: "Quartz Syncer",
+					email: "quartz-syncer@obsidian.md",
+				},
+			});
+
+			await git.push({
+				...this.getGitConfig(),
+				url: this.remoteUrl,
+				remote: "origin",
+				ref: this.branch,
+			});
+		} catch (error) {
+			logger.error("Failed to update files", error);
+			throw error;
+		}
+	}
+
+	async testConnection(): Promise<boolean> {
+		try {
+			await git.getRemoteInfo({
+				http: obsidianHttpClient,
+				url: this.remoteUrl,
+				corsProxy: this.corsProxyUrl,
+				onAuth: this.getOnAuth(),
+			});
+			return true;
+		} catch (error) {
+			logger.error("Connection test failed", error);
+			return false;
+		}
+	}
+
+	async clearLocalCache(): Promise<void> {
+		const fsName = this.getFsName();
+		try {
+			if (typeof indexedDB !== "undefined") {
+				indexedDB.deleteDatabase(fsName);
+			}
+			this.fs = null;
+			this.initialized = false;
+			logger.info("Local git cache cleared");
+		} catch (error) {
+			logger.error("Failed to clear local cache", error);
+		}
+	}
+
+	static async fetchRemoteBranches(
+		remoteUrl: string,
+		auth: GitAuth,
+		corsProxyUrl?: string,
+	): Promise<{ branches: string[]; defaultBranch: string | null }> {
+		const getOnAuth = () => {
+			if (auth.type === "none") {
+				return undefined;
+			}
+			if (auth.type === "bearer") {
+				return () => ({
+					headers: {
+						Authorization: `Bearer ${auth.secret}`,
+					},
+				});
+			}
+			return () => ({
+				username: auth.username || "",
+				password: auth.secret || "",
+			});
 		};
 
 		try {
-			return await this.octokit.request(
-				"PUT /repos/{owner}/{repo}/contents/{path}",
-				payload,
-			);
-		} catch (error) {
-			logger.error(error);
-		}
-	}
-
-	/**
-	 * Delete multiple files from the repository.
-	 * It retrieves the latest commit, creates a new tree with the files to be deleted,
-	 * and commits the changes to the default branch.
-	 *
-	 * @param filePaths - An array of file paths to delete.
-	 */
-	async deleteFiles(filePaths: string[]) {
-		const latestCommit = await this.getLatestCommit();
-
-		if (!latestCommit) {
-			logger.error("Could not get latest commit");
-
-			return;
-		}
-
-		const normalizePath = (path: string) => {
-			let previous;
-
-			do {
-				previous = path;
-				path = path.replace(/\.\.\//g, "");
-			} while (path !== previous);
-
-			path = this.getVaultPath(path);
-
-			return path.startsWith("/")
-				? `${this.contentFolder}${path}`
-				: `${this.contentFolder}/${path}`;
-		};
-
-		const filesToDelete = filePaths.map((path) => {
-			return normalizePath(path);
-		});
-
-		const repoDataPromise = this.octokit.request(
-			"GET /repos/{owner}/{repo}",
-			{
-				...this.getBasePayload(),
-			},
-		);
-
-		const latestCommitSha = latestCommit.sha;
-		const baseTreeSha = latestCommit.commit.tree.sha;
-
-		const baseTree = await this.octokit.request(
-			"GET /repos/{owner}/{repo}/git/trees/{tree_sha}?recursive=1",
-			{
-				...this.getBasePayload(),
-				tree_sha: baseTreeSha,
-			},
-		);
-
-		const newTreeEntries = baseTree.data.tree
-			.filter((item: { path: string }) =>
-				filesToDelete.includes(item.path),
-			) // Mark sha of files to be deleted as null
-			.map(
-				(item: {
-					path: string;
-					mode: string;
-					type: string;
-					sha: string;
-				}) => ({
-					path: item.path,
-					mode: item.mode,
-					type: item.type,
-					sha: null,
-				}),
-			);
-
-		//eslint-disable-next-line
-		const tree = newTreeEntries.filter((x: any) => x !== undefined) as {
-			path?: string | undefined;
-			mode?:
-				| "100644"
-				| "100755"
-				| "040000"
-				| "160000"
-				| "120000"
-				| undefined;
-			type?: "tree" | "blob" | "commit" | undefined;
-			sha?: string | null | undefined;
-			content?: string | undefined;
-		}[];
-
-		const newTree = await this.octokit.request(
-			"POST /repos/{owner}/{repo}/git/trees",
-			{
-				...this.getBasePayload(),
-				base_tree: baseTreeSha,
-				tree,
-			},
-		);
-
-		const commitMessage = "Deleted multiple files";
-
-		const newCommit = await this.octokit.request(
-			"POST /repos/{owner}/{repo}/git/commits",
-			{
-				...this.getBasePayload(),
-				message: commitMessage,
-				tree: newTree.data.sha,
-				parents: [latestCommitSha],
-			},
-		);
-
-		const defaultBranch = (await repoDataPromise).data.default_branch;
-
-		await this.octokit.request(
-			"PATCH /repos/{owner}/{repo}/git/refs/heads/{branch}",
-			{
-				...this.getBasePayload(),
-				branch: defaultBranch,
-				sha: newCommit.data.sha,
-			},
-		);
-	}
-
-	/**
-	 * Update multiple files in the repository.
-	 * It retrieves the latest commit, creates a new tree with the files to be updated,
-	 * and commits the changes to the default branch.
-	 *
-	 * @param files - An array of CompiledPublishFile objects to update.
-	 */
-	async updateFiles(files: CompiledPublishFile[]) {
-		const latestCommit = await this.getLatestCommit();
-
-		if (!latestCommit) {
-			logger.error("Could not get latest commit");
-
-			return;
-		}
-
-		const repoDataPromise = this.octokit.request(
-			"GET /repos/{owner}/{repo}",
-			{
-				...this.getBasePayload(),
-			},
-		);
-
-		const latestCommitSha = latestCommit.sha;
-		const baseTreeSha = latestCommit.commit.tree.sha;
-
-		const normalizePath = (path: string) => {
-			let previous;
-
-			do {
-				previous = path;
-				path = path.replace(/\.\.\//g, "");
-			} while (path !== previous);
-
-			path = this.getVaultPath(path);
-
-			return path.startsWith("/")
-				? `${this.contentFolder}${path}`
-				: `${this.contentFolder}/${path}`;
-		};
-
-		const treePromises = files.map(async (file) => {
-			const [text, _] = file.compiledFile;
-
-			try {
-				const blob = await this.octokit.request(
-					"POST /repos/{owner}/{repo}/git/blobs",
-					{
-						...this.getBasePayload(),
-						content: text,
-						encoding: "utf-8",
-					},
-				);
-
-				return {
-					path: normalizePath(file.getPath()),
-					mode: "100644",
-					type: "blob",
-					sha: blob.data.sha,
-				};
-			} catch (error) {
-				logger.error(error);
-			}
-		});
-
-		const treeAssetPromises = files
-			.flatMap((x) => x.compiledFile[1].blobs)
-			.map(async (asset) => {
-				try {
-					const blob = await this.octokit.request(
-						"POST /repos/{owner}/{repo}/git/blobs",
-						{
-							...this.getBasePayload(),
-							content: asset.content,
-							encoding: "base64",
-						},
-					);
-
-					return {
-						path: normalizePath(asset.path),
-						mode: "100644",
-						type: "blob",
-						sha: blob.data.sha,
-					};
-				} catch (error) {
-					logger.error(error);
-				}
+			const refs = await git.listServerRefs({
+				http: obsidianHttpClient,
+				url: remoteUrl,
+				corsProxy: corsProxyUrl,
+				onAuth: getOnAuth(),
+				prefix: "refs/heads/",
+				symrefs: true,
 			});
-		treePromises.push(...treeAssetPromises);
 
-		const treeList = await Promise.all(treePromises);
+			const branches = refs
+				.filter((ref) => ref.ref.startsWith("refs/heads/"))
+				.map((ref) => ref.ref.replace("refs/heads/", ""));
 
-		//Filter away undefined values
-		const tree = treeList.filter((x) => x !== undefined) as {
-			path?: string | undefined;
-			mode?:
-				| "100644"
-				| "100755"
-				| "040000"
-				| "160000"
-				| "120000"
-				| undefined;
-			type?: "tree" | "blob" | "commit" | undefined;
-			sha?: string | null | undefined;
-			content?: string | undefined;
-		}[];
+			let defaultBranch: string | null = null;
+			const headRef = refs.find((ref) => ref.ref === "HEAD");
+			if (headRef?.target) {
+				defaultBranch = headRef.target.replace("refs/heads/", "");
+			}
 
-		const newTree = await this.octokit.request(
-			"POST /repos/{owner}/{repo}/git/trees",
-			{
-				...this.getBasePayload(),
-				base_tree: baseTreeSha,
-				tree,
-			},
-		);
-
-		const commitMessage = "Published multiple files";
-
-		const newCommit = await this.octokit.request(
-			"POST /repos/{owner}/{repo}/git/commits",
-			{
-				...this.getBasePayload(),
-				message: commitMessage,
-				tree: newTree.data.sha,
-				parents: [latestCommitSha],
-			},
-		);
-
-		const defaultBranch = (await repoDataPromise).data.default_branch;
-
-		await this.octokit.request(
-			"PATCH /repos/{owner}/{repo}/git/refs/heads/{branch}",
-			{
-				...this.getBasePayload(),
-				branch: defaultBranch,
-				sha: newCommit.data.sha,
-			},
-		);
+			return { branches, defaultBranch };
+		} catch (error) {
+			logger.error("Failed to fetch remote branches", error);
+			return { branches: [], defaultBranch: null };
+		}
 	}
 }
 
-/**
- * TRepositoryContent type.
- * This type represents the content of a repository as returned by the getContent method.
- * It is an awaited type of the return value of the getContent method of the RepositoryConnection class.
- */
 export type TRepositoryContent = Awaited<
 	ReturnType<typeof RepositoryConnection.prototype.getContent>
 >;
