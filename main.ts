@@ -120,6 +120,9 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	noteSettingsIsInitialized: false,
 	pluginVersion: "",
 
+	/** UI settings */
+	diffViewStyle: "auto",
+
 	/** Developer settings */
 	ENABLE_DEVELOPER_TOOLS: false,
 	logLevel: Logger.OFF,

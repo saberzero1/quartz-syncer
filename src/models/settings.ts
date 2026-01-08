@@ -25,6 +25,8 @@ export type GitProviderHint =
 	| "gitea"
 	| "custom";
 
+export type DiffViewStyle = "split" | "unified" | "auto";
+
 /**
  * Generic Git remote settings.
  * Works with any Git provider (GitHub, GitLab, Bitbucket, self-hosted, etc.)
@@ -151,6 +153,9 @@ export default interface QuartzSyncerSettings {
 	noteSettingsIsInitialized: boolean;
 	lastUsedSettingsTab: string;
 	pluginVersion: string;
+
+	/** UI settings */
+	diffViewStyle: DiffViewStyle;
 
 	/** Developer settings */
 	ENABLE_DEVELOPER_TOOLS?: boolean;

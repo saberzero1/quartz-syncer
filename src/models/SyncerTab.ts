@@ -4,6 +4,7 @@ import { PerformanceSettings } from "src/views/SettingsView/Views/PerformanceSet
 import { FrontmatterSettings } from "src/views/SettingsView/Views/FrontmatterSettings";
 import { IntegrationSettings } from "src/views/SettingsView/Views/IntegrationSettings";
 import { ThemesSettings } from "src/views/SettingsView/Views/ThemesSettings";
+import { UISettings } from "src/views/SettingsView/Views/UISettings";
 
 type QuartzSyncerSettingTabCollection = (
 	| QuartzSettings
@@ -12,6 +13,7 @@ type QuartzSyncerSettingTabCollection = (
 	| IntegrationSettings
 	| PerformanceSettings
 	| ThemesSettings
+	| UISettings
 )[];
 
 export default QuartzSyncerSettingTabCollection;
