@@ -415,7 +415,7 @@
 	}
 
 	.diff-line.removed {
-		--fallback-color-removed: 248, 81, 73, 0.15;
+		--fallback-color-removed: 248, 81, 73;
 		background: rgba(
 			var(
 				--background-modifier-error-rgb,
