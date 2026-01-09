@@ -96,7 +96,7 @@ export class FrontmatterCompiler {
 
 		const frontMatterString =
 			this.settings.frontmatterFormat === "json"
-				? JSON.stringify(fullFrontMatter)
+				? JSON.stringify(fullFrontMatter) + "\n"
 				: stringifyYaml(fullFrontMatter);
 
 		return `---\n${frontMatterString}---\n`;
