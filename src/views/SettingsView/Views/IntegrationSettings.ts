@@ -1,19 +1,12 @@
 import { Setting, App, PluginSettingTab } from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
-import { isPluginEnabled } from "src/utils/utils";
 import {
-	AUTO_CARD_LINK_PLUGIN_ID,
-	DATACORE_PLUGIN_ID,
-	DATAVIEW_PLUGIN_ID,
-	EXCALIDRAW_PLUGIN_ID,
-	FANTASY_STATBLOCKS_PLUGIN_ID,
-} from "src/ui/suggest/constants";
+	integrationRegistry,
+	PluginIntegration,
+} from "src/compiler/integrations";
+import QuartzSyncerSettings from "src/models/settings";
 
-/**
- * IntegrationSettings class.
- * This class is responsible for displaying and managing the integration settings for the Quartz Syncer plugin.
- */
 export class IntegrationSettings extends PluginSettingTab {
 	app: App;
 	plugin: QuartzSyncer;
@@ -33,206 +26,99 @@ export class IntegrationSettings extends PluginSettingTab {
 		this.settingsRootElement = settingsRootElement;
 	}
 
-	/**
-	 * Displays the integration settings.
-	 * This method initializes the settings UI elements and sets the last used settings tab.
-	 */
 	display(): void {
 		this.settingsRootElement.empty();
 		this.settingsRootElement.addClass("quartz-syncer-github-settings");
 
 		this.initializePluginIntegrationHeader();
-		this.initializeAutoCardLinkSetting();
-		this.initializeDataviewSetting();
-		this.initializeDatacoreSetting();
-		this.initializeExcalidrawSetting();
-		this.initializeFantasyStatblocksSetting();
+
+		for (const integration of integrationRegistry.getAll()) {
+			this.initializeIntegrationSetting(integration);
+		}
+
+		this.initializeStylesHeader();
+		this.initializeManageSyncerStylesSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "integration";
 		this.settings.plugin.saveSettings();
 	}
 
-	/**
-	 * Initializes the plugin integration header.
-	 * This method creates a header for the plugin integration section in the settings.
-	 */
-	initializePluginIntegrationHeader = () => {
+	private initializePluginIntegrationHeader() {
 		new Setting(this.settingsRootElement)
 			.setName("Plugin integration")
 			.setDesc(
 				"Quartz Syncer will use these Obsidian plugins with your Quartz notes.",
 			)
 			.setHeading();
-	};
+	}
 
-	/**
-	 * Initializes the Auto Card Link setting.
-	 * This method creates a toggle for enabling/disabling Auto Card Link integration.
-	 * It checks if the Auto Card Link plugin is enabled and updates the settings accordingly.
-	 */
-	private initializeAutoCardLinkSetting() {
-		const autoCardLinkEnabled = isPluginEnabled(AUTO_CARD_LINK_PLUGIN_ID);
+	private initializeIntegrationSetting(integration: PluginIntegration) {
+		const isAvailable = integration.isAvailable();
+		const settingKey = integration.settingKey as keyof QuartzSyncerSettings;
+		const currentValue = this.settings.settings[settingKey] as boolean;
 
 		new Setting(this.settingsRootElement)
-			.setName("Enable Auto Card Link integration")
-			.setDesc(
-				"Converts Auto Card Link queries into Quartz-compatible markdown.",
-			)
+			.setName(`Enable ${integration.name} integration`)
+			.setDesc(this.getIntegrationDescription(integration.id))
 			.addToggle((toggle) =>
 				toggle
-					.setValue(
-						this.settings.settings.useAutoCardLink &&
-							autoCardLinkEnabled,
-					)
-					.setDisabled(!autoCardLinkEnabled)
+					.setValue(currentValue && isAvailable)
+					.setDisabled(!isAvailable)
 					.onChange(async (value) => {
-						this.settings.settings.useAutoCardLink =
-							value && autoCardLinkEnabled;
+						(this.settings.settings[settingKey] as boolean) =
+							value && isAvailable;
 						await this.settings.plugin.saveSettings();
 					}),
 			)
 			.setClass(
-				`${
-					autoCardLinkEnabled
-						? "quartz-syncer-settings-enabled"
-						: "quartz-syncer-settings-disabled"
-				}`,
+				isAvailable
+					? "quartz-syncer-settings-enabled"
+					: "quartz-syncer-settings-disabled",
 			);
 	}
 
-	/**
-	 * Initializes the Datacore setting.
-	 * This method creates a toggle for enabling/disabling Datacore integration.
-	 * It checks if the Datacore plugin is enabled and updates the settings accordingly.
-	 */
-	private initializeDatacoreSetting() {
-		const datacoreEnabled = isPluginEnabled(DATACORE_PLUGIN_ID);
-
-		new Setting(this.settingsRootElement)
-			.setName("Enable Datacore integration")
-			.setDesc(
-				"Converts Datacore queries into Quartz-compatible markdown. Currently, this is an experimental feature and may not work as expected.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(
-						this.settings.settings.useDatacore && datacoreEnabled,
-					)
-					.setDisabled(!datacoreEnabled)
-					.onChange(async (value) => {
-						this.settings.settings.useDatacore =
-							value && datacoreEnabled;
-						await this.settings.plugin.saveSettings();
-					}),
-			)
-			.setClass(
-				`${
-					datacoreEnabled
-						? "quartz-syncer-settings-enabled"
-						: "quartz-syncer-settings-disabled"
-				}`,
-			);
-	}
-
-	/**
-	 * Initializes the Dataview setting.
-	 * This method creates a toggle for enabling/disabling Dataview integration.
-	 * It checks if the Dataview plugin is enabled and updates the settings accordingly.
-	 */
-	private initializeDataviewSetting() {
-		const dataviewEnabled = isPluginEnabled(DATAVIEW_PLUGIN_ID);
-
-		new Setting(this.settingsRootElement)
-			.setName("Enable Dataview integration")
-			.setDesc(
+	private getIntegrationDescription(integrationId: string): string {
+		const descriptions: Record<string, string> = {
+			dataview:
 				"Converts Dataview queries into Quartz-compatible markdown.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(
-						this.settings.settings.useDataview && dataviewEnabled,
-					)
-					.setDisabled(!dataviewEnabled)
-					.onChange(async (value) => {
-						this.settings.settings.useDataview =
-							value && dataviewEnabled;
-						await this.settings.plugin.saveSettings();
-					}),
-			)
-			.setClass(
-				`${
-					dataviewEnabled
-						? "quartz-syncer-settings-enabled"
-						: "quartz-syncer-settings-disabled"
-				}`,
-			);
-	}
-
-	/**
-	 * Initializes the Excalidraw setting.
-	 * This method creates a toggle for enabling/disabling Excalidraw integration.
-	 * It currently disables the toggle as Excalidraw integration is not yet implemented.
-	 */
-	private initializeExcalidrawSetting() {
-		const excalidrawEnabled = isPluginEnabled(EXCALIDRAW_PLUGIN_ID);
-
-		new Setting(this.settingsRootElement)
-			.setName("Enable Excalidraw integration")
-			.setDesc(
+			datacore:
+				"Converts Datacore queries into Quartz-compatible markdown. Currently experimental.",
+			excalidraw:
 				"Converts Excalidraw drawings into Quartz-compatible format.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.settings.settings.useExcalidraw)
-					.setDisabled(!excalidrawEnabled)
-					.onChange(async (value) => {
-						this.settings.settings.useExcalidraw = value;
-						await this.settings.plugin.saveSettings();
-					}),
-			)
-			.setClass(
-				`${
-					excalidrawEnabled
-						? "quartz-syncer-settings-enabled"
-						: "quartz-syncer-settings-disabled"
-				}`,
-			);
+			"fantasy-statblocks":
+				"Converts Fantasy Statblocks queries into Quartz-compatible format.",
+			"auto-card-link":
+				"Converts Auto Card Link queries into Quartz-compatible markdown.",
+		};
+
+		return (
+			descriptions[integrationId] ??
+			`Enables ${integrationId} integration.`
+		);
 	}
 
-	/**
-	 * Initializes the Fantasy Statblocks setting.
-	 * This method creates a toggle for enabling/disabling Fantasy Statblocks integration.
-	 * It checks if the Fantasy Statblocks plugin is enabled and updates the settings accordingly.
-	 */
-	private initializeFantasyStatblocksSetting() {
-		const fantasyStatblocksEnabled = isPluginEnabled(
-			FANTASY_STATBLOCKS_PLUGIN_ID,
-		);
-
+	private initializeStylesHeader() {
 		new Setting(this.settingsRootElement)
-			.setName("Enable Fantasy Statblocks integration")
+			.setName("Integration styles")
 			.setDesc(
-				"Converts Fantasy Statblocks queries into Quartz-compatible format.",
+				"Settings for managing integration styles in your Quartz project.",
+			)
+			.setHeading();
+	}
+
+	private initializeManageSyncerStylesSetting() {
+		new Setting(this.settingsRootElement)
+			.setName("Manage integration styles")
+			.setDesc(
+				"When enabled, Quartz Syncer will automatically write SCSS files for enabled integrations and ensure custom.scss imports them.",
 			)
 			.addToggle((toggle) =>
 				toggle
-					.setValue(
-						this.settings.settings.useFantasyStatblocks &&
-							fantasyStatblocksEnabled,
-					)
-					.setDisabled(!fantasyStatblocksEnabled)
+					.setValue(this.settings.settings.manageSyncerStyles)
 					.onChange(async (value) => {
-						this.settings.settings.useFantasyStatblocks =
-							value && fantasyStatblocksEnabled;
+						this.settings.settings.manageSyncerStyles = value;
 						await this.settings.plugin.saveSettings();
 					}),
-			)
-			.setClass(
-				`${
-					fantasyStatblocksEnabled
-						? "quartz-syncer-settings-enabled"
-						: "quartz-syncer-settings-disabled"
-				}`,
 			);
 	}
 }
