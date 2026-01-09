@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-01-09T09:11:44Z+0100
+modified: 2026-01-09T09:51:37Z+0100
 publish: true
 ---
 
@@ -26,6 +26,12 @@ publish: true
 
 ### Version 1.9.1
 
+- Added secure token storage using Obsidian's [SecretStorage API](https://docs.obsidian.md/Reference/TypeScript+API/SecretStorage).
+	- Authentication tokens are now stored securely using the platform's native secret storage (Keychain on macOS, Credential Manager on Windows, libsecret on Linux).
+	- Tokens are no longer stored in `data.json`, preventing accidental exposure when syncing vaults.
+	- Existing tokens are automatically migrated to secure storage on plugin load.
+	- New password-style input with visibility toggle in Git settings.
+	- Requires Obsidian 1.11.4 or later.
 - Added configurable frontmatter output format setting.
 	- YAML format is now the default (more readable and standard for static site generators).
 	- JSON format available as an option for backwards compatibility.

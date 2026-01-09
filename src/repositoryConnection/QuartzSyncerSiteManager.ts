@@ -1,4 +1,5 @@
 import type QuartzSyncerSettings from "src/models/settings";
+import type { GitRemoteSettings } from "src/models/settings";
 import { type MetadataCache } from "obsidian";
 import { Base64 } from "js-base64";
 import {
@@ -25,7 +26,11 @@ export default class QuartzSyncerSiteManager {
 	baseSyncerConnection: RepositoryConnection;
 	userSyncerConnection: RepositoryConnection;
 
-	constructor(metadataCache: MetadataCache, settings: QuartzSyncerSettings) {
+	constructor(
+		metadataCache: MetadataCache,
+		settings: QuartzSyncerSettings,
+		gitSettingsWithSecret: GitRemoteSettings,
+	) {
 		this.settings = settings;
 		this.metadataCache = metadataCache;
 
@@ -40,7 +45,7 @@ export default class QuartzSyncerSiteManager {
 		});
 
 		this.userSyncerConnection = new RepositoryConnection({
-			gitSettings: settings.git,
+			gitSettings: gitSettingsWithSecret,
 			contentFolder: settings.contentFolder,
 			vaultPath: settings.vaultPath,
 		});
