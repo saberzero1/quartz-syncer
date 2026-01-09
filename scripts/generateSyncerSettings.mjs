@@ -33,7 +33,7 @@ const quartzSettings = {
 	cache: "{}",
 
 	includeAllFrontmatter: false,
-    frontmatterFormat: "yaml",
+	frontmatterFormat: "yaml",
 
 	applyEmbeds: true,
 
