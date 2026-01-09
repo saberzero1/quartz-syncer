@@ -59,12 +59,12 @@ button.quartz-syncer-publisher-button {
 }
 
 /* Quartz Syncer Diff View */
-.modal:has(pre.quartz-syncer-diff-view) {
+.modal:has(div.quartz-syncer-diff-view) {
 	max-width: var(--modal-max-width, 100%);
 	width: var(--modal-width, 100%);
 }
 
-body.is-mobile .modal:has(pre.quartz-syncer-diff-view) {
+body.is-mobile .modal:has(div.quartz-syncer-diff-view) {
 	width: 100%;
 }
 

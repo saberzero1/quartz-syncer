@@ -178,7 +178,7 @@
 	}
 </script>
 
-<div class="diff-view-wrapper">
+<div class="quartz-syncer-diff-view diff-view-wrapper">
 	<div class="diff-header">
 		<div class="diff-info">
 			<span class="diff-stats">
@@ -404,11 +404,25 @@
 	}
 
 	.diff-line.added {
-		background: rgba(46, 160, 67, 0.15);
+		--fallback-color-added: 46, 160, 67;
+		background: rgba(
+			var(
+				--background-modifier-success-rgb,
+				var(--color-green-rgb, var(--fallback-color-added))
+			),
+			0.15
+		);
 	}
 
 	.diff-line.removed {
-		background: rgba(248, 81, 73, 0.15);
+		--fallback-color-removed: 248, 81, 73, 0.15;
+		background: rgba(
+			var(
+				--background-modifier-error-rgb,
+				var(--color-red-rgb, var(--fallback-color-removed))
+			),
+			0.15
+		);
 	}
 
 	.diff-line.empty {
@@ -424,6 +438,11 @@
 		user-select: none;
 		border-right: 1px solid var(--background-modifier-border);
 		flex-shrink: 0;
+	}
+
+	.diff-line.added > .line-num,
+	.diff-line.removed > .line-num {
+		background: transparent;
 	}
 
 	.line-indicator {
