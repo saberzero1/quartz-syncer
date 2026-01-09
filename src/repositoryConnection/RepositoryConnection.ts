@@ -422,6 +422,49 @@ export class RepositoryConnection {
 		}
 	}
 
+	/**
+	 * Gets a file from the repository without adding the content folder prefix.
+	 * Use this for files outside the content folder (e.g., quartz/styles/custom.scss).
+	 */
+	async getRawFile(
+		path: string,
+	): Promise<
+		{ content: string; sha: string; path: string; type: "file" } | undefined
+	> {
+		logger.info(
+			`Getting raw file ${path} from repository ${this.getRepositoryName()}`,
+		);
+
+		try {
+			await this.ensureRepoInitialized();
+
+			const commitOid = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+			});
+
+			const { blob, oid } = await git.readBlob({
+				...this.getGitConfig(),
+				oid: commitOid,
+				filepath: path,
+			});
+
+			const content = Buffer.from(blob).toString("base64");
+
+			return {
+				content,
+				sha: oid,
+				path,
+				type: "file",
+			};
+		} catch (error) {
+			logger.error(`Could not get raw file ${path}`, error);
+			throw new Error(
+				`Could not get file ${path} from repository ${this.getRepositoryName()}`,
+			);
+		}
+	}
+
 	async getLatestCommit(): Promise<
 		{ sha: string; commit: { tree: { sha: string } } } | undefined
 	> {
@@ -552,8 +595,18 @@ export class RepositoryConnection {
 		}
 	}
 
-	async updateFiles(files: CompiledPublishFile[]): Promise<void> {
-		if (files.length === 0) return;
+	async updateFiles(
+		files: CompiledPublishFile[],
+		rawFiles?: Map<string, string>,
+		rawFilesToDelete?: string[],
+	): Promise<void> {
+		const hasContent = files.length > 0;
+		const hasRawFiles = rawFiles && rawFiles.size > 0;
+
+		const hasRawFilesToDelete =
+			rawFilesToDelete && rawFilesToDelete.length > 0;
+
+		if (!hasContent && !hasRawFiles && !hasRawFilesToDelete) return;
 
 		try {
 			await this.ensureRepoInitialized();
@@ -656,6 +709,14 @@ export class RepositoryConnection {
 				}
 			}
 
+			if (rawFiles && rawFiles.size > 0) {
+				await this.stageRawFiles(rawFiles);
+			}
+
+			if (rawFilesToDelete && rawFilesToDelete.length > 0) {
+				await this.stageRawFileDeletions(rawFilesToDelete);
+			}
+
 			await git.commit({
 				...this.getGitConfig(),
 				message: "Published multiple files",
@@ -673,6 +734,117 @@ export class RepositoryConnection {
 			});
 		} catch (error) {
 			logger.error("Failed to update files", error);
+			throw error;
+		}
+	}
+
+	async stageRawFiles(files: Map<string, string>): Promise<void> {
+		if (files.size === 0) return;
+
+		const ensureDirectory = async (filePath: string): Promise<void> => {
+			const parts = filePath.split("/");
+			parts.pop();
+			let currentPath = this.dir;
+
+			for (const part of parts) {
+				if (!part) continue;
+				currentPath = `${currentPath}/${part}`;
+
+				try {
+					await this.getFs().promises.mkdir(currentPath);
+				} catch {
+					logger.debug(`Directory ${currentPath} already exists`);
+				}
+			}
+		};
+
+		for (const [filepath, content] of files) {
+			const fullPath = `${this.dir}/${filepath}`;
+
+			await ensureDirectory(filepath);
+			await this.getFs().promises.writeFile(fullPath, content);
+
+			await git.add({
+				...this.getGitConfig(),
+				filepath: filepath,
+			});
+		}
+	}
+
+	async stageRawFileDeletions(filePaths: string[]): Promise<void> {
+		if (filePaths.length === 0) return;
+
+		for (const filepath of filePaths) {
+			const fullPath = `${this.dir}/${filepath}`;
+
+			try {
+				await this.getFs().promises.unlink(fullPath);
+
+				await git.remove({
+					...this.getGitConfig(),
+					filepath: filepath,
+				});
+			} catch (error) {
+				logger.debug(`Could not delete file ${filepath}`, error);
+			}
+		}
+	}
+
+	async writeRawFiles(files: Map<string, string>): Promise<void> {
+		if (files.size === 0) return;
+
+		try {
+			await this.ensureRepoInitialized();
+
+			await git.fetch({
+				...this.getGitConfig(),
+				url: this.remoteUrl,
+				ref: this.branch,
+				singleBranch: true,
+			});
+
+			const remoteCommit = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+			});
+
+			await git.checkout({
+				...this.getGitConfig(),
+				ref: remoteCommit,
+				force: true,
+			});
+
+			await git.branch({
+				...this.getGitConfig(),
+				ref: this.branch,
+				object: remoteCommit,
+				force: true,
+			});
+
+			await git.checkout({
+				...this.getGitConfig(),
+				ref: this.branch,
+			});
+
+			await this.stageRawFiles(files);
+
+			await git.commit({
+				...this.getGitConfig(),
+				message: "Updated integration styles",
+				author: {
+					name: "Quartz Syncer",
+					email: "quartz-syncer@obsidian.md",
+				},
+			});
+
+			await git.push({
+				...this.getGitConfig(),
+				url: this.remoteUrl,
+				remote: "origin",
+				ref: this.branch,
+			});
+		} catch (error) {
+			logger.error("Failed to write raw files", error);
 			throw error;
 		}
 	}

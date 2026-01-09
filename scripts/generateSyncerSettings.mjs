@@ -36,6 +36,7 @@ const quartzSettings = {
 	frontmatterFormat: "yaml",
 
 	applyEmbeds: true,
+	manageSyncerStyles: true,
 
 	showCreatedTimestamp: true,
 	createdTimestampKey: "created",

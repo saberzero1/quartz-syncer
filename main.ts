@@ -107,6 +107,8 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	 */
 	useFantasyStatblocks: false,
 
+	manageSyncerStyles: true,
+
 	/** Themes settings */
 	/**
 	 * Enable themes integration.

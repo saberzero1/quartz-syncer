@@ -10,6 +10,7 @@ import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { CompiledPublishFile, PublishFile } from "src/publishFile/PublishFile";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import { DataStore } from "src/publishFile/DataStore";
+import { AssetSyncer } from "src/compiler/integrations";
 import QuartzSyncer from "main";
 import Logger from "js-logger";
 
@@ -164,12 +165,6 @@ export default class Publisher {
 		}
 	}
 
-	/**
-	 * Publishes a batch of files to the repository.
-	 *
-	 * @param files - An array of compiled publish files to publish.
-	 * @returns A promise that resolves to true if the publish was successful, false otherwise.
-	 */
 	public async publishBatch(files: CompiledPublishFile[]): Promise<boolean> {
 		const filesToPublish = files.filter((f) =>
 			isPublishFrontmatterValid(
@@ -190,10 +185,18 @@ export default class Publisher {
 				vaultPath: this.settings.vaultPath,
 			});
 
-			await userQuartzConnection.updateFiles(filesToPublish);
+			const assetSyncer = new AssetSyncer(this.settings);
+
+			const assetResult =
+				await assetSyncer.collectAssets(userQuartzConnection);
+
+			await userQuartzConnection.updateFiles(
+				filesToPublish,
+				assetResult.filesToStage,
+				assetResult.filesToDelete,
+			);
 
 			if (this.settings.useCache) {
-				// Update the remote files and hashes in the datastore
 				for (const file of filesToPublish) {
 					const data = await this.datastore.loadFile(file.file.path);
 

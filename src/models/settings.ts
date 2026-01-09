@@ -149,6 +149,9 @@ export default interface QuartzSyncerSettings {
 	 */
 	useFantasyStatblocks: boolean;
 
+	/** Manage integration styles in Quartz (writes SCSS files and updates custom.scss) */
+	manageSyncerStyles: boolean;
+
 	/** Themes settings */
 	/**
 	 * Enable themes integration.

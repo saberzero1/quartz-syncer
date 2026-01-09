@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-01-09T09:51:37Z+0100
+modified: 2026-01-10T00:09:20Z+0100
 publish: true
 ---
 
@@ -12,7 +12,6 @@ publish: true
 
 ## Planned
 
-- Excalidraw support.
 - Canvas support.
 - TTRPG-related plugin support.
 
@@ -22,7 +21,29 @@ publish: true
 - Manage Quartz layout.
 - Manage Quartz components.
 
-## Released
+## Releases
+
+### Version 1.9.2
+
+- Added support for [Excalidraw](https://github.com/zsviczian/obsidian-excalidraw-plugin) drawings.
+	- Excalidraw files (`.excalidraw.md`) are automatically converted to embedded SVG images.
+	- Embedded drawings (`![[Example.excalidraw]]`) are supported.
+	- Both light and dark theme variants are generated for proper theme support.
+	- Uses the [ExcalidrawAutomate API](https://excalidraw-obsidian.online) for reliable SVG export.
+- Improved [Fantasy Statblocks](https://github.com/javalent/fantasy-statblocks) integration.
+	- Updated styles to match the plugin's Svelte component styling.
+	- Added complete CSS variable support for theming.
+- Improved [Datacore](https://github.com/blacksmithgu/datacore) integration.
+	- Updated styles with complete CSS from the plugin source (cards, tables, callouts, paging, embeds, errors, and layout).
+- Refactored plugin integration architecture for improved maintainability.
+	- All integrations now use a unified `PluginIntegration` interface.
+	- Integration styles are automatically managed via SCSS files in `quartz/styles/syncer/`.
+- Added new setting: **Manage integration styles** (enabled by default).
+	- When enabled, Quartz Syncer automatically writes integration styles to your Quartz repository.
+	- Styles are written to `quartz/styles/syncer/` with automatic `custom.scss` import management.
+	- Syncer import is added after `@use "./base.scss"` to ensure proper style ordering.
+	- Disabling this setting will clean up syncer styles on next publish.
+- Updated documentation.
 
 ### Version 1.9.1
 
