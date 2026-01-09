@@ -1,6 +1,6 @@
 ---
 created: 2025-10-21T13:06:16Z+0200
-modified: 2026-01-08T16:44:44Z+0100
+modified: 2026-01-10T00:01:45Z+0100
 tags: [excalidraw]
 excalidraw-plugin: parsed
 ---
@@ -28,8 +28,8 @@ Hi ^Mlj8nSMy
 		{
 			"id": "9ul0YKiTcVUf8q9REaJMT",
 			"type": "rectangle",
-			"x": -114.203125,
-			"y": -382.2890625,
+			"x": -114.3203125,
+			"y": -381.72265625,
 			"width": 290.1640625,
 			"height": 106.1171875,
 			"angle": 0,
@@ -47,8 +47,8 @@ Hi ^Mlj8nSMy
 				"type": 3
 			},
 			"seed": 1485142924,
-			"version": 97,
-			"versionNonce": 1316967220,
+			"version": 103,
+			"versionNonce": 112395491,
 			"isDeleted": false,
 			"boundElements": [
 				{
@@ -60,15 +60,15 @@ Hi ^Mlj8nSMy
 					"type": "arrow"
 				}
 			],
-			"updated": 1761044864195,
+			"updated": 1767997867548,
 			"link": null,
 			"locked": false
 		},
 		{
 			"id": "bCQ6oAfE",
 			"type": "text",
-			"x": -29.311058044433594,
-			"y": -341.73046875,
+			"x": -29.428245544433594,
+			"y": -341.1640625,
 			"width": 120.37992858886719,
 			"height": 25,
 			"angle": 0,
@@ -84,11 +84,11 @@ Hi ^Mlj8nSMy
 			"index": "a1",
 			"roundness": null,
 			"seed": 1866216716,
-			"version": 29,
-			"versionNonce": 1846978996,
+			"version": 43,
+			"versionNonce": 1805696675,
 			"isDeleted": false,
-			"boundElements": null,
-			"updated": 1761044862307,
+			"boundElements": [],
+			"updated": 1767997870730,
 			"link": null,
 			"locked": false,
 			"text": "Hello Quartz",
@@ -164,7 +164,7 @@ Hi ^Mlj8nSMy
 			"version": 188,
 			"versionNonce": 1789523980,
 			"isDeleted": false,
-			"boundElements": null,
+			"boundElements": [],
 			"updated": 1761044833019,
 			"link": null,
 			"locked": false,
@@ -182,10 +182,10 @@ Hi ^Mlj8nSMy
 		{
 			"id": "tLAmbnYo_6wHYmhbUDwYZ",
 			"type": "arrow",
-			"x": 22.98828125,
-			"y": -276.3125,
-			"width": 2.88671875,
-			"height": 124.296875,
+			"x": 22.93463558786412,
+			"y": -274.60546875,
+			"width": 2.960636821724904,
+			"height": 122.59298887636731,
 			"angle": 0,
 			"strokeColor": "#1e1e1e",
 			"backgroundColor": "transparent",
@@ -201,11 +201,11 @@ Hi ^Mlj8nSMy
 				"type": 2
 			},
 			"seed": 927230004,
-			"version": 266,
-			"versionNonce": 1348519732,
+			"version": 278,
+			"versionNonce": 567969645,
 			"isDeleted": false,
-			"boundElements": null,
-			"updated": 1761044850223,
+			"boundElements": [],
+			"updated": 1767997870782,
 			"link": null,
 			"locked": false,
 			"points": [
@@ -214,8 +214,8 @@ Hi ^Mlj8nSMy
 					0
 				],
 				[
-					2.88671875,
-					124.296875
+					2.960636821724904,
+					122.59298887636731
 				]
 			],
 			"lastCommittedPoint": null,
@@ -251,10 +251,10 @@ Hi ^Mlj8nSMy
 		"currentItemEndArrowhead": "arrow",
 		"currentItemArrowType": "round",
 		"currentItemFrameRole": null,
-		"scrollX": 361.75,
-		"scrollY": 525.69140625,
+		"scrollX": 147.49609375,
+		"scrollY": 463.228515625,
 		"zoom": {
-			"value": 1
+			"value": 2
 		},
 		"currentItemRoundness": "round",
 		"gridSize": 20,

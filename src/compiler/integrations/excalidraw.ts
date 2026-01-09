@@ -18,11 +18,11 @@ const excalidrawScss = `
   margin: 0 auto;
 }
 
-:root[saved-theme="dark"] .excalidraw-dark {
+:root[saved-theme="light"] .excalidraw-svg.excalidraw-light {
   display: block;
 }
 
-:root[saved-theme="light"] .excalidraw-light {
+:root[saved-theme="dark"] .excalidraw-svg.excalidraw-dark {
   display: block;
 }
 `;
@@ -40,16 +40,21 @@ interface ExportSettings {
 	skipInliningFonts?: boolean;
 }
 
-interface ExcalidrawApi {
+interface EmbeddedFilesLoader {
+	terminate: boolean;
+	uid: string;
+}
+
+interface ExcalidrawAutomate {
 	createSVG(
 		templatePath?: string,
 		embedFont?: boolean,
 		exportSettings?: ExportSettings,
-		loader?: unknown,
+		loader?: EmbeddedFilesLoader,
 		theme?: string,
 		padding?: number,
 	): Promise<SVGSVGElement>;
-	getEmbeddedFilesLoader(isDark?: boolean): unknown;
+	getEmbeddedFilesLoader(isDark?: boolean): EmbeddedFilesLoader;
 	getExportSettings(
 		withBackground: boolean,
 		withTheme: boolean,
@@ -57,43 +62,47 @@ interface ExcalidrawApi {
 	): ExportSettings;
 }
 
-function getExcalidrawApi(): ExcalidrawApi | undefined {
-	if (isPluginEnabled(EXCALIDRAW_PLUGIN_ID)) {
-		// @ts-expect-error Excalidraw exposes API via plugin when enabled
-		return app.plugins.getPlugin(EXCALIDRAW_PLUGIN_ID).ea as ExcalidrawApi;
+declare global {
+	interface Window {
+		ExcalidrawAutomate: ExcalidrawAutomate;
+	}
+}
+
+function getExcalidrawAutomate(): ExcalidrawAutomate | undefined {
+	if (isPluginEnabled(EXCALIDRAW_PLUGIN_ID) && window.ExcalidrawAutomate) {
+		return window.ExcalidrawAutomate;
 	}
 
 	return undefined;
 }
 
-async function convertToHTMLSVG(
+async function createThemedSVGs(
 	path: string,
-	ea: ExcalidrawApi,
+	ea: ExcalidrawAutomate,
 ): Promise<{ dark: SVGSVGElement | null; light: SVGSVGElement | null }> {
 	try {
-		const settings = ea.getExportSettings(false, true);
-		const embeddedFilesLoaderDark = ea.getEmbeddedFilesLoader(true);
-		const embeddedFilesLoaderLight = ea.getEmbeddedFilesLoader(false);
+		const exportSettings = ea.getExportSettings(false, true);
+		const darkLoader = ea.getEmbeddedFilesLoader(true);
+		const lightLoader = ea.getEmbeddedFilesLoader(false);
 
 		const svgDark = await ea.createSVG(
 			path,
 			false,
-			settings,
-			embeddedFilesLoaderDark,
+			exportSettings,
+			darkLoader,
 			"dark",
 		);
 
 		const svgLight = await ea.createSVG(
 			path,
 			false,
-			settings,
-			embeddedFilesLoaderLight,
+			exportSettings,
+			lightLoader,
 			"light",
 		);
 
 		svgDark.style.maxWidth = "100%";
 		svgDark.style.height = "auto";
-		svgDark.style.display = "var(--lightningcss-light, none)";
 
 		svgDark
 			.querySelectorAll("style.style-fonts, metadata, mask, defs")
@@ -101,7 +110,6 @@ async function convertToHTMLSVG(
 
 		svgLight.style.maxWidth = "100%";
 		svgLight.style.height = "auto";
-		svgLight.style.display = "var(--lightningcss-dark, none)";
 
 		svgLight
 			.querySelectorAll("style.style-fonts, metadata, mask, defs")
@@ -109,10 +117,10 @@ async function convertToHTMLSVG(
 
 		return { dark: svgDark, light: svgLight };
 	} catch (e) {
-		Logger.error(e);
+		Logger.error("Failed to create Excalidraw SVGs:", e);
 
 		new Notice(
-			"Quartz Syncer: Unable to render Excalidraw embedded image.",
+			"Quartz Syncer: Unable to render Excalidraw drawing. Check console for details.",
 		);
 
 		return { dark: null, light: null };
@@ -130,7 +138,7 @@ export const ExcalidrawIntegration: PluginIntegration = {
 	} as QuartzAssets,
 
 	isAvailable(): boolean {
-		return !!getExcalidrawApi();
+		return !!getExcalidrawAutomate();
 	},
 
 	getPatterns(): PatternDescriptor[] {
@@ -157,22 +165,19 @@ export const ExcalidrawIntegration: PluginIntegration = {
 		_text: string,
 		_context: CompileContext,
 	): Promise<string> {
-		const excalidrawApi = getExcalidrawApi();
+		const ea = getExcalidrawAutomate();
 
-		if (!excalidrawApi) return _text;
+		if (!ea) return _text;
 
-		const { dark, light } = await convertToHTMLSVG(
-			file.file.path,
-			excalidrawApi,
-		);
+		const { dark, light } = await createThemedSVGs(file.file.path, ea);
 
 		if (!dark && !light) {
 			return _text;
 		}
 
 		return `<div>
-<div style="background-image:url(${svgToData(dark!)});"></div>
-<div style="background-image:url(${svgToData(light!)});"></div>
+<div class="excalidraw-svg excalidraw-dark" style="background-image:url(${svgToData(dark!)});background-size:contain;background-repeat:no-repeat;width:100%;aspect-ratio:${dark!.viewBox.baseVal.width / dark!.viewBox.baseVal.height};"></div>
+<div class="excalidraw-svg excalidraw-light" style="background-image:url(${svgToData(light!)});background-size:contain;background-repeat:no-repeat;width:100%;aspect-ratio:${light!.viewBox.baseVal.width / light!.viewBox.baseVal.height};"></div>
 </div>`;
 	},
 
@@ -180,9 +185,9 @@ export const ExcalidrawIntegration: PluginIntegration = {
 		match: PatternMatch,
 		context: CompileContext,
 	): Promise<string> {
-		const excalidrawApi = getExcalidrawApi();
+		const ea = getExcalidrawAutomate();
 
-		if (!excalidrawApi) return match.fullMatch;
+		if (!ea) return match.fullMatch;
 
 		const filePath = match.captures[0];
 		const displayName = match.captures[1];
@@ -204,43 +209,36 @@ export const ExcalidrawIntegration: PluginIntegration = {
 			linkedFile.path.lastIndexOf("."),
 		);
 
-		const linkEl = createEl("a", {
-			text: displayName && !isEmbedded ? displayName : "",
-			href: extensionlessPath,
-		});
+		if (!isEmbedded) {
+			const linkEl = createEl("a", {
+				text: displayName || linkedFile.basename,
+				href: extensionlessPath,
+			});
 
-		if (isEmbedded) {
-			const { dark, light } = await convertToHTMLSVG(
-				filePath,
-				excalidrawApi,
-			);
-
-			if (!dark && !light) {
-				return match.fullMatch;
-			}
-
-			const width = `${dark!.viewBox.baseVal.width}px`;
-			const height = "auto";
-
-			const aspectRatio =
-				(dark!.viewBox.baseVal.width * 1.0) /
-				(dark!.viewBox.baseVal.height * 1.0);
-
-			dark!.removeAttribute("width");
-			dark!.removeAttribute("height");
-			dark!.removeAttribute("viewBox");
-			light!.removeAttribute("width");
-			light!.removeAttribute("height");
-			light!.removeAttribute("viewBox");
-
-			linkEl.dataset.noPopover = "true";
-
-			return `<div>
-<div class="excalidraw-svg excalidraw-dark" style="background-image:url(${svgToData(dark!)});background-size:cover;background-repeat:no-repeat;width:${width};height:${height};aspect-ratio:${aspectRatio};"></div>
-<div class="excalidraw-svg excalidraw-light" style="background-image:url(${svgToData(light!)});background-size:cover;background-repeat:no-repeat;width:${width};height:${height};aspect-ratio:${aspectRatio};"></div>
-</div>`;
+			return linkEl.outerHTML;
 		}
 
-		return linkEl.outerHTML;
+		const { dark, light } = await createThemedSVGs(linkedFile.path, ea);
+
+		if (!dark || !light) {
+			return match.fullMatch;
+		}
+
+		const width = `${dark.viewBox.baseVal.width}px`;
+
+		const aspectRatio =
+			dark.viewBox.baseVal.width / dark.viewBox.baseVal.height;
+
+		dark.removeAttribute("width");
+		dark.removeAttribute("height");
+		dark.removeAttribute("viewBox");
+		light.removeAttribute("width");
+		light.removeAttribute("height");
+		light.removeAttribute("viewBox");
+
+		return `<div>
+<div class="excalidraw-svg excalidraw-dark" style="background-image:url(${svgToData(dark)});background-size:cover;background-repeat:no-repeat;width:${width};height:auto;aspect-ratio:${aspectRatio};"></div>
+<div class="excalidraw-svg excalidraw-light" style="background-image:url(${svgToData(light)});background-size:cover;background-repeat:no-repeat;width:${width};height:auto;aspect-ratio:${aspectRatio};"></div>
+</div>`;
 	},
 };
