@@ -48,6 +48,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	usePermalink: false,
 
 	includeAllFrontmatter: false,
+	frontmatterFormat: "yaml",
 
 	/**
 	 * @privateRemarks

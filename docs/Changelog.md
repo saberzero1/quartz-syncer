@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-01-08T14:46:23Z+0100
+modified: 2026-01-09T07:40:31Z+0100
 publish: true
 ---
 
@@ -23,6 +23,13 @@ publish: true
 - Manage Quartz components.
 
 ## Released
+
+### Version 1.9.1
+
+- Added configurable frontmatter output format setting.
+	- YAML format is now the default (more readable and standard for static site generators).
+	- JSON format available as legacy option for backwards compatibility.
+	- Configurable in Settings > Note properties (frontmatter).
 
 ### Version 1.9.0
 

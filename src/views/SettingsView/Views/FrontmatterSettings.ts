@@ -36,6 +36,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 
 		this.initializeFrontmatterHeader();
 		this.initializePublishFrontmatterKeySetting();
+		this.initializeFrontmatterFormatSetting();
 		this.initializeAllNotesPublishableByDefaultSetting();
 		this.initializeShowCreatedTimestampSetting();
 		this.initializeCreatedTimestampKeysSetting();
@@ -100,10 +101,28 @@ export class FrontmatterSettings extends PluginSettingTab {
 			.setHeading();
 	};
 
-	/**
-	 * Initializes the setting for the publish frontmatter key.
-	 * This method allows users to set the key used to mark notes as eligible for publication.
-	 */
+	private initializeFrontmatterFormatSetting() {
+		new Setting(this.settingsRootElement)
+			.setName("Frontmatter format")
+			.setDesc(
+				"Output format for frontmatter in published notes. YAML is more readable, JSON is supported in case you need it.",
+			)
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption("yaml", "YAML")
+					.addOption("json", "JSON")
+					.setValue(
+						this.settings.settings.frontmatterFormat ?? "yaml",
+					)
+					.onChange(async (value) => {
+						this.settings.settings.frontmatterFormat = value as
+							| "yaml"
+							| "json";
+						await this.settings.plugin.saveSettings();
+					}),
+			);
+	}
+
 	private initializePublishFrontmatterKeySetting() {
 		if (!this.settings.settings.allNotesPublishableByDefault) {
 			new Setting(this.settingsRootElement)

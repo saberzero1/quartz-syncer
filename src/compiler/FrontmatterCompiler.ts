@@ -94,7 +94,10 @@ export class FrontmatterCompiler {
 			? { ...publishedFrontMatter, ...fileFrontMatter }
 			: publishedFrontMatter;
 
-		const frontMatterString = JSON.stringify(fullFrontMatter);
+		const frontMatterString =
+			this.settings.frontmatterFormat === "json"
+				? JSON.stringify(fullFrontMatter)
+				: this.toYaml(fullFrontMatter);
 
 		return `---\n${frontMatterString}\n---\n`;
 	}
@@ -302,6 +305,65 @@ export class FrontmatterCompiler {
 		}
 
 		return publishedFrontMatter;
+	}
+
+	private toYaml(obj: TPublishedFrontMatter): string {
+		const lines: string[] = [];
+
+		for (const [key, value] of Object.entries(obj)) {
+			if (value === undefined || value === null) {
+				continue;
+			}
+
+			if (Array.isArray(value)) {
+				if (value.length === 0) {
+					lines.push(`${key}: []`);
+				} else {
+					lines.push(`${key}:`);
+
+					for (const item of value) {
+						lines.push(`  - ${this.yamlValue(item)}`);
+					}
+				}
+			} else {
+				lines.push(`${key}: ${this.yamlValue(value)}`);
+			}
+		}
+
+		return lines.join("\n");
+	}
+
+	private yamlValue(value: unknown): string {
+		if (typeof value === "string") {
+			if (
+				value === "" ||
+				value.includes(":") ||
+				value.includes("#") ||
+				value.includes("\n") ||
+				value.includes("'") ||
+				value.includes('"') ||
+				value.startsWith(" ") ||
+				value.endsWith(" ") ||
+				/^[{[\]@!%&*|>]/.test(value) ||
+				/^(true|false|null|yes|no|on|off)$/i.test(value)
+			) {
+				const escaped = value.replace(/"/g, '\\"');
+
+				return `"${escaped}"`;
+			}
+
+			return value;
+		}
+
+		if (typeof value === "boolean") {
+			return value ? "true" : "false";
+		}
+
+		if (typeof value === "number") {
+			return String(value);
+		}
+
+		return JSON.stringify(value);
 	}
 
 	private addTimestampsFrontmatter =
