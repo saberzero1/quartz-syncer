@@ -347,7 +347,9 @@ export class FrontmatterCompiler {
 				/^[{[\]@!%&*|>]/.test(value) ||
 				/^(true|false|null|yes|no|on|off)$/i.test(value)
 			) {
-				const escaped = value.replace(/"/g, '\\"');
+				const escaped = value
+					.replace(/\\/g, "\\\\")
+					.replace(/"/g, '\\"');
 
 				return `"${escaped}"`;
 			}
