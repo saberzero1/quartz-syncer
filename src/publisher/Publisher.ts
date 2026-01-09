@@ -142,7 +142,7 @@ export default class Publisher {
 
 		try {
 			const userQuartzConnection = new RepositoryConnection({
-				gitSettings: this.settings.git,
+				gitSettings: this.plugin.getGitSettingsWithSecret(),
 				contentFolder: this.settings.contentFolder,
 				vaultPath: this.settings.vaultPath,
 			});
@@ -185,7 +185,7 @@ export default class Publisher {
 
 		try {
 			const userQuartzConnection = new RepositoryConnection({
-				gitSettings: this.settings.git,
+				gitSettings: this.plugin.getGitSettingsWithSecret(),
 				contentFolder: this.settings.contentFolder,
 				vaultPath: this.settings.vaultPath,
 			});

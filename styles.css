@@ -59,12 +59,12 @@ button.quartz-syncer-publisher-button {
 }
 
 /* Quartz Syncer Diff View */
-.modal:has(pre.quartz-syncer-diff-view) {
+.modal:has(div.quartz-syncer-diff-view) {
 	max-width: var(--modal-max-width, 100%);
 	width: var(--modal-width, 100%);
 }
 
-body.is-mobile .modal:has(pre.quartz-syncer-diff-view) {
+body.is-mobile .modal:has(div.quartz-syncer-diff-view) {
 	width: 100%;
 }
 
@@ -484,4 +484,94 @@ body.is-mobile
 	position: absolute;
 	width: 1px;
 	white-space: nowrap;
+}
+
+/* Token/Secret Storage UI */
+.quartz-syncer-token-container {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	width: 100%;
+}
+
+.quartz-syncer-token-status {
+	font-size: var(--font-ui-smaller);
+	padding: 4px 8px;
+	border-radius: var(--radius-s);
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.quartz-syncer-token-status::before {
+	content: "";
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	display: inline-block;
+}
+
+.quartz-syncer-token-status-set {
+	background-color: rgba(var(--color-green-rgb), 0.15);
+	color: var(--text-success, var(--color-green));
+}
+
+.quartz-syncer-token-status-set::before {
+	background-color: var(--text-success, var(--color-green));
+}
+
+.quartz-syncer-token-status-unset {
+	background-color: rgba(var(--color-orange-rgb), 0.15);
+	color: var(--text-warning, var(--color-orange));
+}
+
+.quartz-syncer-token-status-unset::before {
+	background-color: var(--text-warning, var(--color-orange));
+}
+
+.quartz-syncer-token-input-container {
+	display: flex;
+	gap: 4px;
+	align-items: center;
+}
+
+.quartz-syncer-token-input {
+	flex: 1;
+	padding: 6px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	font-family: var(--font-monospace);
+}
+
+.quartz-syncer-token-input:focus {
+	border-color: var(--interactive-accent);
+	outline: none;
+}
+
+.quartz-syncer-token-toggle {
+	padding: 6px;
+	border: none;
+	background: transparent;
+	cursor: var(--cursor);
+	color: var(--text-muted);
+	border-radius: var(--radius-s);
+}
+
+.quartz-syncer-token-toggle:hover {
+	color: var(--text-normal);
+	background-color: var(--background-modifier-hover);
+}
+
+.quartz-syncer-token-buttons {
+	display: flex;
+	gap: 8px;
+}
+
+.quartz-syncer-token-buttons button {
+	padding: 6px 12px;
+	border-radius: var(--radius-s);
+	cursor: var(--cursor);
+	font-size: var(--font-ui-small);
 }

@@ -4,12 +4,14 @@ import {
 	PluginSettingTab,
 	debounce,
 	normalizePath,
+	setIcon,
 } from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 import { FolderSuggest } from "src/ui/suggest/folder";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import { GitAuthType, GitProviderHint } from "src/models/settings";
+import { SecretStorageService } from "src/utils/SecretStorageService";
 
 export class GitSettings extends PluginSettingTab {
 	app: App;
@@ -22,6 +24,7 @@ export class GitSettings extends PluginSettingTab {
 	private defaultBranch: string | null = null;
 	private branchSettingEl: HTMLElement | null = null;
 	private branchesLoaded: boolean = false;
+	private secretStorageService: SecretStorageService;
 
 	constructor(
 		app: App,
@@ -36,6 +39,7 @@ export class GitSettings extends PluginSettingTab {
 		this.settingsRootElement = settingsRootElement;
 		this.settingsRootElement.classList.add("settings-tab-content");
 		this.connectionStatus = "loading";
+		this.secretStorageService = new SecretStorageService(app);
 
 		this.connectionStatusElement = this.settingsRootElement.createEl(
 			"span",
@@ -104,10 +108,15 @@ export class GitSettings extends PluginSettingTab {
 		}
 
 		try {
+			const authWithSecret = {
+				...gitSettings.auth,
+				secret: this.secretStorageService.getToken() || undefined,
+			};
+
 			const { branches, defaultBranch } =
 				await RepositoryConnection.fetchRemoteBranches(
 					gitSettings.remoteUrl,
-					gitSettings.auth,
+					authWithSecret,
 					gitSettings.corsProxyUrl,
 				);
 
@@ -383,7 +392,6 @@ export class GitSettings extends PluginSettingTab {
 
 		const providerHint = this.settings.settings.git.providerHint;
 		let name = "Access Token";
-		const placeholder = "token";
 		let description = "Your personal access token or password";
 
 		if (providerHint === "github") {
@@ -407,18 +415,95 @@ export class GitSettings extends PluginSettingTab {
 			href: "https://saberzero1.github.io/quartz-syncer-docs/Guides/Generating-an-access-token",
 		});
 
-		new Setting(this.settingsRootElement)
+		const hasToken = this.secretStorageService.hasToken();
+
+		const setting = new Setting(this.settingsRootElement)
 			.setName(name)
-			.setDesc(desc)
-			.addText((text) =>
-				text
-					.setPlaceholder(placeholder)
-					.setValue(this.settings.settings.git.auth.secret || "")
-					.onChange(async (value) => {
-						this.settings.settings.git.auth.secret = value;
-						await this.checkConnectionAndSaveSettings();
-					}),
-			);
+			.setDesc(desc);
+
+		const controlEl = setting.controlEl;
+
+		const tokenContainer = controlEl.createDiv({
+			cls: "quartz-syncer-token-container",
+		});
+
+		const statusIndicator = tokenContainer.createSpan({
+			cls: `quartz-syncer-token-status ${hasToken ? "quartz-syncer-token-status-set" : "quartz-syncer-token-status-unset"}`,
+		});
+
+		statusIndicator.setText(
+			hasToken ? "Token stored securely" : "No token set",
+		);
+
+		const inputContainer = tokenContainer.createDiv({
+			cls: "quartz-syncer-token-input-container",
+		});
+
+		const input = inputContainer.createEl("input", {
+			type: "password",
+			cls: "quartz-syncer-token-input",
+			placeholder: hasToken
+				? "Enter new token to replace"
+				: "Enter token",
+		});
+
+		const toggleBtn = inputContainer.createEl("button", {
+			cls: "quartz-syncer-token-toggle clickable-icon",
+			attr: { "aria-label": "Toggle token visibility" },
+		});
+		setIcon(toggleBtn, "eye");
+
+		let isVisible = false;
+
+		toggleBtn.addEventListener("click", (e) => {
+			e.preventDefault();
+			isVisible = !isVisible;
+			input.type = isVisible ? "text" : "password";
+			setIcon(toggleBtn, isVisible ? "eye-off" : "eye");
+		});
+
+		const buttonContainer = tokenContainer.createDiv({
+			cls: "quartz-syncer-token-buttons",
+		});
+
+		const saveBtn = buttonContainer.createEl("button", {
+			cls: "mod-cta",
+			text: hasToken ? "Update" : "Save",
+		});
+
+		saveBtn.addEventListener("click", async () => {
+			const value = input.value.trim();
+
+			if (value) {
+				this.secretStorageService.setToken(value);
+				input.value = "";
+				input.placeholder = "Enter new token to replace";
+				statusIndicator.setText("Token stored securely");
+				statusIndicator.removeClass("quartz-syncer-token-status-unset");
+				statusIndicator.addClass("quartz-syncer-token-status-set");
+				saveBtn.setText("Update");
+				await this.checkConnectionAndSaveSettings();
+			}
+		});
+
+		if (hasToken) {
+			const clearBtn = buttonContainer.createEl("button", {
+				cls: "mod-warning",
+				text: "Clear",
+			});
+
+			clearBtn.addEventListener("click", async () => {
+				this.secretStorageService.clearToken();
+				input.value = "";
+				input.placeholder = "Enter token";
+				statusIndicator.setText("No token set");
+				statusIndicator.removeClass("quartz-syncer-token-status-set");
+				statusIndicator.addClass("quartz-syncer-token-status-unset");
+				saveBtn.setText("Save");
+				clearBtn.remove();
+				await this.checkConnectionAndSaveSettings();
+			});
+		}
 	}
 
 	private initializeCorsProxySetting() {

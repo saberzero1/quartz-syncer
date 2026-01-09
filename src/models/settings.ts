@@ -27,6 +27,8 @@ export type GitProviderHint =
 
 export type DiffViewStyle = "split" | "unified" | "auto";
 
+export type FrontmatterFormat = "yaml" | "json";
+
 /**
  * Generic Git remote settings.
  * Works with any Git provider (GitHub, GitLab, Bitbucket, self-hosted, etc.)
@@ -82,6 +84,13 @@ export default interface QuartzSyncerSettings {
 	usePermalink: boolean;
 
 	includeAllFrontmatter: boolean;
+
+	/**
+	 * Output format for frontmatter in published notes.
+	 * - "yaml": Output frontmatter as YAML (default, more readable)
+	 * - "json": Output frontmatter as JSON (legacy behavior)
+	 */
+	frontmatterFormat: FrontmatterFormat;
 
 	/**
 	 * @privateRemarks

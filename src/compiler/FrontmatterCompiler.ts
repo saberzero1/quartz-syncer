@@ -1,4 +1,4 @@
-import { FrontMatterCache } from "obsidian";
+import { FrontMatterCache, stringifyYaml } from "obsidian";
 import { sanitizePermalink } from "src/utils/utils";
 import QuartzSyncerSettings from "src/models/settings";
 import { PublishFile } from "src/publishFile/PublishFile";
@@ -94,9 +94,12 @@ export class FrontmatterCompiler {
 			? { ...publishedFrontMatter, ...fileFrontMatter }
 			: publishedFrontMatter;
 
-		const frontMatterString = JSON.stringify(fullFrontMatter);
+		const frontMatterString =
+			this.settings.frontmatterFormat === "json"
+				? JSON.stringify(fullFrontMatter) + "\n"
+				: stringifyYaml(fullFrontMatter);
 
-		return `---\n${frontMatterString}\n---\n`;
+		return `---\n${frontMatterString}---\n`;
 	}
 
 	private addPermalink =

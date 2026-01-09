@@ -8,6 +8,7 @@ import ObsidianFrontMatterEngine from "src/publishFile/ObsidianFrontMatterEngine
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import { QuartzSyncerSettingTab } from "./src/views/QuartzSyncerSettingTab";
 import { DataStore } from "src/publishFile/DataStore";
+import { SecretStorageService } from "src/utils/SecretStorageService";
 import Logger from "js-logger";
 
 /**
@@ -23,7 +24,6 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 		auth: {
 			type: "basic",
 			username: "",
-			secret: "",
 		},
 		providerHint: "github",
 	},
@@ -48,6 +48,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	usePermalink: false,
 
 	includeAllFrontmatter: false,
+	frontmatterFormat: "yaml",
 
 	/**
 	 * @privateRemarks
@@ -143,6 +144,7 @@ export default class QuartzSyncer extends Plugin {
 	settings!: QuartzSyncerSettings;
 	appVersion!: string;
 	datastore!: DataStore;
+	secretStorageService!: SecretStorageService;
 
 	publishModal!: PublicationCenter;
 
@@ -214,6 +216,12 @@ export default class QuartzSyncer extends Plugin {
 
 		this.migrateGitHubSettings();
 
+		this.secretStorageService = new SecretStorageService(this.app);
+
+		await this.secretStorageService.migrateFromSettings(this.settings, () =>
+			this.saveSettings(),
+		);
+
 		if (!this.datastore && this.settings.useCache) {
 			this.datastore = new DataStore(
 				this.app.vault.getName(),
@@ -222,8 +230,6 @@ export default class QuartzSyncer extends Plugin {
 			);
 		}
 
-		// Check if the plugin has been updated
-		// If so, clear the cache
 		if (!this.settings || this.settings.pluginVersion !== this.appVersion) {
 			await this.clearCacheForAllFiles(true);
 			this.settings.pluginVersion = this.appVersion;
@@ -277,12 +283,18 @@ export default class QuartzSyncer extends Plugin {
 		}
 	}
 
-	/**
-	 * Saves the plugin settings to data.json.
-	 * This method is called after any changes to the settings.
-	 */
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
+	}
+
+	getGitSettingsWithSecret(): typeof this.settings.git {
+		return {
+			...this.settings.git,
+			auth: {
+				...this.settings.git.auth,
+				secret: this.secretStorageService.getToken() || undefined,
+			},
+		};
 	}
 
 	/**
@@ -541,6 +553,7 @@ export default class QuartzSyncer extends Plugin {
 			const siteManager = new QuartzSyncerSiteManager(
 				this.app.metadataCache,
 				this.settings,
+				this.getGitSettingsWithSecret(),
 			);
 
 			const publisher = new Publisher(
