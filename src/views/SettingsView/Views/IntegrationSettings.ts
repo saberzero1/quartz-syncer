@@ -89,6 +89,7 @@ export class IntegrationSettings extends PluginSettingTab {
 				"Converts Fantasy Statblocks queries into Quartz-compatible format.",
 			"auto-card-link":
 				"Converts Auto Card Link queries into Quartz-compatible markdown.",
+			bases: "Publishes Obsidian Bases (.base files) to Quartz. Processing is delegated to Quartz.",
 		};
 
 		return (

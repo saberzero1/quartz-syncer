@@ -1,7 +1,10 @@
-/**
- * TreeNode type.
- * Model representing a node in a tree structure.
- */
+export type FileType =
+	| "markdown"
+	| "base"
+	| "excalidraw"
+	| "folder"
+	| "unknown";
+
 type TreeNode = {
 	name: string;
 	children?: TreeNode[];
@@ -9,6 +12,7 @@ type TreeNode = {
 	path: string;
 	checked: boolean;
 	indeterminate: boolean;
+	fileType?: FileType;
 };
 
 export default TreeNode;

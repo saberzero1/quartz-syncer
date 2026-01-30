@@ -86,12 +86,16 @@ export default class QuartzSyncerSiteManager {
 	): Promise<Record<string, string>> {
 		const files = contentTree.tree;
 
+		const isPublishableFile = (path: string): boolean =>
+			path.endsWith(".md") ||
+			(this.settings.useBases && path.endsWith(".base"));
+
 		const notes = files.filter(
 			(x): x is ContentTreeItem =>
 				typeof x.path === "string" &&
 				x.path.startsWith(this.settings.contentFolder) &&
 				x.type === "blob" &&
-				x.path.endsWith(".md"),
+				isPublishableFile(x.path),
 		);
 		const hashes: Record<string, string> = {};
 

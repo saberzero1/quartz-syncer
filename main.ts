@@ -106,6 +106,13 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	 * Fantasy Statblocks documentation: {@link https://plugins.javalent.com/statblocks}
 	 */
 	useFantasyStatblocks: false,
+	/**
+	 * Enable Bases integration.
+	 * This will allow the plugin to publish Obsidian Bases (.base files) to Quartz.
+	 *
+	 * Bases documentation: {@link https://help.obsidian.md/bases}
+	 */
+	useBases: false,
 
 	manageSyncerStyles: true,
 

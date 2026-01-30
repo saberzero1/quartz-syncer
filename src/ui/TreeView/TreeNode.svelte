@@ -141,6 +141,12 @@
 				{/if}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				<span on:click={toggleExpansion}>{tree.name}</span>
+				{#if tree.fileType === "base"}
+					<span
+						class="quartz-syncer-file-badge quartz-syncer-badge-base"
+						>BASE</span
+					>
+				{/if}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				{#if enableShowDiff}
 					<span

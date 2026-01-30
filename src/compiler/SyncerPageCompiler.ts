@@ -139,6 +139,10 @@ export class SyncerPageCompiler {
 	async generateMarkdown(file: PublishFile): Promise<TCompiledFile> {
 		const vaultFileText = await file.cachedRead();
 
+		if (file.getType() === "base") {
+			return [vaultFileText, { blobs: [] }];
+		}
+
 		if (this.settings.useExcalidraw) {
 			if (file.file.name.endsWith(".excalidraw.md")) {
 				console.warn("Excalidraw files are not supported yet.");

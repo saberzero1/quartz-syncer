@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { getIcon, ProgressBarComponent } from "obsidian";
-	import TreeNode from "src/models/TreeNode";
+	import TreeNode, { FileType } from "src/models/TreeNode";
 	import {
 		IPublishStatusManager,
 		PublishStatus,
@@ -34,21 +34,27 @@
 
 	onMount(getPublishStatus);
 
-	/**
-	 * The tree representing the published notes.
-	 * It is built from the publish status and updated reactively.
-	 *
-	 * @param tree - The root node of the tree.
-	 * @param filePath - The path to insert into the tree.
-	 */
-	function insertIntoTree(tree: TreeNode, filePath: string): void {
+	function getFileTypeFromPath(filePath: string): FileType {
+		if (filePath.endsWith(".base")) return "base";
+		if (
+			filePath.endsWith(".excalidraw") ||
+			filePath.endsWith(".excalidraw.md")
+		)
+			return "excalidraw";
+		if (filePath.endsWith(".md")) return "markdown";
+
+		return "unknown";
+	}
+
+	function insertIntoTree(
+		tree: TreeNode,
+		filePath: string,
+		fileType?: FileType,
+	): void {
 		let currentNode = tree;
 
 		const pathComponents = filePath.split("/");
 
-		// Check if the file is a remote-only file (deleted note)
-		// These files are not present in the local vault,
-		// and are therefore automatically marked for deletion.
 		const isRemoteOnlyFile = publishStatus.deletedNotePaths.some(
 			(note) => note.path === filePath,
 		);
@@ -64,6 +70,8 @@
 				(child) => child.name === part,
 			);
 
+			const isLeaf = i === pathComponents.length - 1;
+
 			if (!childNode) {
 				childNode = {
 					name: part,
@@ -71,6 +79,9 @@
 					path: pathComponents.slice(0, i + 1).join("/"),
 					indeterminate: false,
 					checked: isRemoteOnlyFile,
+					fileType: isLeaf
+						? (fileType ?? getFileTypeFromPath(filePath))
+						: "folder",
 				};
 				currentNode.children.push(childNode);
 			}
