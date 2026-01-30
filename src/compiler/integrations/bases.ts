@@ -23,6 +23,7 @@ export const BasesIntegration: PluginIntegration = {
 	name: "Bases",
 	settingKey: "useBases",
 	priority: 200,
+	category: "core",
 
 	assets: {} as QuartzAssets,
 

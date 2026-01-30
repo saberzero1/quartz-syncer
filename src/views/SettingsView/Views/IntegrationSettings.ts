@@ -30,10 +30,25 @@ export class IntegrationSettings extends PluginSettingTab {
 		this.settingsRootElement.empty();
 		this.settingsRootElement.addClass("quartz-syncer-github-settings");
 
-		this.initializePluginIntegrationHeader();
+		const coreIntegrations = integrationRegistry.getByCategory("core");
 
-		for (const integration of integrationRegistry.getAll()) {
-			this.initializeIntegrationSetting(integration);
+		const communityIntegrations =
+			integrationRegistry.getByCategory("community");
+
+		if (coreIntegrations.length > 0) {
+			this.initializeCorePluginHeader();
+
+			for (const integration of coreIntegrations) {
+				this.initializeIntegrationSetting(integration);
+			}
+		}
+
+		if (communityIntegrations.length > 0) {
+			this.initializeCommunityPluginHeader();
+
+			for (const integration of communityIntegrations) {
+				this.initializeIntegrationSetting(integration);
+			}
 		}
 
 		this.initializeStylesHeader();
@@ -43,12 +58,17 @@ export class IntegrationSettings extends PluginSettingTab {
 		this.settings.plugin.saveSettings();
 	}
 
-	private initializePluginIntegrationHeader() {
+	private initializeCorePluginHeader() {
 		new Setting(this.settingsRootElement)
-			.setName("Plugin integration")
-			.setDesc(
-				"Quartz Syncer will use these Obsidian plugins with your Quartz notes.",
-			)
+			.setName("Core plugins")
+			.setDesc("Integrations for Obsidian's built-in core plugins.")
+			.setHeading();
+	}
+
+	private initializeCommunityPluginHeader() {
+		new Setting(this.settingsRootElement)
+			.setName("Community plugins")
+			.setDesc("Integrations for third-party community plugins.")
 			.setHeading();
 	}
 

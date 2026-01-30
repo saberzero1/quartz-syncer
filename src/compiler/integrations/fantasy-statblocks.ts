@@ -459,6 +459,7 @@ export const FantasyStatblocksIntegration: PluginIntegration = {
 	name: "Fantasy Statblocks",
 	settingKey: "useFantasyStatblocks",
 	priority: 100,
+	category: "community",
 
 	assets: {
 		scss: fantasyStatblocksScss,

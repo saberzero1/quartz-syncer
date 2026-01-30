@@ -1,5 +1,10 @@
 import QuartzSyncerSettings from "src/models/settings";
-import { PluginIntegration, PatternDescriptor, QuartzAssets } from "./types";
+import {
+	PluginIntegration,
+	PatternDescriptor,
+	QuartzAssets,
+	IntegrationCategory,
+} from "./types";
 
 export class IntegrationRegistry {
 	private integrations: PluginIntegration[] = [];
@@ -10,6 +15,10 @@ export class IntegrationRegistry {
 
 	getAll(): PluginIntegration[] {
 		return [...this.integrations];
+	}
+
+	getByCategory(category: IntegrationCategory): PluginIntegration[] {
+		return this.integrations.filter((i) => i.category === category);
 	}
 
 	getEnabled(settings: QuartzSyncerSettings): PluginIntegration[] {
