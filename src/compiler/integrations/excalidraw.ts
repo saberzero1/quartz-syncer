@@ -132,6 +132,7 @@ export const ExcalidrawIntegration: PluginIntegration = {
 	name: "Excalidraw",
 	settingKey: "useExcalidraw",
 	priority: 50,
+	category: "community",
 
 	assets: {
 		scss: excalidrawScss,

@@ -538,6 +538,7 @@ export const DatacoreIntegration: PluginIntegration = {
 	name: "Datacore",
 	settingKey: "useDatacore",
 	priority: 100,
+	category: "community",
 
 	assets: {
 		scss: datacoreScss,

@@ -174,6 +174,23 @@ input[type="checkbox"]:indeterminate:after {
 	margin-left: 4px;
 }
 
+/* File type badges */
+.quartz-syncer-file-badge {
+	font-size: 9px;
+	font-weight: var(--font-bold);
+	padding: 1px 4px;
+	border-radius: var(--radius-s);
+	margin-left: 6px;
+	text-transform: uppercase;
+	vertical-align: middle;
+}
+
+.quartz-syncer-badge-base {
+	background-color: rgba(var(--color-purple-rgb, 147, 51, 234), 0.2);
+	color: var(--text-accent, var(--color-purple, #9333ea));
+	border: 1px solid rgba(var(--color-purple-rgb, 147, 51, 234), 0.3);
+}
+
 /* Quartz Syncer Settings */
 
 .quartz-syncer-settings button:disabled,

@@ -148,6 +148,13 @@ export default interface QuartzSyncerSettings {
 	 * Fantasy Statblocks documentation: {@link https://plugins.javalent.com/statblocks}
 	 */
 	useFantasyStatblocks: boolean;
+	/**
+	 * Enable Bases integration.
+	 * This will allow the plugin to publish Obsidian Bases (.base files) to Quartz.
+	 *
+	 * Bases documentation: {@link https://help.obsidian.md/bases}
+	 */
+	useBases: boolean;
 
 	/** Manage integration styles in Quartz (writes SCSS files and updates custom.scss) */
 	manageSyncerStyles: boolean;

@@ -73,6 +73,7 @@ export const DataviewIntegration: PluginIntegration = {
 	name: "Dataview",
 	settingKey: "useDataview",
 	priority: 100,
+	category: "community",
 
 	assets: {} as QuartzAssets,
 

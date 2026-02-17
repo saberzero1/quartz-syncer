@@ -72,6 +72,10 @@ export default class Publisher {
 	 * @returns true if the file should be published, false otherwise.
 	 */
 	shouldPublish(file: TFile): boolean {
+		if (file.extension === "base") {
+			return this.settings.useBases;
+		}
+
 		const frontMatter = this.metadataCache.getCache(file.path)?.frontmatter;
 
 		return hasPublishFlag(
@@ -89,14 +93,26 @@ export default class Publisher {
 	async getFilesMarkedForPublishing(): Promise<MarkedForPublishing> {
 		const vaultIsRoot = this.settings.vaultPath === "/";
 
-		// Only include files that are within the vaultPath
-		const files = this.vault
+		const markdownFiles = this.vault
 			.getMarkdownFiles()
 			.filter(
 				(file: TFile) =>
 					vaultIsRoot ||
 					file.path.startsWith(this.settings.vaultPath),
 			);
+
+		const baseFiles = this.settings.useBases
+			? this.vault
+					.getFiles()
+					.filter(
+						(file: TFile) =>
+							file.extension === "base" &&
+							(vaultIsRoot ||
+								file.path.startsWith(this.settings.vaultPath)),
+					)
+			: [];
+
+		const files = [...markdownFiles, ...baseFiles];
 
 		const notesToPublish: PublishFile[] = [];
 		const blobsToPublish: Set<string> = new Set();
@@ -166,13 +182,17 @@ export default class Publisher {
 	}
 
 	public async publishBatch(files: CompiledPublishFile[]): Promise<boolean> {
-		const filesToPublish = files.filter((f) =>
-			isPublishFrontmatterValid(
+		const filesToPublish = files.filter((f) => {
+			if (f.file.extension === "base") {
+				return this.settings.useBases;
+			}
+
+			return isPublishFrontmatterValid(
 				this.settings.publishFrontmatterKey,
 				f.frontmatter,
 				this.settings.allNotesPublishableByDefault,
-			),
-		);
+			);
+		});
 
 		if (filesToPublish.length === 0) {
 			return true;

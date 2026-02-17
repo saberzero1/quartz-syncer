@@ -47,31 +47,15 @@ export interface CompileContext {
 	file: PublishFile;
 }
 
-/**
- * Interface for plugin integrations.
- *
- * Each integration handles a specific Obsidian plugin's content,
- * converting it to Quartz-compatible output.
- */
+export type IntegrationCategory = "core" | "community";
+
 export interface PluginIntegration {
-	/** Unique identifier (e.g., 'dataview', 'excalidraw') */
 	readonly id: string;
-
-	/** Display name for settings UI (e.g., 'Dataview') */
 	readonly name: string;
-
-	/** Settings key that controls whether this integration is enabled */
 	readonly settingKey: keyof QuartzSyncerSettings;
-
-	/**
-	 * Execution priority. Lower numbers run first.
-	 * Default should be 100. Use lower values for patterns that might conflict
-	 * with other integrations.
-	 */
 	readonly priority: number;
-
-	/** Assets to inject into Quartz (SCSS styles) */
 	readonly assets: QuartzAssets;
+	readonly category: IntegrationCategory;
 
 	/**
 	 * Check if the underlying Obsidian plugin is installed and available.

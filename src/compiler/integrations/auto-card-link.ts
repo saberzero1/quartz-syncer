@@ -243,6 +243,7 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 	name: "Auto Card Link",
 	settingKey: "useAutoCardLink",
 	priority: 100,
+	category: "community",
 
 	assets: {
 		scss: autoCardLinkScss,

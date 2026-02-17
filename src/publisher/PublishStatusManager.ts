@@ -108,7 +108,12 @@ export default class PublishStatusManager implements IPublishStatusManager {
 				const hash =
 					await this.publisher.datastore.loadRemoteHash(path);
 
-				if ((!hash || hash !== sha) && path.endsWith(".md")) {
+				const isPublishableFile =
+					path.endsWith(".md") ||
+					(this.publisher.settings.useBases &&
+						path.endsWith(".base"));
+
+				if ((!hash || hash !== sha) && isPublishableFile) {
 					if (controller) {
 						index++;
 

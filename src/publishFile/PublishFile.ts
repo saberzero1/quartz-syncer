@@ -142,11 +142,15 @@ export class PublishFile {
 	/**
 	 * Returns the type of the file based on its extension.
 	 *
-	 * @returns The file type: "excalidraw" or "markdown".
+	 * @returns The file type: "excalidraw", "base", or "markdown".
 	 */
-	getType(): "excalidraw" | "markdown" {
+	getType(): "excalidraw" | "base" | "markdown" {
 		if (this.file.name.endsWith(".excalidraw")) {
 			return "excalidraw";
+		}
+
+		if (this.file.extension === "base") {
+			return "base";
 		}
 
 		return "markdown";
@@ -158,6 +162,10 @@ export class PublishFile {
 	 * @returns true if the file should be published, false otherwise.
 	 */
 	shouldPublish(): boolean {
+		if (this.file.extension === "base") {
+			return this.settings.useBases;
+		}
+
 		return hasPublishFlag(
 			this.settings.publishFrontmatterKey,
 			this.frontmatter,

@@ -1,6 +1,9 @@
 views:
   - type: table
     name: Table
+    filters:
+      not:
+        - file.name.startsWith("_")
   - type: cards
     name: Card View
     filters:
