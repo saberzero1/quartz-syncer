@@ -175,7 +175,13 @@ function isPluginEnabled(pluginId: string): boolean {
  */
 function cleanQueryResult(markdown: string): string {
 	// Replace URI escape characters with their actual characters
-	markdown = decodeURI(markdown);
+	try {
+		markdown = decodeURI(markdown);
+	} catch {
+		// decodeURI throws URIError if the string contains bare % not followed
+		// by two hex digits (e.g. "进度：50%"). In that case, keep the
+		// original string as-is.
+	}
 
 	// Rewrite tag links
 	markdown = markdown.replace(
@@ -568,6 +574,210 @@ function svgToData(svgElement: SVGSVGElement): string {
 	return `data:image/svg+xml;base64,${encodedData}`;
 }
 
+/**
+ * Tags that have a direct Markdown equivalent (whitelist).
+ * Any tag NOT in this set makes a node "complex" and forces HTML output.
+ */
+const MARKDOWN_SAFE_TAGS = new Set([
+	// Inline formatting
+	"strong",
+	"b",
+	"em",
+	"i",
+	"del",
+	"s",
+	"code",
+	"mark",
+	"sub",
+	"sup",
+	// Links & media
+	"a",
+	"img",
+	// Block elements
+	"p",
+	"div",
+	"span",
+	"h1",
+	"h2",
+	"h3",
+	"h4",
+	"h5",
+	"h6",
+	"blockquote",
+	"pre",
+	"hr",
+	// Lists
+	"ul",
+	"ol",
+	"li",
+	// Table structure
+	"table",
+	"thead",
+	"tbody",
+	"tfoot",
+	"tr",
+	"th",
+	"td",
+	"caption",
+	// Misc
+	"br",
+]);
+
+/**
+ * Attributes whose mere presence on any element indicates content that
+ * Markdown cannot faithfully represent.
+ */
+const COMPLEX_ATTRIBUTES = ["style", "colspan", "rowspan"];
+
+/**
+ * Recursively check whether a DOM node (and all its descendants) can be
+ * faithfully represented in Markdown.
+ *
+ * Uses a **whitelist** of safe tags – any tag not in the set is considered
+ * complex.  Additionally, certain attributes (`style`, `colspan`, `rowspan`)
+ * and `<span>` elements carrying a `class` are treated as complex because
+ * Markdown has no way to express them.
+ */
+function isMarkdownSafeNode(node: Node): boolean {
+	// Text and comment nodes are always safe
+	if (node.nodeType === Node.TEXT_NODE) return true;
+
+	if (node.nodeType === Node.COMMENT_NODE) return true;
+
+	if (node.nodeType !== Node.ELEMENT_NODE) return true;
+
+	const el = node as HTMLElement;
+	const tag = el.tagName.toLowerCase();
+
+	// Tag must be in the whitelist
+	if (!MARKDOWN_SAFE_TAGS.has(tag)) return false;
+
+	// Reject elements with attributes that Markdown cannot represent
+	for (const attr of COMPLEX_ATTRIBUTES) {
+		if (el.hasAttribute(attr)) return false;
+	}
+
+	// <span> with a class carries styling intent that would be lost
+	if (
+		tag === "span" &&
+		el.hasAttribute("class") &&
+		el.getAttribute("class")?.trim()
+	) {
+		return false;
+	}
+
+	// Recursively check every child node
+	for (const child of Array.from(node.childNodes)) {
+		if (!isMarkdownSafeNode(child)) return false;
+	}
+
+	return true;
+}
+
+/**
+ * Clean up Obsidian-style internal links (`<a class="internal-link" ...>`)
+ * for Quartz consumption.
+ *
+ * - Removes `target`, `rel` attributes
+ * - Strips `.md` extension from `href`
+ * - Ensures the `internal-link` class is present
+ *
+ * Quartz's `CrawlLinks` plugin will pick up these `<a>` tags and resolve
+ * them correctly (slug transformation, SPA navigation etc.).
+ */
+function cleanInternalLinks(el: HTMLElement): void {
+	const links = el.querySelectorAll("a.internal-link, a[data-href]");
+
+	for (const link of Array.from(links)) {
+		link.removeAttribute("target");
+		link.removeAttribute("rel");
+
+		// Prefer data-href (Obsidian's canonical path), fall back to href
+		const rawHref =
+			link.getAttribute("data-href") || link.getAttribute("href") || "";
+
+		// Block dangerous URL protocols to prevent XSS when the element
+		// is later serialised via outerHTML.
+		const trimmed = rawHref.trim().toLowerCase();
+
+		if (
+			trimmed.startsWith("javascript:") ||
+			trimmed.startsWith("data:") ||
+			trimmed.startsWith("vbscript:")
+		) {
+			link.setAttribute("href", "");
+			link.removeAttribute("data-href");
+
+			continue;
+		}
+
+		// encodeURI escapes HTML meta-characters (<, >, " etc.) while
+		// preserving path separators – this also satisfies CodeQL's taint
+		// analysis (recognised sanitiser for "DOM text → HTML" flows).
+		const cleanHref = encodeURI(rawHref.replace(/\.md$/, ""));
+
+		link.setAttribute("href", cleanHref);
+		link.removeAttribute("data-href");
+
+		if (!link.classList.contains("external-link")) {
+			link.classList.add("internal-link");
+		}
+	}
+}
+
+/**
+ * Convert the rendered HTML produced by DataviewJS (or similar) into a
+ * string suitable for embedding in a Quartz Markdown file.
+ *
+ * The function processes each **top-level child** of `div` independently:
+ * - Children that are fully representable in Markdown (checked via
+ *   {@link isMarkdownSafeNode}) are converted with `htmlToMarkdown` and then
+ *   cleaned with {@link cleanQueryResult}.
+ * - Children containing complex HTML (e.g. `<progress>`, `<span class>`,
+ *   merged cells, inline styles) are kept as raw HTML with internal links
+ *   cleaned for Quartz.
+ *
+ * This approach correctly handles mixed content (e.g. an `<h2>` heading
+ * followed by a complex `<table>`).
+ */
+function convertRenderedContent(div: HTMLDivElement): string {
+	// Fast path: if everything is Markdown-safe, use the standard conversion
+	if (isMarkdownSafeNode(div)) {
+		const md = htmlToMarkdown(div) || "";
+
+		return cleanQueryResult(md);
+	}
+
+	// Mixed / complex content: decide per top-level child
+	const parts: string[] = [];
+
+	for (const rawChild of Array.from(div.childNodes)) {
+		if (rawChild.nodeType === Node.TEXT_NODE) {
+			const text = rawChild.textContent?.trim();
+
+			if (text) parts.push(text);
+
+			continue;
+		}
+
+		if (rawChild.nodeType !== Node.ELEMENT_NODE) continue;
+
+		const child = rawChild as HTMLElement;
+
+		if (isMarkdownSafeNode(child)) {
+			const md = htmlToMarkdown(child) || "";
+
+			if (md.trim()) parts.push(cleanQueryResult(md));
+		} else {
+			// Keep as HTML; clean up internal links so Quartz can resolve them
+			cleanInternalLinks(child);
+			parts.push(child.outerHTML);
+		}
+	}
+
+	return parts.join("\n\n");
+}
+
 export {
 	generateUrlPath,
 	generateBlobHash,
@@ -585,4 +795,7 @@ export {
 	sanitizeQuery,
 	removeUnwantedElements,
 	svgToData,
+	isMarkdownSafeNode,
+	cleanInternalLinks,
+	convertRenderedContent,
 };

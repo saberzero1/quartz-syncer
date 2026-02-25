@@ -1,4 +1,4 @@
-import { Component, Notice, htmlToMarkdown } from "obsidian";
+import { Component, Notice } from "obsidian";
 import { DataviewApi, getAPI } from "obsidian-dataview";
 import Logger from "js-logger";
 import {
@@ -10,10 +10,10 @@ import {
 } from "./types";
 import {
 	escapeRegExp,
-	cleanQueryResult,
 	renderPromise,
 	surroundWithCalloutBlock,
 	sanitizeQuery,
+	convertRenderedContent,
 } from "src/utils/utils";
 
 function getDataviewApi(): DataviewApi | undefined {
@@ -63,9 +63,7 @@ async function tryExecuteJs(
 
 	await renderPromise(div, "[data-tag-name]");
 
-	const markdown = htmlToMarkdown(div) || "";
-
-	return cleanQueryResult(markdown);
+	return convertRenderedContent(div);
 }
 
 export const DataviewIntegration: PluginIntegration = {
