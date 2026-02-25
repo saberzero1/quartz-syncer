@@ -695,6 +695,22 @@ function cleanInternalLinks(el: HTMLElement): void {
 		// Prefer data-href (Obsidian's canonical path), fall back to href
 		const rawHref =
 			link.getAttribute("data-href") || link.getAttribute("href") || "";
+
+		// Block dangerous URL protocols to prevent XSS when the element
+		// is later serialised via outerHTML.
+		const trimmed = rawHref.trim().toLowerCase();
+
+		if (
+			trimmed.startsWith("javascript:") ||
+			trimmed.startsWith("data:") ||
+			trimmed.startsWith("vbscript:")
+		) {
+			link.setAttribute("href", "");
+			link.removeAttribute("data-href");
+
+			continue;
+		}
+
 		const cleanHref = rawHref.replace(/\.md$/, "");
 
 		link.setAttribute("href", cleanHref);
@@ -735,6 +751,7 @@ function convertRenderedContent(div: HTMLDivElement): string {
 	for (const rawChild of Array.from(div.childNodes)) {
 		if (rawChild.nodeType === Node.TEXT_NODE) {
 			const text = rawChild.textContent?.trim();
+
 			if (text) parts.push(text);
 
 			continue;
@@ -746,6 +763,7 @@ function convertRenderedContent(div: HTMLDivElement): string {
 
 		if (isMarkdownSafeNode(child)) {
 			const md = htmlToMarkdown(child) || "";
+
 			if (md.trim()) parts.push(cleanQueryResult(md));
 		} else {
 			// Keep as HTML; clean up internal links so Quartz can resolve them
