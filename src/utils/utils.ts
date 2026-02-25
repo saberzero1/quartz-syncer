@@ -641,7 +641,9 @@ const COMPLEX_ATTRIBUTES = ["style", "colspan", "rowspan"];
 function isMarkdownSafeNode(node: Node): boolean {
 	// Text and comment nodes are always safe
 	if (node.nodeType === Node.TEXT_NODE) return true;
+
 	if (node.nodeType === Node.COMMENT_NODE) return true;
+
 	if (node.nodeType !== Node.ELEMENT_NODE) return true;
 
 	const el = node as HTMLElement;
@@ -684,9 +686,7 @@ function isMarkdownSafeNode(node: Node): boolean {
  * them correctly (slug transformation, SPA navigation etc.).
  */
 function cleanInternalLinks(el: HTMLElement): void {
-	const links = el.querySelectorAll(
-		"a.internal-link, a[data-href]",
-	);
+	const links = el.querySelectorAll("a.internal-link, a[data-href]");
 
 	for (const link of Array.from(links)) {
 		link.removeAttribute("target");
@@ -694,9 +694,7 @@ function cleanInternalLinks(el: HTMLElement): void {
 
 		// Prefer data-href (Obsidian's canonical path), fall back to href
 		const rawHref =
-			link.getAttribute("data-href") ||
-			link.getAttribute("href") ||
-			"";
+			link.getAttribute("data-href") || link.getAttribute("href") || "";
 		const cleanHref = rawHref.replace(/\.md$/, "");
 
 		link.setAttribute("href", cleanHref);
@@ -738,6 +736,7 @@ function convertRenderedContent(div: HTMLDivElement): string {
 		if (rawChild.nodeType === Node.TEXT_NODE) {
 			const text = rawChild.textContent?.trim();
 			if (text) parts.push(text);
+
 			continue;
 		}
 
