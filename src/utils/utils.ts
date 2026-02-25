@@ -711,7 +711,10 @@ function cleanInternalLinks(el: HTMLElement): void {
 			continue;
 		}
 
-		const cleanHref = rawHref.replace(/\.md$/, "");
+		// encodeURI escapes HTML meta-characters (<, >, " etc.) while
+		// preserving path separators – this also satisfies CodeQL's taint
+		// analysis (recognised sanitiser for "DOM text → HTML" flows).
+		const cleanHref = encodeURI(rawHref.replace(/\.md$/, ""));
 
 		link.setAttribute("href", cleanHref);
 		link.removeAttribute("data-href");
