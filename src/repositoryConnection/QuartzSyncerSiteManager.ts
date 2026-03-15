@@ -92,6 +92,7 @@ export default class QuartzSyncerSiteManager {
 
 		for (const [fullPath, content] of rawContents) {
 			let vaultPath = fullPath.replace(prefix, "");
+
 			if (vaultPath.startsWith("/")) {
 				vaultPath = vaultPath.substring(1);
 			}

@@ -180,6 +180,7 @@ export class RepositoryConnection {
 					remote: "origin",
 					ref: this.branch,
 				});
+
 				return;
 			} catch (error) {
 				const isRetryable =
@@ -194,6 +195,7 @@ export class RepositoryConnection {
 				}
 
 				const delay = Math.pow(2, attempt) * 1000;
+
 				logger.warn(
 					`Push attempt ${attempt + 1} failed, retrying in ${delay}ms...`,
 					error,
@@ -430,6 +432,7 @@ export class RepositoryConnection {
 				trees: [git.TREE({ ref })],
 				map: async (filepath, [entry]) => {
 					if (!entry) return undefined;
+
 					if (filepath === ".") return undefined;
 
 					// Skip entries outside the filter prefix (but always recurse into directories)
@@ -444,6 +447,7 @@ export class RepositoryConnection {
 						) {
 							return undefined; // prune this subtree
 						}
+
 						return filepath; // continue recursion
 					}
 
@@ -455,6 +459,7 @@ export class RepositoryConnection {
 					}
 
 					const data = await entry.content();
+
 					if (data) {
 						const text = new TextDecoder().decode(data);
 						contents.set(filepath, text);
@@ -818,6 +823,7 @@ export class RepositoryConnection {
 				}
 
 				completed++;
+
 				if (onProgress) {
 					await onProgress(completed, totalItems);
 				}

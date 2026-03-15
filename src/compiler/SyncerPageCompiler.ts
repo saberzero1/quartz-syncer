@@ -124,6 +124,7 @@ export class SyncerPageCompiler {
 	async cacheFilesMarkedForPublishing(): Promise<void> {
 		const { notes } = await this.getFilesMarkedForPublishing();
 		this.cachedPublishFiles = notes;
+
 		this.cachedPublishFilesByPath = new Map(
 			notes.map((f) => [f.getPath(), f]),
 		);

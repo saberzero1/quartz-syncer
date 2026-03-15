@@ -81,12 +81,14 @@ export default class PublishStatusManager implements IPublishStatusManager {
 
 		const contentTree =
 			await this.siteManager.userSyncerConnection.getContent("HEAD");
+
 		if (!contentTree) {
 			throw new Error("Could not get content tree from base garden");
 		}
 
 		const remoteNoteHashes =
 			await this.siteManager.getNoteHashes(contentTree);
+
 		const remoteBlobHashes =
 			await this.siteManager.getBlobHashes(contentTree);
 
@@ -96,6 +98,7 @@ export default class PublishStatusManager implements IPublishStatusManager {
 			// Bulk-preload all IndexedDB entries into memory before the sync loop.
 			// This eliminates per-file async IndexedDB round-trips.
 			await this.publisher.datastore.preloadCache();
+
 			// Check remote cache and update if needed
 			// Filter to items that actually need processing, then batch-parallelize
 			const entriesToProcess = remoteBlobHashesArray.filter(
@@ -201,6 +204,7 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		// Populate the compiler's publish file cache before compiling all notes.
 		// This avoids redundant O(N) vault scans during transclusion resolution.
 		await this.publisher.compiler.cacheFilesMarkedForPublishing();
+
 		if (controller) {
 			controller.setText("Compiling notes...");
 			controller.setProgress(0);
