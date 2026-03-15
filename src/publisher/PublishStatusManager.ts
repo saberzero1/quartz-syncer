@@ -111,7 +111,9 @@ export default class PublishStatusManager implements IPublishStatusManager {
 				const isPublishableFile =
 					path.endsWith(".md") ||
 					(this.publisher.settings.useBases &&
-						path.endsWith(".base"));
+						path.endsWith(".base")) ||
+					(this.publisher.settings.useCanvas &&
+						path.endsWith(".canvas"));
 
 				if ((!hash || hash !== sha) && isPublishableFile) {
 					if (controller) {

@@ -36,6 +36,7 @@
 
 	function getFileTypeFromPath(filePath: string): FileType {
 		if (filePath.endsWith(".base")) return "base";
+		if (filePath.endsWith(".canvas")) return "canvas";
 		if (
 			filePath.endsWith(".excalidraw") ||
 			filePath.endsWith(".excalidraw.md")

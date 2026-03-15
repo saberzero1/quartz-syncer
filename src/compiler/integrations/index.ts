@@ -9,6 +9,7 @@ import { ExcalidrawIntegration } from "./excalidraw";
 import { FantasyStatblocksIntegration } from "./fantasy-statblocks";
 import { AutoCardLinkIntegration } from "./auto-card-link";
 import { BasesIntegration } from "./bases";
+import { CanvasIntegration } from "./canvas";
 
 export {
 	DataviewIntegration,
@@ -17,6 +18,7 @@ export {
 	FantasyStatblocksIntegration,
 	AutoCardLinkIntegration,
 	BasesIntegration,
+	CanvasIntegration,
 };
 
 integrationRegistry.register(AutoCardLinkIntegration);
@@ -25,3 +27,4 @@ integrationRegistry.register(DatacoreIntegration);
 integrationRegistry.register(ExcalidrawIntegration);
 integrationRegistry.register(FantasyStatblocksIntegration);
 integrationRegistry.register(BasesIntegration);
+integrationRegistry.register(CanvasIntegration);

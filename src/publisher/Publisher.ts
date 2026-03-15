@@ -76,6 +76,10 @@ export default class Publisher {
 			return this.settings.useBases;
 		}
 
+		if (file.extension === "canvas") {
+			return this.settings.useCanvas;
+		}
+
 		const frontMatter = this.metadataCache.getCache(file.path)?.frontmatter;
 
 		return hasPublishFlag(
@@ -112,7 +116,18 @@ export default class Publisher {
 					)
 			: [];
 
-		const files = [...markdownFiles, ...baseFiles];
+		const canvasFiles = this.settings.useCanvas
+			? this.vault
+					.getFiles()
+					.filter(
+						(file: TFile) =>
+							file.extension === "canvas" &&
+							(vaultIsRoot ||
+								file.path.startsWith(this.settings.vaultPath)),
+					)
+			: [];
+
+		const files = [...markdownFiles, ...baseFiles, ...canvasFiles];
 
 		const notesToPublish: PublishFile[] = [];
 		const blobsToPublish: Set<string> = new Set();
@@ -185,6 +200,10 @@ export default class Publisher {
 		const filesToPublish = files.filter((f) => {
 			if (f.file.extension === "base") {
 				return this.settings.useBases;
+			}
+
+			if (f.file.extension === "canvas") {
+				return this.settings.useCanvas;
 			}
 
 			return isPublishFrontmatterValid(

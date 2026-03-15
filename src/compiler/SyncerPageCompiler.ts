@@ -143,6 +143,10 @@ export class SyncerPageCompiler {
 			return [vaultFileText, { blobs: [] }];
 		}
 
+		if (file.getType() === "canvas") {
+			return [vaultFileText, { blobs: [] }];
+		}
+
 		if (this.settings.useExcalidraw) {
 			if (file.file.name.endsWith(".excalidraw.md")) {
 				console.warn("Excalidraw files are not supported yet.");

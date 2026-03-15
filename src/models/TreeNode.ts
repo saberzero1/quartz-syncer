@@ -1,6 +1,7 @@
 export type FileType =
 	| "markdown"
 	| "base"
+	| "canvas"
 	| "excalidraw"
 	| "folder"
 	| "unknown";
