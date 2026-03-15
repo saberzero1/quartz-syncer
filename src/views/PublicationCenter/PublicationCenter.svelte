@@ -348,9 +348,24 @@
 		const allPathsToDelete = [...notesToDelete, ...blobsToDelete];
 		if (allPathsToDelete.length > 0) {
 			processingPaths = [...allPathsToDelete];
-			await publisher.deleteBatch(allPathsToDelete, sharedConnection);
+			await publisher.deleteBatch(
+				allPathsToDelete,
+				sharedConnection,
+				(completed, _total) => {
+					publishedPaths = [
+						...publishedPaths.filter(
+							(p) => !allPathsToDelete.includes(p),
+						),
+						...allPathsToDelete.slice(0, completed),
+					];
+					processingPaths = allPathsToDelete.slice(completed);
+				},
+			);
 
-			publishedPaths = [...publishedPaths, ...allPathsToDelete];
+			publishedPaths = [
+				...publishedPaths,
+				...allPathsToDelete.filter((p) => !publishedPaths.includes(p)),
+			];
 			processingPaths = [];
 		}
 	};

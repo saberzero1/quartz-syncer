@@ -182,6 +182,7 @@ export default class Publisher {
 	public async deleteBatch(
 		filePaths: string[],
 		connection?: RepositoryConnection,
+		onProgress?: (completed: number, total: number) => void,
 	): Promise<boolean> {
 		if (filePaths.length === 0) {
 			return true;
@@ -190,7 +191,7 @@ export default class Publisher {
 		try {
 			const userQuartzConnection = connection ?? this.createConnection();
 
-			await userQuartzConnection.deleteFiles(filePaths);
+			await userQuartzConnection.deleteFiles(filePaths, onProgress);
 
 			if (this.settings.useCache) {
 				// Update the remote files and hashes in the datastore

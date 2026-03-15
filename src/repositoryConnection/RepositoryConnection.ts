@@ -599,9 +599,10 @@ export class RepositoryConnection {
 		}
 	}
 
-	private static readonly DELETE_BATCH_SIZE = 100;
-
-	async deleteFiles(filePaths: string[]): Promise<void> {
+	async deleteFiles(
+		filePaths: string[],
+		onProgress?: (completed: number, total: number) => void,
+	): Promise<void> {
 		if (filePaths.length === 0) return;
 
 		try {
@@ -629,84 +630,67 @@ export class RepositoryConnection {
 					: `${this.contentFolder}/${path}`;
 			};
 
-			// Process deletes in batches to avoid payload/rate limit issues
-			for (
-				let i = 0;
-				i < filePaths.length;
-				i += RepositoryConnection.DELETE_BATCH_SIZE
-			) {
-				const batch = filePaths.slice(
-					i,
-					i + RepositoryConnection.DELETE_BATCH_SIZE,
-				);
+			const remoteCommit = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+			});
 
-				// Sync with remote before each batch
-				const remoteCommit = await git.resolveRef({
-					...this.getGitConfig(),
-					ref: `origin/${this.branch}`,
-				});
+			await git.checkout({
+				...this.getGitConfig(),
+				ref: remoteCommit,
+				force: true,
+			});
 
-				await git.checkout({
-					...this.getGitConfig(),
-					ref: remoteCommit,
-					force: true,
-				});
+			await git.branch({
+				...this.getGitConfig(),
+				ref: this.branch,
+				object: remoteCommit,
+				force: true,
+			});
 
-				await git.branch({
-					...this.getGitConfig(),
-					ref: this.branch,
-					object: remoteCommit,
-					force: true,
-				});
+			await git.checkout({
+				...this.getGitConfig(),
+				ref: this.branch,
+			});
 
-				await git.checkout({
-					...this.getGitConfig(),
-					ref: this.branch,
-				});
+			for (let i = 0; i < filePaths.length; i++) {
+				const normalizedPath = normalizeFilePath(filePaths[i]);
+				const fullPath = `${this.dir}/${normalizedPath}`;
 
-				for (const filePath of batch) {
-					const normalizedPath = normalizeFilePath(filePath);
-					const fullPath = `${this.dir}/${normalizedPath}`;
+				try {
+					await this.getFs().promises.unlink(fullPath);
 
-					try {
-						await this.getFs().promises.unlink(fullPath);
-
-						await git.remove({
-							...this.getGitConfig(),
-							filepath: normalizedPath,
-						});
-					} catch (error) {
-						logger.warn(
-							`Could not delete file ${normalizedPath}`,
-							error,
-						);
-					}
+					await git.remove({
+						...this.getGitConfig(),
+						filepath: normalizedPath,
+					});
+				} catch (error) {
+					logger.warn(
+						`Could not delete file ${normalizedPath}`,
+						error,
+					);
 				}
 
-				await git.commit({
-					...this.getGitConfig(),
-					message: `Deleted ${batch.length} files (batch ${Math.floor(i / RepositoryConnection.DELETE_BATCH_SIZE) + 1})`,
-					author: {
-						name: "Quartz Syncer",
-						email: "quartz-syncer@obsidian.md",
-					},
-				});
+				if (onProgress) {
+					onProgress(i + 1, filePaths.length);
+				}
 
-				await this.pushWithRetry();
-
-				// Re-fetch after push to sync for next batch
-				if (
-					i + RepositoryConnection.DELETE_BATCH_SIZE <
-					filePaths.length
-				) {
-					await git.fetch({
-						...this.getGitConfig(),
-						url: this.remoteUrl,
-						ref: this.branch,
-						singleBranch: true,
-					});
+				// Yield to UI every 50 files
+				if (i % 50 === 49) {
+					await new Promise((resolve) => setTimeout(resolve, 0));
 				}
 			}
+
+			await git.commit({
+				...this.getGitConfig(),
+				message: `Deleted ${filePaths.length} files`,
+				author: {
+					name: "Quartz Syncer",
+					email: "quartz-syncer@obsidian.md",
+				},
+			});
+
+			await this.pushWithRetry();
 		} catch (error) {
 			logger.error("Failed to delete files", error);
 			throw error;
