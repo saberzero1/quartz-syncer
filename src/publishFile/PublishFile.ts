@@ -142,15 +142,19 @@ export class PublishFile {
 	/**
 	 * Returns the type of the file based on its extension.
 	 *
-	 * @returns The file type: "excalidraw", "base", or "markdown".
+	 * @returns The file type: "excalidraw", "base", "canvas", or "markdown".
 	 */
-	getType(): "excalidraw" | "base" | "markdown" {
+	getType(): "excalidraw" | "base" | "canvas" | "markdown" {
 		if (this.file.name.endsWith(".excalidraw")) {
 			return "excalidraw";
 		}
 
 		if (this.file.extension === "base") {
 			return "base";
+		}
+
+		if (this.file.extension === "canvas") {
+			return "canvas";
 		}
 
 		return "markdown";
@@ -164,6 +168,10 @@ export class PublishFile {
 	shouldPublish(): boolean {
 		if (this.file.extension === "base") {
 			return this.settings.useBases;
+		}
+
+		if (this.file.extension === "canvas") {
+			return this.settings.useCanvas;
 		}
 
 		return hasPublishFlag(

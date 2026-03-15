@@ -155,6 +155,13 @@ export default interface QuartzSyncerSettings {
 	 * Bases documentation: {@link https://help.obsidian.md/bases}
 	 */
 	useBases: boolean;
+	/**
+	 * Enable Canvas integration.
+	 * This will allow the plugin to publish JSON Canvas (.canvas files) to Quartz.
+	 *
+	 * Canvas documentation: {@link https://jsoncanvas.org/}
+	 */
+	useCanvas: boolean;
 
 	/** Manage integration styles in Quartz (writes SCSS files and updates custom.scss) */
 	manageSyncerStyles: boolean;

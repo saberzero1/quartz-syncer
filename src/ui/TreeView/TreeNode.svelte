@@ -147,6 +147,12 @@
 						>BASE</span
 					>
 				{/if}
+				{#if tree.fileType === "canvas"}
+					<span
+						class="quartz-syncer-file-badge quartz-syncer-badge-canvas"
+						>CANVAS</span
+					>
+				{/if}
 				<!-- svelte-ignore a11y-click-events-have-key-events -->
 				{#if enableShowDiff}
 					<span

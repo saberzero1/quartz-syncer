@@ -110,6 +110,7 @@ export class IntegrationSettings extends PluginSettingTab {
 			"auto-card-link":
 				"Converts Auto Card Link queries into Quartz-compatible markdown.",
 			bases: "Publishes Obsidian Bases (.base files) to Quartz. Processing is delegated to Quartz.",
+			canvas: "Publishes JSON Canvas (.canvas files) to Quartz. Processing is delegated to Quartz.",
 		};
 
 		return (

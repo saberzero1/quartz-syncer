@@ -88,7 +88,8 @@ export default class QuartzSyncerSiteManager {
 
 		const isPublishableFile = (path: string): boolean =>
 			path.endsWith(".md") ||
-			(this.settings.useBases && path.endsWith(".base"));
+			(this.settings.useBases && path.endsWith(".base")) ||
+			(this.settings.useCanvas && path.endsWith(".canvas"));
 
 		const notes = files.filter(
 			(x): x is ContentTreeItem =>
