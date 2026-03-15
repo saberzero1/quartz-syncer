@@ -156,9 +156,8 @@ export class RepositoryConnection {
 
 			if (this.auth.type === "bearer") {
 				return {
-					headers: {
-						Authorization: `Bearer ${this.auth.secret}`,
-					},
+					username: "x-access-token",
+					password: this.auth.secret || "",
 				};
 			}
 
@@ -168,6 +167,41 @@ export class RepositoryConnection {
 			};
 		};
 	}
+	/**
+	 * Pushes to remote with exponential backoff retry on auth/transient errors.
+	 * Retries up to 3 times with delays of 1s, 2s, 4s.
+	 */
+	private async pushWithRetry(maxRetries: number = 3): Promise<void> {
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			try {
+				await git.push({
+					...this.getGitConfig(),
+					url: this.remoteUrl,
+					remote: "origin",
+					ref: this.branch,
+				});
+				return;
+			} catch (error) {
+				const isRetryable =
+					error instanceof Error &&
+					(error.message.includes("401") ||
+						error.message.includes("403") ||
+						error.message.includes("429") ||
+						error.message.includes("5"));
+
+				if (!isRetryable || attempt === maxRetries) {
+					throw error;
+				}
+
+				const delay = Math.pow(2, attempt) * 1000;
+				logger.warn(
+					`Push attempt ${attempt + 1} failed, retrying in ${delay}ms...`,
+					error,
+				);
+				await new Promise((resolve) => setTimeout(resolve, delay));
+			}
+		}
+	}
 
 	private getGitConfig() {
 		const config: {
@@ -175,10 +209,7 @@ export class RepositoryConnection {
 			http: typeof obsidianHttpClient;
 			dir: string;
 			corsProxy?: string;
-			onAuth?: () =>
-				| { username: string; password: string }
-				| { headers: { Authorization: string } }
-				| undefined;
+			onAuth?: () => { username: string; password: string } | undefined;
 		} = {
 			fs: this.getFs(),
 			http: obsidianHttpClient,
@@ -378,6 +409,70 @@ export class RepositoryConnection {
 		}
 	}
 
+	/**
+	 * Bulk-reads all blob contents from the repository in a single tree walk.
+	 * Uses git.walk with TREE walker to avoid per-file HTTP round-trips.
+	 * Returns a Map of filepath → decoded UTF-8 content.
+	 *
+	 * @param filterPrefix - Only include blobs whose path starts with this prefix.
+	 * @returns A Map of filepath → content string.
+	 */
+	async getAllBlobContents(
+		filterPrefix?: string,
+	): Promise<Map<string, string>> {
+		try {
+			await this.ensureRepoInitialized();
+			const ref = `origin/${this.branch}`;
+			const contents = new Map<string, string>();
+
+			await git.walk({
+				...this.getGitConfig(),
+				trees: [git.TREE({ ref })],
+				map: async (filepath, [entry]) => {
+					if (!entry) return undefined;
+					if (filepath === ".") return undefined;
+
+					// Skip entries outside the filter prefix (but always recurse into directories)
+					const type = await entry.type();
+
+					if (type === "tree") {
+						// Only recurse into trees that could contain matching paths
+						if (
+							filterPrefix &&
+							!filterPrefix.startsWith(filepath) &&
+							!filepath.startsWith(filterPrefix)
+						) {
+							return undefined; // prune this subtree
+						}
+						return filepath; // continue recursion
+					}
+
+					if (type !== "blob") return undefined;
+
+					// Apply prefix filter
+					if (filterPrefix && !filepath.startsWith(filterPrefix)) {
+						return undefined;
+					}
+
+					const data = await entry.content();
+					if (data) {
+						const text = new TextDecoder().decode(data);
+						contents.set(filepath, text);
+					}
+
+					return filepath;
+				},
+			});
+
+			return contents;
+		} catch (error) {
+			logger.error("Could not bulk-read blob contents", error);
+			throw new Error(
+				`Could not bulk-read blob contents from repository ${this.getRepositoryName()}`,
+			);
+		}
+	}
+
 	async getFile(
 		path: string,
 		_branch?: string,
@@ -504,6 +599,8 @@ export class RepositoryConnection {
 		}
 	}
 
+	private static readonly DELETE_BATCH_SIZE = 100;
+
 	async deleteFiles(filePaths: string[]): Promise<void> {
 		if (filePaths.length === 0) return;
 
@@ -515,29 +612,6 @@ export class RepositoryConnection {
 				url: this.remoteUrl,
 				ref: this.branch,
 				singleBranch: true,
-			});
-
-			const remoteCommit = await git.resolveRef({
-				...this.getGitConfig(),
-				ref: `origin/${this.branch}`,
-			});
-
-			await git.checkout({
-				...this.getGitConfig(),
-				ref: remoteCommit,
-				force: true,
-			});
-
-			await git.branch({
-				...this.getGitConfig(),
-				ref: this.branch,
-				object: remoteCommit,
-				force: true,
-			});
-
-			await git.checkout({
-				...this.getGitConfig(),
-				ref: this.branch,
 			});
 
 			const normalizeFilePath = (path: string): string => {
@@ -555,40 +629,84 @@ export class RepositoryConnection {
 					: `${this.contentFolder}/${path}`;
 			};
 
-			for (const filePath of filePaths) {
-				const normalizedPath = normalizeFilePath(filePath);
-				const fullPath = `${this.dir}/${normalizedPath}`;
+			// Process deletes in batches to avoid payload/rate limit issues
+			for (
+				let i = 0;
+				i < filePaths.length;
+				i += RepositoryConnection.DELETE_BATCH_SIZE
+			) {
+				const batch = filePaths.slice(
+					i,
+					i + RepositoryConnection.DELETE_BATCH_SIZE,
+				);
 
-				try {
-					await this.getFs().promises.unlink(fullPath);
+				// Sync with remote before each batch
+				const remoteCommit = await git.resolveRef({
+					...this.getGitConfig(),
+					ref: `origin/${this.branch}`,
+				});
 
-					await git.remove({
+				await git.checkout({
+					...this.getGitConfig(),
+					ref: remoteCommit,
+					force: true,
+				});
+
+				await git.branch({
+					...this.getGitConfig(),
+					ref: this.branch,
+					object: remoteCommit,
+					force: true,
+				});
+
+				await git.checkout({
+					...this.getGitConfig(),
+					ref: this.branch,
+				});
+
+				for (const filePath of batch) {
+					const normalizedPath = normalizeFilePath(filePath);
+					const fullPath = `${this.dir}/${normalizedPath}`;
+
+					try {
+						await this.getFs().promises.unlink(fullPath);
+
+						await git.remove({
+							...this.getGitConfig(),
+							filepath: normalizedPath,
+						});
+					} catch (error) {
+						logger.warn(
+							`Could not delete file ${normalizedPath}`,
+							error,
+						);
+					}
+				}
+
+				await git.commit({
+					...this.getGitConfig(),
+					message: `Deleted ${batch.length} files (batch ${Math.floor(i / RepositoryConnection.DELETE_BATCH_SIZE) + 1})`,
+					author: {
+						name: "Quartz Syncer",
+						email: "quartz-syncer@obsidian.md",
+					},
+				});
+
+				await this.pushWithRetry();
+
+				// Re-fetch after push to sync for next batch
+				if (
+					i + RepositoryConnection.DELETE_BATCH_SIZE <
+					filePaths.length
+				) {
+					await git.fetch({
 						...this.getGitConfig(),
-						filepath: normalizedPath,
+						url: this.remoteUrl,
+						ref: this.branch,
+						singleBranch: true,
 					});
-				} catch (error) {
-					logger.warn(
-						`Could not delete file ${normalizedPath}`,
-						error,
-					);
 				}
 			}
-
-			await git.commit({
-				...this.getGitConfig(),
-				message: "Deleted multiple files",
-				author: {
-					name: "Quartz Syncer",
-					email: "quartz-syncer@obsidian.md",
-				},
-			});
-
-			await git.push({
-				...this.getGitConfig(),
-				url: this.remoteUrl,
-				remote: "origin",
-				ref: this.branch,
-			});
 		} catch (error) {
 			logger.error("Failed to delete files", error);
 			throw error;
@@ -726,12 +844,7 @@ export class RepositoryConnection {
 				},
 			});
 
-			await git.push({
-				...this.getGitConfig(),
-				url: this.remoteUrl,
-				remote: "origin",
-				ref: this.branch,
-			});
+			await this.pushWithRetry();
 		} catch (error) {
 			logger.error("Failed to update files", error);
 			throw error;
@@ -837,12 +950,7 @@ export class RepositoryConnection {
 				},
 			});
 
-			await git.push({
-				...this.getGitConfig(),
-				url: this.remoteUrl,
-				remote: "origin",
-				ref: this.branch,
-			});
+			await this.pushWithRetry();
 		} catch (error) {
 			logger.error("Failed to write raw files", error);
 			throw error;
@@ -893,9 +1001,8 @@ export class RepositoryConnection {
 
 			if (auth.type === "bearer") {
 				return () => ({
-					headers: {
-						Authorization: `Bearer ${auth.secret}`,
-					},
+					username: "x-access-token",
+					password: auth.secret || "",
 				});
 			}
 

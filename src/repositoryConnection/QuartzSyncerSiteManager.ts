@@ -76,6 +76,32 @@ export default class QuartzSyncerSiteManager {
 	}
 
 	/**
+	 * Bulk-reads all note contents from the remote repository in a single tree walk.
+	 * This avoids per-file HTTP round-trips by reading all blobs at once.
+	 *
+	 * @returns A Map of vault-relative path → decoded content string.
+	 */
+	async getAllNoteContents(): Promise<Map<string, string>> {
+		const rawContents = await this.userSyncerConnection.getAllBlobContents(
+			this.settings.contentFolder,
+		);
+
+		// Re-key from full repo path (e.g. "content/path/note.md") to vault-relative path ("path/note.md")
+		const vaultContents = new Map<string, string>();
+		const prefix = this.settings.contentFolder;
+
+		for (const [fullPath, content] of rawContents) {
+			let vaultPath = fullPath.replace(prefix, "");
+			if (vaultPath.startsWith("/")) {
+				vaultPath = vaultPath.substring(1);
+			}
+			vaultContents.set(vaultPath, content);
+		}
+
+		return vaultContents;
+	}
+
+	/**
 	 * Extracts note hashes from the repository content tree.
 	 *
 	 * @param contentTree - The repository content tree.

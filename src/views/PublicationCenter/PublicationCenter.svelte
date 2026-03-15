@@ -332,12 +332,15 @@
 
 		showPublishingView = true;
 
+		// Create a shared connection to avoid redundant clone/fetch cycles
+		const sharedConnection = publisher.createConnection();
+
 		const allNotesToPublish = unpublishedToPublish.concat(changedToPublish);
 
 		processingPaths = [
 			...allNotesToPublish.map((note) => note.getVaultPath()),
 		];
-		await publisher.publishBatch(allNotesToPublish);
+		await publisher.publishBatch(allNotesToPublish, sharedConnection);
 
 		publishedPaths = [...processingPaths];
 		processingPaths = [];
@@ -345,7 +348,7 @@
 		const allPathsToDelete = [...notesToDelete, ...blobsToDelete];
 		if (allPathsToDelete.length > 0) {
 			processingPaths = [...allPathsToDelete];
-			await publisher.deleteBatch(allPathsToDelete);
+			await publisher.deleteBatch(allPathsToDelete, sharedConnection);
 
 			publishedPaths = [...publishedPaths, ...allPathsToDelete];
 			processingPaths = [];

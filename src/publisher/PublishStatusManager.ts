@@ -1,6 +1,6 @@
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import Publisher from "src/publisher/Publisher";
-import { generateBlobHash } from "src/utils/utils";
+import { generateBlobHash, batchParallel } from "src/utils/utils";
 import { CompiledPublishFile } from "src/publishFile/PublishFile";
 import { LoadingController } from "src/models/ProgressBar";
 
@@ -74,72 +74,104 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		const deletedNotePaths: Array<PathToRemove> = [];
 		const deletedBlobPaths: Array<PathToRemove> = [];
 
+		console.time("[PERF] getPublishStatus TOTAL");
+
 		if (controller) {
 			controller.setText("Retrieving publish status...");
 			controller.setProgress(0);
 		}
 
+		console.time("[PERF] getContent(HEAD)");
 		const contentTree =
 			await this.siteManager.userSyncerConnection.getContent("HEAD");
-
+		console.timeEnd("[PERF] getContent(HEAD)");
 		if (!contentTree) {
 			throw new Error("Could not get content tree from base garden");
 		}
 
+		console.time("[PERF] getNoteHashes");
 		const remoteNoteHashes =
 			await this.siteManager.getNoteHashes(contentTree);
-
+		console.timeEnd("[PERF] getNoteHashes");
+		console.time("[PERF] getBlobHashes");
 		const remoteBlobHashes =
 			await this.siteManager.getBlobHashes(contentTree);
+		console.timeEnd("[PERF] getBlobHashes");
 
 		const remoteBlobHashesArray = Object.entries(remoteBlobHashes);
 
-		const numberOfEntries = Object.entries(remoteNoteHashes).length;
-		const padLength = numberOfEntries.toString().length;
-		let index = 0;
-
 		if (this.publisher.settings.useCache) {
+			// Bulk-preload all IndexedDB entries into memory before the sync loop.
+			// This eliminates per-file async IndexedDB round-trips.
+			console.time("[PERF] preloadCache");
+			await this.publisher.datastore.preloadCache();
+			console.timeEnd("[PERF] preloadCache");
 			// Check remote cache and update if needed
-			for (const [path, sha] of remoteBlobHashesArray) {
-				if (!sha) {
-					continue;
-				}
+			// Filter to items that actually need processing, then batch-parallelize
+			const entriesToProcess = remoteBlobHashesArray.filter(
+				([path, sha]) => {
+					if (!sha) return false;
 
-				const hash =
-					await this.publisher.datastore.loadRemoteHash(path);
+					const isPublishableFile =
+						path.endsWith(".md") ||
+						(this.publisher.settings.useBases &&
+							path.endsWith(".base")) ||
+						(this.publisher.settings.useCanvas &&
+							path.endsWith(".canvas"));
 
-				const isPublishableFile =
-					path.endsWith(".md") ||
-					(this.publisher.settings.useBases &&
-						path.endsWith(".base")) ||
-					(this.publisher.settings.useCanvas &&
-						path.endsWith(".canvas"));
+					return isPublishableFile;
+				},
+			);
 
-				if ((!hash || hash !== sha) && isPublishableFile) {
+			const syncTotal = entriesToProcess.length;
+			const syncPadLength = syncTotal.toString().length;
+			let syncIndex = 0;
+
+			console.time("[PERF] bulkReadAllBlobContents");
+			const allNoteContents = await this.siteManager.getAllNoteContents();
+			console.timeEnd("[PERF] bulkReadAllBlobContents");
+			console.log(
+				`[PERF] bulkReadAllBlobContents: ${allNoteContents.size} blobs loaded`,
+			);
+
+			console.time("[PERF] remoteSyncLoop");
+			console.log(
+				`[PERF] remoteSyncLoop: ${entriesToProcess.length} entries to process`,
+			);
+
+			await batchParallel(
+				entriesToProcess,
+				async ([path, sha]) => {
+					syncIndex++;
+
 					if (controller) {
-						index++;
-
 						controller.setProgress(
-							Math.floor((index / numberOfEntries) * 100),
+							Math.floor((syncIndex / syncTotal) * 100),
 						);
 
 						controller.setIndexText(
-							`Notes processed: ${index.toString().padStart(padLength)}/${numberOfEntries}`,
+							`Syncing remote cache: ${syncIndex.toString().padStart(syncPadLength)}/${syncTotal}`,
 						);
 
 						controller.setText(`Processing ${path}...`);
 					}
 
-					// Check if file exists in Obsidian vault
-					if (!this.publisher.vault.getFileByPath(path)) {
-						continue;
+					const hash =
+						await this.publisher.datastore.loadRemoteHash(path);
+
+					if (hash && hash === sha) {
+						return;
 					}
 
-					const remoteContent =
-						await this.siteManager.getNoteContent(path);
+					// Check if file exists in Obsidian vault
+					if (!this.publisher.vault.getFileByPath(path)) {
+						return;
+					}
+
+					const remoteContent = allNoteContents.get(path) ?? "";
 
 					if (!remoteContent) {
-						continue;
+						return;
 					}
 
 					const timestamp =
@@ -157,54 +189,121 @@ export default class PublishStatusManager implements IPublishStatusManager {
 						timestamp,
 						sha,
 					);
-				}
+				},
+				10,
+			);
+
+			console.timeEnd("[PERF] remoteSyncLoop");
+
+			if (controller) {
+				controller.setText("Syncing cache to disk...");
+				controller.setProgress(0);
 			}
+
+			console.time("[PERF] flushCache (remote sync)");
+			await this.publisher.datastore.flushCache(controller);
+			console.timeEnd("[PERF] flushCache (remote sync)");
 		}
 
 		if (controller) {
-			controller.setText("Finishing up...");
+			controller.setText("Loading published notes...");
 			controller.setProgress(100);
 		}
 
+		console.time("[PERF] getFilesMarkedForPublishing");
 		const marked = await this.publisher.getFilesMarkedForPublishing();
+		console.timeEnd("[PERF] getFilesMarkedForPublishing");
+		console.log(
+			`[PERF] marked notes: ${marked.notes.length}, marked blobs: ${marked.blobs.length}`,
+		);
 
 		if (this.publisher.settings.useCache) {
-			// Drop deleted blobs from cache
+			console.time("[PERF] synchronize cache");
 			await this.publisher.datastore.synchronize(
 				marked["notes"].map((f) => f.getPath()),
 			);
+			console.timeEnd("[PERF] synchronize cache");
 
 			if (this.publisher.settings.syncCache) {
-				// Check if shared cache needs to be updated
+				console.time("[PERF] compareDataToCache");
 				await this.publisher.plugin.compareDataToCache();
+				console.timeEnd("[PERF] compareDataToCache");
 			}
 		}
 
 		// Populate the compiler's publish file cache before compiling all notes.
 		// This avoids redundant O(N) vault scans during transclusion resolution.
+		console.time("[PERF] cacheFilesMarkedForPublishing");
 		await this.publisher.compiler.cacheFilesMarkedForPublishing();
+		console.timeEnd("[PERF] cacheFilesMarkedForPublishing");
+		if (controller) {
+			controller.setText("Compiling notes...");
+			controller.setProgress(0);
+		}
+
+		const compileTotal = marked.notes.length;
+		const compilePadLength = compileTotal.toString().length;
+		let compileIndex = 0;
 
 		try {
-			for (const file of marked.notes) {
-				const compiledFile = await file.compile();
-				const [content, _] = compiledFile.getCompiledFile();
+			console.time("[PERF] compileLoop");
+			console.log(
+				`[PERF] compileLoop: ${marked.notes.length} notes to compile`,
+			);
 
-				const localHash = generateBlobHash(content);
-				const remoteHash = remoteNoteHashes[file.getVaultPath()];
+			await batchParallel(
+				marked.notes,
+				async (file) => {
+					compileIndex++;
 
-				if (!remoteHash) {
-					unpublishedNotes.push(compiledFile);
-				} else if (remoteHash === localHash) {
-					compiledFile.setRemoteHash(remoteHash);
-					publishedNotes.push(compiledFile);
-				} else {
-					compiledFile.setRemoteHash(remoteHash);
-					changedNotes.push(compiledFile);
-				}
-			}
+					if (controller) {
+						controller.setProgress(
+							Math.floor((compileIndex / compileTotal) * 100),
+						);
+
+						controller.setIndexText(
+							`Compiling: ${compileIndex.toString().padStart(compilePadLength)}/${compileTotal}`,
+						);
+
+						controller.setText(
+							`Compiling ${file.getVaultPath()}...`,
+						);
+					}
+
+					const compiledFile = await file.compile();
+					const [content, _] = compiledFile.getCompiledFile();
+
+					const localHash = generateBlobHash(content);
+					const remoteHash = remoteNoteHashes[file.getVaultPath()];
+
+					if (!remoteHash) {
+						unpublishedNotes.push(compiledFile);
+					} else if (remoteHash === localHash) {
+						compiledFile.setRemoteHash(remoteHash);
+						publishedNotes.push(compiledFile);
+					} else {
+						compiledFile.setRemoteHash(remoteHash);
+						changedNotes.push(compiledFile);
+					}
+				},
+				10,
+			);
+
+			console.timeEnd("[PERF] compileLoop");
 		} finally {
-			// Always clear the cache, even on error, to avoid stale data.
+			// Flush deferred IndexedDB writes from the compile loop,
+			// then clear caches. Always runs even on error to avoid stale data.
+			if (controller) {
+				controller.setText("Saving compiled cache to disk...");
+				controller.setProgress(0);
+			}
+
+			console.time("[PERF] flushCache (compile)");
+			await this.publisher.datastore.flushCache(controller);
+			console.timeEnd("[PERF] flushCache (compile)");
+
 			this.publisher.compiler.clearPublishCache();
+			this.publisher.datastore.clearMemoryCache();
 		}
 
 		deletedNotePaths.push(
@@ -222,6 +321,8 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		publishedNotes.sort((a, b) => a.compare(b));
 		changedNotes.sort((a, b) => a.compare(b));
 		deletedNotePaths.sort((a, b) => a.path.localeCompare(b.path));
+
+		console.timeEnd("[PERF] getPublishStatus TOTAL");
 
 		return {
 			unpublishedNotes,
