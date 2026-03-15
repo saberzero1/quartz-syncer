@@ -337,12 +337,20 @@
 
 		const allNotesToPublish = unpublishedToPublish.concat(changedToPublish);
 
-		processingPaths = [
-			...allNotesToPublish.map((note) => note.getVaultPath()),
-		];
-		await publisher.publishBatch(allNotesToPublish, sharedConnection);
+		const allPublishPaths = allNotesToPublish.map((note) =>
+			note.getVaultPath(),
+		);
+		processingPaths = [...allPublishPaths];
+		await publisher.publishBatch(
+			allNotesToPublish,
+			sharedConnection,
+			(completed, _total) => {
+				publishedPaths = allPublishPaths.slice(0, completed);
+				processingPaths = allPublishPaths.slice(completed);
+			},
+		);
 
-		publishedPaths = [...processingPaths];
+		publishedPaths = [...allPublishPaths];
 		processingPaths = [];
 
 		const allPathsToDelete = [...notesToDelete, ...blobsToDelete];

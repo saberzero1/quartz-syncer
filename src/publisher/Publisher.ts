@@ -211,6 +211,7 @@ export default class Publisher {
 	public async publishBatch(
 		files: CompiledPublishFile[],
 		connection?: RepositoryConnection,
+		onProgress?: (completed: number, total: number) => void,
 	): Promise<boolean> {
 		const filesToPublish = files.filter((f) => {
 			if (f.file.extension === "base") {
@@ -244,6 +245,7 @@ export default class Publisher {
 				filesToPublish,
 				assetResult.filesToStage,
 				assetResult.filesToDelete,
+				onProgress,
 			);
 
 			if (this.settings.useCache) {

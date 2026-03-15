@@ -653,6 +653,10 @@ export class RepositoryConnection {
 				ref: this.branch,
 			});
 
+			// Shared cache avoids re-reading the git index from disk on every git.remove() call.
+			// Without this, each call reads + writes the full index = O(n) disk I/O per file.
+			const cache = {};
+
 			for (let i = 0; i < filePaths.length; i++) {
 				const normalizedPath = normalizeFilePath(filePaths[i]);
 				const fullPath = `${this.dir}/${normalizedPath}`;
@@ -663,6 +667,7 @@ export class RepositoryConnection {
 					await git.remove({
 						...this.getGitConfig(),
 						filepath: normalizedPath,
+						cache,
 					});
 				} catch (error) {
 					logger.warn(
@@ -688,6 +693,7 @@ export class RepositoryConnection {
 					name: "Quartz Syncer",
 					email: "quartz-syncer@obsidian.md",
 				},
+				cache,
 			});
 
 			await this.pushWithRetry();
@@ -701,6 +707,7 @@ export class RepositoryConnection {
 		files: CompiledPublishFile[],
 		rawFiles?: Map<string, string>,
 		rawFilesToDelete?: string[],
+		onProgress?: (completed: number, total: number) => void,
 	): Promise<void> {
 		const hasContent = files.length > 0;
 		const hasRawFiles = rawFiles && rawFiles.size > 0;
@@ -775,6 +782,14 @@ export class RepositoryConnection {
 				}
 			};
 
+			// Shared cache avoids re-reading the git index from disk on every git.add() call.
+			const cache = {};
+
+			// Collect all filepaths to stage in a single batch git.add() call.
+			const allFilepathsToStage: string[] = [];
+			const totalItems = files.length;
+			let completed = 0;
+
 			for (const file of files) {
 				const [text, metadata] = file.compiledFile;
 				const normalizedPath = normalizeFilePath(file.getPath());
@@ -782,11 +797,7 @@ export class RepositoryConnection {
 
 				await ensureDirectory(normalizedPath);
 				await this.getFs().promises.writeFile(fullPath, text);
-
-				await git.add({
-					...this.getGitConfig(),
-					filepath: normalizedPath,
-				});
+				allFilepathsToStage.push(normalizedPath);
 
 				for (const asset of metadata.blobs) {
 					const assetPath = normalizeFilePath(asset.path);
@@ -803,20 +814,38 @@ export class RepositoryConnection {
 						assetFullPath,
 						binaryContent,
 					);
+					allFilepathsToStage.push(assetPath);
+				}
 
-					await git.add({
-						...this.getGitConfig(),
-						filepath: assetPath,
-					});
+				completed++;
+				if (onProgress) {
+					onProgress(completed, totalItems);
+				}
+
+				// Yield to UI every 50 files
+				if (completed % 50 === 0) {
+					await new Promise((resolve) => setTimeout(resolve, 0));
 				}
 			}
 
+			// Stage all files in a single git.add() call.
+			// isomorphic-git's add() accepts an array of filepaths and processes them
+			// within a single GitIndexManager.acquire() — one index read + one index write
+			// instead of N reads + N writes.
+			if (allFilepathsToStage.length > 0) {
+				await git.add({
+					...this.getGitConfig(),
+					filepath: allFilepathsToStage,
+					cache,
+				});
+			}
+
 			if (rawFiles && rawFiles.size > 0) {
-				await this.stageRawFiles(rawFiles);
+				await this.stageRawFiles(rawFiles, cache);
 			}
 
 			if (rawFilesToDelete && rawFilesToDelete.length > 0) {
-				await this.stageRawFileDeletions(rawFilesToDelete);
+				await this.stageRawFileDeletions(rawFilesToDelete, cache);
 			}
 
 			await git.commit({
@@ -826,6 +855,7 @@ export class RepositoryConnection {
 					name: "Quartz Syncer",
 					email: "quartz-syncer@obsidian.md",
 				},
+				cache,
 			});
 
 			await this.pushWithRetry();
@@ -835,7 +865,10 @@ export class RepositoryConnection {
 		}
 	}
 
-	async stageRawFiles(files: Map<string, string>): Promise<void> {
+	async stageRawFiles(
+		files: Map<string, string>,
+		cache: Record<string, unknown> = {},
+	): Promise<void> {
 		if (files.size === 0) return;
 
 		const ensureDirectory = async (filePath: string): Promise<void> => {
@@ -855,20 +888,30 @@ export class RepositoryConnection {
 			}
 		};
 
+		// Write all files to disk first, then batch-stage with a single git.add() call.
+		const filepaths: string[] = [];
+
 		for (const [filepath, content] of files) {
 			const fullPath = `${this.dir}/${filepath}`;
 
 			await ensureDirectory(filepath);
 			await this.getFs().promises.writeFile(fullPath, content);
+			filepaths.push(filepath);
+		}
 
+		if (filepaths.length > 0) {
 			await git.add({
 				...this.getGitConfig(),
-				filepath: filepath,
+				filepath: filepaths,
+				cache,
 			});
 		}
 	}
 
-	async stageRawFileDeletions(filePaths: string[]): Promise<void> {
+	async stageRawFileDeletions(
+		filePaths: string[],
+		cache: Record<string, unknown> = {},
+	): Promise<void> {
 		if (filePaths.length === 0) return;
 
 		for (const filepath of filePaths) {
@@ -880,6 +923,7 @@ export class RepositoryConnection {
 				await git.remove({
 					...this.getGitConfig(),
 					filepath: filepath,
+					cache,
 				});
 			} catch (error) {
 				logger.debug(`Could not delete file ${filepath}`, error);
