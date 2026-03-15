@@ -691,7 +691,7 @@ export class RepositoryConnection {
 				message: `Deleted ${filePaths.length} file${filePaths.length === 1 ? "" : "s"}`,
 				author: {
 					name: "Quartz Syncer",
-					email: "quartz-syncer@obsidian.md",
+					email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
 				},
 				cache,
 			});
@@ -859,7 +859,7 @@ export class RepositoryConnection {
 				message: `Published ${files.length} file${files.length === 1 ? "" : "s"}`,
 				author: {
 					name: "Quartz Syncer",
-					email: "quartz-syncer@obsidian.md",
+					email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
 				},
 				cache,
 			});
@@ -980,7 +980,7 @@ export class RepositoryConnection {
 				message: "Updated integration styles",
 				author: {
 					name: "Quartz Syncer",
-					email: "quartz-syncer@obsidian.md",
+					email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
 				},
 			});
 
