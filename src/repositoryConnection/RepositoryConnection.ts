@@ -601,7 +601,7 @@ export class RepositoryConnection {
 
 	async deleteFiles(
 		filePaths: string[],
-		onProgress?: (completed: number, total: number) => void,
+		onProgress?: (completed: number, total: number) => void | Promise<void>,
 	): Promise<void> {
 		if (filePaths.length === 0) return;
 
@@ -677,7 +677,7 @@ export class RepositoryConnection {
 				}
 
 				if (onProgress) {
-					onProgress(i + 1, filePaths.length);
+					await onProgress(i + 1, filePaths.length);
 				}
 
 				// Yield to UI every 50 files
@@ -688,7 +688,7 @@ export class RepositoryConnection {
 
 			await git.commit({
 				...this.getGitConfig(),
-				message: `Deleted ${filePaths.length} files`,
+				message: `Deleted ${filePaths.length} file${filePaths.length === 1 ? "" : "s"}`,
 				author: {
 					name: "Quartz Syncer",
 					email: "quartz-syncer@obsidian.md",
@@ -707,7 +707,7 @@ export class RepositoryConnection {
 		files: CompiledPublishFile[],
 		rawFiles?: Map<string, string>,
 		rawFilesToDelete?: string[],
-		onProgress?: (completed: number, total: number) => void,
+		onProgress?: (completed: number, total: number) => void | Promise<void>,
 	): Promise<void> {
 		const hasContent = files.length > 0;
 		const hasRawFiles = rawFiles && rawFiles.size > 0;
@@ -819,12 +819,18 @@ export class RepositoryConnection {
 
 				completed++;
 				if (onProgress) {
-					onProgress(completed, totalItems);
+					await onProgress(completed, totalItems);
 				}
 
-				// Yield to UI every 50 files
-				if (completed % 50 === 0) {
-					await new Promise((resolve) => setTimeout(resolve, 0));
+				// Yield to the browser's rendering pipeline so the progress bar repaints.
+				// LightningFS writes are in-memory and complete within microseconds,
+				// so without waiting for an animation frame the entire loop can finish
+				// within a single frame and the user sees no incremental progress.
+				// For large batches, yield every 50 files to avoid capping at 60 files/sec.
+				if (totalItems <= 100 || completed % 50 === 0) {
+					await new Promise((resolve) =>
+						requestAnimationFrame(resolve),
+					);
 				}
 			}
 
@@ -850,7 +856,7 @@ export class RepositoryConnection {
 
 			await git.commit({
 				...this.getGitConfig(),
-				message: "Published multiple files",
+				message: `Published ${files.length} file${files.length === 1 ? "" : "s"}`,
 				author: {
 					name: "Quartz Syncer",
 					email: "quartz-syncer@obsidian.md",

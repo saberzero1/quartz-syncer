@@ -74,38 +74,28 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		const deletedNotePaths: Array<PathToRemove> = [];
 		const deletedBlobPaths: Array<PathToRemove> = [];
 
-		console.time("[PERF] getPublishStatus TOTAL");
-
 		if (controller) {
 			controller.setText("Retrieving publish status...");
 			controller.setProgress(0);
 		}
 
-		console.time("[PERF] getContent(HEAD)");
 		const contentTree =
 			await this.siteManager.userSyncerConnection.getContent("HEAD");
-		console.timeEnd("[PERF] getContent(HEAD)");
 		if (!contentTree) {
 			throw new Error("Could not get content tree from base garden");
 		}
 
-		console.time("[PERF] getNoteHashes");
 		const remoteNoteHashes =
 			await this.siteManager.getNoteHashes(contentTree);
-		console.timeEnd("[PERF] getNoteHashes");
-		console.time("[PERF] getBlobHashes");
 		const remoteBlobHashes =
 			await this.siteManager.getBlobHashes(contentTree);
-		console.timeEnd("[PERF] getBlobHashes");
 
 		const remoteBlobHashesArray = Object.entries(remoteBlobHashes);
 
 		if (this.publisher.settings.useCache) {
 			// Bulk-preload all IndexedDB entries into memory before the sync loop.
 			// This eliminates per-file async IndexedDB round-trips.
-			console.time("[PERF] preloadCache");
 			await this.publisher.datastore.preloadCache();
-			console.timeEnd("[PERF] preloadCache");
 			// Check remote cache and update if needed
 			// Filter to items that actually need processing, then batch-parallelize
 			const entriesToProcess = remoteBlobHashesArray.filter(
@@ -127,17 +117,7 @@ export default class PublishStatusManager implements IPublishStatusManager {
 			const syncPadLength = syncTotal.toString().length;
 			let syncIndex = 0;
 
-			console.time("[PERF] bulkReadAllBlobContents");
 			const allNoteContents = await this.siteManager.getAllNoteContents();
-			console.timeEnd("[PERF] bulkReadAllBlobContents");
-			console.log(
-				`[PERF] bulkReadAllBlobContents: ${allNoteContents.size} blobs loaded`,
-			);
-
-			console.time("[PERF] remoteSyncLoop");
-			console.log(
-				`[PERF] remoteSyncLoop: ${entriesToProcess.length} entries to process`,
-			);
 
 			await batchParallel(
 				entriesToProcess,
@@ -193,16 +173,12 @@ export default class PublishStatusManager implements IPublishStatusManager {
 				10,
 			);
 
-			console.timeEnd("[PERF] remoteSyncLoop");
-
 			if (controller) {
 				controller.setText("Syncing cache to disk...");
 				controller.setProgress(0);
 			}
 
-			console.time("[PERF] flushCache (remote sync)");
 			await this.publisher.datastore.flushCache(controller);
-			console.timeEnd("[PERF] flushCache (remote sync)");
 		}
 
 		if (controller) {
@@ -210,32 +186,21 @@ export default class PublishStatusManager implements IPublishStatusManager {
 			controller.setProgress(100);
 		}
 
-		console.time("[PERF] getFilesMarkedForPublishing");
 		const marked = await this.publisher.getFilesMarkedForPublishing();
-		console.timeEnd("[PERF] getFilesMarkedForPublishing");
-		console.log(
-			`[PERF] marked notes: ${marked.notes.length}, marked blobs: ${marked.blobs.length}`,
-		);
 
 		if (this.publisher.settings.useCache) {
-			console.time("[PERF] synchronize cache");
 			await this.publisher.datastore.synchronize(
 				marked["notes"].map((f) => f.getPath()),
 			);
-			console.timeEnd("[PERF] synchronize cache");
 
 			if (this.publisher.settings.syncCache) {
-				console.time("[PERF] compareDataToCache");
 				await this.publisher.plugin.compareDataToCache();
-				console.timeEnd("[PERF] compareDataToCache");
 			}
 		}
 
 		// Populate the compiler's publish file cache before compiling all notes.
 		// This avoids redundant O(N) vault scans during transclusion resolution.
-		console.time("[PERF] cacheFilesMarkedForPublishing");
 		await this.publisher.compiler.cacheFilesMarkedForPublishing();
-		console.timeEnd("[PERF] cacheFilesMarkedForPublishing");
 		if (controller) {
 			controller.setText("Compiling notes...");
 			controller.setProgress(0);
@@ -246,11 +211,6 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		let compileIndex = 0;
 
 		try {
-			console.time("[PERF] compileLoop");
-			console.log(
-				`[PERF] compileLoop: ${marked.notes.length} notes to compile`,
-			);
-
 			await batchParallel(
 				marked.notes,
 				async (file) => {
@@ -288,8 +248,6 @@ export default class PublishStatusManager implements IPublishStatusManager {
 				},
 				10,
 			);
-
-			console.timeEnd("[PERF] compileLoop");
 		} finally {
 			// Flush deferred IndexedDB writes from the compile loop,
 			// then clear caches. Always runs even on error to avoid stale data.
@@ -298,9 +256,7 @@ export default class PublishStatusManager implements IPublishStatusManager {
 				controller.setProgress(0);
 			}
 
-			console.time("[PERF] flushCache (compile)");
 			await this.publisher.datastore.flushCache(controller);
-			console.timeEnd("[PERF] flushCache (compile)");
 
 			this.publisher.compiler.clearPublishCache();
 			this.publisher.datastore.clearMemoryCache();
@@ -321,8 +277,6 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		publishedNotes.sort((a, b) => a.compare(b));
 		changedNotes.sort((a, b) => a.compare(b));
 		deletedNotePaths.sort((a, b) => a.path.localeCompare(b.path));
-
-		console.timeEnd("[PERF] getPublishStatus TOTAL");
 
 		return {
 			unpublishedNotes,

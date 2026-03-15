@@ -182,7 +182,7 @@ export default class Publisher {
 	public async deleteBatch(
 		filePaths: string[],
 		connection?: RepositoryConnection,
-		onProgress?: (completed: number, total: number) => void,
+		onProgress?: (completed: number, total: number) => void | Promise<void>,
 	): Promise<boolean> {
 		if (filePaths.length === 0) {
 			return true;
@@ -211,7 +211,7 @@ export default class Publisher {
 	public async publishBatch(
 		files: CompiledPublishFile[],
 		connection?: RepositoryConnection,
-		onProgress?: (completed: number, total: number) => void,
+		onProgress?: (completed: number, total: number) => void | Promise<void>,
 	): Promise<boolean> {
 		const filesToPublish = files.filter((f) => {
 			if (f.file.extension === "base") {

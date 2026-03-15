@@ -7,7 +7,7 @@
 	} from "src/publisher/PublishStatusManager";
 	import { LoadingController } from "src/models/ProgressBar";
 	import TreeView from "src/ui/TreeView/TreeView.svelte";
-	import { onMount } from "svelte";
+	import { onMount, tick } from "svelte";
 	import Publisher from "src/publisher/Publisher";
 	import Icon from "src/ui/Icon.svelte";
 	import { CompiledPublishFile } from "src/publishFile/PublishFile";
@@ -330,52 +330,62 @@
 				changedPaths.includes(note.getVaultPath()),
 			) ?? [];
 
+		const allNotesToPublish = unpublishedToPublish.concat(changedToPublish);
 		showPublishingView = true;
 
+		// Flush DOM so the progress bar element is mounted before we start publishing.
+		await tick();
 		// Create a shared connection to avoid redundant clone/fetch cycles
 		const sharedConnection = publisher.createConnection();
 
-		const allNotesToPublish = unpublishedToPublish.concat(changedToPublish);
-
+		// Combine all paths into one list so progress increments uniformly across the entire publish.
 		const allPublishPaths = allNotesToPublish.map((note) =>
 			note.getVaultPath(),
 		);
-		processingPaths = [...allPublishPaths];
-		await publisher.publishBatch(
-			allNotesToPublish,
-			sharedConnection,
-			(completed, _total) => {
-				publishedPaths = allPublishPaths.slice(0, completed);
-				processingPaths = allPublishPaths.slice(completed);
-			},
-		);
-
-		publishedPaths = [...allPublishPaths];
-		processingPaths = [];
-
 		const allPathsToDelete = [...notesToDelete, ...blobsToDelete];
+		const allPaths = [...allPublishPaths, ...allPathsToDelete];
+
+		processingPaths = [...allPaths];
+
+		// Phase 1: Add/update files
+		if (allNotesToPublish.length > 0) {
+			await publisher.publishBatch(
+				allNotesToPublish,
+				sharedConnection,
+				async (completed, _total) => {
+					publishedPaths = allPublishPaths.slice(0, completed);
+					processingPaths = [
+						...allPublishPaths.slice(completed),
+						...allPathsToDelete,
+					];
+					await tick();
+				},
+			);
+		}
+
+		// Snapshot published adds before starting deletes
+		const publishedAddPaths = [...allPublishPaths];
+		publishedPaths = [...publishedAddPaths];
+
+		// Phase 2: Delete files
 		if (allPathsToDelete.length > 0) {
 			processingPaths = [...allPathsToDelete];
 			await publisher.deleteBatch(
 				allPathsToDelete,
 				sharedConnection,
-				(completed, _total) => {
+				async (completed, _total) => {
 					publishedPaths = [
-						...publishedPaths.filter(
-							(p) => !allPathsToDelete.includes(p),
-						),
+						...publishedAddPaths,
 						...allPathsToDelete.slice(0, completed),
 					];
 					processingPaths = allPathsToDelete.slice(completed);
+					await tick();
 				},
 			);
-
-			publishedPaths = [
-				...publishedPaths,
-				...allPathsToDelete.filter((p) => !publishedPaths.includes(p)),
-			];
-			processingPaths = [];
 		}
+
+		publishedPaths = [...allPaths];
+		processingPaths = [];
 	};
 
 	const emptyNode: TreeNode = {
