@@ -1,0 +1,9 @@
+{
+	"nodes":[
+		{"id":"node-1","type":"text","x":0,"y":0,"width":250,"height":60,"text":"Hello from Canvas"},
+		{"id":"node-2","type":"text","x":400,"y":0,"width":250,"height":60,"text":"Example node"}
+	],
+	"edges":[
+		{"id":"edge-1","fromNode":"node-1","fromSide":"right","toNode":"node-2","toSide":"left"}
+	]
+}

@@ -568,9 +568,43 @@ function svgToData(svgElement: SVGSVGElement): string {
 	return `data:image/svg+xml;base64,${encodedData}`;
 }
 
+/**
+ * Run an async function over items with bounded concurrency.
+ * Items are processed in chunks; within each chunk, all items run in parallel.
+ *
+ * @param items - The items to process.
+ * @param fn - The async function to apply to each item.
+ * @param concurrency - Maximum number of items to process in parallel (default 10).
+ * @returns A flat array of results in the same order as the input items.
+ */
+async function batchParallel<T, R>(
+	items: T[],
+	fn: (item: T) => Promise<R>,
+	concurrency = 10,
+	onProgress?: (completed: number, total: number) => void,
+): Promise<R[]> {
+	const results: R[] = [];
+	const total = items.length;
+
+	for (let i = 0; i < total; i += concurrency) {
+		const chunk = items.slice(i, i + concurrency);
+		const chunkResults = await Promise.all(chunk.map(fn));
+		results.push(...chunkResults);
+
+		if (onProgress) {
+			onProgress(Math.min(i + concurrency, total), total);
+		}
+
+		// Yield to the event loop so the UI can repaint progress updates.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+	}
+
+	return results;
+}
+
 export {
-	generateUrlPath,
 	generateBlobHash,
+	generateUrlPath,
 	wrapAround,
 	getRewriteRules,
 	getSyncerPathForNote,
@@ -585,4 +619,5 @@ export {
 	sanitizeQuery,
 	removeUnwantedElements,
 	svgToData,
+	batchParallel,
 };

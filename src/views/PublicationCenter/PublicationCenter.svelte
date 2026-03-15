@@ -7,7 +7,7 @@
 	} from "src/publisher/PublishStatusManager";
 	import { LoadingController } from "src/models/ProgressBar";
 	import TreeView from "src/ui/TreeView/TreeView.svelte";
-	import { onMount } from "svelte";
+	import { onMount, tick } from "svelte";
 	import Publisher from "src/publisher/Publisher";
 	import Icon from "src/ui/Icon.svelte";
 	import { CompiledPublishFile } from "src/publishFile/PublishFile";
@@ -50,15 +50,15 @@
 	function insertIntoTree(
 		tree: TreeNode,
 		filePath: string,
+		deletedPathsSet: Set<string>,
+		childrenIndex: WeakMap<TreeNode, Map<string, TreeNode>>,
 		fileType?: FileType,
 	): void {
 		let currentNode = tree;
 
 		const pathComponents = filePath.split("/");
 
-		const isRemoteOnlyFile = publishStatus.deletedNotePaths.some(
-			(note) => note.path === filePath,
-		);
+		const isRemoteOnlyFile = deletedPathsSet.has(filePath);
 
 		for (let i = 0; i < pathComponents.length; i++) {
 			const part = pathComponents[i];
@@ -67,9 +67,14 @@
 				currentNode.children = [];
 			}
 
-			let childNode = currentNode.children.find(
-				(child) => child.name === part,
-			);
+			let index = childrenIndex.get(currentNode);
+
+			if (!index) {
+				index = new Map();
+				childrenIndex.set(currentNode, index);
+			}
+
+			let childNode = index.get(part);
 
 			const isLeaf = i === pathComponents.length - 1;
 
@@ -85,6 +90,7 @@
 						: "folder",
 				};
 				currentNode.children.push(childNode);
+				index.set(part, childNode);
 			}
 
 			currentNode = childNode;
@@ -111,8 +117,14 @@
 			checked: false,
 		};
 
+		const deletedPathsSet = new Set(
+			publishStatus?.deletedNotePaths?.map((p) => p.path) ?? [],
+		);
+
+		const childrenIndex = new WeakMap<TreeNode, Map<string, TreeNode>>();
+
 		for (const filePath of filePaths) {
-			insertIntoTree(root, filePath);
+			insertIntoTree(root, filePath, deletedPathsSet, childrenIndex);
 		}
 
 		return root;
@@ -318,26 +330,62 @@
 				changedPaths.includes(note.getVaultPath()),
 			) ?? [];
 
+		const allNotesToPublish = unpublishedToPublish.concat(changedToPublish);
 		showPublishingView = true;
 
-		const allNotesToPublish = unpublishedToPublish.concat(changedToPublish);
+		// Flush DOM so the progress bar element is mounted before we start publishing.
+		await tick();
+		// Create a shared connection to avoid redundant clone/fetch cycles
+		const sharedConnection = publisher.createConnection();
 
-		processingPaths = [
-			...allNotesToPublish.map((note) => note.getVaultPath()),
-		];
-		await publisher.publishBatch(allNotesToPublish);
-
-		publishedPaths = [...processingPaths];
-		processingPaths = [];
-
+		// Combine all paths into one list so progress increments uniformly across the entire publish.
+		const allPublishPaths = allNotesToPublish.map((note) =>
+			note.getVaultPath(),
+		);
 		const allPathsToDelete = [...notesToDelete, ...blobsToDelete];
+		const allPaths = [...allPublishPaths, ...allPathsToDelete];
+
+		processingPaths = [...allPaths];
+
+		// Phase 1: Add/update files
+		if (allNotesToPublish.length > 0) {
+			await publisher.publishBatch(
+				allNotesToPublish,
+				sharedConnection,
+				async (completed, _total) => {
+					publishedPaths = allPublishPaths.slice(0, completed);
+					processingPaths = [
+						...allPublishPaths.slice(completed),
+						...allPathsToDelete,
+					];
+					await tick();
+				},
+			);
+		}
+
+		// Snapshot published adds before starting deletes
+		const publishedAddPaths = [...allPublishPaths];
+		publishedPaths = [...publishedAddPaths];
+
+		// Phase 2: Delete files
 		if (allPathsToDelete.length > 0) {
 			processingPaths = [...allPathsToDelete];
-			await publisher.deleteBatch(allPathsToDelete);
-
-			publishedPaths = [...publishedPaths, ...allPathsToDelete];
-			processingPaths = [];
+			await publisher.deleteBatch(
+				allPathsToDelete,
+				sharedConnection,
+				async (completed, _total) => {
+					publishedPaths = [
+						...publishedAddPaths,
+						...allPathsToDelete.slice(0, completed),
+					];
+					processingPaths = allPathsToDelete.slice(completed);
+					await tick();
+				},
+			);
 		}
+
+		publishedPaths = [...allPaths];
+		processingPaths = [];
 	};
 
 	const emptyNode: TreeNode = {

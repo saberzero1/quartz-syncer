@@ -160,26 +160,38 @@ export default class Publisher {
 			blobs: Array.from(blobsToPublish),
 		};
 	}
+	/**
+	 * Creates a RepositoryConnection that can be shared across operations.
+	 * Reusing a connection avoids redundant clone/fetch cycles.
+	 */
+	public createConnection(): RepositoryConnection {
+		return new RepositoryConnection({
+			gitSettings: this.plugin.getGitSettingsWithSecret(),
+			contentFolder: this.settings.contentFolder,
+			vaultPath: this.settings.vaultPath,
+		});
+	}
 
 	/**
 	 * Deletes a batch of files from the repository.
 	 *
 	 * @param filePaths - An array of file paths to delete.
+	 * @param connection - Optional shared RepositoryConnection to reuse.
 	 * @returns A promise that resolves to true if the deletion was successful, false otherwise.
 	 */
-	public async deleteBatch(filePaths: string[]): Promise<boolean> {
+	public async deleteBatch(
+		filePaths: string[],
+		connection?: RepositoryConnection,
+		onProgress?: (completed: number, total: number) => void | Promise<void>,
+	): Promise<boolean> {
 		if (filePaths.length === 0) {
 			return true;
 		}
 
 		try {
-			const userQuartzConnection = new RepositoryConnection({
-				gitSettings: this.plugin.getGitSettingsWithSecret(),
-				contentFolder: this.settings.contentFolder,
-				vaultPath: this.settings.vaultPath,
-			});
+			const userQuartzConnection = connection ?? this.createConnection();
 
-			await userQuartzConnection.deleteFiles(filePaths);
+			await userQuartzConnection.deleteFiles(filePaths, onProgress);
 
 			if (this.settings.useCache) {
 				// Update the remote files and hashes in the datastore
@@ -196,7 +208,11 @@ export default class Publisher {
 		}
 	}
 
-	public async publishBatch(files: CompiledPublishFile[]): Promise<boolean> {
+	public async publishBatch(
+		files: CompiledPublishFile[],
+		connection?: RepositoryConnection,
+		onProgress?: (completed: number, total: number) => void | Promise<void>,
+	): Promise<boolean> {
 		const filesToPublish = files.filter((f) => {
 			if (f.file.extension === "base") {
 				return this.settings.useBases;
@@ -218,11 +234,7 @@ export default class Publisher {
 		}
 
 		try {
-			const userQuartzConnection = new RepositoryConnection({
-				gitSettings: this.plugin.getGitSettingsWithSecret(),
-				contentFolder: this.settings.contentFolder,
-				vaultPath: this.settings.vaultPath,
-			});
+			const userQuartzConnection = connection ?? this.createConnection();
 
 			const assetSyncer = new AssetSyncer(this.settings);
 
@@ -233,6 +245,7 @@ export default class Publisher {
 				filesToPublish,
 				assetResult.filesToStage,
 				assetResult.filesToDelete,
+				onProgress,
 			);
 
 			if (this.settings.useCache) {

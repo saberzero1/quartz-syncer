@@ -90,6 +90,15 @@ export class SyncerPageCompiler {
 	private rewriteRule: PathRewriteRule;
 	private datastore: DataStore;
 
+	/**
+	 * Request-scoped cache for files marked for publishing.
+	 * Populated once per compile cycle via `cacheFilesMarkedForPublishing()`,
+	 * cleared after the cycle via `clearPublishCache()`.
+	 * Avoids redundant O(N) vault scans during transclusion resolution.
+	 */
+	private cachedPublishFiles: PublishFile[] | null = null;
+	private cachedPublishFilesByPath: Map<string, PublishFile> | null = null;
+
 	constructor(
 		app: App,
 		vault: Vault,
@@ -105,6 +114,59 @@ export class SyncerPageCompiler {
 		this.datastore = datastore;
 		this.getFilesMarkedForPublishing = getFilesMarkedForPublishing;
 		this.rewriteRule = getRewriteRules(this.settings.vaultPath);
+	}
+
+	/**
+	 * Populates the request-scoped cache with files marked for publishing.
+	 * Call once before a batch of compile operations, then call `clearPublishCache()`
+	 * when the batch is complete.
+	 */
+	async cacheFilesMarkedForPublishing(): Promise<void> {
+		const { notes } = await this.getFilesMarkedForPublishing();
+		this.cachedPublishFiles = notes;
+
+		this.cachedPublishFilesByPath = new Map(
+			notes.map((f) => [f.getPath(), f]),
+		);
+	}
+
+	/**
+	 * Clears the request-scoped publish file cache.
+	 * Call after a batch of compile operations is complete.
+	 */
+	clearPublishCache(): void {
+		this.cachedPublishFiles = null;
+		this.cachedPublishFilesByPath = null;
+	}
+
+	/**
+	 * Returns the cached publish files, or fetches them if not cached.
+	 * Prefer calling `cacheFilesMarkedForPublishing()` before compile batches.
+	 */
+	private async getCachedPublishFiles(): Promise<PublishFile[]> {
+		if (this.cachedPublishFiles) {
+			return this.cachedPublishFiles;
+		}
+
+		const { notes } = await this.getFilesMarkedForPublishing();
+
+		return notes;
+	}
+
+	/**
+	 * Returns the cached publish files map (path → file), or builds one if not cached.
+	 * Prefer calling `cacheFilesMarkedForPublishing()` before compile batches.
+	 */
+	private async getCachedPublishFilesByPath(): Promise<
+		Map<string, PublishFile>
+	> {
+		if (this.cachedPublishFilesByPath) {
+			return this.cachedPublishFilesByPath;
+		}
+
+		const { notes } = await this.getFilesMarkedForPublishing();
+
+		return new Map(notes.map((f) => [f.getPath(), f]));
 	}
 
 	/**
@@ -391,8 +453,8 @@ export class SyncerPageCompiler {
 				return text;
 			}
 
-			const { notes: publishedFiles } =
-				await this.getFilesMarkedForPublishing();
+			const publishedFilesByPath =
+				await this.getCachedPublishFilesByPath();
 
 			let transcludedText = text;
 
@@ -529,9 +591,7 @@ export class SyncerPageCompiler {
 						fileText = fileText.replace(BLOCKREF_REGEX, "");
 
 						const publishedFilesContainsLinkedFile =
-							publishedFiles.find(
-								(f) => f.getPath() == linkedFile.path,
-							);
+							publishedFilesByPath.has(linkedFile.path);
 
 						if (publishedFilesContainsLinkedFile) {
 							const permalink =

@@ -2,6 +2,7 @@ import localforage from "localforage";
 import QuartzSyncer from "main";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import { generateBlobHash } from "src/utils/utils";
+import { LoadingController } from "src/models/ProgressBar";
 
 /** A piece of data that has been cached for a specific version and time. */
 export type QuartzSyncerCache = {
@@ -31,6 +32,21 @@ export class DataStore {
 	public persister: LocalForage;
 
 	/**
+	 * In-memory cache for bulk-preloaded entries.
+	 * When populated via `preloadCache()`, all read methods serve from memory
+	 * instead of making individual IndexedDB round-trips.
+	 * Write methods update only the in-memory cache (write-back).
+	 * Call `flushCache()` to persist dirty entries to IndexedDB.
+	 */
+	private memoryCache: Map<string, QuartzSyncerCache> | null = null;
+
+	/**
+	 * Tracks keys that have been modified in the in-memory cache
+	 * and need to be flushed to IndexedDB.
+	 */
+	private dirtyKeys: Set<string> = new Set();
+
+	/**
 	 * Create a new DataStore instance for caching metadata about files and sections.
 	 *
 	 * @param vaultName - The name of the vault to use for the cache instance.
@@ -48,6 +64,101 @@ export class DataStore {
 			description:
 				"Cache metadata about files and sections in the quartz syncer index.",
 		});
+	}
+
+	/**
+	 * Bulk-preload all cache entries from IndexedDB into memory.
+	 * After this call, all read methods serve from the in-memory Map,
+	 * eliminating per-file IndexedDB round-trips.
+	 * Call `clearMemoryCache()` when the batch operation is complete.
+	 */
+	public async preloadCache(): Promise<void> {
+		const cache = new Map<string, QuartzSyncerCache>();
+
+		await this.persister.iterate<QuartzSyncerCache, void>((value, key) => {
+			if (key.startsWith("file:")) {
+				cache.set(key, value);
+			}
+		});
+
+		this.memoryCache = cache;
+	}
+
+	/**
+	 * Clear the in-memory cache.
+	 * Call after a batch operation to free memory.
+	 */
+	public clearMemoryCache(): void {
+		this.memoryCache = null;
+		this.dirtyKeys.clear();
+	}
+
+	/**
+	 * Flush all dirty in-memory cache entries to IndexedDB.
+	 * Call this after a batch operation completes to persist changes.
+	 * Writes are done sequentially to avoid IndexedDB transaction contention.
+	 */
+	public async flushCache(controller?: LoadingController): Promise<void> {
+		if (!this.memoryCache || this.dirtyKeys.size === 0) {
+			return;
+		}
+
+		const total = this.dirtyKeys.size;
+		let flushed = 0;
+
+		for (const key of this.dirtyKeys) {
+			const data = this.memoryCache.get(key);
+
+			if (data) {
+				await this.persister.setItem(key, data);
+			}
+
+			flushed++;
+
+			if (controller) {
+				controller.setProgress(Math.floor((flushed / total) * 100));
+				controller.setIndexText(`Saving: ${flushed}/${total}`);
+			}
+		}
+
+		this.dirtyKeys.clear();
+	}
+
+	/**
+	 * Get a cache entry from memory (if preloaded) or IndexedDB.
+	 * This is the single read path used by all accessor methods.
+	 */
+	private async getCacheEntry(
+		path: string,
+	): Promise<QuartzSyncerCache | null> {
+		const key = this.fileKey(path);
+
+		if (this.memoryCache) {
+			return this.memoryCache.get(key) ?? null;
+		}
+
+		return (await this.persister.getItem(key)) as QuartzSyncerCache | null;
+	}
+
+	/**
+	 * Store a cache entry to IndexedDB and update the in-memory cache if active.
+	 */
+	private async setCacheEntry(
+		path: string,
+		data: QuartzSyncerCache,
+	): Promise<void> {
+		const key = this.fileKey(path);
+
+		if (this.memoryCache) {
+			// Write-back: only update memory, mark dirty for later flush.
+			this.memoryCache.set(key, data);
+			this.dirtyKeys.add(key);
+
+			return;
+		}
+
+		// No memory cache active — write directly to IndexedDB.
+		await this.persister.setItem(key, data);
 	}
 
 	/**
@@ -108,9 +219,7 @@ export class DataStore {
 		path: string,
 		timestamp: number,
 	): Promise<boolean> {
-		const data = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const data = await this.getCacheEntry(path);
 
 		if (data && data.localData) {
 			// Files with dynamic content (Dataview, Datacore) must always recompile
@@ -132,9 +241,7 @@ export class DataStore {
 	 * @returns A promise that resolves to true if the file has dynamic content, false otherwise.
 	 */
 	public async hasDynamicContentFlag(path: string): Promise<boolean> {
-		const data = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const data = await this.getCacheEntry(path);
 
 		return data?.hasDynamicContent ?? false;
 	}
@@ -146,9 +253,7 @@ export class DataStore {
 	 * @returns A promise that resolves to true if the remote file is outdated, false otherwise.
 	 */
 	public async isRemoteFileOutdated(path: string): Promise<boolean> {
-		const data = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const data = await this.getCacheEntry(path);
 
 		if (data && data.remoteData) {
 			return data.version !== this.version;
@@ -164,9 +269,7 @@ export class DataStore {
 	 * @returns A promise that resolves to true if they are identical, false otherwise.
 	 */
 	public async areLocalAndRemoteIdentical(path: string): Promise<boolean> {
-		const data = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const data = await this.getCacheEntry(path);
 
 		if (data && data.localData && data.remoteData) {
 			return (
@@ -187,9 +290,7 @@ export class DataStore {
 	public async loadLocalFile(
 		path: string,
 	): Promise<TCompiledFile | null | undefined> {
-		const data = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const data = await this.getCacheEntry(path);
 
 		if (data && data.localData) {
 			return data.localData;
@@ -207,9 +308,7 @@ export class DataStore {
 	public async loadRemoteFile(
 		path: string,
 	): Promise<TCompiledFile | null | undefined> {
-		const data = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const data = await this.getCacheEntry(path);
 
 		if (data && data.remoteData) {
 			return data.remoteData;
@@ -232,11 +331,9 @@ export class DataStore {
 		data: TCompiledFile,
 		hasDynamicContent?: boolean,
 	): Promise<void> {
-		const existingData = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const existingData = await this.getCacheEntry(path);
 
-		await this.persister.setItem(this.fileKey(path), {
+		await this.setCacheEntry(path, {
 			version: this.version,
 			time: timestamp ?? Date.now(),
 			localData: data,
@@ -260,11 +357,9 @@ export class DataStore {
 		timestamp: number,
 		data: TCompiledFile,
 	): Promise<void> {
-		const existingData = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const existingData = await this.getCacheEntry(path);
 
-		await this.persister.setItem(this.fileKey(path), {
+		await this.setCacheEntry(path, {
 			version: this.version,
 			time: timestamp ?? Date.now(),
 			localData: existingData?.localData ?? null, // Preserve local data if it exists
@@ -284,9 +379,7 @@ export class DataStore {
 	public async loadLocalHash(
 		path: string,
 	): Promise<string | null | undefined> {
-		const data = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const data = await this.getCacheEntry(path);
 
 		if (data && data.localHash) {
 			return data.localHash;
@@ -304,9 +397,7 @@ export class DataStore {
 	public async loadRemoteHash(
 		path: string,
 	): Promise<string | null | undefined> {
-		const data = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const data = await this.getCacheEntry(path);
 
 		if (data && data.remoteHash) {
 			return data.remoteHash;
@@ -327,11 +418,9 @@ export class DataStore {
 		timestamp: number,
 		hash: string,
 	): Promise<void> {
-		const existingData = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const existingData = await this.getCacheEntry(path);
 
-		await this.persister.setItem(this.fileKey(path), {
+		await this.setCacheEntry(path, {
 			version: this.version,
 			time: timestamp ?? Date.now(),
 			localData: existingData?.localData ?? null, // Preserve local data if it exists
@@ -355,11 +444,9 @@ export class DataStore {
 		timestamp: number,
 		hash: string,
 	): Promise<void> {
-		const existingData = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const existingData = await this.getCacheEntry(path);
 
-		await this.persister.setItem(this.fileKey(path), {
+		await this.setCacheEntry(path, {
 			version: this.version,
 			time: timestamp ?? Date.now(),
 			localData: existingData?.localData ?? null, // Preserve local data if it exists
@@ -377,9 +464,7 @@ export class DataStore {
 	 * @returns A promise that resolves to the cached time in milliseconds, or null if not found.
 	 */
 	public async getTime(path: string): Promise<number | null> {
-		const data = (await this.persister.getItem(
-			this.fileKey(path),
-		)) as QuartzSyncerCache;
+		const data = await this.getCacheEntry(path);
 
 		if (data) {
 			return data.time;
@@ -397,7 +482,7 @@ export class DataStore {
 	public async loadFile(
 		path: string,
 	): Promise<QuartzSyncerCache | null | undefined> {
-		return this.persister.getItem(this.fileKey(path)).then((raw) => {
+		return this.getCacheEntry(path).then((raw) => {
 			return raw as QuartzSyncerCache | null | undefined;
 		});
 	}

@@ -156,9 +156,8 @@ export class RepositoryConnection {
 
 			if (this.auth.type === "bearer") {
 				return {
-					headers: {
-						Authorization: `Bearer ${this.auth.secret}`,
-					},
+					username: "x-access-token",
+					password: this.auth.secret || "",
 				};
 			}
 
@@ -168,6 +167,43 @@ export class RepositoryConnection {
 			};
 		};
 	}
+	/**
+	 * Pushes to remote with exponential backoff retry on auth/transient errors.
+	 * Retries up to 3 times with delays of 1s, 2s, 4s.
+	 */
+	private async pushWithRetry(maxRetries: number = 3): Promise<void> {
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			try {
+				await git.push({
+					...this.getGitConfig(),
+					url: this.remoteUrl,
+					remote: "origin",
+					ref: this.branch,
+				});
+
+				return;
+			} catch (error) {
+				const isRetryable =
+					error instanceof Error &&
+					(error.message.includes("401") ||
+						error.message.includes("403") ||
+						error.message.includes("429") ||
+						error.message.includes("5"));
+
+				if (!isRetryable || attempt === maxRetries) {
+					throw error;
+				}
+
+				const delay = Math.pow(2, attempt) * 1000;
+
+				logger.warn(
+					`Push attempt ${attempt + 1} failed, retrying in ${delay}ms...`,
+					error,
+				);
+				await new Promise((resolve) => setTimeout(resolve, delay));
+			}
+		}
+	}
 
 	private getGitConfig() {
 		const config: {
@@ -175,10 +211,7 @@ export class RepositoryConnection {
 			http: typeof obsidianHttpClient;
 			dir: string;
 			corsProxy?: string;
-			onAuth?: () =>
-				| { username: string; password: string }
-				| { headers: { Authorization: string } }
-				| undefined;
+			onAuth?: () => { username: string; password: string } | undefined;
 		} = {
 			fs: this.getFs(),
 			http: obsidianHttpClient,
@@ -378,6 +411,73 @@ export class RepositoryConnection {
 		}
 	}
 
+	/**
+	 * Bulk-reads all blob contents from the repository in a single tree walk.
+	 * Uses git.walk with TREE walker to avoid per-file HTTP round-trips.
+	 * Returns a Map of filepath → decoded UTF-8 content.
+	 *
+	 * @param filterPrefix - Only include blobs whose path starts with this prefix.
+	 * @returns A Map of filepath → content string.
+	 */
+	async getAllBlobContents(
+		filterPrefix?: string,
+	): Promise<Map<string, string>> {
+		try {
+			await this.ensureRepoInitialized();
+			const ref = `origin/${this.branch}`;
+			const contents = new Map<string, string>();
+
+			await git.walk({
+				...this.getGitConfig(),
+				trees: [git.TREE({ ref })],
+				map: async (filepath, [entry]) => {
+					if (!entry) return undefined;
+
+					if (filepath === ".") return undefined;
+
+					// Skip entries outside the filter prefix (but always recurse into directories)
+					const type = await entry.type();
+
+					if (type === "tree") {
+						// Only recurse into trees that could contain matching paths
+						if (
+							filterPrefix &&
+							!filterPrefix.startsWith(filepath) &&
+							!filepath.startsWith(filterPrefix)
+						) {
+							return undefined; // prune this subtree
+						}
+
+						return filepath; // continue recursion
+					}
+
+					if (type !== "blob") return undefined;
+
+					// Apply prefix filter
+					if (filterPrefix && !filepath.startsWith(filterPrefix)) {
+						return undefined;
+					}
+
+					const data = await entry.content();
+
+					if (data) {
+						const text = new TextDecoder().decode(data);
+						contents.set(filepath, text);
+					}
+
+					return filepath;
+				},
+			});
+
+			return contents;
+		} catch (error) {
+			logger.error("Could not bulk-read blob contents", error);
+			throw new Error(
+				`Could not bulk-read blob contents from repository ${this.getRepositoryName()}`,
+			);
+		}
+	}
+
 	async getFile(
 		path: string,
 		_branch?: string,
@@ -504,7 +604,10 @@ export class RepositoryConnection {
 		}
 	}
 
-	async deleteFiles(filePaths: string[]): Promise<void> {
+	async deleteFiles(
+		filePaths: string[],
+		onProgress?: (completed: number, total: number) => void | Promise<void>,
+	): Promise<void> {
 		if (filePaths.length === 0) return;
 
 		try {
@@ -516,6 +619,21 @@ export class RepositoryConnection {
 				ref: this.branch,
 				singleBranch: true,
 			});
+
+			const normalizeFilePath = (path: string): string => {
+				let previous;
+
+				do {
+					previous = path;
+					path = path.replace(/\.\.\//g, "");
+				} while (path !== previous);
+
+				path = this.getVaultPath(path);
+
+				return path.startsWith("/")
+					? `${this.contentFolder}${path}`
+					: `${this.contentFolder}/${path}`;
+			};
 
 			const remoteCommit = await git.resolveRef({
 				...this.getGitConfig(),
@@ -540,23 +658,12 @@ export class RepositoryConnection {
 				ref: this.branch,
 			});
 
-			const normalizeFilePath = (path: string): string => {
-				let previous;
+			// Shared cache avoids re-reading the git index from disk on every git.remove() call.
+			// Without this, each call reads + writes the full index = O(n) disk I/O per file.
+			const cache = {};
 
-				do {
-					previous = path;
-					path = path.replace(/\.\.\//g, "");
-				} while (path !== previous);
-
-				path = this.getVaultPath(path);
-
-				return path.startsWith("/")
-					? `${this.contentFolder}${path}`
-					: `${this.contentFolder}/${path}`;
-			};
-
-			for (const filePath of filePaths) {
-				const normalizedPath = normalizeFilePath(filePath);
+			for (let i = 0; i < filePaths.length; i++) {
+				const normalizedPath = normalizeFilePath(filePaths[i]);
 				const fullPath = `${this.dir}/${normalizedPath}`;
 
 				try {
@@ -565,6 +672,7 @@ export class RepositoryConnection {
 					await git.remove({
 						...this.getGitConfig(),
 						filepath: normalizedPath,
+						cache,
 					});
 				} catch (error) {
 					logger.warn(
@@ -572,23 +680,28 @@ export class RepositoryConnection {
 						error,
 					);
 				}
+
+				if (onProgress) {
+					await onProgress(i + 1, filePaths.length);
+				}
+
+				// Yield to UI every 50 files
+				if (i % 50 === 49) {
+					await new Promise((resolve) => setTimeout(resolve, 0));
+				}
 			}
 
 			await git.commit({
 				...this.getGitConfig(),
-				message: "Deleted multiple files",
+				message: `Deleted ${filePaths.length} file${filePaths.length === 1 ? "" : "s"}`,
 				author: {
 					name: "Quartz Syncer",
-					email: "quartz-syncer@obsidian.md",
+					email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
 				},
+				cache,
 			});
 
-			await git.push({
-				...this.getGitConfig(),
-				url: this.remoteUrl,
-				remote: "origin",
-				ref: this.branch,
-			});
+			await this.pushWithRetry();
 		} catch (error) {
 			logger.error("Failed to delete files", error);
 			throw error;
@@ -599,6 +712,7 @@ export class RepositoryConnection {
 		files: CompiledPublishFile[],
 		rawFiles?: Map<string, string>,
 		rawFilesToDelete?: string[],
+		onProgress?: (completed: number, total: number) => void | Promise<void>,
 	): Promise<void> {
 		const hasContent = files.length > 0;
 		const hasRawFiles = rawFiles && rawFiles.size > 0;
@@ -673,6 +787,14 @@ export class RepositoryConnection {
 				}
 			};
 
+			// Shared cache avoids re-reading the git index from disk on every git.add() call.
+			const cache = {};
+
+			// Collect all filepaths to stage in a single batch git.add() call.
+			const allFilepathsToStage: string[] = [];
+			const totalItems = files.length;
+			let completed = 0;
+
 			for (const file of files) {
 				const [text, metadata] = file.compiledFile;
 				const normalizedPath = normalizeFilePath(file.getPath());
@@ -680,11 +802,7 @@ export class RepositoryConnection {
 
 				await ensureDirectory(normalizedPath);
 				await this.getFs().promises.writeFile(fullPath, text);
-
-				await git.add({
-					...this.getGitConfig(),
-					filepath: normalizedPath,
-				});
+				allFilepathsToStage.push(normalizedPath);
 
 				for (const asset of metadata.blobs) {
 					const assetPath = normalizeFilePath(asset.path);
@@ -701,44 +819,68 @@ export class RepositoryConnection {
 						assetFullPath,
 						binaryContent,
 					);
+					allFilepathsToStage.push(assetPath);
+				}
 
-					await git.add({
-						...this.getGitConfig(),
-						filepath: assetPath,
-					});
+				completed++;
+
+				if (onProgress) {
+					await onProgress(completed, totalItems);
+				}
+
+				// Yield to the browser's rendering pipeline so the progress bar repaints.
+				// LightningFS writes are in-memory and complete within microseconds,
+				// so without waiting for an animation frame the entire loop can finish
+				// within a single frame and the user sees no incremental progress.
+				// For large batches, yield every 50 files to avoid capping at 60 files/sec.
+				if (totalItems <= 100 || completed % 50 === 0) {
+					await new Promise((resolve) =>
+						requestAnimationFrame(resolve),
+					);
 				}
 			}
 
+			// Stage all files in a single git.add() call.
+			// isomorphic-git's add() accepts an array of filepaths and processes them
+			// within a single GitIndexManager.acquire() — one index read + one index write
+			// instead of N reads + N writes.
+			if (allFilepathsToStage.length > 0) {
+				await git.add({
+					...this.getGitConfig(),
+					filepath: allFilepathsToStage,
+					cache,
+				});
+			}
+
 			if (rawFiles && rawFiles.size > 0) {
-				await this.stageRawFiles(rawFiles);
+				await this.stageRawFiles(rawFiles, cache);
 			}
 
 			if (rawFilesToDelete && rawFilesToDelete.length > 0) {
-				await this.stageRawFileDeletions(rawFilesToDelete);
+				await this.stageRawFileDeletions(rawFilesToDelete, cache);
 			}
 
 			await git.commit({
 				...this.getGitConfig(),
-				message: "Published multiple files",
+				message: `Published ${files.length} file${files.length === 1 ? "" : "s"}`,
 				author: {
 					name: "Quartz Syncer",
-					email: "quartz-syncer@obsidian.md",
+					email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
 				},
+				cache,
 			});
 
-			await git.push({
-				...this.getGitConfig(),
-				url: this.remoteUrl,
-				remote: "origin",
-				ref: this.branch,
-			});
+			await this.pushWithRetry();
 		} catch (error) {
 			logger.error("Failed to update files", error);
 			throw error;
 		}
 	}
 
-	async stageRawFiles(files: Map<string, string>): Promise<void> {
+	async stageRawFiles(
+		files: Map<string, string>,
+		cache: Record<string, unknown> = {},
+	): Promise<void> {
 		if (files.size === 0) return;
 
 		const ensureDirectory = async (filePath: string): Promise<void> => {
@@ -758,20 +900,30 @@ export class RepositoryConnection {
 			}
 		};
 
+		// Write all files to disk first, then batch-stage with a single git.add() call.
+		const filepaths: string[] = [];
+
 		for (const [filepath, content] of files) {
 			const fullPath = `${this.dir}/${filepath}`;
 
 			await ensureDirectory(filepath);
 			await this.getFs().promises.writeFile(fullPath, content);
+			filepaths.push(filepath);
+		}
 
+		if (filepaths.length > 0) {
 			await git.add({
 				...this.getGitConfig(),
-				filepath: filepath,
+				filepath: filepaths,
+				cache,
 			});
 		}
 	}
 
-	async stageRawFileDeletions(filePaths: string[]): Promise<void> {
+	async stageRawFileDeletions(
+		filePaths: string[],
+		cache: Record<string, unknown> = {},
+	): Promise<void> {
 		if (filePaths.length === 0) return;
 
 		for (const filepath of filePaths) {
@@ -783,6 +935,7 @@ export class RepositoryConnection {
 				await git.remove({
 					...this.getGitConfig(),
 					filepath: filepath,
+					cache,
 				});
 			} catch (error) {
 				logger.debug(`Could not delete file ${filepath}`, error);
@@ -833,16 +986,11 @@ export class RepositoryConnection {
 				message: "Updated integration styles",
 				author: {
 					name: "Quartz Syncer",
-					email: "quartz-syncer@obsidian.md",
+					email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
 				},
 			});
 
-			await git.push({
-				...this.getGitConfig(),
-				url: this.remoteUrl,
-				remote: "origin",
-				ref: this.branch,
-			});
+			await this.pushWithRetry();
 		} catch (error) {
 			logger.error("Failed to write raw files", error);
 			throw error;
@@ -893,9 +1041,8 @@ export class RepositoryConnection {
 
 			if (auth.type === "bearer") {
 				return () => ({
-					headers: {
-						Authorization: `Bearer ${auth.secret}`,
-					},
+					username: "x-access-token",
+					password: auth.secret || "",
 				});
 			}
 

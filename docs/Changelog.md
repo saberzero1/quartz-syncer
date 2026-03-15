@@ -2,26 +2,28 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-01-10T00:09:20Z+0100
+modified: 2026-03-15T22:54:28Z+0100
 publish: true
 ---
 
 ## Upcoming
 
-- Built-in Quartz Themes support.
+- Manage Quartz v5 configuration.
+- Manage Quartz v5 layout.
+- Manage Quartz v5 components.
 
 ## Planned
 
-- Canvas support.
-- TTRPG-related plugin support.
-
 ## Someday
 
-- Manage Quartz configuration.
-- Manage Quartz layout.
-- Manage Quartz components.
-
 ## Releases
+
+### Version 1.10.0
+
+- Added support for publishing Obsidian Bases, as Quartz v5 supports it.
+- Added support for publishing Obsidian Canvas, as Quartz v5 supports it.
+- Significant performance improvements.
+- Improved progress indicators.
 
 ### Version 1.9.2
 
