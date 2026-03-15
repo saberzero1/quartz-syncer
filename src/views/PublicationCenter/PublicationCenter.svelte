@@ -50,15 +50,15 @@
 	function insertIntoTree(
 		tree: TreeNode,
 		filePath: string,
+		deletedPathsSet: Set<string>,
+		childrenIndex: WeakMap<TreeNode, Map<string, TreeNode>>,
 		fileType?: FileType,
 	): void {
 		let currentNode = tree;
 
 		const pathComponents = filePath.split("/");
 
-		const isRemoteOnlyFile = publishStatus.deletedNotePaths.some(
-			(note) => note.path === filePath,
-		);
+		const isRemoteOnlyFile = deletedPathsSet.has(filePath);
 
 		for (let i = 0; i < pathComponents.length; i++) {
 			const part = pathComponents[i];
@@ -67,9 +67,14 @@
 				currentNode.children = [];
 			}
 
-			let childNode = currentNode.children.find(
-				(child) => child.name === part,
-			);
+			let index = childrenIndex.get(currentNode);
+
+			if (!index) {
+				index = new Map();
+				childrenIndex.set(currentNode, index);
+			}
+
+			let childNode = index.get(part);
 
 			const isLeaf = i === pathComponents.length - 1;
 
@@ -85,6 +90,7 @@
 						: "folder",
 				};
 				currentNode.children.push(childNode);
+				index.set(part, childNode);
 			}
 
 			currentNode = childNode;
@@ -111,8 +117,14 @@
 			checked: false,
 		};
 
+		const deletedPathsSet = new Set(
+			publishStatus?.deletedNotePaths?.map((p) => p.path) ?? [],
+		);
+
+		const childrenIndex = new WeakMap<TreeNode, Map<string, TreeNode>>();
+
 		for (const filePath of filePaths) {
-			insertIntoTree(root, filePath);
+			insertIntoTree(root, filePath, deletedPathsSet, childrenIndex);
 		}
 
 		return root;

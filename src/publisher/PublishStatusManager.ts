@@ -39,10 +39,10 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		remoteNoteHashes: { [key: string]: string },
 		marked: string[],
 	): Array<PathToRemove> {
+		const markedSet = new Set(marked);
 		const isJsFile = (key: string) => key.endsWith(".js");
 
-		const isMarkedForPublish = (key: string) =>
-			marked.find((f) => f === key);
+		const isMarkedForPublish = (key: string) => markedSet.has(key);
 
 		const deletedPaths = Object.keys(remoteNoteHashes).filter(
 			(key) => !isJsFile(key) && !isMarkedForPublish(key),
@@ -180,22 +180,31 @@ export default class PublishStatusManager implements IPublishStatusManager {
 			}
 		}
 
-		for (const file of marked.notes) {
-			const compiledFile = await file.compile();
-			const [content, _] = compiledFile.getCompiledFile();
+		// Populate the compiler's publish file cache before compiling all notes.
+		// This avoids redundant O(N) vault scans during transclusion resolution.
+		await this.publisher.compiler.cacheFilesMarkedForPublishing();
 
-			const localHash = generateBlobHash(content);
-			const remoteHash = remoteNoteHashes[file.getVaultPath()];
+		try {
+			for (const file of marked.notes) {
+				const compiledFile = await file.compile();
+				const [content, _] = compiledFile.getCompiledFile();
 
-			if (!remoteHash) {
-				unpublishedNotes.push(compiledFile);
-			} else if (remoteHash === localHash) {
-				compiledFile.setRemoteHash(remoteHash);
-				publishedNotes.push(compiledFile);
-			} else {
-				compiledFile.setRemoteHash(remoteHash);
-				changedNotes.push(compiledFile);
+				const localHash = generateBlobHash(content);
+				const remoteHash = remoteNoteHashes[file.getVaultPath()];
+
+				if (!remoteHash) {
+					unpublishedNotes.push(compiledFile);
+				} else if (remoteHash === localHash) {
+					compiledFile.setRemoteHash(remoteHash);
+					publishedNotes.push(compiledFile);
+				} else {
+					compiledFile.setRemoteHash(remoteHash);
+					changedNotes.push(compiledFile);
+				}
 			}
+		} finally {
+			// Always clear the cache, even on error, to avoid stale data.
+			this.publisher.compiler.clearPublishCache();
 		}
 
 		deletedNotePaths.push(
@@ -210,7 +219,6 @@ export default class PublishStatusManager implements IPublishStatusManager {
 		);
 
 		// These might already be sorted, as getFilesMarkedForPublishing sorts already
-		publishedNotes.sort((a, b) => a.compare(b));
 		publishedNotes.sort((a, b) => a.compare(b));
 		changedNotes.sort((a, b) => a.compare(b));
 		deletedNotePaths.sort((a, b) => a.path.localeCompare(b.path));
