@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-03-15T23:01:10Z+0100
+modified: 2026-03-16T15:21:29Z+0100
 publish: true
 ---
 
@@ -17,6 +17,10 @@ publish: true
 ## Someday
 
 ## Releases
+
+### Version 1.10.1
+
+- Fixed `tag`, `alias`, and `cssclass` compatibility handling for Quartz v5.
 
 ### Version 1.10.0
 
