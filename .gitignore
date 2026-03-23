@@ -29,6 +29,7 @@ deploy.sh
 yarn.lock
 
 .env
+.obsidian-cache
 src/testVault/.obsidian/workspace.json
 content/.obsidian/workspace.json
 

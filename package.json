@@ -9,6 +9,8 @@
 		"dev1": "parcel main.ts",
 		"build": "node esbuild.config.mjs production",
 		"test": "jest",
+		"test:unit": "jest",
+		"test:e2e": "wdio run ./wdio.conf.mts",
 		"prepare": "husky install",
 		"lint": "eslint . --ext .ts --ext .svelte",
 		"lint-fix": "eslint .  --fix  --ext .ts --ext .svelte",
