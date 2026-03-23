@@ -20,7 +20,7 @@ export const DATAVIEW_INLINE_FIELD_REGEX =
 	/\[([^:\][]+)::\s(.*?)\]|\(([^:)(]+)::\s(.*?)\)/g;
 
 export const TRANSCLUDED_FILE_REGEX =
-	/!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf))\|(.*?)\]\]|!\[\[(.*?)(\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf))\]\]/g;
+	/!\[\[([^\]|]*)(\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf))(?:#[^\]|]*)?\|([^\]]*)\]\]|!\[\[([^\]|]*)(\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf))(?:#[^\]|]*)?\]\]/g;
 
 export const FILE_REGEX =
-	/!\[(.*?)\]\((.*?)(\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf))\)/g;
+	/!\[(.*?)\]\((.*?)(\.(png|jpg|jpeg|gif|webp|mp4|mkv|mov|avi|mp3|wav|ogg|pdf))(?:#[^)]*?)?\)/g;

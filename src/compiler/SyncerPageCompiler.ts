@@ -357,7 +357,9 @@ export class SyncerPageCompiler {
 	 * @returns A function that takes the text to compile and returns the compiled text.
 	 */
 	convertLinksToFullPath: TCompilerStep = (file) => async (text) => {
-		let convertedText = text;
+		const frontmatterMatch = text.match(FRONTMATTER_REGEX);
+		const frontmatter = frontmatterMatch ? frontmatterMatch[0] : "";
+		let body = frontmatter ? text.substring(frontmatter.length) : text;
 
 		const textToBeProcessed =
 			await this.stripAwayCodeFencesAndFrontmatter(file)(text);
@@ -405,7 +407,7 @@ export class SyncerPageCompiler {
 					);
 
 					if (!linkedFile) {
-						convertedText = convertedText.replace(
+						body = body.replace(
 							linkMatch,
 							`[[${linkedFileName}${headerPath}${linkDisplayName}]]`,
 						);
@@ -418,7 +420,7 @@ export class SyncerPageCompiler {
 							linkedFile.path.lastIndexOf("."),
 						);
 
-						convertedText = convertedText.replace(
+						body = body.replace(
 							linkMatch,
 							`[[${extensionlessPath}${headerPath}${linkDisplayName}]]`,
 						);
@@ -430,7 +432,7 @@ export class SyncerPageCompiler {
 			}
 		}
 
-		return convertedText;
+		return frontmatter + body;
 	};
 
 	/**
@@ -758,7 +760,36 @@ export class SyncerPageCompiler {
 	 */
 	extractBlobLinks = async (file: PublishFile) => {
 		const text = await file.cachedRead();
-		const assets = [];
+		const assets: string[] = [];
+
+		if (file.getType() === "canvas") {
+			try {
+				const canvasData = JSON.parse(text);
+
+				if (Array.isArray(canvasData?.nodes)) {
+					for (const node of canvasData.nodes) {
+						if (
+							node.type === "file" &&
+							typeof node.file === "string"
+						) {
+							const linkedFile =
+								this.metadataCache.getFirstLinkpathDest(
+									node.file,
+									file.getPath(),
+								);
+
+							if (linkedFile) {
+								assets.push(linkedFile.path);
+							}
+						}
+					}
+				}
+			} catch {
+				Logger.warn(`Failed to parse canvas file: ${file.getPath()}`);
+			}
+
+			return assets;
+		}
 
 		//![[blob.png]]
 		const transcludedBlobMatches = text.match(TRANSCLUDED_FILE_REGEX);
@@ -784,7 +815,8 @@ export class SyncerPageCompiler {
 						actualBlobName = actualBlobName.replace(/\.\.\//g, "");
 					} while (actualBlobName !== previous);
 
-					const actualBlobPath = actualBlobName;
+					// Strip anchor/fragment (e.g. #right, #page=3) before resolving
+					const actualBlobPath = actualBlobName.replace(/#.*$/, "");
 
 					const blobPath = getLinkpath(actualBlobPath);
 
@@ -819,6 +851,9 @@ export class SyncerPageCompiler {
 					if (blobPath.startsWith("http")) {
 						continue;
 					}
+
+					// Strip anchor/fragment (e.g. #right) before resolving
+					blobPath = blobPath.replace(/#.*$/, "");
 
 					let previous;
 
@@ -914,7 +949,11 @@ export class SyncerPageCompiler {
 							metaData = `${lastValue}`;
 						}
 
-						let blobPath = getLinkpath(blobName);
+						const anchorMatch = blobName.match(/#.*$/);
+						const anchor = anchorMatch ? anchorMatch[0] : "";
+						const blobNameClean = blobName.replace(/#.*$/, "");
+
+						let blobPath = getLinkpath(blobNameClean);
 
 						const linkedFile =
 							this.metadataCache.getFirstLinkpathDest(
@@ -952,7 +991,7 @@ export class SyncerPageCompiler {
 							name = "";
 						}
 
-						const blobMarkdown = `![[${blobFullPath}${name}]]`;
+						const blobMarkdown = `![[${blobFullPath}${anchor}${name}]]`;
 
 						assets.push({
 							path: blobFullPath,
@@ -991,6 +1030,10 @@ export class SyncerPageCompiler {
 							continue;
 						}
 
+						const mdAnchorMatch = blobPath.match(/#.*$/);
+						const mdAnchor = mdAnchorMatch ? mdAnchorMatch[0] : "";
+						blobPath = blobPath.replace(/#.*$/, "");
+
 						const decodedBlobPath = decodeURI(blobPath);
 
 						const linkedFile =
@@ -1017,7 +1060,7 @@ export class SyncerPageCompiler {
 								this.settings.vaultPath,
 							)?.path ?? blobPath;
 
-						const blobMarkdown = `![${blobName}](${blobFullPath})`;
+						const blobMarkdown = `![${blobName}](${blobFullPath}${mdAnchor})`;
 
 						assets.push({
 							path: blobFullPath,
