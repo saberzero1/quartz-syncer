@@ -43,6 +43,7 @@ jest.mock("src/publishFile/PublishFile", () => {
 			const blocksForFile = publishFileFixtures.blocks.get(
 				this.file.path,
 			);
+
 			return blocksForFile ? blocksForFile[blockId] : undefined;
 		}
 	}
@@ -54,6 +55,7 @@ import { SyncerPageCompiler } from "./SyncerPageCompiler";
 import { App, MetadataCache, Vault } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
 import { DataStore } from "src/publishFile/DataStore";
+import { PublishFile } from "src/publishFile/PublishFile";
 
 function makeSettings(
 	overrides: Partial<QuartzSyncerSettings> = {},
@@ -112,15 +114,16 @@ function makeCompiler(
 	const settings = makeSettings(settingsOverrides);
 	const mc = metadataCache ?? new MetadataCache();
 	const datastore = {} as DataStore;
+
 	const getFilesMarkedForPublishing = jest.fn().mockResolvedValue({
 		notes: [],
 	});
 
 	const compiler = new SyncerPageCompiler(
-		app as any,
-		vault as any,
+		app,
+		vault,
 		settings,
-		mc as any,
+		mc,
 		datastore,
 		getFilesMarkedForPublishing,
 	);
@@ -131,6 +134,7 @@ function makeCompiler(
 function makeLinkedFile(path: string) {
 	const name = path.split("/").pop() ?? path;
 	const extension = name.includes(".") ? (name.split(".").pop() ?? "") : "";
+
 	return { path, name, extension };
 }
 
@@ -143,7 +147,10 @@ describe("SyncerPageCompiler createTranscludedText", () => {
 
 	it("returns text unchanged when depth limit is reached", async () => {
 		const { compiler } = makeCompiler();
-		const file = { getPath: () => "notes/main.md" } as any;
+
+		const file = {
+			getPath: () => "notes/main.md",
+		} as unknown as PublishFile;
 		const input = "Before ![[note]] After";
 		const result = await compiler.createTranscludedText(4)(file)(input);
 		expect(result).toBe(input);
@@ -151,7 +158,10 @@ describe("SyncerPageCompiler createTranscludedText", () => {
 
 	it("returns text unchanged when applyEmbeds is false", async () => {
 		const { compiler } = makeCompiler({ applyEmbeds: false });
-		const file = { getPath: () => "notes/main.md" } as any;
+
+		const file = {
+			getPath: () => "notes/main.md",
+		} as unknown as PublishFile;
 		const input = "Before ![[note]] After";
 		const result = await compiler.createTranscludedText(0)(file)(input);
 		expect(result).toBe(input);
@@ -159,11 +169,15 @@ describe("SyncerPageCompiler createTranscludedText", () => {
 
 	it("inlines basic transcluded content and strips frontmatter", async () => {
 		const mc = new MetadataCache();
+
 		(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue(
 			makeLinkedFile("notes/linked.md"),
 		);
 		const { compiler } = makeCompiler({}, mc);
-		const file = { getPath: () => "notes/main.md" } as any;
+
+		const file = {
+			getPath: () => "notes/main.md",
+		} as unknown as PublishFile;
 
 		publishFileFixtures.contents.set(
 			"notes/linked.md",
@@ -178,16 +192,21 @@ describe("SyncerPageCompiler createTranscludedText", () => {
 
 	it("transcludes block references and removes block id", async () => {
 		const mc = new MetadataCache();
+
 		(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue(
 			makeLinkedFile("notes/linked.md"),
 		);
 		const { compiler } = makeCompiler({}, mc);
-		const file = { getPath: () => "notes/main.md" } as any;
+
+		const file = {
+			getPath: () => "notes/main.md",
+		} as unknown as PublishFile;
 
 		publishFileFixtures.contents.set(
 			"notes/linked.md",
 			"Line 1\nBlock content ^block1\nLine 3",
 		);
+
 		publishFileFixtures.blocks.set("notes/linked.md", {
 			block1: { position: { start: { line: 1 }, end: { line: 1 } } },
 		});
@@ -200,16 +219,21 @@ describe("SyncerPageCompiler createTranscludedText", () => {
 
 	it("transcludes header sections based on metadata headings", async () => {
 		const mc = new MetadataCache();
+
 		(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue(
 			makeLinkedFile("notes/linked.md"),
 		);
 		const { compiler } = makeCompiler({}, mc);
-		const file = { getPath: () => "notes/main.md" } as any;
+
+		const file = {
+			getPath: () => "notes/main.md",
+		} as unknown as PublishFile;
 
 		publishFileFixtures.contents.set(
 			"notes/linked.md",
 			"# One\nIntro\n## Two\nTarget section\n## Three\nNext section",
 		);
+
 		publishFileFixtures.metadata.set("notes/linked.md", {
 			headings: [
 				{ heading: "One", level: 1, position: { start: { line: 0 } } },
@@ -230,15 +254,21 @@ describe("SyncerPageCompiler createTranscludedText", () => {
 
 	it("recursively resolves nested transclusions", async () => {
 		const mc = new MetadataCache();
+
 		(mc.getFirstLinkpathDest as jest.Mock).mockImplementation(
 			(path: string) => {
 				if (path === "parent") return makeLinkedFile("notes/parent.md");
+
 				if (path === "child") return makeLinkedFile("notes/child.md");
+
 				return null;
 			},
 		);
 		const { compiler } = makeCompiler({}, mc);
-		const file = { getPath: () => "notes/main.md" } as any;
+
+		const file = {
+			getPath: () => "notes/main.md",
+		} as unknown as PublishFile;
 
 		publishFileFixtures.contents.set(
 			"notes/parent.md",
@@ -254,11 +284,15 @@ describe("SyncerPageCompiler createTranscludedText", () => {
 
 	it("skips excalidraw transclusions", async () => {
 		const mc = new MetadataCache();
+
 		(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue(
 			makeLinkedFile("notes/diagram.excalidraw.md"),
 		);
 		const { compiler } = makeCompiler({}, mc);
-		const file = { getPath: () => "notes/main.md" } as any;
+
+		const file = {
+			getPath: () => "notes/main.md",
+		} as unknown as PublishFile;
 
 		const input = "Start ![[diagram]] End";
 		const result = await compiler.createTranscludedText(0)(file)(input);
@@ -267,11 +301,15 @@ describe("SyncerPageCompiler createTranscludedText", () => {
 
 	it("applies vault path filtering inside transcluded content", async () => {
 		const mc = new MetadataCache();
+
 		(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue(
 			makeLinkedFile("notes/linked.md"),
 		);
 		const { compiler } = makeCompiler({ vaultPath: "vault/" }, mc);
-		const file = { getPath: () => "notes/main.md" } as any;
+
+		const file = {
+			getPath: () => "notes/main.md",
+		} as unknown as PublishFile;
 
 		publishFileFixtures.contents.set(
 			"notes/linked.md",
@@ -285,11 +323,15 @@ describe("SyncerPageCompiler createTranscludedText", () => {
 
 	it("does not alter standalone block math lines", async () => {
 		const mc = new MetadataCache();
+
 		(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue(
 			makeLinkedFile("notes/linked.md"),
 		);
 		const { compiler } = makeCompiler({}, mc);
-		const file = { getPath: () => "notes/main.md" } as any;
+
+		const file = {
+			getPath: () => "notes/main.md",
+		} as unknown as PublishFile;
 
 		publishFileFixtures.contents.set("notes/linked.md", "$$\n");
 

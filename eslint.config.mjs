@@ -28,7 +28,7 @@ export default [
 	{
 		languageOptions: {
 			parserOptions: {
-				project: "./tsconfig.json",
+				project: "./tsconfig.eslint.json",
 			},
 		},
 		plugins: {
@@ -72,7 +72,7 @@ export default [
 		languageOptions: {
 			parser: typescriptEslint.parser,
 			parserOptions: {
-				project: "./tsconfig.json",
+				project: "./tsconfig.eslint.json",
 			},
 		},
 		ignores: [ "**/*.svelte" ],

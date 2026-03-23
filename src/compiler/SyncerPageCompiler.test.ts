@@ -71,15 +71,16 @@ function makeCompiler(
 	const settings = makeSettings(settingsOverrides);
 	const mc = metadataCache ?? new MetadataCache();
 	const datastore = {} as DataStore;
+
 	const getFilesMarkedForPublishing = jest.fn().mockResolvedValue({
 		notes: [],
 	});
 
 	const compiler = new SyncerPageCompiler(
-		app as any,
-		vault as any,
+		app,
+		vault,
 		settings,
-		mc as any,
+		mc,
 		datastore,
 		getFilesMarkedForPublishing,
 	);
@@ -502,6 +503,7 @@ describe("SyncerPageCompiler", () => {
 			(mc.getFirstLinkpathDest as jest.Mock).mockImplementation(
 				(path: string) => {
 					if (path === "a.png") return { path: "img/a.png" };
+
 					if (path === "b.jpg") return { path: "img/b.jpg" };
 
 					return null;

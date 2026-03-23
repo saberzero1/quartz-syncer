@@ -25,6 +25,7 @@ import {
 /** Helper: reset lastIndex on global regexes before each use */
 function resetRegex(regex: RegExp): RegExp {
 	regex.lastIndex = 0;
+
 	return regex;
 }
 

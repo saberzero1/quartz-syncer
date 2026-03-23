@@ -1,0 +1,13 @@
+{
+	"extends": "./tsconfig.json",
+	"include": [
+		"**/*.ts",
+		"**/*.js",
+		"**/*.svelte",
+		"eslint.config.mjs",
+		"esbuild.config.mjs",
+		"wdio.conf.mts",
+		"test/e2e/**/*.ts"
+	],
+	"exclude": []
+}

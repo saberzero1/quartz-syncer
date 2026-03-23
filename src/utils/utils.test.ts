@@ -213,6 +213,7 @@ describe("utils", () => {
 				from: "other/path",
 				to: "new/path",
 			};
+
 			expect(getSyncerPathForNote("notes/test.md", rule)).toBe(
 				"notes/test.md",
 			);

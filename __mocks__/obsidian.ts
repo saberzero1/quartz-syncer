@@ -45,17 +45,17 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
 	return Buffer.from(buffer).toString("base64");
 }
 
-export function htmlToMarkdown(html: string): string {
-	return html;
+export function htmlToMarkdown(_html: string): string {
+	return _html;
 }
 
-export function sanitizeHTMLToDom(html: string): DocumentFragment {
+export function sanitizeHTMLToDom(_html: string): DocumentFragment {
 	const fragment = new DocumentFragment();
 
 	return fragment;
 }
 
-export function parseYaml(yaml: string): Record<string, unknown> {
+export function parseYaml(_yaml: string): Record<string, unknown> {
 	return {};
 }
 

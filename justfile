@@ -1,7 +1,7 @@
 default:
 	just --list
 
-full: lint check prod
+full: lint check prod test-full
 
 dev:
 	npm run dev

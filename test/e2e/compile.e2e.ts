@@ -39,15 +39,21 @@ describe("Quartz Syncer compile pipeline", function () {
 	});
 
 	it("should handle frontmatter correctly", async () => {
-		const hasFrontmatter = await browser.executeObsidian(({ app }) => {
-			const file = app.vault.getAbstractFileByPath("frontmatter-test.md");
+		const hasFrontmatter = await browser.executeObsidian(
+			({ app, obsidian: _obsidian }) => {
+				const file = app.vault.getAbstractFileByPath(
+					"frontmatter-test.md",
+				);
 
-			if (!file) return false;
+				if (!file) return false;
 
-			const cache = app.metadataCache.getFileCache(file as any);
+				const cache = app.metadataCache.getFileCache(
+					file as unknown as InstanceType<typeof _obsidian.TFile>,
+				);
 
-			return cache?.frontmatter?.publish === true;
-		});
+				return cache?.frontmatter?.publish === true;
+			},
+		);
 
 		expect(hasFrontmatter).toBe(true);
 	});
