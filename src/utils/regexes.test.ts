@@ -396,4 +396,167 @@ describe("regexes", () => {
 			expect(matches).toHaveLength(1);
 		});
 	});
+
+	describe("FRONTMATTER_REGEX (additional)", () => {
+		it("does not match frontmatter with CRLF line endings (regex requires LF)", () => {
+			const text = "---\r\ntitle: Test\r\n---\r\n\r\nBody";
+			const matches = allMatches(FRONTMATTER_REGEX, text);
+			expect(matches).toHaveLength(0);
+		});
+
+		it("captures multiline frontmatter content", () => {
+			const text = `---\ntitle: Test\ntags:\n  - a\n  - b\n---\n\nBody`;
+			const matches = allMatches(FRONTMATTER_REGEX, text);
+			expect(matches).toHaveLength(1);
+			expect(matches[0][1]).toContain("tags:");
+		});
+
+		it("does not match when --- appears mid-document without leading position", () => {
+			const text = "Some text\n---\ntitle: Nope\n---\n";
+			const matches = allMatches(FRONTMATTER_REGEX, text);
+			expect(matches).toHaveLength(0);
+		});
+	});
+
+	describe("FILE_REGEX (additional)", () => {
+		it("captures alt text in group 1", () => {
+			const matches = allMatches(FILE_REGEX, "![my alt](photo.png)");
+			expect(matches).toHaveLength(1);
+			expect(matches[0][1]).toBe("my alt");
+		});
+
+		it("captures path without extension in group 2", () => {
+			const matches = allMatches(FILE_REGEX, "![](folder/photo.png)");
+			expect(matches).toHaveLength(1);
+			expect(matches[0][2]).toBe("folder/photo");
+		});
+
+		it("captures extension with dot in group 3", () => {
+			const matches = allMatches(FILE_REGEX, "![](photo.jpg)");
+			expect(matches).toHaveLength(1);
+			expect(matches[0][3]).toBe(".jpg");
+		});
+
+		it("matches image with anchor and captures path before anchor", () => {
+			const matches = allMatches(FILE_REGEX, "![](photo.png#center)");
+			expect(matches).toHaveLength(1);
+			expect(matches[0][2]).toBe("photo");
+			expect(matches[0][3]).toBe(".png");
+		});
+
+		it("matches http URLs (filtering is done in compiler, not regex)", () => {
+			const matches = allMatches(
+				FILE_REGEX,
+				"![alt](https://example.com/photo.png)",
+			);
+			expect(matches).toHaveLength(1);
+		});
+
+		it("matches URL-encoded filenames with spaces", () => {
+			const matches = allMatches(
+				FILE_REGEX,
+				"![](my%20folder/my%20photo.png)",
+			);
+			expect(matches).toHaveLength(1);
+		});
+	});
+
+	describe("TRANSCLUDED_FILE_REGEX (additional)", () => {
+		it("captures filename without extension in group 1 (with display name)", () => {
+			const matches = allMatches(
+				TRANSCLUDED_FILE_REGEX,
+				"![[photo.png|alt text]]",
+			);
+			expect(matches).toHaveLength(1);
+			expect(matches[0][1]).toBe("photo");
+			expect(matches[0][4]).toBe("alt text");
+		});
+
+		it("captures filename without extension in group 5 (no display name)", () => {
+			const matches = allMatches(
+				TRANSCLUDED_FILE_REGEX,
+				"![[photo.png]]",
+			);
+			expect(matches).toHaveLength(1);
+			expect(matches[0][5]).toBe("photo");
+		});
+
+		it("does not match across ]] boundaries", () => {
+			const text = "![[note]] some text ![[photo.png]]";
+			const matches = allMatches(TRANSCLUDED_FILE_REGEX, text);
+			expect(matches).toHaveLength(1);
+			expect(matches[0][0]).toBe("![[photo.png]]");
+		});
+
+		it("matches file with URL-encoded name", () => {
+			const matches = allMatches(
+				TRANSCLUDED_FILE_REGEX,
+				"![[my%20photo.png]]",
+			);
+			expect(matches).toHaveLength(1);
+		});
+
+		it("matches file with spaces in path", () => {
+			const matches = allMatches(
+				TRANSCLUDED_FILE_REGEX,
+				"![[my folder/my photo.png]]",
+			);
+			expect(matches).toHaveLength(1);
+		});
+
+		it("matches anchor with page reference ![[doc.pdf#page=5|alt]]", () => {
+			const matches = allMatches(
+				TRANSCLUDED_FILE_REGEX,
+				"![[doc.pdf#page=5|My PDF]]",
+			);
+			expect(matches).toHaveLength(1);
+			expect(matches[0][4]).toBe("My PDF");
+		});
+	});
+
+	describe("BLOCKREF_REGEX (additional)", () => {
+		it("captures the full block ref including caret", () => {
+			const matches = allMatches(BLOCKREF_REGEX, "Some text ^abc123\n");
+			expect(matches).toHaveLength(1);
+			expect(matches[0][1]).toBe("^abc123\n");
+		});
+
+		it("matches multiple block refs in multiline text", () => {
+			const text = "Line one ^ref1\nLine two ^ref2\n";
+			const matches = allMatches(BLOCKREF_REGEX, text);
+			expect(matches).toHaveLength(2);
+		});
+	});
+
+	describe("CODEBLOCK_REGEX (additional)", () => {
+		it("matches multiple code blocks in one text", () => {
+			const text = "```js\ncode1\n```\n\nText\n\n```python\ncode2\n```";
+			const matches = allMatches(CODEBLOCK_REGEX, text);
+			expect(matches).toHaveLength(2);
+		});
+
+		it("matches code block with empty content", () => {
+			const text = "```\n\n```";
+			const matches = allMatches(CODEBLOCK_REGEX, text);
+			expect(matches).toHaveLength(1);
+		});
+	});
+
+	describe("TRANSCLUDED_SVG_REGEX (additional)", () => {
+		it("matches SVG with path ![[folder/diagram.svg]]", () => {
+			const matches = allMatches(
+				TRANSCLUDED_SVG_REGEX,
+				"![[assets/diagram.svg]]",
+			);
+			expect(matches).toHaveLength(1);
+		});
+
+		it("does not match SVG without transclusion prefix", () => {
+			const matches = allMatches(
+				TRANSCLUDED_SVG_REGEX,
+				"[[diagram.svg]]",
+			);
+			expect(matches).toHaveLength(0);
+		});
+	});
 });
