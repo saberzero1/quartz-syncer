@@ -470,8 +470,8 @@ export class SyncerPageCompiler {
 					// Also try the escaped-pipe variant, since astTransform escapes
 					// `|` → `\|` inside wikilinks on table rows.
 					const escapedOriginal = embed.original.replace(
-						/\|/g,
-						"\\|",
+						/(\[\[[^\]]*?)\|([^\]]*?\]\])/g,
+						"$1\\|$2",
 					);
 
 					if (blobText.includes(embed.original)) {
