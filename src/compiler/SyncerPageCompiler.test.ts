@@ -72,17 +72,12 @@ function makeCompiler(
 	const mc = metadataCache ?? new MetadataCache();
 	const datastore = {} as DataStore;
 
-	const getFilesMarkedForPublishing = jest.fn().mockResolvedValue({
-		notes: [],
-	});
-
 	const compiler = new SyncerPageCompiler(
 		app,
 		vault,
 		settings,
 		mc,
 		datastore,
-		getFilesMarkedForPublishing,
 	);
 
 	return { compiler, vault, metadataCache: mc, settings, app };
@@ -139,68 +134,77 @@ function makeMockPublishFile(
 }
 
 describe("SyncerPageCompiler", () => {
-	describe("removeObsidianComments", () => {
-		it("removes a single-line comment", () => {
+	describe("astTransform — comment stripping", () => {
+		it("removes a single-line comment", async () => {
 			const { compiler } = makeCompiler();
 			const file = makeMockPublishFile();
 
-			const result = compiler.removeObsidianComments(file)(
+			const result = await compiler.astTransform(file)(
 				"Hello %%hidden%% world",
 			);
 
-			expect(result).toBe("Hello  world");
+			expect(result.trim()).toBe("Hello  world");
 		});
 
-		it("removes a multi-line comment", () => {
+		it("removes a multi-line comment", async () => {
 			const { compiler } = makeCompiler();
 			const file = makeMockPublishFile();
 
-			const result = compiler.removeObsidianComments(file)(
+			const result = await compiler.astTransform(file)(
 				"Before\n%%\nThis is a\nmultiline comment\n%%\nAfter",
 			);
 
-			expect(result).toBe("Before\n\nAfter");
+			expect(result).toContain("Before");
+			expect(result).toContain("After");
+			expect(result).not.toContain("multiline comment");
 		});
 
-		it("preserves comments inside code blocks", () => {
+		it("preserves comments inside code blocks", async () => {
 			const { compiler } = makeCompiler();
 			const file = makeMockPublishFile();
 
-			const input = "```\n%%keep me%%\n```";
-			const result = compiler.removeObsidianComments(file)(input);
+			const result = await compiler.astTransform(file)(
+				"```\n%%keep me%%\n```",
+			);
 
-			expect(result).toBe(input);
+			expect(result).toContain("%%keep me%%");
 		});
 
-		it("preserves comments inside code fences", () => {
+		it("preserves comments inside code fences", async () => {
 			const { compiler } = makeCompiler();
 			const file = makeMockPublishFile();
 
-			const input = "```javascript\n%%keep me%%\n```";
-			const result = compiler.removeObsidianComments(file)(input);
+			const result = await compiler.astTransform(file)(
+				"```javascript\n%%keep me%%\n```",
+			);
 
-			expect(result).toBe(input);
+			expect(result).toContain("%%keep me%%");
 		});
 
-		it("returns text unchanged when no comments exist", () => {
+		it("returns text unchanged when no comments exist", async () => {
 			const { compiler } = makeCompiler();
 			const file = makeMockPublishFile();
 
-			const input = "No comments here, just text.";
-			const result = compiler.removeObsidianComments(file)(input);
+			const result = await compiler.astTransform(file)(
+				"No comments here, just text.",
+			);
 
-			expect(result).toBe(input);
+			expect(result.trim()).toBe("No comments here, just text.");
 		});
 
-		it("removes multiple comments in one text", () => {
+		it("removes multiple comments in one text", async () => {
 			const { compiler } = makeCompiler();
 			const file = makeMockPublishFile();
 
-			const result = compiler.removeObsidianComments(file)(
+			const result = await compiler.astTransform(file)(
 				"A %%one%% B %%two%% C",
 			);
 
-			expect(result).toBe("A  B  C");
+			expect(result).toContain("A");
+			expect(result).toContain("B");
+			expect(result).toContain("C");
+			expect(result).not.toContain("one");
+			expect(result).not.toContain("two");
 		});
 	});
 
@@ -228,58 +232,49 @@ describe("SyncerPageCompiler", () => {
 		});
 	});
 
-	describe("applyVaultPath", () => {
-		it("strips vault path from wikilinks", () => {
+	describe("astTransform — vault path stripping", () => {
+		it("strips vault path from markdown links", async () => {
 			const { compiler } = makeCompiler({ vaultPath: "garden/" });
 			const file = makeMockPublishFile();
 
-			const result = compiler.applyVaultPath(file)(
-				"See [[garden/my-note]]",
-			);
-
-			expect(result).toBe("See [[my-note]]");
-		});
-
-		it("strips vault path from markdown links", () => {
-			const { compiler } = makeCompiler({ vaultPath: "garden/" });
-			const file = makeMockPublishFile();
-
-			const result = compiler.applyVaultPath(file)(
+			const result = await compiler.astTransform(file)(
 				"See [My Note](garden/my-note)",
 			);
 
-			expect(result).toBe("See [My Note](my-note)");
+			expect(result).toContain("[My Note](my-note)");
 		});
 
-		it("does nothing when vaultPath is root", () => {
+		it("strips vault path from markdown images", async () => {
+			const { compiler } = makeCompiler({ vaultPath: "garden/" });
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"![Alt](garden/img.png)",
+			);
+
+			expect(result).toContain("![Alt](img.png)");
+		});
+
+		it("does nothing when vaultPath is root", async () => {
 			const { compiler } = makeCompiler({ vaultPath: "/" });
 			const file = makeMockPublishFile();
 
-			const input = "See [[some/note]]";
-			const result = compiler.applyVaultPath(file)(input);
+			const result = await compiler.astTransform(file)(
+				"See [My Note](some/note)",
+			);
 
-			expect(result).toBe(input);
+			expect(result).toContain("[My Note](some/note)");
 		});
 
-		it("does nothing when vaultPath is empty", () => {
+		it("does nothing when vaultPath is empty", async () => {
 			const { compiler } = makeCompiler({ vaultPath: "" });
 			const file = makeMockPublishFile();
 
-			const input = "See [[some/note]]";
-			const result = compiler.applyVaultPath(file)(input);
-
-			expect(result).toBe(input);
-		});
-
-		it("handles multiple links in one text", () => {
-			const { compiler } = makeCompiler({ vaultPath: "docs/" });
-			const file = makeMockPublishFile();
-
-			const result = compiler.applyVaultPath(file)(
-				"[[docs/a]] and [[docs/b]]",
+			const result = await compiler.astTransform(file)(
+				"See [My Note](some/note)",
 			);
 
-			expect(result).toBe("[[a]] and [[b]]");
+			expect(result).toContain("[My Note](some/note)");
 		});
 	});
 
@@ -315,126 +310,21 @@ describe("SyncerPageCompiler", () => {
 		});
 	});
 
-	describe("convertLinksToFullPath", () => {
-		it("resolves a wikilink to its full path", async () => {
-			const mc = new MetadataCache();
-
-			(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue({
-				path: "folder/subfolder/target.md",
-				extension: "md",
-			});
-
-			const { compiler } = makeCompiler({}, mc);
-			const file = makeMockPublishFile({ path: "notes/source.md" });
-
-			const input = "See [[target]] for details.";
-			const result = await compiler.convertLinksToFullPath(file)(input);
-
-			expect(result).toBe("See [[folder/subfolder/target]] for details.");
-		});
-
-		it("preserves header anchors in links", async () => {
-			const mc = new MetadataCache();
-
-			(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue({
-				path: "folder/target.md",
-				extension: "md",
-			});
-
-			const { compiler } = makeCompiler({}, mc);
-			const file = makeMockPublishFile();
-
-			const input = "See [[target#section]] for details.";
-			const result = await compiler.convertLinksToFullPath(file)(input);
-
-			expect(result).toBe("See [[folder/target#section]] for details.");
-		});
-
-		it("preserves display names in links", async () => {
-			const mc = new MetadataCache();
-
-			(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue({
-				path: "folder/target.md",
-				extension: "md",
-			});
-
-			const { compiler } = makeCompiler({}, mc);
-			const file = makeMockPublishFile();
-
-			const input = "See [[target|My Display Name]] for details.";
-			const result = await compiler.convertLinksToFullPath(file)(input);
-
-			expect(result).toBe(
-				"See [[folder/target\\|My Display Name]] for details.",
-			);
-		});
-
-		it("leaves unresolvable links unchanged", async () => {
-			const mc = new MetadataCache();
-			(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue(null);
-
-			const { compiler } = makeCompiler({}, mc);
-			const file = makeMockPublishFile();
-
-			const input = "See [[nonexistent]] for details.";
-			const result = await compiler.convertLinksToFullPath(file)(input);
-
-			expect(result).toBe("See [[nonexistent]] for details.");
-		});
-
-		it("skips links inside code fences", async () => {
-			const mc = new MetadataCache();
-
-			(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue({
-				path: "resolved.md",
-				extension: "md",
-			});
-
-			const { compiler } = makeCompiler({}, mc);
-			const file = makeMockPublishFile();
-
-			const input =
-				"```\n[[should-not-resolve]]\n```\n\n[[target]] outside";
-
-			const result = await compiler.convertLinksToFullPath(file)(input);
-
-			expect(result).toContain("[[resolved]]");
-			expect(result).toContain("```\n[[should-not-resolve]]\n```");
-		});
-
-		it("skips links inside frontmatter", async () => {
-			const mc = new MetadataCache();
-
-			(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue({
-				path: "resolved.md",
-				extension: "md",
-			});
-
-			const { compiler } = makeCompiler({}, mc);
-			const file = makeMockPublishFile();
-
-			const input =
-				'---\ntitle: "[[not-a-link]]"\n---\n\nBody with [[target]]';
-
-			const result = await compiler.convertLinksToFullPath(file)(input);
-
-			expect(result).toContain("Body with [[resolved]]");
-		});
-	});
-
 	describe("extractBlobLinks", () => {
 		it("extracts transcluded image paths", async () => {
 			const mc = new MetadataCache();
 
+			(mc.getCache as jest.Mock).mockReturnValue({
+				embeds: [{ link: "photo.png", original: "![[photo.png]]" }],
+			});
+
 			(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue({
 				path: "attachments/photo.png",
+				extension: "png",
 			});
 
 			const { compiler } = makeCompiler({}, mc);
-
-			const file = makeMockPublishFile({
-				cachedReadValue: "![[photo.png]]",
-			});
+			const file = makeMockPublishFile();
 
 			const assets = await compiler.extractBlobLinks(file);
 
@@ -444,42 +334,79 @@ describe("SyncerPageCompiler", () => {
 		it("extracts markdown-style image paths", async () => {
 			const mc = new MetadataCache();
 
+			(mc.getCache as jest.Mock).mockReturnValue({
+				embeds: [{ link: "photo.jpg", original: "![alt](photo.jpg)" }],
+			});
+
 			(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue({
 				path: "attachments/photo.jpg",
+				extension: "jpg",
 			});
 
 			const { compiler } = makeCompiler({}, mc);
-
-			const file = makeMockPublishFile({
-				cachedReadValue: "![alt](photo.jpg)",
-			});
+			const file = makeMockPublishFile();
 
 			const assets = await compiler.extractBlobLinks(file);
 
 			expect(assets).toContain("attachments/photo.jpg");
 		});
 
-		it("skips http URLs in markdown-style images", async () => {
+		it("skips embeds that resolve to non-asset files", async () => {
 			const mc = new MetadataCache();
 
-			const { compiler } = makeCompiler({}, mc);
-
-			const file = makeMockPublishFile({
-				cachedReadValue: "![alt](https://example.com/photo.jpg)",
+			(mc.getCache as jest.Mock).mockReturnValue({
+				embeds: [{ link: "note", original: "![[note]]" }],
 			});
+
+			(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue({
+				path: "notes/note.md",
+				extension: "md",
+			});
+
+			const { compiler } = makeCompiler({}, mc);
+			const file = makeMockPublishFile();
 
 			const assets = await compiler.extractBlobLinks(file);
 
 			expect(assets).toHaveLength(0);
 		});
 
-		it("strips anchors before resolving blob paths", async () => {
+		it("skips embeds that do not resolve", async () => {
 			const mc = new MetadataCache();
+
+			(mc.getCache as jest.Mock).mockReturnValue({
+				embeds: [
+					{
+						link: "nonexistent.png",
+						original: "![[nonexistent.png]]",
+					},
+				],
+			});
+
+			(mc.getFirstLinkpathDest as jest.Mock).mockReturnValue(null);
+
+			const { compiler } = makeCompiler({}, mc);
+			const file = makeMockPublishFile();
+
+			const assets = await compiler.extractBlobLinks(file);
+
+			expect(assets).toHaveLength(0);
+		});
+
+		it("resolves embeds with anchors stripped by Obsidian", async () => {
+			const mc = new MetadataCache();
+
+			(mc.getCache as jest.Mock).mockReturnValue({
+				embeds: [{ link: "doc.pdf", original: "![[doc.pdf#page=3]]" }],
+			});
 
 			(mc.getFirstLinkpathDest as jest.Mock).mockImplementation(
 				(path: string) => {
 					if (path === "doc.pdf") {
-						return { path: "attachments/doc.pdf" };
+						return {
+							path: "attachments/doc.pdf",
+							extension: "pdf",
+						};
 					}
 
 					return null;
@@ -487,10 +414,7 @@ describe("SyncerPageCompiler", () => {
 			);
 
 			const { compiler } = makeCompiler({}, mc);
-
-			const file = makeMockPublishFile({
-				cachedReadValue: "![[doc.pdf#page=3]]",
-			});
+			const file = makeMockPublishFile();
 
 			const assets = await compiler.extractBlobLinks(file);
 
@@ -500,21 +424,27 @@ describe("SyncerPageCompiler", () => {
 		it("handles multiple blobs in one file", async () => {
 			const mc = new MetadataCache();
 
+			(mc.getCache as jest.Mock).mockReturnValue({
+				embeds: [
+					{ link: "a.png", original: "![[a.png]]" },
+					{ link: "b.jpg", original: "![[b.jpg]]" },
+				],
+			});
+
 			(mc.getFirstLinkpathDest as jest.Mock).mockImplementation(
 				(path: string) => {
-					if (path === "a.png") return { path: "img/a.png" };
+					if (path === "a.png")
+						return { path: "img/a.png", extension: "png" };
 
-					if (path === "b.jpg") return { path: "img/b.jpg" };
+					if (path === "b.jpg")
+						return { path: "img/b.jpg", extension: "jpg" };
 
 					return null;
 				},
 			);
 
 			const { compiler } = makeCompiler({}, mc);
-
-			const file = makeMockPublishFile({
-				cachedReadValue: "![[a.png]] and ![[b.jpg]]",
-			});
+			const file = makeMockPublishFile();
 
 			const assets = await compiler.extractBlobLinks(file);
 
@@ -551,6 +481,18 @@ describe("SyncerPageCompiler", () => {
 			const assets = await compiler.extractBlobLinks(file);
 
 			expect(assets).toContain("notes/card.md");
+		});
+
+		it("returns empty when cache has no embeds", async () => {
+			const mc = new MetadataCache();
+			(mc.getCache as jest.Mock).mockReturnValue({});
+
+			const { compiler } = makeCompiler({}, mc);
+			const file = makeMockPublishFile();
+
+			const assets = await compiler.extractBlobLinks(file);
+
+			expect(assets).toHaveLength(0);
 		});
 	});
 

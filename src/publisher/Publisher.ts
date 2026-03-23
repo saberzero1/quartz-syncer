@@ -61,7 +61,6 @@ export default class Publisher {
 			settings,
 			metadataCache,
 			datastore,
-			() => this.getFilesMarkedForPublishing(),
 		);
 	}
 

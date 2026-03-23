@@ -201,10 +201,6 @@ export default class PublishStatusManager implements IPublishStatusManager {
 			}
 		}
 
-		// Populate the compiler's publish file cache before compiling all notes.
-		// This avoids redundant O(N) vault scans during transclusion resolution.
-		await this.publisher.compiler.cacheFilesMarkedForPublishing();
-
 		if (controller) {
 			controller.setText("Compiling notes...");
 			controller.setProgress(0);
@@ -262,7 +258,6 @@ export default class PublishStatusManager implements IPublishStatusManager {
 
 			await this.publisher.datastore.flushCache(controller);
 
-			this.publisher.compiler.clearPublishCache();
 			this.publisher.datastore.clearMemoryCache();
 		}
 

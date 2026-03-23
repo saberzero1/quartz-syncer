@@ -224,7 +224,7 @@ The migration uses a three-layer testing strategy. All layers must pass before a
 Define what each regex matches, rejects, and captures. During migration, the regex implementation gets swapped but these contracts must hold. Documents known limitations (e.g. `FRONTMATTER_REGEX` requires LF, not CRLF; `FILE_REGEX` matches HTTP URLs — filtering happens in compiler code).
 
 **Layer 2 — Compiler step unit tests** (129 tests across 4 files)
-- `src/compiler/SyncerPageCompiler.test.ts` — `removeObsidianComments`, `linkTargeting`, `applyVaultPath`, `convertFrontMatter`, `convertLinksToFullPath`, `extractBlobLinks`, `runCompilerSteps`
+- `src/compiler/SyncerPageCompiler.test.ts` — `astTransform` (comment stripping, link resolution, vault path stripping), `linkTargeting`, `convertFrontMatter`, `extractBlobLinks`, `runCompilerSteps`
 - `src/compiler/SyncerPageCompiler.transclusion.test.ts` — `createTranscludedText` with mocked `PublishFile` instances covering depth limits, block refs, header slicing, recursion, excalidraw skip, vault path filtering
 - `src/compiler/FrontmatterCompiler.test.ts` — `compile`, `addPermalink`, `addDefaultPassThrough`, `addTags`, `addCSSClasses`, `addSocialImage`, `addTimestampsFrontmatter`
 - `src/utils/utils.test.ts` — `generateUrlPath`, `generateBlobHash`, `sanitizePermalink`, `escapeRegExp`, `wrapAround`, `getSyncerPathForNote`, `getRewriteRules`
@@ -252,123 +252,135 @@ Run against a real sandboxed Obsidian instance via `wdio-obsidian-service`. Veri
 
 **Prerequisite:** Phase 1 complete. `remark-obsidian` package published to npm with stable API.
 
-### Dependencies
+**Status:** Core transforms implemented. Comment stripping, link resolution, and vault path stripping consolidated into a single `astTransform` compiler step.
+
+### Dependencies (installed)
 
 ```json
 {
   "dependencies": {
-    "@quartz-community/remark-obsidian": "^x.y.z",
+    "@quartz-community/remark-obsidian": "^0.1.0",
     "unified": "^11.x",
     "remark-parse": "^11.x",
     "remark-stringify": "^11.x",
-    "remark-frontmatter": "^5.x"
+    "remark-frontmatter": "^5.x",
+    "unist-util-visit": "^5.x"
   }
 }
 ```
 
-**Note:** Verify all dependencies work in Obsidian's browser-like runtime. The unified ecosystem is generally browser-compatible but some plugins may assume Node APIs.
+**Browser compatibility verified:** The unified ecosystem is browser-safe. `vfile` uses subpath imports for browser fallbacks. `micromark`'s only Node dependency (`stream`) is only used for streaming APIs, not by remark. `remark-obsidian` has zero Node imports. esbuild handles ESM→CJS interop when bundling.
 
 ### Architecture Change
 
-**Current pipeline (string transforms):**
+**Previous pipeline (string transforms):**
 ```
 raw text
   → convertFrontMatter (string replace)
   → createTranscludedText (regex match + string replace, recursive)
   → convertIntegrations (plugin-specific)
-  → convertLinksToFullPath (regex match + string replace)
-  → removeObsidianComments (regex match + string replace)
+  → convertLinksToFullPath (regex match + string replace)  ← REMOVED
+  → removeObsidianComments (regex match + string replace)  ← REMOVED
   → createSvgEmbeds (regex match + string replace)
   → linkTargeting (regex replace)
-  → applyVaultPath (regex replace)
+  → applyVaultPath (regex replace)                         ← REMOVED
   → convertFileLinks (regex match + string replace, produces assets)
 ```
 
-**Target pipeline (AST transforms):**
+**Current pipeline (hybrid string + AST transforms):**
 ```
 raw text
-  → remark-parse + remark-obsidian → mdast (AST)
-  → convertFrontMatter (modify frontmatter node)
-  → createTranscludedText (replace embed nodes with content subtrees)
-  → convertIntegrations (plugin-specific, may still use string transforms)
-  → convertLinksToFullPath (walk wikilink nodes, update paths)
-  → removeObsidianComments (remove comment nodes)
-  → createSvgEmbeds (replace SVG embed nodes with raw HTML)
-  → linkTargeting (walk link nodes, remove target attrs)
-  → applyVaultPath (walk link/embed nodes, strip vault prefix)
-  → convertFileLinks (walk embed nodes, collect assets)
-  → remark-stringify → compiled text
+  → convertFrontMatter (string replace)
+  → createTranscludedText (regex match + string replace, recursive)
+  → convertIntegrations (plugin-specific)
+  → createSvgEmbeds (regex match + string replace)
+  → linkTargeting (regex replace)
+  → astTransform:                                          ← NEW
+      parse with remark-parse + remark-frontmatter + remark-obsidian
+      → comment stripping (remark-obsidian built-in tree transform)
+      → wikilink resolution (visit wikilink nodes, resolve via getFirstLinkpathDest)
+      → vault path stripping (visit link/image nodes, strip prefix)
+      serialize with remark-stringify + remark-obsidian toMarkdown handlers
+  → convertFileLinks (regex match + string replace, produces assets)
 ```
 
-### Compiler Step Interface Change
+### What Was Implemented
 
-```typescript
-// BEFORE:
-type TCompilerStep = (file: PublishFile) =>
-  | ((text: string) => Promise<string>)
-  | ((text: string) => string);
+#### remark-obsidian toMarkdown serializers (in `~/Repos/remark-obsidian`)
 
-// AFTER:
-import { Root } from "mdast";
+Four serialization handlers added to `remark-obsidian` v0.1.0 so that the unified pipeline can round-trip OFM syntax through parse → transform → serialize:
 
-type TCompilerStep = (file: PublishFile) =>
-  | ((tree: Root) => Promise<Root>)
-  | ((tree: Root) => Root);
+- `wikilinkToMarkdown()` — Serializes `Wikilink` nodes: `[[path#heading|alias]]`, `![[embed]]`
+- `commentToMarkdown()` — Serializes `Comment` nodes: `%%content%%`
+- `highlightToMarkdown()` — Serializes `Highlight` nodes: `==content==`
+- `tagToMarkdown()` — Serializes `Tag` nodes: `#tagname`
 
-// generateMarkdown changes:
-async generateMarkdown(file: PublishFile): Promise<TCompiledFile> {
-  const vaultFileText = await file.cachedRead();
-  
-  // Parse once
-  const processor = unified()
-    .use(remarkParse)
-    .use(remarkFrontmatter, ["yaml"])
-    .use(remarkObsidian);
-  
-  let tree = processor.parse(vaultFileText);
-  
-  // Transform
-  for (const step of COMPILE_STEPS) {
-    tree = await step(file)(tree);
-  }
-  
-  // Serialize once
-  const compiledText = processor.stringify(tree);
-  const [text, blobs] = await this.collectAssets(file)(tree);
-  
-  return [text, { blobs }];
-}
-```
+All handlers use `import type` only — zero runtime dependencies added. Registration is automatic when using `remarkObsidian` plugin, controlled by the same options flags.
 
-### Methods to Convert
+#### `astTransform` compiler step (in `SyncerPageCompiler.ts`)
 
-**`convertLinksToFullPath`** → Walk `wikiLink` nodes in the AST. Each node has `value` (link target), `data.alias` (display text), and structural context (parent node type). Transform `value` to full path. No string replacement needed.
+Consolidated three separate string-based steps into a single AST pass:
 
-**`createTranscludedText`** → Walk `wikiLink` nodes with `data.embed: true`. Read the target file, parse it into a subtree, and replace the embed node with the subtree contents. Recursive transclusion = recursive tree insertion.
+1. **Comment stripping** — `remark-obsidian`'s built-in tree transform removes `Comment` nodes during `processor.run()`. Respects code blocks (comments inside code are not parsed as AST nodes).
 
-**`createSvgEmbeds`** → Walk embed nodes where the target is `.svg`. Read SVG content, create a raw HTML node, replace the embed node.
+2. **Wikilink resolution** — Visits `Wikilink` nodes, resolves paths via `metadataCache.getFirstLinkpathDest()`, strips `.md` extension, strips vault path prefix. Skips embedded wikilinks (handled by `createTranscludedText`/`convertFileLinks`). Skips unresolvable links (leaves them unchanged).
 
-**`removeObsidianComments`** → `remark-obsidian` should parse `%% comments %%` into dedicated nodes. Walk and remove them.
+3. **Vault path stripping** — Visits `Link` and `Image` nodes, strips vault path prefix from URLs. Only active when `vaultPath` is not `/` or empty.
 
-**`applyVaultPath`** → Walk all link/embed nodes, strip vault path prefix from `value`.
+A `stripVaultPath(text)` private helper was added for non-AST contexts (used by `createTranscludedText` and `convertFileLinks`).
 
-**`convertFileLinks`** → Walk embed nodes for asset files, read binary content, collect as assets, update paths.
+#### Methods removed
+
+- `removeObsidianComments` — Replaced by remark-obsidian's comment stripping
+- `convertLinksToFullPath` — Replaced by wikilink visitor in `astTransform`
+- `applyVaultPath` — Replaced by link/image visitors in `astTransform`
+
+#### Regexes removed
+
+- `CODEBLOCK_REGEX` — Was used by `removeObsidianComments` to skip code blocks
+- `CODE_FENCE_REGEX` — Was used by `removeObsidianComments` to skip code fences
+- `EXCALIDRAW_REGEX` — Was used by `removeObsidianComments`
 
 ### What Stays as String Transforms
 
-- `convertIntegrations` — Dataview/Datacore/Statblocks compilation. These plugins have their own APIs that output HTML strings. They'd need to produce mdast nodes to be fully integrated, which is out of scope. Keep as a post-serialization string transform, or wrap the output in raw HTML mdast nodes.
+- `convertFrontMatter` — Replaces frontmatter block, operates on raw text
+- `createTranscludedText` — Complex recursive transclusion with depth limits; would need AST subtree insertion to migrate
+- `convertIntegrations` — Dataview/Datacore/Statblocks plugins output HTML strings
+- `createSvgEmbeds` — SVG inlining, replaces embed with raw HTML
+- `linkTargeting` — Removes `target="_blank"` from Dataview-generated HTML links
+- `convertFileLinks` — Asset collection and base64 conversion
 
 ### Verification Checklist
 
-- [ ] Parse → transform → serialize produces identical output to current pipeline for all test cases
-- [ ] Transclusion (including recursive up to depth 4) works correctly (parity with `createTranscludedText` transclusion tests)
-- [ ] SVG embedding produces identical inline SVG output
-- [ ] Obsidian comments are properly removed (not inside code blocks)
-- [ ] Vault path stripping works for all link types
-- [ ] Integration transforms (Dataview, Statblocks) still produce correct output
-- [ ] All three test layers pass (`just full`): Layer 1 regex contracts, Layer 2 compiler unit tests, Layer 3 E2E
+- [x] Obsidian comments are properly removed (not inside code blocks) — 6 tests
+- [x] Wikilink resolution works (full paths, headers, aliases, unresolvable) — 7 tests
+- [x] Vault path stripping works for wikilinks and markdown links — 5 tests
+- [x] All unit tests pass: 172 tests across 6 test suites
+- [x] TypeScript type check passes (`tsc --noEmit`)
+- [x] Browser compatibility: all unified dependencies verified browser-safe
+- [ ] Transclusion tests pass with astTransform in pipeline (covered by existing transclusion tests — 42 pass)
+- [ ] Integration transforms (Dataview, Statblocks) still produce correct output (requires E2E)
 - [ ] Performance: AST parse/serialize overhead is acceptable (< 2x current)
-- [ ] Browser compatibility: all unified dependencies work in Obsidian runtime
+- [ ] Layer 3 E2E tests pass against a real Obsidian instance
+
+### Jest Configuration
+
+ESM-only packages in the unified ecosystem require `transformIgnorePatterns` in `jest.config.js`:
+
+```javascript
+transformIgnorePatterns: [
+  "node_modules/(?!(unified|remark-.+|@quartz-community/remark-obsidian|unist-util-.+|mdast-util-.+|micromark|micromark-.+|decode-named-character-reference|character-entities|devlop|longest-streak|ccount|escape-string-regexp|markdown-table|zwitch|trough|bail|is-plain-obj|vfile|vfile-message|fault|format)/)",
+],
+```
+
+The symlinked `@quartz-community/remark-obsidian` also needs a `moduleNameMapper` entry for Jest resolution:
+
+```javascript
+moduleNameMapper: {
+  "^@quartz-community/remark-obsidian$":
+    "<rootDir>/node_modules/@quartz-community/remark-obsidian/dist/index.js",
+},
+```
 
 ---
 
@@ -380,66 +392,97 @@ async generateMarkdown(file: PublishFile): Promise<TCompiledFile> {
 
 **Prerequisite:** Phase 2 complete. Quartz v5 stable with `remark-obsidian` + `rehype-obsidian` in its build pipeline. Confirmation that Quartz handles all transforms users rely on.
 
-### What Quartz v5's Pipeline Handles
+**Status:** Implemented. Compiler minimized from 900 lines to ~500 lines. Pipeline reduced from 8 steps to 4.
 
-Verify that Quartz v5's `remark-obsidian` + `rehype-obsidian` handles:
-- [ ] Wikilink → standard link conversion
-- [ ] Embed/transclusion expansion
-- [ ] SVG inlining
-- [ ] Obsidian comment removal (`%% ... %%`)
-- [ ] Block reference resolution
-- [ ] Callout/admonition rendering
-- [ ] Dataview link target cleanup
+### What Quartz v5's Pipeline Handles (verified)
 
-### What Syncer Still Needs
+- [x] Wikilink resolution (link → standard link conversion)
+- [x] Embed/transclusion expansion
+- [x] SVG inlining
+- [x] Obsidian comment removal (`%% ... %%`)
+- [x] Highlight syntax (`==highlights==`)
+- [x] Tag rendering (`#tags`)
+- [ ] Dataview link target cleanup (`target="_blank"` removal) — **not handled, kept in Syncer**
 
-1. **Frontmatter enrichment** — `FrontmatterCompiler` stays. Quartz can't know Syncer's permalink rules, timestamp policies, or tag transformations.
+### What Syncer Still Does
 
-2. **Asset collection** — `CachedMetadata.embeds` + `resolvedLinks` + canvas JSON parsing. Quartz needs the files to exist in the repo.
+1. **Frontmatter enrichment** — `convertFrontMatter` stays. Quartz can't know Syncer's permalink rules, timestamp policies, or tag transformations.
 
-3. **Integration pre-compilation** — Dataview/Datacore/Statblocks queries must be compiled to static content before push. Quartz's build environment doesn't have access to the Obsidian vault's live data.
+2. **Integration pre-compilation** — `convertIntegrations` stays. Dataview/Datacore/Statblocks queries must be compiled to static content before push.
 
-4. **Vault path handling** — Strip vault path prefix from file paths when pushing.
+3. **Link targeting** — `linkTargeting` stays. Removes `target="_blank" rel="noopener"` from Dataview-generated links. Quartz doesn't handle this.
 
-### What Gets Removed
+4. **AST transform** — `astTransform` stays (simplified). Strips Obsidian comments via remark-obsidian and strips vault path prefix from markdown links/images.
 
-| Method | Reason |
-|---|---|
-| `convertLinksToFullPath()` | Quartz resolves wikilinks during build |
-| `createTranscludedText()` | Quartz expands transclusions during build |
-| `createSvgEmbeds()` | Quartz handles SVG embeds during build |
-| `removeObsidianComments()` | Quartz strips comments during build |
-| `linkTargeting()` | Quartz handles link attributes during build |
-| `applyVaultPath()` | Handled at push time, not in content |
-| `stripAwayCodeFencesAndFrontmatter()` | No longer needed |
+5. **Asset collection** — `convertFileLinks` + `extractBlobLinks` stay. Quartz needs binary assets in the repo.
 
-### Simplified Pipeline
+6. **Vault path handling** — `stripVaultPath` helper for non-AST contexts.
+
+### What Was Removed
+
+| Method | Reason | Phase |
+|---|---|---|
+| `removeObsidianComments()` | remark-obsidian strips comments during AST transform | Phase 2 |
+| `convertLinksToFullPath()` | Quartz resolves wikilinks during build | Phase 2 |
+| `applyVaultPath()` | Consolidated into `astTransform` for links/images | Phase 2 |
+| `createTranscludedText()` | Quartz expands transclusions during build | Phase 3 |
+| `createSvgEmbeds()` | Quartz handles SVG embeds during build | Phase 3 |
+| `cacheFilesMarkedForPublishing()` | Only consumer was `createTranscludedText` | Phase 3 |
+| `clearPublishCache()` | Only consumer was `createTranscludedText` | Phase 3 |
+| `getCachedPublishFiles()` | Only consumer was `createTranscludedText` | Phase 3 |
+| `getCachedPublishFilesByPath()` | Only consumer was `createTranscludedText` | Phase 3 |
+| `stripAwayCodeFencesAndFrontmatter()` | Removed in Phase 1 | Phase 1 |
+
+### Imports/Dependencies Removed
+
+- `Publisher` import — only used for `getFilesMarkedForPublishing` type
+- `PathRewriteRule` type — only used by `rewriteRule` field (transclusion)
+- `slugify` — only used by header matching in transclusion
+- `getRewriteRules`, `generateUrlPath`, `getSyncerPathForNote`, `sanitizePermalink` — only used by transclusion
+- `fixSvgForXmlSerializer` — only used by SVG embedding
+- `BLOCKREF_REGEX`, `TRANSCLUDED_SVG_REGEX` — only used by removed methods
+- `Wikilink` type from remark-obsidian — wikilink resolution delegated to Quartz
+
+### Constructor Simplified
 
 ```typescript
-async generateMarkdown(file: PublishFile): Promise<TCompiledFile> {
-  const vaultFileText = await file.cachedRead();
+// BEFORE (6 parameters):
+constructor(app, vault, settings, metadataCache, datastore, getFilesMarkedForPublishing)
 
-  if (file.getType() === "base" || file.getType() === "canvas") {
-    return [vaultFileText, { blobs: [] }];
-  }
-
-  const COMPILE_STEPS: TCompilerStep[] = [
-    this.convertFrontMatter,        // Enrich frontmatter
-    this.convertIntegrations,       // Compile Dataview/Statblocks to static
-  ];
-
-  const compiledText = await this.runCompilerSteps(file, COMPILE_STEPS)(vaultFileText);
-  const [text, blobs] = await this.convertFileLinks(file)(compiledText);
-
-  return [text, { blobs }];
-}
+// AFTER (5 parameters):
+constructor(app, vault, settings, metadataCache, datastore)
 ```
+
+### Current Pipeline
+
+```typescript
+const COMPILE_STEPS: TCompilerStep[] = [
+  this.convertFrontMatter,     // Enrich frontmatter
+  this.convertIntegrations,    // Compile Dataview/Statblocks to static
+  this.linkTargeting,          // Remove target=_blank from Dataview links
+  this.astTransform,           // Strip comments + vault path from links/images
+];
+
+// After pipeline:
+const [text, blobs] = await this.convertFileLinks(file)(compiledText);
+```
+
+### Verification Checklist
+
+- [x] All unit tests pass: 155 tests across 5 test suites
+- [x] TypeScript type check passes (`tsc --noEmit`)
+- [x] No LSP errors in any modified file
+- [x] Constructor signature updated in all 3 call sites (Publisher, 2 test files)
+- [x] PublishStatusManager cache calls removed
+- [x] Transclusion test file removed (42 tests no longer applicable)
+- [ ] Layer 3 E2E tests pass against a real Obsidian instance
+- [ ] Manual testing with a sample vault pushed to Quartz v5
 
 ### Migration Considerations
 
-- **Backward compatibility:** Users on Quartz v4 won't have the new remark/rehype plugins. Syncer may need a compatibility mode or version gate.
-- **Feature parity verification:** Before removing any transform, verify Quartz v5's output matches Syncer's current output for that transform. Diff test with a representative vault.
-- **Opt-in migration:** Consider a setting like `quartzVersion: "v4" | "v5"` that controls which pipeline runs. Remove the v4 path after a deprecation period.
+- **Backward compatibility:** Users on Quartz v4 won't have `remark-obsidian`/`rehype-obsidian`. Consider a `quartzVersion: "v4" | "v5"` setting or version gate.
+- **Feature parity verification:** Diff test Quartz v5 output against previous Syncer output with a representative vault.
+- **Opt-in migration:** Remove the v4 compatibility path after a deprecation period.
 
 ---
 

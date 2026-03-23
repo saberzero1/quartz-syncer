@@ -13,7 +13,7 @@
 		"test:e2e": "wdio run ./wdio.conf.mts",
 		"prepare": "husky install",
 		"lint": "eslint . --ext .ts --ext .svelte",
-		"lint-fix": "eslint .  --fix  --ext .ts --ext .svelte",
+		"lint-fix": "eslint . --fix --ext .ts --ext .svelte",
 		"format": "prettier --write .",
 		"check-formatting": "prettier --check .",
 		"typecheck": "tsc"
@@ -65,6 +65,7 @@
 	"dependencies": {
 		"@blacksmithgu/datacore": "^0.1.24",
 		"@isomorphic-git/lightning-fs": "^4.6.2",
+		"@quartz-community/remark-obsidian": "github:quartz-community/remark-obsidian",
 		"@sindresorhus/slugify": "^1.1.2",
 		"axios": "^1.5.0",
 		"buffer-es6": "^4.9.3",
@@ -76,7 +77,12 @@
 		"localforage": "^1.10.0",
 		"luxon": "^3.4.3",
 		"lz-string": "^1.5.0",
-		"obsidian-dataview": "^0.5.68"
+		"obsidian-dataview": "^0.5.68",
+		"remark-frontmatter": "^5.0.0",
+		"remark-parse": "^11.0.0",
+		"remark-stringify": "^11.0.0",
+		"unified": "^11.0.5",
+		"unist-util-visit": "^5.1.0"
 	},
 	"lint-staged": {
 		"*.{ts}": [
