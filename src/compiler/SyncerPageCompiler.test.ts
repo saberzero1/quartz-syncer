@@ -19,7 +19,6 @@ function makeSettings(
 ): QuartzSyncerSettings {
 	return {
 		vaultPath: "/",
-		applyEmbeds: true,
 		useExcalidraw: false,
 		useDataview: false,
 		usePermalink: false,
@@ -31,7 +30,6 @@ function makeSettings(
 		allNotesPublishableByDefault: false,
 		contentFolder: "content",
 		useFullResolutionImages: false,
-		pathRewriteRules: "",
 		createdTimestampKey: "created",
 		updatedTimestampKey: "updated",
 		publishedTimestampKey: "published",

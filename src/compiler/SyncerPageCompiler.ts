@@ -132,10 +132,11 @@ export class SyncerPageCompiler {
 			return [vaultFileText, { blobs: [] }];
 		}
 
-		if (this.settings.useExcalidraw) {
-			if (file.file.name.endsWith(".excalidraw.md")) {
-				console.warn("Excalidraw files are not supported yet.");
-			}
+		if (
+			file.file.name.endsWith(".excalidraw") ||
+			file.file.name.endsWith(".excalidraw.md")
+		) {
+			return [vaultFileText, { blobs: [] }];
 		}
 
 		// ORDER MATTERS!

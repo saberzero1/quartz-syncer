@@ -1,10 +1,8 @@
 import { App, MetadataCache, TFile, Vault } from "obsidian";
-import { getRewriteRules } from "src/utils/utils";
 import {
 	hasPublishFlag,
 	isPublishFrontmatterValid,
 } from "src/publishFile/Validator";
-import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
 import QuartzSyncerSettings from "src/models/settings";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { CompiledPublishFile, PublishFile } from "src/publishFile/PublishFile";
@@ -34,7 +32,6 @@ export default class Publisher {
 	metadataCache: MetadataCache;
 	compiler: SyncerPageCompiler;
 	settings: QuartzSyncerSettings;
-	rewriteRule: PathRewriteRule;
 	vaultPath: string;
 	datastore: DataStore;
 
@@ -51,7 +48,6 @@ export default class Publisher {
 		this.vault = vault;
 		this.metadataCache = metadataCache;
 		this.settings = settings;
-		this.rewriteRule = getRewriteRules(settings.vaultPath);
 		this.vaultPath = settings.vaultPath;
 		this.datastore = datastore;
 
@@ -77,6 +73,13 @@ export default class Publisher {
 
 		if (file.extension === "canvas") {
 			return this.settings.useCanvas;
+		}
+
+		if (
+			file.path.endsWith(".excalidraw") ||
+			file.path.endsWith(".excalidraw.md")
+		) {
+			return this.settings.useExcalidraw;
 		}
 
 		const frontMatter = this.metadataCache.getCache(file.path)?.frontmatter;
