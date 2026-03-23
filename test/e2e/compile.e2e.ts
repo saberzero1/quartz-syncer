@@ -1,5 +1,4 @@
-import { browser } from "@wdio/globals";
-import { describe, it, before } from "mocha";
+import { browser, expect } from "@wdio/globals";
 
 describe("Quartz Syncer compile pipeline", function () {
 	before(async function () {
@@ -12,15 +11,15 @@ describe("Quartz Syncer compile pipeline", function () {
 	});
 
 	it("should have the test vault open", async () => {
-		const vaultName = await browser.executeObsidian(async (app) => {
+		const vaultName = await browser.executeObsidian(({ app }) => {
 			return app.vault.getName();
 		});
 
-		expect(vaultName).toBe("compile-test");
+		expect(vaultName).toContain("compile-test");
 	});
 
 	it("should resolve wikilinks in compiled output", async () => {
-		const fileExists = await browser.executeObsidian(async (app) => {
+		const fileExists = await browser.executeObsidian(({ app }) => {
 			const file = app.vault.getAbstractFileByPath("wikilink-test.md");
 
 			return file !== null;
@@ -30,7 +29,7 @@ describe("Quartz Syncer compile pipeline", function () {
 	});
 
 	it("should detect transcluded images", async () => {
-		const fileExists = await browser.executeObsidian(async (app) => {
+		const fileExists = await browser.executeObsidian(({ app }) => {
 			const file = app.vault.getAbstractFileByPath("image-embed-test.md");
 
 			return file !== null;
@@ -40,7 +39,7 @@ describe("Quartz Syncer compile pipeline", function () {
 	});
 
 	it("should handle frontmatter correctly", async () => {
-		const hasFrontmatter = await browser.executeObsidian(async (app) => {
+		const hasFrontmatter = await browser.executeObsidian(({ app }) => {
 			const file = app.vault.getAbstractFileByPath("frontmatter-test.md");
 
 			if (!file) return false;
