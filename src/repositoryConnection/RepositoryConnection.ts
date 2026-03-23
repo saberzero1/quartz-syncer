@@ -1029,35 +1029,35 @@ export class RepositoryConnection {
 		}
 	}
 
+	private static getOnAuth(auth: GitAuth) {
+		if (auth.type === "none") {
+			return undefined;
+		}
+
+		if (auth.type === "bearer") {
+			return () => ({
+				username: "x-access-token",
+				password: auth.secret || "",
+			});
+		}
+
+		return () => ({
+			username: auth.username || "",
+			password: auth.secret || "",
+		});
+	}
+
 	static async fetchRemoteBranches(
 		remoteUrl: string,
 		auth: GitAuth,
 		corsProxyUrl?: string,
 	): Promise<{ branches: string[]; defaultBranch: string | null }> {
-		const getOnAuth = () => {
-			if (auth.type === "none") {
-				return undefined;
-			}
-
-			if (auth.type === "bearer") {
-				return () => ({
-					username: "x-access-token",
-					password: auth.secret || "",
-				});
-			}
-
-			return () => ({
-				username: auth.username || "",
-				password: auth.secret || "",
-			});
-		};
-
 		try {
 			const refs = await git.listServerRefs({
 				http: obsidianHttpClient,
 				url: remoteUrl,
 				corsProxy: corsProxyUrl,
-				onAuth: getOnAuth(),
+				onAuth: this.getOnAuth(auth),
 				prefix: "refs/heads/",
 				symrefs: true,
 			});
@@ -1078,6 +1078,33 @@ export class RepositoryConnection {
 			logger.error("Failed to fetch remote branches", error);
 
 			return { branches: [], defaultBranch: null };
+		}
+	}
+
+	/**
+	 * Checks if the provided credentials have write (push) access to the remote.
+	 * Uses `listServerRefs` with `forPush: true` to query the `git-receive-pack`
+	 * endpoint. If the server responds with refs, the credentials have push access.
+	 * A 401/403 response indicates read-only or no push access.
+	 */
+	static async checkWriteAccess(
+		remoteUrl: string,
+		auth: GitAuth,
+		corsProxyUrl?: string,
+	): Promise<boolean> {
+		try {
+			await git.listServerRefs({
+				http: obsidianHttpClient,
+				url: remoteUrl,
+				corsProxy: corsProxyUrl,
+				onAuth: this.getOnAuth(auth),
+				forPush: true,
+				prefix: "refs/heads/",
+			});
+
+			return true;
+		} catch {
+			return false;
 		}
 	}
 }

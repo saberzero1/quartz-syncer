@@ -17,9 +17,11 @@ export class GitSettings extends PluginSettingTab {
 	app: App;
 	plugin: QuartzSyncer;
 	settings: SettingView;
-	connectionStatus: "loading" | "connected" | "error";
+	readStatus: "loading" | "connected" | "error";
+	writeStatus: "loading" | "connected" | "error";
 	private settingsRootElement: HTMLElement;
-	connectionStatusElement: HTMLElement;
+	readStatusElement: HTMLElement;
+	writeStatusElement: HTMLElement;
 	private remoteBranches: string[] = [];
 	private defaultBranch: string | null = null;
 	private branchSettingEl: HTMLElement | null = null;
@@ -38,15 +40,17 @@ export class GitSettings extends PluginSettingTab {
 		this.settings = settings;
 		this.settingsRootElement = settingsRootElement;
 		this.settingsRootElement.classList.add("settings-tab-content");
-		this.connectionStatus = "loading";
+		this.readStatus = "loading";
+		this.writeStatus = "loading";
 		this.secretStorageService = new SecretStorageService(app);
 
-		this.connectionStatusElement = this.settingsRootElement.createEl(
-			"span",
-			{
-				text: "pending...",
-			},
-		);
+		this.readStatusElement = this.settingsRootElement.createEl("span", {
+			text: "pending...",
+		});
+
+		this.writeStatusElement = this.settingsRootElement.createEl("span", {
+			text: "pending...",
+		});
 	}
 
 	display() {
@@ -71,12 +75,22 @@ export class GitSettings extends PluginSettingTab {
 	initializeGitHeader = () => {
 		this.checkConnectionAndSaveSettings();
 
-		const connectionStatusElement = createEl("span");
-		connectionStatusElement.appendText(" (status: connection ");
-		connectionStatusElement.append(this.connectionStatusElement);
-		connectionStatusElement.appendText(")");
+		const statusContainer = createEl("span");
 
-		connectionStatusElement.addClass(
+		const readWrapper = statusContainer.createEl("span");
+		readWrapper.appendText(" (read: ");
+		readWrapper.append(this.readStatusElement);
+		readWrapper.appendText(")");
+		readWrapper.addClass(
+			"quartz-syncer-connection-status",
+			"quartz-syncer-connection-status-pending",
+		);
+
+		const writeWrapper = statusContainer.createEl("span");
+		writeWrapper.appendText(" (write: ");
+		writeWrapper.append(this.writeStatusElement);
+		writeWrapper.appendText(")");
+		writeWrapper.addClass(
 			"quartz-syncer-connection-status",
 			"quartz-syncer-connection-status-pending",
 		);
@@ -87,7 +101,7 @@ export class GitSettings extends PluginSettingTab {
 				"Configure your Git remote. Works with GitHub, GitLab, Bitbucket, and self-hosted Git servers.",
 			)
 			.setHeading()
-			.nameEl.append(connectionStatusElement);
+			.nameEl.append(statusContainer);
 	};
 
 	checkConnectionAndSaveSettings = async () => {
@@ -99,7 +113,8 @@ export class GitSettings extends PluginSettingTab {
 		const gitSettings = this.settings.settings.git;
 
 		if (!gitSettings.remoteUrl) {
-			this.connectionStatus = "error";
+			this.readStatus = "error";
+			this.writeStatus = "error";
 			this.remoteBranches = [];
 			this.defaultBranch = null;
 			this.updateConnectionStatusIndicator();
@@ -107,12 +122,12 @@ export class GitSettings extends PluginSettingTab {
 			return;
 		}
 
-		try {
-			const authWithSecret = {
-				...gitSettings.auth,
-				secret: this.secretStorageService.getToken() || undefined,
-			};
+		const authWithSecret = {
+			...gitSettings.auth,
+			secret: this.secretStorageService.getToken() || undefined,
+		};
 
+		try {
 			const { branches, defaultBranch } =
 				await RepositoryConnection.fetchRemoteBranches(
 					gitSettings.remoteUrl,
@@ -126,7 +141,7 @@ export class GitSettings extends PluginSettingTab {
 			const hadBranches = this.branchesLoaded;
 
 			if (branches.length > 0) {
-				this.connectionStatus = "connected";
+				this.readStatus = "connected";
 				this.branchesLoaded = true;
 
 				if (!gitSettings.branch) {
@@ -138,13 +153,25 @@ export class GitSettings extends PluginSettingTab {
 					this.refreshBranchSetting();
 				}
 			} else {
-				this.connectionStatus = "error";
+				this.readStatus = "error";
 			}
 		} catch {
-			this.connectionStatus = "error";
+			this.readStatus = "error";
 			this.remoteBranches = [];
 			this.defaultBranch = null;
 		}
+
+		try {
+			const canWrite = await RepositoryConnection.checkWriteAccess(
+				gitSettings.remoteUrl,
+				authWithSecret,
+				gitSettings.corsProxyUrl,
+			);
+			this.writeStatus = canWrite ? "connected" : "error";
+		} catch {
+			this.writeStatus = "error";
+		}
+
 		this.updateConnectionStatusIndicator();
 	};
 
@@ -162,49 +189,57 @@ export class GitSettings extends PluginSettingTab {
 	);
 
 	updateConnectionStatusIndicator = () => {
-		if (this.connectionStatusElement.parentElement === null) {
+		this.applyStatusToElement(this.readStatusElement, this.readStatus);
+		this.applyStatusToElement(this.writeStatusElement, this.writeStatus);
+	};
+
+	private applyStatusToElement(
+		el: HTMLElement,
+		status: "loading" | "connected" | "error",
+	) {
+		if (el.parentElement === null) {
 			return;
 		}
 
-		if (this.connectionStatus === "loading") {
-			this.connectionStatusElement.innerText = "pending...";
+		if (status === "loading") {
+			el.innerText = "pending...";
 
-			this.connectionStatusElement.parentElement.classList.remove(
+			el.parentElement.classList.remove(
 				"quartz-syncer-connection-status-success",
 				"quartz-syncer-connection-status-failed",
 			);
 
-			this.connectionStatusElement.parentElement.classList.add(
+			el.parentElement.classList.add(
 				"quartz-syncer-connection-status-pending",
 			);
 		}
 
-		if (this.connectionStatus === "connected") {
-			this.connectionStatusElement.innerText = "successful!";
+		if (status === "connected") {
+			el.innerText = "ok";
 
-			this.connectionStatusElement.parentElement.classList.remove(
+			el.parentElement.classList.remove(
 				"quartz-syncer-connection-status-pending",
 				"quartz-syncer-connection-status-failed",
 			);
 
-			this.connectionStatusElement.parentElement.classList.add(
+			el.parentElement.classList.add(
 				"quartz-syncer-connection-status-success",
 			);
 		}
 
-		if (this.connectionStatus === "error") {
-			this.connectionStatusElement.innerText = "failed!";
+		if (status === "error") {
+			el.innerText = "failed";
 
-			this.connectionStatusElement.parentElement.classList.remove(
+			el.parentElement.classList.remove(
 				"quartz-syncer-connection-status-pending",
 				"quartz-syncer-connection-status-success",
 			);
 
-			this.connectionStatusElement.parentElement.classList.add(
+			el.parentElement.classList.add(
 				"quartz-syncer-connection-status-failed",
 			);
 		}
-	};
+	}
 
 	private initializeRemoteUrlSetting() {
 		new Setting(this.settingsRootElement)
