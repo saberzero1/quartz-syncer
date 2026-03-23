@@ -359,14 +359,6 @@ export class SyncerPageCompiler {
 		return assets;
 	};
 
-	/**
-	 * Converts file embed links to their full paths and collects binary assets.
-	 * Uses CachedMetadata.embeds with position-based replacement (reverse offset
-	 * order) to avoid first-occurrence bugs.
-	 *
-	 * @param file - The file to compile the links for.
-	 * @returns A function that takes the text and returns [compiled text, assets].
-	 */
 	convertFileLinks =
 		(file: PublishFile) =>
 		async (text: string): Promise<[string, Array<Asset>]> => {
