@@ -157,13 +157,6 @@ export class SyncerPageCompiler {
 		return [text, { blobs }];
 	}
 
-	/**
-	 * Applies the vault path to links in the text.
-	 * It replaces links that start with the vault path with Obsidian-style links (e.g. [[link]]) and Markdown-style links (e.g. [link](path)).
-	 * If the vault path is not set, or is the vault root, it does nothing.
-	 *
-	 * @returns A function that takes the text to compile and returns the compiled text.
-	 */
 	private stripVaultPath(text: string): string {
 		if (this.settings.vaultPath === "/" || this.settings.vaultPath === "") {
 			return text;
@@ -232,7 +225,7 @@ export class SyncerPageCompiler {
 		result = result.replace(/^((?:> ?)+)\\\[(![\w-]+)\]/gm, "$1[$2]");
 
 		result = result.replace(/^(\|.*)/gm, (line) =>
-			line.replace(/(!?\[\[[^\]]*?)\|([^\]]*?\]\])/g, "$1\\|$2"),
+			line.replace(/(!?\[\[[^\]]*?)(?<!\\)\|([^\]]*?\]\])/g, "$1\\|$2"),
 		);
 
 		return result;
@@ -474,7 +467,24 @@ export class SyncerPageCompiler {
 					// CachedMetadata offsets refer to the original vault text,
 					// but prior compiler steps (astTransform) re-serialize the text
 					// with different byte positions.
-					blobText = blobText.replace(embed.original, replacement);
+					// Also try the escaped-pipe variant, since astTransform escapes
+					// `|` → `\|` inside wikilinks on table rows.
+					const escapedOriginal = embed.original.replace(
+						/\|/g,
+						"\\|",
+					);
+
+					if (blobText.includes(embed.original)) {
+						blobText = blobText.replace(
+							embed.original,
+							replacement,
+						);
+					} else if (blobText.includes(escapedOriginal)) {
+						blobText = blobText.replace(
+							escapedOriginal,
+							replacement,
+						);
+					}
 				} catch {
 					continue;
 				}
