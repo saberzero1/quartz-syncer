@@ -44,13 +44,8 @@ export class GitSettings extends PluginSettingTab {
 		this.writeStatus = "loading";
 		this.secretStorageService = new SecretStorageService(app);
 
-		this.readStatusElement = this.settingsRootElement.createEl("span", {
-			text: "pending...",
-		});
-
-		this.writeStatusElement = this.settingsRootElement.createEl("span", {
-			text: "pending...",
-		});
+		this.readStatusElement = createEl("span", { text: "pending..." });
+		this.writeStatusElement = createEl("span", { text: "pending..." });
 	}
 
 	display() {
@@ -73,6 +68,9 @@ export class GitSettings extends PluginSettingTab {
 	}
 
 	initializeGitHeader = () => {
+		this.readStatusElement = createEl("span", { text: "pending..." });
+		this.writeStatusElement = createEl("span", { text: "pending..." });
+
 		this.checkConnectionAndSaveSettings();
 
 		const statusContainer = createEl("span");

@@ -18,7 +18,7 @@ describe("Quartz Syncer compile pipeline", function () {
 		expect(vaultName).toContain("compile-test");
 	});
 
-	it("should resolve wikilinks in compiled output", async () => {
+	it("should have wikilink test fixture in vault", async () => {
 		const fileExists = await browser.executeObsidian(({ app }) => {
 			const file = app.vault.getAbstractFileByPath("wikilink-test.md");
 
@@ -28,7 +28,7 @@ describe("Quartz Syncer compile pipeline", function () {
 		expect(fileExists).toBe(true);
 	});
 
-	it("should detect transcluded images", async () => {
+	it("should have image embed test fixture in vault", async () => {
 		const fileExists = await browser.executeObsidian(({ app }) => {
 			const file = app.vault.getAbstractFileByPath("image-embed-test.md");
 
