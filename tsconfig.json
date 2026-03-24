@@ -20,6 +20,8 @@
 		"**/*.js",
 		"**/*.svelte",
 		"eslint.config.mjs",
-		"esbuild.config.mjs"
-	]
+		"esbuild.config.mjs",
+		"wdio.conf.mts"
+	],
+	"exclude": ["test/e2e/**", "wdio.conf.mts"]
 }

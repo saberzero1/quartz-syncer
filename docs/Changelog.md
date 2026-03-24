@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-03-16T15:21:29Z+0100
+modified: 2026-03-23T19:15:00Z+0100
 publish: true
 ---
 
@@ -17,6 +17,26 @@ publish: true
 ## Someday
 
 ## Releases
+
+### Version 1.11.0
+
+- Migrated compiler pipeline from regex-based transforms to AST-based transforms using [`remark-obsidian`](https://github.com/quartz-community/remark-obsidian).
+	- Obsidian comments (`%% ... %%`) are now stripped via AST instead of regex, correctly handling comments inside code blocks.
+	- Vault path stripping for links and images is now handled via AST node visitors.
+	- Wikilink pipe characters (`|`) inside table rows are automatically escaped for Quartz GFM compatibility.
+	- Callout syntax (`> [!INFO]`) is preserved correctly through the AST round-trip.
+- Delegated rendering transforms to Quartz v5's build pipeline.
+	- Wikilink resolution, transclusion expansion, SVG inlining, highlight syntax, and tag rendering are now handled by Quartz.
+	- Compiler pipeline reduced from 8 steps to 4: frontmatter enrichment, integration pre-compilation, link targeting, and AST transform.
+	- Compiler reduced from ~900 lines to ~500 lines.
+- Fixed image embeds blending with surrounding text when preceded by other content.
+- Removed transclusion and SVG embedding logic (now handled by Quartz v5).
+- Removed publish file cache system (`cacheFilesMarkedForPublishing`, `clearPublishCache`).
+- Simplified `SyncerPageCompiler` constructor (removed `getFilesMarkedForPublishing` parameter).
+- Removed dead settings: `applyEmbeds` (unused after Phase 3) and `pathRewriteRules` (never read by runtime code). Removed "Apply embeds" toggle from Quartz settings panel.
+- Simplified Excalidraw integration to pass-through (push files only, Quartz v5 handles rendering). Removed SVG conversion, SCSS styles, and ExcalidrawAutomate dependency.
+- Split Git connection status into separate read and write access checks. The settings panel now shows `(read: ok/failed)` and `(write: ok/failed)` independently, correctly identifying when a repository URL is valid but credentials lack push access.
+- Fixed canvas `extractBlobLinks` to only collect asset files (images, fonts, etc.) instead of all file nodes including markdown notes.
 
 ### Version 1.10.1
 

@@ -36,7 +36,6 @@ export class QuartzSettings extends PluginSettingTab {
 		this.initializeQuartzHeader();
 		this.initializeQuartzContentFolder();
 		this.initializeUseFullImageResolutionSetting();
-		this.initializeApplyEmbedsSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "quartz";
 		this.settings.plugin.saveSettings();
@@ -70,26 +69,6 @@ export class QuartzSettings extends PluginSettingTab {
 					.setValue(this.settings.settings.useFullResolutionImages)
 					.onChange(async (value) => {
 						this.settings.settings.useFullResolutionImages = value;
-						await this.settings.plugin.saveSettings();
-					}),
-			);
-	}
-
-	/**
-	 * Initializes the setting for applying embeds.
-	 * This method creates a toggle setting that allows users to choose whether to apply embeds directly to their notes.
-	 */
-	private initializeApplyEmbedsSetting() {
-		new Setting(this.settingsRootElement)
-			.setName("Apply embeds")
-			.setDesc(
-				"By default, Quartz Syncer will apply embeds directly to your notes. If you want to let Quartz handle embeds, disable this setting.",
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.settings.settings.applyEmbeds)
-					.onChange(async (value) => {
-						this.settings.settings.applyEmbeds = value;
 						await this.settings.plugin.saveSettings();
 					}),
 			);

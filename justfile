@@ -1,7 +1,7 @@
 default:
 	just --list
 
-full: lint check prod
+full: lint check prod test-full
 
 dev:
 	npm run dev
@@ -22,6 +22,10 @@ lint:
 
 test:
 	npm run test
+
+test-full:
+	npm run test:unit
+	npm run test:e2e
 
 check:
 	npm run lint

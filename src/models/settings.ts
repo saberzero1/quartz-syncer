@@ -73,7 +73,6 @@ export default interface QuartzSyncerSettings {
 	/** Quartz settings */
 	contentFolder: string;
 	useFullResolutionImages: boolean;
-	applyEmbeds: boolean;
 
 	/** Frontmatter settings */
 	publishFrontmatterKey: string;
@@ -99,7 +98,6 @@ export default interface QuartzSyncerSettings {
 	 * They are included here in case the user wants to change them.
 	 * Or to nake it easier to adapt the plugin to future changes in Quartz.
 	 */
-	pathRewriteRules: string;
 	createdTimestampKey: string;
 	updatedTimestampKey: string;
 	publishedTimestampKey: string;

@@ -37,8 +37,6 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	/** Quartz settings */
 	contentFolder: "content",
 	useFullResolutionImages: false,
-	applyEmbeds: true,
-
 	/** Frontmatter settings */
 	publishFrontmatterKey: "publish",
 	allNotesPublishableByDefault: false,
@@ -57,7 +55,6 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	 * They are included here in case the user wants to change them.
 	 * Or to nake it easier to adapt the plugin to future changes in Quartz.
 	 */
-	pathRewriteRules: "",
 	createdTimestampKey: "created, created_at, date",
 	updatedTimestampKey: "modified, lastmod, updated, last-modified",
 	publishedTimestampKey: "published, publishDate, date",
