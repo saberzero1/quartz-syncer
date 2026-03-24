@@ -416,7 +416,9 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		new Setting(this.settingsRootElement)
 			.setName("Plugins")
-			.setDesc(`${plugins.length} plugin(s) configured.`)
+			.setDesc(
+				`${plugins.length} plugin(s) configured. Toggle enabled state or adjust execution order.`,
+			)
 			.setHeading();
 
 		if (plugins.length === 0) {
@@ -427,37 +429,78 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			return;
 		}
 
-		for (const plugin of plugins) {
-			this.renderPluginEntry(plugin, lockPlugins);
+		for (let i = 0; i < plugins.length; i++) {
+			this.renderPluginEntry(plugins[i], i, plugins.length, lockPlugins);
 		}
 	}
 
 	private renderPluginEntry(
 		plugin: QuartzPluginEntry,
+		index: number,
+		total: number,
 		lockPlugins: Record<string, QuartzLockFileEntry>,
 	): void {
 		const name = getPluginName(plugin.source);
-		const statusParts: string[] = [];
-
-		statusParts.push(plugin.enabled ? "Enabled" : "Disabled");
+		const infoParts: string[] = [];
 
 		if (plugin.order !== undefined) {
-			statusParts.push(`Order: ${plugin.order}`);
+			infoParts.push(`Order: ${plugin.order}`);
 		}
 
 		if (plugin.layout?.position) {
-			statusParts.push(`Position: ${plugin.layout.position}`);
+			infoParts.push(`Position: ${plugin.layout.position}`);
 		}
 
 		const key = getPluginSourceKey(plugin.source);
 		const lockEntry = lockPlugins[key];
 
 		if (lockEntry?.commit) {
-			statusParts.push(`Commit: ${lockEntry.commit.slice(0, 7)}`);
+			infoParts.push(`Commit: ${lockEntry.commit.slice(0, 7)}`);
 		}
 
-		new Setting(this.settingsRootElement)
+		const setting = new Setting(this.settingsRootElement)
 			.setName(name)
-			.setDesc(statusParts.join(" · "));
+			.setDesc(infoParts.length > 0 ? infoParts.join(" · ") : "");
+
+		setting.addToggle((toggle) =>
+			toggle
+				.setTooltip("Enable or disable this plugin")
+				.setValue(plugin.enabled)
+				.onChange((value) => {
+					plugin.enabled = value;
+					this.markDirty();
+				}),
+		);
+
+		setting.addExtraButton((button) =>
+			button
+				.setIcon("arrow-up")
+				.setTooltip("Move up")
+				.setDisabled(index === 0)
+				.onClick(() => this.movePlugin(index, index - 1)),
+		);
+
+		setting.addExtraButton((button) =>
+			button
+				.setIcon("arrow-down")
+				.setTooltip("Move down")
+				.setDisabled(index === total - 1)
+				.onClick(() => this.movePlugin(index, index + 1)),
+		);
+	}
+
+	private movePlugin(fromIndex: number, toIndex: number): void {
+		if (!this.cachedConfig) return;
+
+		const plugins = this.cachedConfig.plugins;
+
+		if (toIndex < 0 || toIndex >= plugins.length) return;
+
+		const [moved] = plugins.splice(fromIndex, 1);
+		plugins.splice(toIndex, 0, moved);
+
+		this.markDirty();
+		this.settingsRootElement.empty();
+		this.renderContent();
 	}
 }
