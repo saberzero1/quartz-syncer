@@ -9,6 +9,11 @@ import type {
 	QuartzPluginEntry,
 	QuartzVersion,
 	QuartzLockFileEntry,
+	QuartzLayoutPosition,
+	QuartzDisplayMode,
+	QuartzGlobalLayout,
+	QuartzPageType,
+	QuartzPageTypeOverride,
 } from "src/quartz/QuartzConfigTypes";
 import {
 	getPluginName,
@@ -27,6 +32,29 @@ import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnect
 import Logger from "js-logger";
 
 const logger = Logger.get("quartz-v5-settings");
+
+const LAYOUT_POSITIONS: QuartzLayoutPosition[] = [
+	"left",
+	"right",
+	"beforeBody",
+	"afterBody",
+	"body",
+];
+
+const DISPLAY_MODES: QuartzDisplayMode[] = [
+	"all",
+	"mobile-only",
+	"desktop-only",
+];
+
+const PAGE_TYPES: QuartzPageType[] = [
+	"content",
+	"folder",
+	"tag",
+	"canvas",
+	"bases",
+	"404",
+];
 
 /**
  * Quartz v5 settings tab with editable site configuration.
@@ -224,6 +252,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		this.renderUpgradeSection();
 		this.renderSiteConfigSection();
 		this.renderPluginListSection();
+		this.renderLayoutSection();
 	}
 
 	private renderVersionSection(): void {
@@ -666,6 +695,164 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				.setDisabled(index === total - 1)
 				.onClick(() => this.movePlugin(index, index + 1)),
 		);
+
+		if (plugin.layout) {
+			this.renderPluginLayoutControls(plugin);
+		}
+	}
+
+	private renderPluginLayoutControls(plugin: QuartzPluginEntry): void {
+		if (!plugin.layout) return;
+
+		const layout = plugin.layout;
+
+		const layoutSetting = new Setting(this.settingsRootElement).setDesc(
+			"Layout: position, priority, and display mode for this plugin's component.",
+		);
+
+		layoutSetting.addDropdown((dropdown) => {
+			dropdown.addOption("", "No position");
+
+			for (const pos of LAYOUT_POSITIONS) {
+				dropdown.addOption(pos, pos);
+			}
+
+			dropdown.setValue(layout.position ?? "").onChange((value) => {
+				layout.position = (value as QuartzLayoutPosition) || undefined;
+				this.markDirty();
+			});
+		});
+
+		layoutSetting.addText((text) =>
+			text
+				.setPlaceholder("Priority")
+				.setValue(
+					layout.priority !== undefined
+						? String(layout.priority)
+						: "",
+				)
+				.onChange((value) => {
+					const num = parseInt(value, 10);
+					layout.priority = isNaN(num) ? undefined : num;
+					this.markDirty();
+				}),
+		);
+
+		layoutSetting.addDropdown((dropdown) => {
+			for (const mode of DISPLAY_MODES) {
+				dropdown.addOption(mode, mode);
+			}
+
+			dropdown.setValue(layout.display ?? "all").onChange((value) => {
+				layout.display = value as QuartzDisplayMode;
+				this.markDirty();
+			});
+		});
+	}
+
+	private renderLayoutSection(): void {
+		if (!this.cachedConfig) return;
+
+		const config = this.cachedConfig;
+
+		if (!config.layout) {
+			config.layout = {};
+		}
+
+		const layout = config.layout;
+
+		new Setting(this.settingsRootElement)
+			.setName("Layout Overrides")
+			.setDesc(
+				"Per-page-type layout overrides. Set a frame template or exclude plugins for specific page types.",
+			)
+			.setHeading();
+
+		for (const pageType of PAGE_TYPES) {
+			this.renderPageTypeOverride(layout, pageType);
+		}
+	}
+
+	private renderPageTypeOverride(
+		layout: QuartzGlobalLayout,
+		pageType: QuartzPageType,
+	): void {
+		if (!layout.byPageType) {
+			layout.byPageType = {};
+		}
+
+		const override = layout.byPageType[pageType];
+		const hasOverride = override !== undefined;
+
+		const setting = new Setting(this.settingsRootElement).setName(pageType);
+
+		if (!hasOverride) {
+			setting.setDesc("No overrides configured.");
+			setting.addButton((button) =>
+				button.setButtonText("Add override").onClick(() => {
+					if (!layout.byPageType) {
+						layout.byPageType = {};
+					}
+
+					layout.byPageType[pageType] = {};
+					this.markDirty();
+					this.settingsRootElement.empty();
+					this.renderContent();
+				}),
+			);
+
+			return;
+		}
+
+		setting.addButton((button) =>
+			button.setButtonText("Remove override").onClick(() => {
+				if (layout.byPageType) {
+					delete layout.byPageType[pageType];
+				}
+
+				this.markDirty();
+				this.settingsRootElement.empty();
+				this.renderContent();
+			}),
+		);
+
+		new Setting(this.settingsRootElement)
+			.setName("Template")
+			.setDesc(
+				`Frame template for ${pageType} pages (e.g. default, full-width, minimal).`,
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("default")
+					.setValue(override.template ?? "")
+					.onChange((value) => {
+						override.template = value || undefined;
+						this.markDirty();
+					}),
+			);
+
+		new Setting(this.settingsRootElement)
+			.setName("Excluded plugins")
+			.setDesc(
+				`Comma-separated plugin names to exclude from ${pageType} pages.`,
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("reader-mode, graph")
+					.setValue((override.exclude ?? []).join(", "))
+					.onChange((value) => {
+						override.exclude = value
+							.split(",")
+							.map((s) => s.trim())
+							.filter((s) => s.length > 0);
+
+						if (override.exclude.length === 0) {
+							override.exclude = undefined;
+						}
+
+						this.markDirty();
+					}),
+			);
 	}
 
 	private movePlugin(fromIndex: number, toIndex: number): void {
