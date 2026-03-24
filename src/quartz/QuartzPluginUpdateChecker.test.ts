@@ -75,6 +75,7 @@ describe("QuartzPluginUpdateChecker", () => {
 			(r) => r.sourceKey === "github:quartz-community/explorer",
 		)!;
 		assert.strictEqual(explorer.hasUpdate, true);
+
 		assert.strictEqual(
 			explorer.remoteCommit,
 			"ccc0000000000000000000000000000000000000",
@@ -100,6 +101,7 @@ describe("QuartzPluginUpdateChecker", () => {
 		);
 
 		assert.strictEqual(results[0].hasUpdate, false);
+
 		assert.strictEqual(
 			results[0].lockedCommit,
 			"aaa1111222233334444555566667777888899990000",

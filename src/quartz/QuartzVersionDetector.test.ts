@@ -29,6 +29,7 @@ describe("QuartzVersionDetector", () => {
 	describe("detectQuartzVersion", () => {
 		it("detects v5-yaml when quartz.config.yaml exists", async () => {
 			const repo = createMockRepo(["quartz.config.yaml"]);
+
 			const version =
 				await QuartzVersionDetector.detectQuartzVersion(repo);
 
@@ -37,6 +38,7 @@ describe("QuartzVersionDetector", () => {
 
 		it("detects v5-json when only quartz.plugins.json exists", async () => {
 			const repo = createMockRepo(["quartz.plugins.json"]);
+
 			const version =
 				await QuartzVersionDetector.detectQuartzVersion(repo);
 
@@ -45,6 +47,7 @@ describe("QuartzVersionDetector", () => {
 
 		it("detects v4 when only quartz.config.ts exists", async () => {
 			const repo = createMockRepo(["quartz.config.ts"]);
+
 			const version =
 				await QuartzVersionDetector.detectQuartzVersion(repo);
 
@@ -53,6 +56,7 @@ describe("QuartzVersionDetector", () => {
 
 		it("returns unknown when no config files exist", async () => {
 			const repo = createMockRepo([]);
+
 			const version =
 				await QuartzVersionDetector.detectQuartzVersion(repo);
 
@@ -64,6 +68,7 @@ describe("QuartzVersionDetector", () => {
 				"quartz.config.yaml",
 				"quartz.plugins.json",
 			]);
+
 			const version =
 				await QuartzVersionDetector.detectQuartzVersion(repo);
 
@@ -75,6 +80,7 @@ describe("QuartzVersionDetector", () => {
 				"quartz.plugins.json",
 				"quartz.config.ts",
 			]);
+
 			const version =
 				await QuartzVersionDetector.detectQuartzVersion(repo);
 
@@ -87,6 +93,7 @@ describe("QuartzVersionDetector", () => {
 			const repo = createMockRepo(["package.json"], {
 				"package.json": JSON.stringify({ version: "5.2.0" }),
 			});
+
 			const version =
 				await QuartzVersionDetector.getQuartzPackageVersion(repo);
 
@@ -95,6 +102,7 @@ describe("QuartzVersionDetector", () => {
 
 		it("returns null when package.json is missing", async () => {
 			const repo = createMockRepo([]);
+
 			const version =
 				await QuartzVersionDetector.getQuartzPackageVersion(repo);
 
@@ -105,6 +113,7 @@ describe("QuartzVersionDetector", () => {
 			const repo = createMockRepo(["package.json"], {
 				"package.json": JSON.stringify({ name: "quartz" }),
 			});
+
 			const version =
 				await QuartzVersionDetector.getQuartzPackageVersion(repo);
 

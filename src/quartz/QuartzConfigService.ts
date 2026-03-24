@@ -79,6 +79,7 @@ export class QuartzConfigService {
 		commitMessage = "Update Quartz configuration via Syncer",
 	): Promise<void> {
 		const serialized = this.serializeConfig(config);
+
 		const filePath =
 			this.configFormat === "json" ? CONFIG_JSON_PATH : CONFIG_YAML_PATH;
 

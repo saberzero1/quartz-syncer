@@ -354,6 +354,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			} else if (status.hasUpgrade) {
 				const currentShort =
 					status.currentCommit?.slice(0, 7) ?? "unknown";
+
 				const upstreamShort =
 					status.upstreamCommit?.slice(0, 7) ?? "unknown";
 
@@ -583,6 +584,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		try {
 			const gitSettings = this.plugin.getGitSettingsWithSecret();
+
 			const checker = new QuartzPluginUpdateChecker(
 				gitSettings.auth,
 				gitSettings.corsProxyUrl,
@@ -665,6 +667,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 						);
 						this.markDirty();
 						this.display();
+
 						new Notice(
 							`Plugin "${addPluginSource.trim()}" added. Save to push changes.`,
 						);
@@ -778,6 +781,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 						this.pluginManager.removePlugin(this.cachedConfig, key);
 						this.markDirty();
 						this.display();
+
 						new Notice(
 							`Plugin "${getPluginName(plugin.source)}" removed. Save to push changes.`,
 						);
@@ -883,6 +887,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		if (!hasOverride) {
 			setting.setDesc("No overrides configured.");
+
 			setting.addButton((button) =>
 				button.setButtonText("Add override").onClick(() => {
 					if (!layout.byPageType) {

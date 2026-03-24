@@ -59,6 +59,7 @@ describe("QuartzPluginManager", () => {
 			);
 
 			assert.strictEqual(config.plugins.length, 1);
+
 			assert.strictEqual(
 				entry.source,
 				"github:quartz-community/explorer",
@@ -92,6 +93,7 @@ describe("QuartzPluginManager", () => {
 			});
 
 			assert.strictEqual(config.plugins.length, 1);
+
 			assert.deepStrictEqual(entry.source, {
 				repo: "github:saberzero1/quartz-themes",
 				subdir: "plugin",
@@ -128,6 +130,7 @@ describe("QuartzPluginManager", () => {
 			manager.addPlugin(config, "github:quartz-community/graph");
 
 			assert.strictEqual(config.plugins.length, 2);
+
 			assert.strictEqual(
 				config.plugins[1].source,
 				"github:quartz-community/graph",
@@ -154,10 +157,12 @@ describe("QuartzPluginManager", () => {
 			);
 
 			assert.strictEqual(config.plugins.length, 1);
+
 			assert.strictEqual(
 				removed.source,
 				"github:quartz-community/explorer",
 			);
+
 			assert.strictEqual(
 				config.plugins[0].source,
 				"github:quartz-community/search",

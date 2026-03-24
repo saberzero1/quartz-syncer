@@ -51,6 +51,7 @@ describe("QuartzUpgradeService", () => {
 		mockPackageVersion("5.0.0");
 
 		const fetchFn: FetchRemoteHeadCommitFn = async () => UPSTREAM_COMMIT;
+
 		const service = new QuartzUpgradeService(
 			makeMockRepo(),
 			{ type: "none" },
@@ -70,6 +71,7 @@ describe("QuartzUpgradeService", () => {
 		mockPackageVersion("5.0.0");
 
 		const fetchFn: FetchRemoteHeadCommitFn = async () => CURRENT_COMMIT;
+
 		const service = new QuartzUpgradeService(
 			makeMockRepo(),
 			{ type: "none" },
@@ -87,6 +89,7 @@ describe("QuartzUpgradeService", () => {
 		mockPackageVersion("5.0.0");
 
 		const fetchFn: FetchRemoteHeadCommitFn = async () => null;
+
 		const service = new QuartzUpgradeService(
 			makeMockRepo(),
 			{ type: "none" },
@@ -105,6 +108,7 @@ describe("QuartzUpgradeService", () => {
 		const fetchFn: FetchRemoteHeadCommitFn = async () => {
 			throw new Error("Network error");
 		};
+
 		const service = new QuartzUpgradeService(
 			makeMockRepo(),
 			{ type: "none" },
@@ -121,6 +125,7 @@ describe("QuartzUpgradeService", () => {
 		mockPackageVersion("5.0.0");
 
 		const fetchFn: FetchRemoteHeadCommitFn = async () => UPSTREAM_COMMIT;
+
 		const service = new QuartzUpgradeService(
 			makeMockRepo({ latestCommit: null }),
 			{ type: "none" },
@@ -138,6 +143,7 @@ describe("QuartzUpgradeService", () => {
 		mockPackageVersion("5.0.0");
 
 		const fetchFn: FetchRemoteHeadCommitFn = async () => UPSTREAM_COMMIT;
+
 		const service = new QuartzUpgradeService(
 			makeMockRepo({ getLatestCommitThrows: true }),
 			{ type: "none" },
@@ -156,6 +162,7 @@ describe("QuartzUpgradeService", () => {
 		};
 
 		const fetchFn: FetchRemoteHeadCommitFn = async () => UPSTREAM_COMMIT;
+
 		const service = new QuartzUpgradeService(
 			makeMockRepo(),
 			{ type: "none" },
@@ -173,6 +180,7 @@ describe("QuartzUpgradeService", () => {
 		mockPackageVersion("5.0.0");
 
 		let capturedProxy: string | undefined;
+
 		const fetchFn: FetchRemoteHeadCommitFn = async (
 			_url,
 			_auth,

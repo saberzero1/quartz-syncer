@@ -142,6 +142,7 @@ describe("QuartzConfigService", () => {
 			assert.strictEqual(config.configuration.enableSPA, true);
 			assert.strictEqual(config.configuration.locale, "en-US");
 			assert.strictEqual(config.plugins.length, 2);
+
 			assert.strictEqual(
 				config.plugins[0].source,
 				"github:quartz-community/explorer",
@@ -221,6 +222,7 @@ describe("QuartzConfigService", () => {
 				serialized.includes("# User plugins"),
 				"User comment should be preserved",
 			);
+
 			assert.ok(
 				serialized.includes("yaml-language-server"),
 				"Schema comment should be preserved",
@@ -229,6 +231,7 @@ describe("QuartzConfigService", () => {
 
 		it("preserves schema comment when creating new document", () => {
 			const service = new QuartzConfigService(createMockRepo({}));
+
 			const config = {
 				configuration: {
 					pageTitle: "Test",
@@ -327,6 +330,7 @@ describe("QuartzConfigService", () => {
 			await service.writeConfig(config);
 
 			assert.ok(writtenFiles.has("quartz.config.yaml"));
+
 			assert.ok(
 				writtenFiles
 					.get("quartz.config.yaml")!
@@ -363,6 +367,7 @@ describe("QuartzConfigService", () => {
 
 			assert.ok(writtenFiles.has("quartz.plugins.json"));
 			const parsed = JSON.parse(writtenFiles.get("quartz.plugins.json")!);
+
 			assert.strictEqual(
 				parsed.configuration.pageTitle,
 				"New JSON Title",
@@ -413,6 +418,7 @@ describe("QuartzConfigService", () => {
 			assert.notStrictEqual(lock, null);
 			assert.strictEqual(lock!.version, "1.0.0");
 			assert.strictEqual(lock!.plugins.explorer.commit, "abc123");
+
 			assert.strictEqual(
 				lock!.plugins.explorer.resolved,
 				"https://github.com/quartz-community/explorer.git",

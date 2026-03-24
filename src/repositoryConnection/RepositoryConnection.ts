@@ -1058,6 +1058,7 @@ export class RepositoryConnection {
 	): Promise<string | null> {
 		try {
 			const prefix = ref ? `refs/heads/${ref}` : "HEAD";
+
 			const refs = await git.listServerRefs({
 				http: obsidianHttpClient,
 				url: remoteUrl,

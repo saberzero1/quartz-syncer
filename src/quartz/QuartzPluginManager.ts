@@ -16,6 +16,7 @@ export class QuartzPluginManager {
 		>,
 	): QuartzPluginEntry {
 		const sourceKey = getPluginSourceKey(source);
+
 		const existing = config.plugins.find(
 			(p) => getPluginSourceKey(p.source) === sourceKey,
 		);
