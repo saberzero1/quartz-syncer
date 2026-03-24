@@ -5,11 +5,16 @@ import QuartzSyncerSettingTabCollection from "src/models/SyncerTab";
 import { DataStore } from "src/publishFile/DataStore";
 import { GitSettings } from "./Views/GitSettings";
 import { QuartzSettings } from "./Views/QuartzSettings";
+import { QuartzV5SettingsTab } from "./Views/QuartzV5SettingsTab";
 import { FrontmatterSettings } from "./Views/FrontmatterSettings";
 import { IntegrationSettings } from "./Views/IntegrationSettings";
 import { PerformanceSettings } from "./Views/PerformanceSettings";
 import { ThemesSettings } from "./Views/ThemesSettings";
 import { UISettings } from "./Views/UISettings";
+import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
+import Logger from "js-logger";
+
+const logger = Logger.get("setting-view");
 
 /**
  * SettingView class.
@@ -116,6 +121,8 @@ export default class SettingView {
 			cls: "quartz-syncer-setting-tab-group",
 		});
 
+		const isV5 = await this.detectQuartzV5();
+
 		const gitTab = this.createTab("Git", "git-branch");
 		const quartzTab = this.createTab("Quartz", "quartz-syncer-icon");
 		const frontmatterTab = this.createTab("Frontmatter", "archive");
@@ -126,6 +133,12 @@ export default class SettingView {
 
 		headerTabGroup.appendChild(gitTab);
 		headerTabGroup.appendChild(quartzTab);
+
+		if (isV5) {
+			const quartzV5Tab = this.createTab("Quartz v5", "settings");
+			headerTabGroup.appendChild(quartzV5Tab);
+		}
+
 		headerTabGroup.appendChild(frontmatterTab);
 		headerTabGroup.appendChild(integrationTab);
 		headerTabGroup.appendChild(performanceTab);
@@ -155,6 +168,17 @@ export default class SettingView {
 				this.createSettingsTab(content, "Quartz"),
 			),
 		);
+
+		if (isV5) {
+			settingTabs.push(
+				new QuartzV5SettingsTab(
+					this.app,
+					this.plugin,
+					this,
+					this.createSettingsTab(content, "Quartz v5"),
+				),
+			);
+		}
 
 		settingTabs.push(
 			new FrontmatterSettings(
@@ -228,6 +252,24 @@ export default class SettingView {
 	 * @param icon - The icon to display in the tab.
 	 * @returns The created tab element.
 	 */
+	private async detectQuartzV5(): Promise<boolean> {
+		try {
+			const siteManager = new QuartzSyncerSiteManager(
+				this.app.metadataCache,
+				this.settings,
+				this.plugin.getGitSettingsWithSecret(),
+			);
+
+			const version = await siteManager.getQuartzVersion();
+
+			return version === "v5-yaml" || version === "v5-json";
+		} catch (error) {
+			logger.debug("Could not detect Quartz version", error);
+
+			return false;
+		}
+	}
+
 	private createTab(name: string, icon: string) {
 		const tab = this.settingsRootElement.createEl("div", {
 			cls: "quartz-syncer-navigation-item",
