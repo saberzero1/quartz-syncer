@@ -60,6 +60,30 @@ const DISPLAY_MODES: QuartzDisplayMode[] = [
 	"desktop-only",
 ];
 
+const DEFAULT_LIGHT_COLORS: QuartzColorScheme = {
+	light: "#faf8f8",
+	lightgray: "#e5e5e5",
+	gray: "#b8b8b8",
+	darkgray: "#4e4e4e",
+	dark: "#2b2b2b",
+	secondary: "#284b63",
+	tertiary: "#84a59d",
+	highlight: "rgba(143, 159, 169, 0.15)",
+	textHighlight: "#fff23688",
+};
+
+const DEFAULT_DARK_COLORS: QuartzColorScheme = {
+	light: "#161618",
+	lightgray: "#393639",
+	gray: "#646464",
+	darkgray: "#d4d4d4",
+	dark: "#ebebec",
+	secondary: "#7b97aa",
+	tertiary: "#84a59d",
+	highlight: "rgba(143, 159, 169, 0.15)",
+	textHighlight: "#fff23688",
+};
+
 const PAGE_TYPES: QuartzPageType[] = [
 	"content",
 	"folder",
@@ -701,10 +725,12 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		this.renderColorSchemeSection(
 			"Light mode colors",
 			theme.colors.lightMode,
+			DEFAULT_LIGHT_COLORS,
 		);
 		this.renderColorSchemeSection(
 			"Dark mode colors",
 			theme.colors.darkMode,
+			DEFAULT_DARK_COLORS,
 		);
 		this.renderQuartzThemesOption();
 	}
@@ -712,6 +738,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private renderColorSchemeSection(
 		heading: string,
 		scheme: QuartzColorScheme,
+		defaults: QuartzColorScheme,
 	): void {
 		new Setting(this.settingsRootElement).setName(heading).setHeading();
 
@@ -732,6 +759,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				label,
 			);
 			const currentValue = scheme[key];
+			const defaultValue = defaults[key];
 			const isHexColor = /^#[0-9a-fA-F]{3,8}$/.test(currentValue);
 
 			if (isHexColor) {
@@ -749,6 +777,19 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					this.markDirty();
 				}),
 			);
+
+			if (currentValue !== defaultValue) {
+				setting.addExtraButton((button) =>
+					button
+						.setIcon("reset")
+						.setTooltip(`Reset to default: ${defaultValue}`)
+						.onClick(() => {
+							scheme[key] = defaultValue;
+							this.markDirty();
+							this.display();
+						}),
+				);
+			}
 		}
 	}
 
