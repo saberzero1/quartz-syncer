@@ -1050,6 +1050,39 @@ export class RepositoryConnection {
 		});
 	}
 
+	static async fetchRemoteHeadCommit(
+		remoteUrl: string,
+		auth: GitAuth,
+		ref?: string,
+		corsProxyUrl?: string,
+	): Promise<string | null> {
+		try {
+			const prefix = ref ? `refs/heads/${ref}` : "HEAD";
+			const refs = await git.listServerRefs({
+				http: obsidianHttpClient,
+				url: remoteUrl,
+				corsProxy: corsProxyUrl,
+				onAuth: this.getOnAuth(auth),
+				prefix,
+				symrefs: true,
+			});
+
+			if (ref) {
+				const match = refs.find((r) => r.ref === `refs/heads/${ref}`);
+
+				return match?.oid ?? null;
+			}
+
+			const head = refs.find((r) => r.ref === "HEAD");
+
+			return head?.oid ?? null;
+		} catch (error) {
+			logger.debug("Failed to fetch remote HEAD commit", error);
+
+			return null;
+		}
+	}
+
 	static async fetchRemoteBranches(
 		remoteUrl: string,
 		auth: GitAuth,

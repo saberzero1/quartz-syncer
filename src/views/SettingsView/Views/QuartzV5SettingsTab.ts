@@ -15,6 +15,10 @@ import {
 	getPluginSourceKey,
 } from "src/quartz/QuartzPluginUtils";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
+import {
+	QuartzPluginUpdateChecker,
+	type PluginUpdateStatus,
+} from "src/quartz/QuartzPluginUpdateChecker";
 import Logger from "js-logger";
 
 const logger = Logger.get("quartz-v5-settings");
@@ -37,8 +41,10 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private cachedLockFile: QuartzLockFile | null = null;
 	private cachedVersion: QuartzVersion | null = null;
 	private cachedPackageVersion: string | null = null;
+	private cachedUpdateStatuses: Map<string, PluginUpdateStatus> | null = null;
 	private isLoading = false;
 	private isSaving = false;
+	private isCheckingUpdates = false;
 	private hasUnsavedChanges = false;
 
 	constructor(
@@ -176,6 +182,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		this.cachedLockFile = null;
 		this.cachedVersion = null;
 		this.cachedPackageVersion = null;
+		this.cachedUpdateStatuses = null;
 		this.configService = null;
 		this.siteManager = null;
 		this.hasUnsavedChanges = false;
@@ -408,18 +415,72 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			);
 	}
 
+	private async checkForUpdates(): Promise<void> {
+		if (!this.cachedConfig || this.isCheckingUpdates) return;
+
+		this.isCheckingUpdates = true;
+
+		try {
+			const gitSettings = this.plugin.getGitSettingsWithSecret();
+			const checker = new QuartzPluginUpdateChecker(
+				gitSettings.auth,
+				gitSettings.corsProxyUrl,
+			);
+
+			const statuses = await checker.checkUpdates(
+				this.cachedConfig.plugins,
+				this.cachedLockFile,
+			);
+
+			this.cachedUpdateStatuses = new Map(
+				statuses.map((s) => [s.sourceKey, s]),
+			);
+
+			const updatesAvailable = statuses.filter((s) => s.hasUpdate).length;
+
+			if (updatesAvailable > 0) {
+				new Notice(`${updatesAvailable} plugin update(s) available.`);
+			} else {
+				new Notice("All plugins are up to date.");
+			}
+
+			this.settingsRootElement.empty();
+			this.renderContent();
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			logger.warn("Failed to check for plugin updates", error);
+			new Notice(`Failed to check for updates: ${message}`);
+		} finally {
+			this.isCheckingUpdates = false;
+		}
+	}
+
 	private renderPluginListSection(): void {
 		if (!this.cachedConfig) return;
 
 		const plugins = this.cachedConfig.plugins;
 		const lockPlugins = this.cachedLockFile?.plugins ?? {};
 
-		new Setting(this.settingsRootElement)
+		const pluginHeading = new Setting(this.settingsRootElement)
 			.setName("Plugins")
 			.setDesc(
 				`${plugins.length} plugin(s) configured. Toggle enabled state or adjust execution order.`,
 			)
 			.setHeading();
+
+		pluginHeading.addButton((button) =>
+			button
+				.setButtonText(
+					this.isCheckingUpdates
+						? "Checking..."
+						: "Check for updates",
+				)
+				.setDisabled(this.isCheckingUpdates)
+				.onClick(async () => {
+					await this.checkForUpdates();
+				}),
+		);
 
 		if (plugins.length === 0) {
 			new Setting(this.settingsRootElement)
@@ -458,8 +519,28 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			infoParts.push(`Commit: ${lockEntry.commit.slice(0, 7)}`);
 		}
 
+		const updateStatus = this.cachedUpdateStatuses?.get(key);
+
+		if (updateStatus?.hasUpdate) {
+			infoParts.push(
+				`Update available: ${updateStatus.remoteCommit?.slice(0, 7)}`,
+			);
+		} else if (
+			updateStatus &&
+			!updateStatus.hasUpdate &&
+			updateStatus.lockedCommit
+		) {
+			infoParts.push("Up to date");
+		}
+
+		if (updateStatus?.error) {
+			infoParts.push(`Check failed: ${updateStatus.error}`);
+		}
+
+		const displayName = updateStatus?.hasUpdate ? `${name} *` : name;
+
 		const setting = new Setting(this.settingsRootElement)
-			.setName(name)
+			.setName(displayName)
 			.setDesc(infoParts.length > 0 ? infoParts.join(" · ") : "");
 
 		setting.addToggle((toggle) =>
