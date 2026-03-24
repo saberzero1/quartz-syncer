@@ -451,13 +451,23 @@ describe("SyncerPageCompiler", () => {
 			expect(assets).toHaveLength(2);
 		});
 
-		it("extracts file references from canvas nodes", async () => {
+		it("extracts asset references from canvas nodes", async () => {
 			const mc = new MetadataCache();
 
 			(mc.getFirstLinkpathDest as jest.Mock).mockImplementation(
 				(path: string) => {
+					if (path === "img/diagram.png") {
+						return {
+							path: "img/diagram.png",
+							extension: "png",
+						};
+					}
+
 					if (path === "notes/card.md") {
-						return { path: "notes/card.md" };
+						return {
+							path: "notes/card.md",
+							extension: "md",
+						};
 					}
 
 					return null;
@@ -467,7 +477,11 @@ describe("SyncerPageCompiler", () => {
 			const { compiler } = makeCompiler({}, mc);
 
 			const canvasJson = JSON.stringify({
-				nodes: [{ type: "file", file: "notes/card.md" }],
+				nodes: [
+					{ type: "file", file: "img/diagram.png" },
+					{ type: "file", file: "notes/card.md" },
+					{ type: "text", text: "some text" },
+				],
 			});
 
 			const file = makeMockPublishFile({
@@ -478,7 +492,9 @@ describe("SyncerPageCompiler", () => {
 
 			const assets = await compiler.extractBlobLinks(file);
 
-			expect(assets).toContain("notes/card.md");
+			expect(assets).toContain("img/diagram.png");
+			expect(assets).not.toContain("notes/card.md");
+			expect(assets).toHaveLength(1);
 		});
 
 		it("returns empty when cache has no embeds", async () => {

@@ -314,7 +314,12 @@ export class SyncerPageCompiler {
 									file.getPath(),
 								);
 
-							if (linkedFile) {
+							if (
+								linkedFile &&
+								SyncerPageCompiler.ASSET_EXTENSIONS.has(
+									linkedFile.extension,
+								)
+							) {
 								assets.push(linkedFile.path);
 							}
 						}

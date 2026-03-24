@@ -36,6 +36,7 @@ publish: true
 - Removed dead settings: `applyEmbeds` (unused after Phase 3) and `pathRewriteRules` (never read by runtime code). Removed "Apply embeds" toggle from Quartz settings panel.
 - Simplified Excalidraw integration to pass-through (push files only, Quartz v5 handles rendering). Removed SVG conversion, SCSS styles, and ExcalidrawAutomate dependency.
 - Split Git connection status into separate read and write access checks. The settings panel now shows `(read: ok/failed)` and `(write: ok/failed)` independently, correctly identifying when a repository URL is valid but credentials lack push access.
+- Fixed canvas `extractBlobLinks` to only collect asset files (images, fonts, etc.) instead of all file nodes including markdown notes.
 
 ### Version 1.10.1
 
