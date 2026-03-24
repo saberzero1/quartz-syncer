@@ -19,6 +19,7 @@ import type {
 	QuartzDisplayMode,
 	QuartzGlobalLayout,
 	QuartzPageType,
+	QuartzColorScheme,
 } from "src/quartz/QuartzConfigTypes";
 import {
 	getPluginName,
@@ -35,6 +36,12 @@ import {
 	type QuartzUpgradeStatus,
 } from "src/quartz/QuartzUpgradeService";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import {
+	QuartzTemplateService,
+	type QuartzTemplate,
+} from "src/quartz/QuartzTemplateService";
+import { QuartzPluginManifestService } from "src/quartz/QuartzPluginManifestService";
+import type { QuartzPluginManifest } from "src/quartz/QuartzConfigTypes";
 import Logger from "js-logger";
 
 const logger = Logger.get("quartz-v5-settings");
@@ -82,6 +89,13 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private cachedPackageVersion: string | null = null;
 	private cachedUpdateStatuses: Map<string, PluginUpdateStatus> | null = null;
 	private cachedUpgradeStatus: QuartzUpgradeStatus | null = null;
+	private cachedTemplateNames: string[] = [];
+	private cachedTemplates: Map<string, QuartzTemplate> = new Map();
+	private templateService: QuartzTemplateService | null = null;
+	private manifestService: QuartzPluginManifestService | null = null;
+	private cachedManifests: Map<string, QuartzPluginManifest | null> =
+		new Map();
+	private expandedPlugins: Set<string> = new Set();
 	private isLoading = false;
 	private isSaving = false;
 	private isCheckingUpdates = false;
@@ -202,15 +216,29 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				return;
 			}
 
-			const [config, lockFile, packageVersion] = await Promise.all([
-				this.configService.readConfig(),
-				this.configService.readLockFile(),
-				this.loadPackageVersion(siteManager),
-			]);
+			this.templateService = new QuartzTemplateService(
+				siteManager.userSyncerConnection,
+			);
+
+			const gitSettings = this.plugin.getGitSettingsWithSecret();
+
+			this.manifestService = new QuartzPluginManifestService(
+				gitSettings.auth,
+				gitSettings.corsProxyUrl,
+			);
+
+			const [config, lockFile, packageVersion, templateNames] =
+				await Promise.all([
+					this.configService.readConfig(),
+					this.configService.readLockFile(),
+					this.loadPackageVersion(siteManager),
+					this.templateService.listTemplateNames(),
+				]);
 
 			this.cachedConfig = config;
 			this.cachedLockFile = lockFile;
 			this.cachedPackageVersion = packageVersion;
+			this.cachedTemplateNames = templateNames;
 
 			this.display();
 		} catch (error) {
@@ -254,6 +282,12 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		this.cachedPackageVersion = null;
 		this.cachedUpdateStatuses = null;
 		this.cachedUpgradeStatus = null;
+		this.cachedTemplateNames = [];
+		this.cachedTemplates = new Map();
+		this.cachedManifests = new Map();
+		this.expandedPlugins = new Set();
+		this.templateService = null;
+		this.manifestService = null;
 		this.configService = null;
 		this.siteManager = null;
 		this.hasUnsavedChanges = false;
@@ -285,6 +319,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private renderV5Content(): void {
 		this.renderVersionSection();
 		this.renderUpgradeSection();
+		this.renderTemplateSection();
 		this.renderSiteConfigSection();
 		this.renderPluginListSection();
 		this.renderLayoutSection();
@@ -412,6 +447,93 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			new Notice(`Failed to check for Quartz upgrade: ${message}`);
 		} finally {
 			this.isCheckingUpgrade = false;
+		}
+	}
+
+	private renderTemplateSection(): void {
+		if (this.cachedTemplateNames.length === 0) return;
+
+		new Setting(this.settingsRootElement)
+			.setName("Templates")
+			.setDesc(
+				"Apply a configuration template to replace your current settings with a preset.",
+			)
+			.setHeading();
+
+		for (const templateName of this.cachedTemplateNames) {
+			const setting = new Setting(this.settingsRootElement).setName(
+				templateName,
+			);
+
+			const cached = this.cachedTemplates.get(templateName);
+
+			if (cached) {
+				setting.setDesc(
+					`Title: "${cached.config.configuration.pageTitle}" · ${cached.config.plugins.length} plugin(s)`,
+				);
+			}
+
+			setting.addButton((button) =>
+				button.setButtonText("Preview").onClick(async () => {
+					if (!this.templateService) return;
+
+					const template =
+						this.cachedTemplates.get(templateName) ??
+						(await this.templateService.readTemplate(templateName));
+
+					if (!template) {
+						new Notice(
+							`Could not load template "${templateName}".`,
+						);
+
+						return;
+					}
+
+					this.cachedTemplates.set(templateName, template);
+
+					new Notice(
+						`Template "${templateName}": ` +
+							`${template.config.plugins.length} plugin(s), ` +
+							`title "${template.config.configuration.pageTitle}"`,
+					);
+					this.display();
+				}),
+			);
+
+			setting.addButton((button) =>
+				button
+					.setButtonText("Apply")
+					.setWarning()
+					.onClick(async () => {
+						if (!this.cachedConfig || !this.templateService) return;
+
+						const template =
+							this.cachedTemplates.get(templateName) ??
+							(await this.templateService.readTemplate(
+								templateName,
+							));
+
+						if (!template) {
+							new Notice(
+								`Could not load template "${templateName}".`,
+							);
+
+							return;
+						}
+
+						this.cachedTemplates.set(templateName, template);
+						this.templateService.applyTemplate(
+							this.cachedConfig,
+							template,
+						);
+						this.markDirty();
+						this.display();
+
+						new Notice(
+							`Template "${templateName}" applied. Save to push changes.`,
+						);
+					}),
+			);
 		}
 	}
 
@@ -575,6 +697,105 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					this.markDirty();
 				}),
 			);
+
+		this.renderColorSchemeSection(
+			"Light mode colors",
+			theme.colors.lightMode,
+		);
+		this.renderColorSchemeSection(
+			"Dark mode colors",
+			theme.colors.darkMode,
+		);
+		this.renderQuartzThemesOption();
+	}
+
+	private renderColorSchemeSection(
+		heading: string,
+		scheme: QuartzColorScheme,
+	): void {
+		new Setting(this.settingsRootElement).setName(heading).setHeading();
+
+		const colorFields: { key: keyof QuartzColorScheme; label: string }[] = [
+			{ key: "light", label: "Background" },
+			{ key: "lightgray", label: "Light gray (borders)" },
+			{ key: "gray", label: "Gray (graph, heavier borders)" },
+			{ key: "darkgray", label: "Dark gray (body text)" },
+			{ key: "dark", label: "Dark (headings)" },
+			{ key: "secondary", label: "Secondary (link color)" },
+			{ key: "tertiary", label: "Tertiary (hover states)" },
+			{ key: "highlight", label: "Highlight (internal link bg)" },
+			{ key: "textHighlight", label: "Text highlight (==marked==)" },
+		];
+
+		for (const { key, label } of colorFields) {
+			const setting = new Setting(this.settingsRootElement).setName(
+				label,
+			);
+			const currentValue = scheme[key];
+			const isHexColor = /^#[0-9a-fA-F]{3,8}$/.test(currentValue);
+
+			if (isHexColor) {
+				setting.addColorPicker((picker) =>
+					picker.setValue(currentValue).onChange((value) => {
+						scheme[key] = value;
+						this.markDirty();
+					}),
+				);
+			}
+
+			setting.addText((text) =>
+				text.setValue(currentValue).onChange((value) => {
+					scheme[key] = value;
+					this.markDirty();
+				}),
+			);
+		}
+	}
+
+	private renderQuartzThemesOption(): void {
+		if (!this.cachedConfig) return;
+
+		const quartzThemesKey = "quartz-themes";
+		const hasQuartzThemes = this.cachedConfig.plugins.some(
+			(p) => getPluginSourceKey(p.source) === quartzThemesKey,
+		);
+
+		const setting = new Setting(this.settingsRootElement)
+			.setName("Quartz Themes")
+			.setDesc(
+				hasQuartzThemes
+					? "Quartz Themes plugin is installed. It provides community color themes."
+					: "Add the Quartz Themes plugin for community color themes.",
+			);
+
+		if (!hasQuartzThemes) {
+			setting.addButton((button) =>
+				button.setButtonText("Add Quartz Themes").onClick(() => {
+					if (!this.cachedConfig) return;
+
+					try {
+						this.pluginManager.addPlugin(this.cachedConfig, {
+							name: "quartz-themes",
+							repo: "github:saberzero1/quartz-themes",
+							subdir: "plugin",
+							ref: "main",
+						});
+						this.markDirty();
+						this.display();
+
+						new Notice(
+							"Quartz Themes plugin added. Save to push changes.",
+						);
+					} catch (error) {
+						const message =
+							error instanceof Error
+								? error.message
+								: String(error);
+						new Notice(message);
+					}
+				}),
+			);
+		}
 	}
 
 	private async checkForUpdates(): Promise<void> {
@@ -798,6 +1019,154 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		if (plugin.layout) {
 			this.renderPluginLayoutControls(plugin);
 		}
+
+		const isExpanded = this.expandedPlugins.has(key);
+
+		setting.addExtraButton((button) =>
+			button
+				.setIcon(isExpanded ? "chevron-up" : "settings")
+				.setTooltip(isExpanded ? "Hide options" : "Show options")
+				.onClick(async () => {
+					if (isExpanded) {
+						this.expandedPlugins.delete(key);
+					} else {
+						this.expandedPlugins.add(key);
+
+						if (
+							!this.cachedManifests.has(key) &&
+							this.manifestService
+						) {
+							const manifest =
+								await this.manifestService.fetchManifest(
+									plugin.source,
+								);
+							this.cachedManifests.set(key, manifest);
+						}
+					}
+
+					this.display();
+				}),
+		);
+
+		if (isExpanded) {
+			this.renderPluginOptions(plugin, key);
+		}
+	}
+
+	private renderPluginOptions(
+		plugin: QuartzPluginEntry,
+		sourceKey: string,
+	): void {
+		if (!plugin.options) {
+			plugin.options = {};
+		}
+
+		const manifest = this.cachedManifests.get(sourceKey);
+		const schema = manifest?.optionSchema ?? manifest?.configSchema ?? null;
+		const optionKeys = new Set<string>([
+			...Object.keys(plugin.options),
+			...(schema ? Object.keys(schema) : []),
+		]);
+
+		if (optionKeys.size === 0) {
+			new Setting(this.settingsRootElement).setDesc(
+				manifest
+					? "This plugin has no configurable options."
+					: "Loading manifest failed. You can still edit options manually.",
+			);
+		}
+
+		for (const optKey of optionKeys) {
+			const currentValue = plugin.options[optKey];
+			const schemaEntry = schema?.[optKey] as
+				| Record<string, unknown>
+				| undefined;
+			const label = (schemaEntry?.title as string) ?? optKey;
+			const desc = (schemaEntry?.description as string) ?? "";
+
+			const setting = new Setting(this.settingsRootElement)
+				.setName(label)
+				.setDesc(desc);
+
+			if (typeof currentValue === "boolean") {
+				setting.addToggle((toggle) =>
+					toggle.setValue(currentValue).onChange((value) => {
+						plugin.options![optKey] = value;
+						this.markDirty();
+					}),
+				);
+			} else if (
+				typeof currentValue === "number" ||
+				schemaEntry?.type === "number" ||
+				schemaEntry?.type === "integer"
+			) {
+				setting.addText((text) =>
+					text
+						.setValue(
+							currentValue !== undefined
+								? String(currentValue)
+								: "",
+						)
+						.setPlaceholder(
+							schemaEntry?.default !== undefined
+								? String(schemaEntry.default)
+								: "",
+						)
+						.onChange((value) => {
+							const num = parseFloat(value);
+							plugin.options![optKey] = isNaN(num)
+								? undefined
+								: num;
+							this.markDirty();
+						}),
+				);
+			} else {
+				setting.addText((text) =>
+					text
+						.setValue(
+							currentValue !== undefined
+								? String(currentValue)
+								: "",
+						)
+						.setPlaceholder(
+							schemaEntry?.default !== undefined
+								? String(schemaEntry.default)
+								: "",
+						)
+						.onChange((value) => {
+							plugin.options![optKey] = value || undefined;
+							this.markDirty();
+						}),
+				);
+			}
+		}
+
+		let newOptionKey = "";
+
+		new Setting(this.settingsRootElement)
+			.setDesc("Add a custom option key.")
+			.addText((text) =>
+				text.setPlaceholder("optionKey").onChange((value) => {
+					newOptionKey = value;
+				}),
+			)
+			.addButton((button) =>
+				button.setButtonText("Add option").onClick(() => {
+					if (!newOptionKey.trim() || !plugin.options) return;
+
+					if (plugin.options[newOptionKey.trim()] !== undefined) {
+						new Notice(
+							`Option "${newOptionKey.trim()}" already exists.`,
+						);
+
+						return;
+					}
+
+					plugin.options[newOptionKey.trim()] = "";
+					this.markDirty();
+					this.display();
+				}),
+			);
 	}
 
 	private renderPluginLayoutControls(plugin: QuartzPluginEntry): void {
@@ -916,18 +1285,31 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		new Setting(this.settingsRootElement)
 			.setName("Template")
-			.setDesc(
-				`Frame template for ${pageType} pages (e.g. default, full-width, minimal).`,
-			)
-			.addText((text) =>
-				text
-					.setPlaceholder("default")
-					.setValue(override.template ?? "")
-					.onChange((value) => {
-						override.template = value || undefined;
-						this.markDirty();
-					}),
-			);
+			.setDesc(`Frame template for ${pageType} pages.`)
+			.addDropdown((dropdown) => {
+				dropdown.addOption("", "Default");
+
+				const frameNames = [
+					"default",
+					"full-width",
+					"minimal",
+					...this.cachedTemplateNames.filter(
+						(n) =>
+							n !== "default" &&
+							n !== "full-width" &&
+							n !== "minimal",
+					),
+				];
+
+				for (const frame of frameNames) {
+					dropdown.addOption(frame, frame);
+				}
+
+				dropdown.setValue(override.template ?? "").onChange((value) => {
+					override.template = value || undefined;
+					this.markDirty();
+				});
+			});
 
 		new Setting(this.settingsRootElement)
 			.setName("Excluded plugins")

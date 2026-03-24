@@ -565,6 +565,63 @@ export class RepositoryConnection {
 		}
 	}
 
+	/**
+	 * Lists file and directory names in a specific directory path within the repository.
+	 * Only lists immediate children (non-recursive).
+	 *
+	 * @param dirPath - The directory path to list (e.g. "quartz/cli/templates").
+	 * @returns An array of entry names, or an empty array if the directory doesn't exist.
+	 */
+	async listDirectory(
+		dirPath: string,
+	): Promise<{ name: string; type: "blob" | "tree" }[]> {
+		try {
+			await this.ensureRepoInitialized();
+
+			const commitOid = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+			});
+
+			const { commit } = await git.readCommit({
+				...this.getGitConfig(),
+				oid: commitOid,
+			});
+
+			let currentOid = commit.tree;
+			const parts = dirPath.split("/").filter((p) => p.length > 0);
+
+			for (const part of parts) {
+				const { tree } = await git.readTree({
+					...this.getGitConfig(),
+					oid: currentOid,
+				});
+
+				const entry = tree.find(
+					(e) => e.path === part && e.type === "tree",
+				);
+
+				if (!entry) return [];
+
+				currentOid = entry.oid;
+			}
+
+			const { tree } = await git.readTree({
+				...this.getGitConfig(),
+				oid: currentOid,
+			});
+
+			return tree.map((e) => ({
+				name: e.path,
+				type: e.type as "blob" | "tree",
+			}));
+		} catch (error) {
+			logger.debug(`Could not list directory ${dirPath}`, error);
+
+			return [];
+		}
+	}
+
 	async getLatestCommit(): Promise<
 		{ sha: string; commit: { tree: { sha: string } } } | undefined
 	> {
