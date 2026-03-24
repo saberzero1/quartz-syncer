@@ -19,6 +19,11 @@ import {
 	QuartzPluginUpdateChecker,
 	type PluginUpdateStatus,
 } from "src/quartz/QuartzPluginUpdateChecker";
+import {
+	QuartzUpgradeService,
+	type QuartzUpgradeStatus,
+} from "src/quartz/QuartzUpgradeService";
+import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import Logger from "js-logger";
 
 const logger = Logger.get("quartz-v5-settings");
@@ -42,9 +47,11 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private cachedVersion: QuartzVersion | null = null;
 	private cachedPackageVersion: string | null = null;
 	private cachedUpdateStatuses: Map<string, PluginUpdateStatus> | null = null;
+	private cachedUpgradeStatus: QuartzUpgradeStatus | null = null;
 	private isLoading = false;
 	private isSaving = false;
 	private isCheckingUpdates = false;
+	private isCheckingUpgrade = false;
 	private hasUnsavedChanges = false;
 
 	constructor(
@@ -183,6 +190,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		this.cachedVersion = null;
 		this.cachedPackageVersion = null;
 		this.cachedUpdateStatuses = null;
+		this.cachedUpgradeStatus = null;
 		this.configService = null;
 		this.siteManager = null;
 		this.hasUnsavedChanges = false;
@@ -213,6 +221,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 	private renderContent(): void {
 		this.renderVersionSection();
+		this.renderUpgradeSection();
 		this.renderSiteConfigSection();
 		this.renderPluginListSection();
 	}
@@ -251,6 +260,95 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					this.display();
 				}),
 			);
+	}
+
+	private renderUpgradeSection(): void {
+		const upgradeSetting = new Setting(this.settingsRootElement)
+			.setName("Quartz Updates")
+			.setHeading();
+
+		upgradeSetting.addButton((button) =>
+			button
+				.setButtonText(
+					this.isCheckingUpgrade
+						? "Checking..."
+						: "Check for Quartz updates",
+				)
+				.setDisabled(this.isCheckingUpgrade)
+				.onClick(async () => {
+					await this.checkForQuartzUpgrade();
+				}),
+		);
+
+		if (this.cachedUpgradeStatus) {
+			const status = this.cachedUpgradeStatus;
+
+			if (status.error) {
+				new Setting(this.settingsRootElement)
+					.setName("Upgrade check failed")
+					.setDesc(status.error);
+			} else if (status.hasUpgrade) {
+				const currentShort =
+					status.currentCommit?.slice(0, 7) ?? "unknown";
+				const upstreamShort =
+					status.upstreamCommit?.slice(0, 7) ?? "unknown";
+
+				new Setting(this.settingsRootElement)
+					.setName("Quartz update available")
+					.setDesc(
+						`Your Quartz is at ${currentShort}, upstream is at ${upstreamShort}. ` +
+							"Run `npx quartz update` in your repository to upgrade.",
+					);
+			} else {
+				new Setting(this.settingsRootElement)
+					.setName("Quartz is up to date")
+					.setDesc(
+						`Current commit: ${status.currentCommit?.slice(0, 7) ?? "unknown"}`,
+					);
+			}
+		}
+	}
+
+	private async checkForQuartzUpgrade(): Promise<void> {
+		if (this.isCheckingUpgrade) return;
+
+		this.isCheckingUpgrade = true;
+
+		try {
+			const siteManager = this.getOrCreateSiteManager();
+			const gitSettings = this.plugin.getGitSettingsWithSecret();
+
+			const upgradeService = new QuartzUpgradeService(
+				siteManager.userSyncerConnection,
+				gitSettings.auth,
+				RepositoryConnection.fetchRemoteHeadCommit,
+				gitSettings.corsProxyUrl,
+			);
+
+			this.cachedUpgradeStatus = await upgradeService.checkForUpgrade();
+
+			if (this.cachedUpgradeStatus.hasUpgrade) {
+				new Notice(
+					"A Quartz update is available. Run `npx quartz update` to upgrade.",
+				);
+			} else if (!this.cachedUpgradeStatus.error) {
+				new Notice("Quartz is up to date.");
+			} else {
+				new Notice(
+					`Upgrade check failed: ${this.cachedUpgradeStatus.error}`,
+				);
+			}
+
+			this.settingsRootElement.empty();
+			this.renderContent();
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			logger.warn("Failed to check for Quartz upgrade", error);
+			new Notice(`Failed to check for Quartz upgrade: ${message}`);
+		} finally {
+			this.isCheckingUpgrade = false;
+		}
 	}
 
 	private renderSiteConfigSection(): void {
