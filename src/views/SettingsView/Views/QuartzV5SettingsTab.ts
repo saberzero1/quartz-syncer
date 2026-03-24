@@ -19,6 +19,7 @@ import {
 	getPluginName,
 	getPluginSourceKey,
 } from "src/quartz/QuartzPluginUtils";
+import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 import {
 	QuartzPluginUpdateChecker,
@@ -81,6 +82,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private isCheckingUpdates = false;
 	private isCheckingUpgrade = false;
 	private hasUnsavedChanges = false;
+	private pluginManager = new QuartzPluginManager();
 
 	constructor(
 		app: App,
@@ -609,6 +611,43 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				}),
 		);
 
+		let addPluginSource = "";
+
+		new Setting(this.settingsRootElement)
+			.setName("Add plugin")
+			.setDesc(
+				'Enter a plugin source (e.g. "github:quartz-community/explorer").',
+			)
+			.addText((text) =>
+				text.setPlaceholder("github:org/plugin").onChange((value) => {
+					addPluginSource = value;
+				}),
+			)
+			.addButton((button) =>
+				button.setButtonText("Add").onClick(() => {
+					if (!this.cachedConfig || !addPluginSource.trim()) return;
+
+					try {
+						this.pluginManager.addPlugin(
+							this.cachedConfig,
+							addPluginSource.trim(),
+						);
+						this.markDirty();
+						this.settingsRootElement.empty();
+						this.renderContent();
+						new Notice(
+							`Plugin "${addPluginSource.trim()}" added. Save to push changes.`,
+						);
+					} catch (error) {
+						const message =
+							error instanceof Error
+								? error.message
+								: String(error);
+						new Notice(message);
+					}
+				}),
+			);
+
 		if (plugins.length === 0) {
 			new Setting(this.settingsRootElement)
 				.setName("No plugins")
@@ -694,6 +733,33 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				.setTooltip("Move down")
 				.setDisabled(index === total - 1)
 				.onClick(() => this.movePlugin(index, index + 1)),
+		);
+
+		setting.addExtraButton((button) =>
+			button
+				.setIcon("trash")
+				.setTooltip("Remove plugin")
+				.onClick(() => {
+					if (!this.cachedConfig) return;
+
+					const key = getPluginSourceKey(plugin.source);
+
+					try {
+						this.pluginManager.removePlugin(this.cachedConfig, key);
+						this.markDirty();
+						this.settingsRootElement.empty();
+						this.renderContent();
+						new Notice(
+							`Plugin "${getPluginName(plugin.source)}" removed. Save to push changes.`,
+						);
+					} catch (error) {
+						const message =
+							error instanceof Error
+								? error.message
+								: String(error);
+						new Notice(message);
+					}
+				}),
 		);
 
 		if (plugin.layout) {
