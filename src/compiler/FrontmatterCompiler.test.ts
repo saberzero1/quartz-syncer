@@ -29,7 +29,6 @@ function makeSettings(
 		publishFrontmatterKey: "publish",
 		allNotesPublishableByDefault: false,
 		contentFolder: "content",
-		useFullResolutionImages: false,
 		createdTimestampKey: "created",
 		updatedTimestampKey: "updated",
 		publishedTimestampKey: "published",

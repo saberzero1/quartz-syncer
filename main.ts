@@ -36,7 +36,6 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	/** Quartz settings */
 	contentFolder: "content",
-	useFullResolutionImages: false,
 	/** Frontmatter settings */
 	publishFrontmatterKey: "publish",
 	allNotesPublishableByDefault: false,

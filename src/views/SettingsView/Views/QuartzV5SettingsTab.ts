@@ -1,4 +1,10 @@
-import { Setting, App, PluginSettingTab, Notice } from "obsidian";
+import {
+	Setting,
+	App,
+	PluginSettingTab,
+	Notice,
+	normalizePath,
+} from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
@@ -100,32 +106,63 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		this.settingsRootElement.empty();
 		this.settingsRootElement.addClass("quartz-syncer-github-settings");
 
-		this.settings.settings.lastUsedSettingsTab = "quartz v5";
+		this.settings.settings.lastUsedSettingsTab = "quartz";
 		this.settings.plugin.saveSettings();
 
+		this.renderQuartzHeader();
+		this.renderContentFolderSetting();
+
 		if (this.cachedConfig) {
-			this.renderContent();
+			this.renderV5Content();
 		} else {
 			this.renderLoading();
 			this.loadV5Data();
 		}
 	}
 
-	private renderLoading(): void {
+	private renderQuartzHeader(): void {
 		new Setting(this.settingsRootElement)
-			.setName("Quartz v5 Configuration")
-			.setDesc("Loading configuration from repository...")
+			.setName("Quartz")
+			.setDesc(
+				"Quartz Syncer will apply these settings to your Quartz notes.",
+			)
 			.setHeading();
 	}
 
-	private renderError(message: string): void {
-		this.settingsRootElement.empty();
-
+	private renderContentFolderSetting(): void {
 		new Setting(this.settingsRootElement)
-			.setName("Quartz v5 Configuration")
-			.setDesc("Could not load configuration.")
-			.setHeading();
+			.setName("Content folder")
+			.setDesc(
+				'The folder in your Quartz repository where Quartz Syncer should store your notes. By default "content".',
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("content")
+					.setValue(this.settings.settings.contentFolder)
+					.onChange(async (value) => {
+						this.settings.settings.contentFolder =
+							normalizePath(value);
+						await this.settings.plugin.saveSettings();
+					}),
+			);
+	}
 
+	private renderLoading(): void {
+		new Setting(this.settingsRootElement)
+			.setName("v5 Configuration")
+			.setDesc("Loading configuration from repository...");
+	}
+
+	private renderNonV5Message(): void {
+		new Setting(this.settingsRootElement)
+			.setName("Quartz v5 not detected")
+			.setDesc(
+				"Your Quartz site uses the v4 configuration format. " +
+					"Run `npx quartz migrate` in your repository to enable plugin management from Obsidian.",
+			);
+	}
+
+	private renderError(message: string): void {
 		new Setting(this.settingsRootElement)
 			.setName("Error")
 			.setDesc(message)
@@ -148,9 +185,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			this.cachedVersion = version;
 
 			if (version !== "v5-yaml" && version !== "v5-json") {
-				this.renderError(
-					`Expected Quartz v5 but detected: ${version}. Check your repository configuration.`,
-				);
+				this.renderNonV5Message();
 				this.isLoading = false;
 
 				return;
@@ -177,8 +212,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			this.cachedLockFile = lockFile;
 			this.cachedPackageVersion = packageVersion;
 
-			this.settingsRootElement.empty();
-			this.renderContent();
+			this.display();
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);
@@ -248,7 +282,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		}
 	}
 
-	private renderContent(): void {
+	private renderV5Content(): void {
 		this.renderVersionSection();
 		this.renderUpgradeSection();
 		this.renderSiteConfigSection();
@@ -369,8 +403,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				);
 			}
 
-			this.settingsRootElement.empty();
-			this.renderContent();
+			this.display();
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);
@@ -572,8 +605,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				new Notice("All plugins are up to date.");
 			}
 
-			this.settingsRootElement.empty();
-			this.renderContent();
+			this.display();
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);
@@ -632,8 +664,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 							addPluginSource.trim(),
 						);
 						this.markDirty();
-						this.settingsRootElement.empty();
-						this.renderContent();
+						this.display();
 						new Notice(
 							`Plugin "${addPluginSource.trim()}" added. Save to push changes.`,
 						);
@@ -746,8 +777,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					try {
 						this.pluginManager.removePlugin(this.cachedConfig, key);
 						this.markDirty();
-						this.settingsRootElement.empty();
-						this.renderContent();
+						this.display();
 						new Notice(
 							`Plugin "${getPluginName(plugin.source)}" removed. Save to push changes.`,
 						);
@@ -861,8 +891,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 					layout.byPageType[pageType] = {};
 					this.markDirty();
-					this.settingsRootElement.empty();
-					this.renderContent();
+					this.display();
 				}),
 			);
 
@@ -876,8 +905,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				}
 
 				this.markDirty();
-				this.settingsRootElement.empty();
-				this.renderContent();
+				this.display();
 			}),
 		);
 
@@ -931,7 +959,6 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		plugins.splice(toIndex, 0, moved);
 
 		this.markDirty();
-		this.settingsRootElement.empty();
-		this.renderContent();
+		this.display();
 	}
 }

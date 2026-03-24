@@ -1,4 +1,3 @@
-import { QuartzSettings } from "src/views/SettingsView/Views/QuartzSettings";
 import { GitSettings } from "src/views/SettingsView/Views/GitSettings";
 import { PerformanceSettings } from "src/views/SettingsView/Views/PerformanceSettings";
 import { FrontmatterSettings } from "src/views/SettingsView/Views/FrontmatterSettings";
@@ -8,7 +7,6 @@ import { UISettings } from "src/views/SettingsView/Views/UISettings";
 import { QuartzV5SettingsTab } from "src/views/SettingsView/Views/QuartzV5SettingsTab";
 
 type QuartzSyncerSettingTabCollection = (
-	| QuartzSettings
 	| GitSettings
 	| FrontmatterSettings
 	| IntegrationSettings

@@ -72,7 +72,6 @@ export default interface QuartzSyncerSettings {
 
 	/** Quartz settings */
 	contentFolder: string;
-	useFullResolutionImages: boolean;
 
 	/** Frontmatter settings */
 	publishFrontmatterKey: string;
