@@ -13,7 +13,6 @@ import type {
 	QuartzDisplayMode,
 	QuartzGlobalLayout,
 	QuartzPageType,
-	QuartzPageTypeOverride,
 } from "src/quartz/QuartzConfigTypes";
 import {
 	getPluginName,

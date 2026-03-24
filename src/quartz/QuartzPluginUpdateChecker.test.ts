@@ -30,7 +30,7 @@ const PLUGIN_SEARCH: QuartzPluginEntry = {
 	enabled: true,
 };
 
-const PLUGIN_WITH_REF: QuartzPluginEntry = {
+const _PLUGIN_WITH_REF: QuartzPluginEntry = {
 	source: "github:quartz-community/toc#v2",
 	enabled: true,
 };
