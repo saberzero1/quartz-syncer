@@ -943,7 +943,10 @@ export class RepositoryConnection {
 		}
 	}
 
-	async writeRawFiles(files: Map<string, string>): Promise<void> {
+	async writeRawFiles(
+		files: Map<string, string>,
+		commitMessage = "Updated integration styles",
+	): Promise<void> {
 		if (files.size === 0) return;
 
 		try {
@@ -983,7 +986,7 @@ export class RepositoryConnection {
 
 			await git.commit({
 				...this.getGitConfig(),
-				message: "Updated integration styles",
+				message: commitMessage,
 				author: {
 					name: "Quartz Syncer",
 					email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",

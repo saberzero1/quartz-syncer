@@ -1,7 +1,7 @@
 import { Document, parseDocument } from "yaml";
 import { Base64 } from "js-base64";
 import Logger from "js-logger";
-import type { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import type { QuartzV5Config, QuartzLockFile } from "./QuartzConfigTypes";
 
 const logger = Logger.get("quartz-config-service");
@@ -72,6 +72,20 @@ export class QuartzConfigService {
 		this.ensureSchemaComment(doc);
 
 		return doc.toString();
+	}
+
+	async writeConfig(
+		config: QuartzV5Config,
+		commitMessage = "Update Quartz configuration via Syncer",
+	): Promise<void> {
+		const serialized = this.serializeConfig(config);
+		const filePath =
+			this.configFormat === "json" ? CONFIG_JSON_PATH : CONFIG_YAML_PATH;
+
+		const files = new Map<string, string>();
+		files.set(filePath, serialized);
+
+		await this.repo.writeRawFiles(files, commitMessage);
 	}
 
 	async readLockFile(): Promise<QuartzLockFile | null> {

@@ -1,7 +1,8 @@
-import { Setting, App, PluginSettingTab } from "obsidian";
+import { Setting, App, PluginSettingTab, Notice } from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
+import type { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import type {
 	QuartzV5Config,
 	QuartzLockFile,
@@ -19,8 +20,10 @@ import Logger from "js-logger";
 const logger = Logger.get("quartz-v5-settings");
 
 /**
- * Read-only Quartz v5 settings tab. Only shown when a v5 repository is detected.
- * Displays version info, site configuration, and the plugin list with lock file status.
+ * Quartz v5 settings tab with editable site configuration.
+ * Only shown when a v5 repository is detected.
+ * Displays version info, editable site config fields, and the plugin list.
+ * Changes are committed and pushed to the repository on save.
  */
 export class QuartzV5SettingsTab extends PluginSettingTab {
 	app: App;
@@ -29,11 +32,14 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private settingsRootElement: HTMLElement;
 
 	private siteManager: QuartzSyncerSiteManager | null = null;
+	private configService: QuartzConfigService | null = null;
 	private cachedConfig: QuartzV5Config | null = null;
 	private cachedLockFile: QuartzLockFile | null = null;
 	private cachedVersion: QuartzVersion | null = null;
 	private cachedPackageVersion: string | null = null;
 	private isLoading = false;
+	private isSaving = false;
+	private hasUnsavedChanges = false;
 
 	constructor(
 		app: App,
@@ -83,9 +89,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			.setDesc(message)
 			.addButton((button) =>
 				button.setButtonText("Retry").onClick(() => {
-					this.cachedConfig = null;
-					this.cachedLockFile = null;
-					this.siteManager = null;
+					this.resetCache();
 					this.display();
 				}),
 			);
@@ -110,9 +114,9 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				return;
 			}
 
-			const configService = await siteManager.getConfigService();
+			this.configService = await siteManager.getConfigService();
 
-			if (!configService) {
+			if (!this.configService) {
 				this.renderError(
 					"Could not initialize config service for this repository.",
 				);
@@ -122,8 +126,8 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			}
 
 			const [config, lockFile, packageVersion] = await Promise.all([
-				configService.readConfig(),
-				configService.readLockFile(),
+				this.configService.readConfig(),
+				this.configService.readLockFile(),
 				this.loadPackageVersion(siteManager),
 			]);
 
@@ -167,6 +171,39 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		return this.siteManager;
 	}
 
+	private resetCache(): void {
+		this.cachedConfig = null;
+		this.cachedLockFile = null;
+		this.cachedVersion = null;
+		this.cachedPackageVersion = null;
+		this.configService = null;
+		this.siteManager = null;
+		this.hasUnsavedChanges = false;
+	}
+
+	private markDirty(): void {
+		this.hasUnsavedChanges = true;
+	}
+
+	private async saveConfig(): Promise<void> {
+		if (!this.cachedConfig || !this.configService || this.isSaving) return;
+
+		this.isSaving = true;
+
+		try {
+			await this.configService.writeConfig(this.cachedConfig);
+			this.hasUnsavedChanges = false;
+			new Notice("Quartz configuration saved and pushed.");
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			logger.warn("Failed to save Quartz config", error);
+			new Notice(`Failed to save configuration: ${message}`);
+		} finally {
+			this.isSaving = false;
+		}
+	}
+
 	private renderContent(): void {
 		this.renderVersionSection();
 		this.renderSiteConfigSection();
@@ -176,7 +213,9 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private renderVersionSection(): void {
 		new Setting(this.settingsRootElement)
 			.setName("Quartz v5 Configuration")
-			.setDesc("Read-only view of your Quartz v5 repository settings.")
+			.setDesc(
+				"Edit your Quartz v5 site configuration. Changes are pushed to your repository on save.",
+			)
 			.setHeading();
 
 		const versionLabel = this.cachedPackageVersion
@@ -193,16 +232,18 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			.setName("Configuration format")
 			.setDesc(configFormat);
 
-		new Setting(this.settingsRootElement).addButton((button) =>
-			button.setButtonText("Refresh").onClick(() => {
-				this.cachedConfig = null;
-				this.cachedLockFile = null;
-				this.cachedVersion = null;
-				this.cachedPackageVersion = null;
-				this.siteManager = null;
-				this.display();
-			}),
-		);
+		new Setting(this.settingsRootElement)
+			.addButton((button) =>
+				button.setButtonText("Save").onClick(async () => {
+					await this.saveConfig();
+				}),
+			)
+			.addButton((button) =>
+				button.setButtonText("Refresh").onClick(() => {
+					this.resetCache();
+					this.display();
+				}),
+			);
 	}
 
 	private renderSiteConfigSection(): void {
@@ -213,39 +254,84 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		new Setting(this.settingsRootElement)
 			.setName("Site Configuration")
 			.setDesc(
-				"Settings from the configuration section of your Quartz config file.",
+				"Edit site settings. Changes are applied when you click Save above.",
 			)
 			.setHeading();
 
 		new Setting(this.settingsRootElement)
 			.setName("Page title")
-			.setDesc(config.pageTitle);
+			.setDesc("The title shown in the browser tab and site header.")
+			.addText((text) =>
+				text.setValue(config.pageTitle).onChange((value) => {
+					config.pageTitle = value;
+					this.markDirty();
+				}),
+			);
 
-		if (config.pageTitleSuffix !== undefined) {
-			new Setting(this.settingsRootElement)
-				.setName("Page title suffix")
-				.setDesc(config.pageTitleSuffix);
-		}
+		new Setting(this.settingsRootElement)
+			.setName("Page title suffix")
+			.setDesc(
+				'Appended to the page title on subpages (e.g. " | My Site").',
+			)
+			.addText((text) =>
+				text
+					.setValue(config.pageTitleSuffix ?? "")
+					.onChange((value) => {
+						config.pageTitleSuffix = value || undefined;
+						this.markDirty();
+					}),
+			);
 
 		new Setting(this.settingsRootElement)
 			.setName("SPA mode")
-			.setDesc(config.enableSPA ? "Enabled" : "Disabled");
+			.setDesc(
+				"Single Page Application mode for faster navigation between pages.",
+			)
+			.addToggle((toggle) =>
+				toggle.setValue(config.enableSPA).onChange((value) => {
+					config.enableSPA = value;
+					this.markDirty();
+				}),
+			);
 
-		if (config.enablePopovers !== undefined) {
-			new Setting(this.settingsRootElement)
-				.setName("Popovers")
-				.setDesc(config.enablePopovers ? "Enabled" : "Disabled");
-		}
+		new Setting(this.settingsRootElement)
+			.setName("Popovers")
+			.setDesc("Show page preview popovers on hover.")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(config.enablePopovers ?? false)
+					.onChange((value) => {
+						config.enablePopovers = value;
+						this.markDirty();
+					}),
+			);
 
 		new Setting(this.settingsRootElement)
 			.setName("Locale")
-			.setDesc(config.locale);
+			.setDesc(
+				"BCP 47 locale tag for date formatting and i18n (e.g. en-US).",
+			)
+			.addText((text) =>
+				text.setValue(config.locale).onChange((value) => {
+					config.locale = value;
+					this.markDirty();
+				}),
+			);
 
-		if (config.baseUrl) {
-			new Setting(this.settingsRootElement)
-				.setName("Base URL")
-				.setDesc(config.baseUrl);
-		}
+		new Setting(this.settingsRootElement)
+			.setName("Base URL")
+			.setDesc(
+				"The base URL where your site is hosted (without protocol, e.g. example.com/quartz).",
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("example.com")
+					.setValue(config.baseUrl ?? "")
+					.onChange((value) => {
+						config.baseUrl = value || undefined;
+						this.markDirty();
+					}),
+			);
 
 		if (config.analytics) {
 			new Setting(this.settingsRootElement)
@@ -253,21 +339,73 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				.setDesc(config.analytics.provider);
 		}
 
-		if (config.ignorePatterns && config.ignorePatterns.length > 0) {
-			new Setting(this.settingsRootElement)
-				.setName("Ignore patterns")
-				.setDesc(config.ignorePatterns.join(", "));
-		}
+		new Setting(this.settingsRootElement)
+			.setName("Ignore patterns")
+			.setDesc(
+				"Comma-separated glob patterns for files to exclude from processing.",
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("drafts/*, private/*")
+					.setValue((config.ignorePatterns ?? []).join(", "))
+					.onChange((value) => {
+						config.ignorePatterns = value
+							.split(",")
+							.map((p) => p.trim())
+							.filter((p) => p.length > 0);
+						this.markDirty();
+					}),
+			);
 
 		if (config.theme) {
-			const { typography, fontOrigin } = config.theme;
-
-			new Setting(this.settingsRootElement)
-				.setName("Typography")
-				.setDesc(
-					`Header: ${typography.header}, Body: ${typography.body}, Code: ${typography.code} (${fontOrigin})`,
-				);
+			this.renderThemeSection(config);
 		}
+	}
+
+	private renderThemeSection(config: QuartzV5Config["configuration"]): void {
+		const theme = config.theme;
+
+		new Setting(this.settingsRootElement)
+			.setName("Theme")
+			.setDesc("Typography and font settings.")
+			.setHeading();
+
+		new Setting(this.settingsRootElement)
+			.setName("Header font")
+			.addText((text) =>
+				text.setValue(theme.typography.header).onChange((value) => {
+					theme.typography.header = value;
+					this.markDirty();
+				}),
+			);
+
+		new Setting(this.settingsRootElement)
+			.setName("Body font")
+			.addText((text) =>
+				text.setValue(theme.typography.body).onChange((value) => {
+					theme.typography.body = value;
+					this.markDirty();
+				}),
+			);
+
+		new Setting(this.settingsRootElement)
+			.setName("Code font")
+			.addText((text) =>
+				text.setValue(theme.typography.code).onChange((value) => {
+					theme.typography.code = value;
+					this.markDirty();
+				}),
+			);
+
+		new Setting(this.settingsRootElement)
+			.setName("CDN caching")
+			.setDesc("Cache fonts via CDN for faster loading.")
+			.addToggle((toggle) =>
+				toggle.setValue(theme.cdnCaching).onChange((value) => {
+					theme.cdnCaching = value;
+					this.markDirty();
+				}),
+			);
 	}
 
 	private renderPluginListSection(): void {
