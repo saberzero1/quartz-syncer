@@ -79,6 +79,7 @@ export class GitSettings extends PluginSettingTab {
 		readWrapper.appendText(" (read: ");
 		readWrapper.append(this.readStatusElement);
 		readWrapper.appendText(")");
+
 		readWrapper.addClass(
 			"quartz-syncer-connection-status",
 			"quartz-syncer-connection-status-pending",
@@ -88,6 +89,7 @@ export class GitSettings extends PluginSettingTab {
 		writeWrapper.appendText(" (write: ");
 		writeWrapper.append(this.writeStatusElement);
 		writeWrapper.appendText(")");
+
 		writeWrapper.addClass(
 			"quartz-syncer-connection-status",
 			"quartz-syncer-connection-status-pending",
