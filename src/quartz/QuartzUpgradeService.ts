@@ -1,49 +1,28 @@
-import type { GitAuth } from "src/models/settings";
 import type { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import { QuartzVersionDetector } from "./QuartzVersionDetector";
 import Logger from "js-logger";
 
 const logger = Logger.get("quartz-upgrade-service");
 
-const UPSTREAM_QUARTZ_URL = "https://github.com/jackyzha0/quartz.git";
-const UPSTREAM_BRANCH = "v4";
-
-export type FetchRemoteHeadCommitFn = (
-	remoteUrl: string,
-	auth: GitAuth,
-	ref?: string,
-	corsProxyUrl?: string,
-) => Promise<string | null>;
+const UPSTREAM_PACKAGE_JSON_URL =
+	"https://raw.githubusercontent.com/jackyzha0/quartz/v5/package.json";
 
 export interface QuartzUpgradeStatus {
 	currentVersion: string | null;
-	currentCommit: string | null;
-	upstreamCommit: string | null;
+	upstreamVersion: string | null;
 	hasUpgrade: boolean;
 	error?: string;
 }
 
 export class QuartzUpgradeService {
 	private userRepo: RepositoryConnection;
-	private auth: GitAuth;
-	private corsProxyUrl?: string;
-	private fetchRemoteHeadCommit: FetchRemoteHeadCommitFn;
 
-	constructor(
-		userRepo: RepositoryConnection,
-		auth: GitAuth,
-		fetchRemoteHeadCommitFn: FetchRemoteHeadCommitFn,
-		corsProxyUrl?: string,
-	) {
+	constructor(userRepo: RepositoryConnection) {
 		this.userRepo = userRepo;
-		this.auth = auth;
-		this.fetchRemoteHeadCommit = fetchRemoteHeadCommitFn;
-		this.corsProxyUrl = corsProxyUrl;
 	}
 
 	async checkForUpgrade(): Promise<QuartzUpgradeStatus> {
 		let currentVersion: string | null = null;
-		let currentCommit: string | null = null;
 
 		try {
 			currentVersion =
@@ -54,22 +33,10 @@ export class QuartzUpgradeService {
 			logger.debug("Could not read current Quartz version", error);
 		}
 
-		try {
-			const latestCommitInfo = await this.userRepo.getLatestCommit();
-			currentCommit = latestCommitInfo?.sha ?? null;
-		} catch (error) {
-			logger.debug("Could not read current commit", error);
-		}
-
-		let upstreamCommit: string | null = null;
+		let upstreamVersion: string | null = null;
 
 		try {
-			upstreamCommit = await this.fetchRemoteHeadCommit(
-				UPSTREAM_QUARTZ_URL,
-				this.auth,
-				UPSTREAM_BRANCH,
-				this.corsProxyUrl,
-			);
+			upstreamVersion = await this.fetchUpstreamVersion();
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);
@@ -77,31 +44,38 @@ export class QuartzUpgradeService {
 
 			return {
 				currentVersion,
-				currentCommit,
-				upstreamCommit: null,
+				upstreamVersion: null,
 				hasUpgrade: false,
 				error: `Could not reach upstream Quartz: ${message}`,
 			};
 		}
 
-		if (!upstreamCommit) {
+		if (!upstreamVersion) {
 			return {
 				currentVersion,
-				currentCommit,
-				upstreamCommit: null,
+				upstreamVersion: null,
 				hasUpgrade: false,
 				error: "Could not determine upstream Quartz version",
 			};
 		}
 
 		const hasUpgrade =
-			currentCommit !== null && upstreamCommit !== currentCommit;
+			currentVersion !== null && upstreamVersion !== currentVersion;
 
 		return {
 			currentVersion,
-			currentCommit,
-			upstreamCommit,
+			upstreamVersion,
 			hasUpgrade,
 		};
+	}
+
+	private async fetchUpstreamVersion(): Promise<string | null> {
+		const response = await fetch(UPSTREAM_PACKAGE_JSON_URL);
+
+		if (!response.ok) return null;
+
+		const data = (await response.json()) as { version?: string };
+
+		return data.version ?? null;
 	}
 }

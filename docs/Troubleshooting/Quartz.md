@@ -2,7 +2,7 @@
 title: Quartz
 description: Troubleshooting issues related to Quartz.
 created: 2025-05-05T00:00:00Z+0200
-modified: 2025-05-20T20:31:59Z+0200
+modified: 2026-03-24T22:16:24Z+0100
 publish: true
 tags: [quartz]
 ---
@@ -18,7 +18,7 @@ See [[Using an Obsidian theme in Quartz]].
 
 ## What theme is this site using?
 
-[Tokyo Night](https://github.com/saberzero1/quartz-themes/blob/master/themes/tokyo-night/README.md).
+[Catppuccin Macchiato](https://github.com/saberzero1/quartz-themes/blob/master/themes/catppuccin.macchiato/README.md).
 
 ## Can I configure Quartz settings from Obsidian using Quartz Syncer?
 

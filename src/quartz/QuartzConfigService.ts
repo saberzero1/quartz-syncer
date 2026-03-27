@@ -105,6 +105,18 @@ export class QuartzConfigService {
 		}
 	}
 
+	async writeLockFile(
+		lockFile: QuartzLockFile,
+		commitMessage = "Update plugin lock file via Syncer",
+	): Promise<void> {
+		const serialized = JSON.stringify(lockFile, null, 2) + "\n";
+
+		const files = new Map<string, string>();
+		files.set(LOCK_FILE_PATH, serialized);
+
+		await this.repo.writeRawFiles(files, commitMessage);
+	}
+
 	getConfigFormat(): ConfigFormat | null {
 		return this.configFormat;
 	}

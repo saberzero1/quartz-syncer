@@ -6,7 +6,7 @@ import type {
 } from "./QuartzConfigTypes";
 import {
 	resolveSourceToGitUrl,
-	getPluginSourceKey,
+	getPluginName,
 	getSourceRef,
 } from "./QuartzPluginUtils";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
@@ -49,7 +49,7 @@ export class QuartzPluginUpdateChecker {
 		plugin: QuartzPluginEntry,
 		lockPlugins: Record<string, QuartzLockFileEntry>,
 	): Promise<PluginUpdateStatus> {
-		const sourceKey = getPluginSourceKey(plugin.source);
+		const sourceKey = getPluginName(plugin.source);
 		const lockEntry = lockPlugins[sourceKey];
 		const lockedCommit = lockEntry?.commit ?? null;
 

@@ -80,6 +80,7 @@ describe("QuartzTemplateService", () => {
 			const names = await service.listTemplateNames();
 
 			assert.deepStrictEqual(names, ["default", "blog"]);
+
 			assert.strictEqual(
 				mockRepo.listDirectory.mock.calls[0][0],
 				"quartz/cli/templates",
@@ -149,6 +150,7 @@ describe("QuartzTemplateService", () => {
 
 			assert.ok(template);
 			assert.strictEqual(template.name, "blog");
+
 			assert.strictEqual(
 				template.config.configuration.pageTitle,
 				"Blog Template",
@@ -198,6 +200,7 @@ describe("QuartzTemplateService", () => {
 	describe("applyTemplate", () => {
 		it("replaces current config with template values", () => {
 			const current = makeConfig();
+
 			const templateConfig = makeConfig({
 				configuration: {
 					...current.configuration,
@@ -225,6 +228,7 @@ describe("QuartzTemplateService", () => {
 			assert.strictEqual(current.configuration.enableSPA, false);
 			assert.strictEqual(current.plugins.length, 1);
 			assert.strictEqual(current.plugins[0].order, 20);
+
 			assert.deepStrictEqual(
 				current.layout?.groups?.toolbar?.priority,
 				35,

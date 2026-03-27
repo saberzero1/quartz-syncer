@@ -5,10 +5,20 @@ import { QuartzPluginManifestService } from "./QuartzPluginManifestService";
 jest.mock("src/repositoryConnection/RepositoryConnection", () => {
 	let mockGetRawFile: jest.Mock;
 
-	return {
-		RepositoryConnection: jest.fn().mockImplementation(() => ({
+	const MockRepositoryConnection = Object.assign(
+		jest.fn().mockImplementation(() => ({
 			getRawFile: (...args: unknown[]) => mockGetRawFile(...args),
 		})),
+		{
+			fetchRemoteBranches: jest.fn().mockResolvedValue({
+				branches: ["main"],
+				defaultBranch: "main",
+			}),
+		},
+	);
+
+	return {
+		RepositoryConnection: MockRepositoryConnection,
 		_setMockGetRawFile: (fn: jest.Mock) => {
 			mockGetRawFile = fn;
 		},
@@ -43,6 +53,7 @@ describe("QuartzPluginManifestService", () => {
 		jest.clearAllMocks();
 		mockGetRawFile = jest.fn();
 		setMockGetRawFile(mockGetRawFile);
+
 		service = new QuartzPluginManifestService(
 			{ type: "bearer", secret: "test-token" },
 			"https://cors.proxy",
@@ -108,6 +119,7 @@ describe("QuartzPluginManifestService", () => {
 
 		assert.ok(manifest);
 		assert.strictEqual(manifest.name, "quartz-themes");
+
 		assert.strictEqual(
 			mockGetRawFile.mock.calls[0][0],
 			"plugin/package.json",
@@ -160,6 +172,7 @@ describe("QuartzPluginManifestService", () => {
 		const first = await service.fetchManifest(
 			"github:quartz-community/cached",
 		);
+
 		const second = await service.fetchManifest(
 			"github:quartz-community/cached",
 		);

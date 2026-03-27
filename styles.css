@@ -598,3 +598,139 @@ body.is-mobile
 	cursor: var(--cursor);
 	font-size: var(--font-ui-small);
 }
+
+/* Plugin Browser Modal */
+.quartz-syncer-plugin-browser {
+	width: 700px;
+	max-width: 90vw;
+}
+
+.quartz-syncer-plugin-browser .modal-content {
+	max-height: 70vh;
+	overflow-y: auto;
+	padding: 0 16px 16px;
+}
+
+.quartz-syncer-plugin-browser-loading {
+	text-align: center;
+	color: var(--text-muted);
+	padding: 24px 0;
+}
+
+.quartz-syncer-plugin-browser-controls {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 12px;
+	position: sticky;
+	top: 0;
+	background: var(--modal-background);
+	padding: 8px 0;
+	z-index: 1;
+}
+
+.quartz-syncer-plugin-browser-search {
+	flex: 1;
+	padding: 6px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.quartz-syncer-plugin-browser-tag-filter {
+	padding: 6px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-primary);
+	color: var(--text-normal);
+	font-size: var(--font-ui-small);
+}
+
+.quartz-syncer-plugin-browser-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.quartz-syncer-plugin-browser-empty {
+	text-align: center;
+	color: var(--text-muted);
+	padding: 16px 0;
+}
+
+.quartz-syncer-plugin-browser-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: 12px;
+}
+
+.quartz-syncer-plugin-browser-card-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+
+.quartz-syncer-plugin-browser-card-name {
+	font-weight: var(--font-bold);
+	font-size: var(--font-ui-medium);
+}
+
+.quartz-syncer-plugin-browser-badge-official {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-on-accent);
+	background: var(--interactive-accent);
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+}
+
+.quartz-syncer-plugin-browser-card-desc {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	margin: 0 0 8px;
+}
+
+.quartz-syncer-plugin-browser-card-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.quartz-syncer-plugin-browser-card-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.quartz-syncer-plugin-browser-tag {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	background: var(--background-secondary);
+	padding: 1px 6px;
+	border-radius: var(--radius-s);
+}
+
+.quartz-syncer-plugin-browser-installed {
+	font-size: var(--font-ui-small);
+	color: var(--text-success);
+	font-weight: var(--font-bold);
+}
+
+.quartz-syncer-plugin-browser-install-btn {
+	padding: 4px 12px;
+	border-radius: var(--radius-s);
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	cursor: var(--cursor);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-bold);
+	border: none;
+	white-space: nowrap;
+}
+
+.quartz-syncer-plugin-browser-install-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}

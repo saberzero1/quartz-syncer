@@ -66,6 +66,7 @@ export class QuartzTemplateService {
 			...template.config.configuration,
 		};
 		currentConfig.plugins = [...template.config.plugins];
+
 		currentConfig.layout = template.config.layout
 			? { ...template.config.layout }
 			: undefined;

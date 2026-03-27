@@ -13,6 +13,7 @@ import type {
 	QuartzV5Config,
 	QuartzLockFile,
 	QuartzPluginEntry,
+	QuartzPluginSource,
 	QuartzVersion,
 	QuartzLockFileEntry,
 	QuartzLayoutPosition,
@@ -24,6 +25,7 @@ import type {
 import {
 	getPluginName,
 	getPluginSourceKey,
+	resolveSourceToGitUrl,
 } from "src/quartz/QuartzPluginUtils";
 import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
@@ -35,13 +37,14 @@ import {
 	QuartzUpgradeService,
 	type QuartzUpgradeStatus,
 } from "src/quartz/QuartzUpgradeService";
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import {
 	QuartzTemplateService,
 	type QuartzTemplate,
 } from "src/quartz/QuartzTemplateService";
 import { QuartzPluginManifestService } from "src/quartz/QuartzPluginManifestService";
 import type { QuartzPluginManifest } from "src/quartz/QuartzConfigTypes";
+import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
+import { PluginBrowserModal } from "src/views/PluginBrowser/PluginBrowserModal";
 import Logger from "js-logger";
 
 const logger = Logger.get("quartz-v5-settings");
@@ -120,6 +123,15 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private cachedManifests: Map<string, QuartzPluginManifest | null> =
 		new Map();
 	private expandedPlugins: Set<string> = new Set();
+	private pluginRegistry = new QuartzPluginRegistry();
+	private cachedThemesJson: Record<
+		string,
+		{
+			compatibility: string[];
+			modes: string[];
+			variations: { name: string; injects: unknown }[];
+		}
+	> | null = null;
 	private isLoading = false;
 	private isSaving = false;
 	private isCheckingUpdates = false;
@@ -411,23 +423,18 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					.setName("Upgrade check failed")
 					.setDesc(status.error);
 			} else if (status.hasUpgrade) {
-				const currentShort =
-					status.currentCommit?.slice(0, 7) ?? "unknown";
-
-				const upstreamShort =
-					status.upstreamCommit?.slice(0, 7) ?? "unknown";
-
 				new Setting(this.settingsRootElement)
 					.setName("Quartz update available")
 					.setDesc(
-						`Your Quartz is at ${currentShort}, upstream is at ${upstreamShort}. ` +
+						`Your Quartz is at ${status.currentVersion ?? "unknown"}, ` +
+							`upstream is at ${status.upstreamVersion ?? "unknown"}. ` +
 							"Run `npx quartz update` in your repository to upgrade.",
 					);
 			} else {
 				new Setting(this.settingsRootElement)
 					.setName("Quartz is up to date")
 					.setDesc(
-						`Current commit: ${status.currentCommit?.slice(0, 7) ?? "unknown"}`,
+						`Current version: ${status.currentVersion ?? "unknown"}`,
 					);
 			}
 		}
@@ -437,16 +444,13 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		if (this.isCheckingUpgrade) return;
 
 		this.isCheckingUpgrade = true;
+		this.display();
 
 		try {
 			const siteManager = this.getOrCreateSiteManager();
-			const gitSettings = this.plugin.getGitSettingsWithSecret();
 
 			const upgradeService = new QuartzUpgradeService(
 				siteManager.userSyncerConnection,
-				gitSettings.auth,
-				RepositoryConnection.fetchRemoteHeadCommit,
-				gitSettings.corsProxyUrl,
 			);
 
 			this.cachedUpgradeStatus = await upgradeService.checkForUpgrade();
@@ -462,8 +466,6 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					`Upgrade check failed: ${this.cachedUpgradeStatus.error}`,
 				);
 			}
-
-			this.display();
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);
@@ -471,6 +473,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			new Notice(`Failed to check for Quartz upgrade: ${message}`);
 		} finally {
 			this.isCheckingUpgrade = false;
+			this.display();
 		}
 	}
 
@@ -546,6 +549,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 						}
 
 						this.cachedTemplates.set(templateName, template);
+
 						this.templateService.applyTemplate(
 							this.cachedConfig,
 							template,
@@ -722,17 +726,76 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				}),
 			);
 
-		this.renderColorSchemeSection(
-			"Light mode colors",
-			theme.colors.lightMode,
-			DEFAULT_LIGHT_COLORS,
-		);
-		this.renderColorSchemeSection(
-			"Dark mode colors",
-			theme.colors.darkMode,
-			DEFAULT_DARK_COLORS,
-		);
-		this.renderQuartzThemesOption();
+		const quartzThemesPlugin = this.findQuartzThemesPlugin();
+
+		new Setting(this.settingsRootElement)
+			.setName("Use Quartz Themes")
+			.setDesc(
+				"Use community color themes from Quartz Themes instead of manual color editing.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(quartzThemesPlugin !== null)
+					.onChange((enabled) => {
+						if (!this.cachedConfig) return;
+
+						if (enabled) {
+							try {
+								this.pluginManager.addPlugin(
+									this.cachedConfig,
+									{
+										name: "quartz-themes",
+										repo: "github:saberzero1/quartz-themes",
+										subdir: "plugin",
+										ref: "main",
+									},
+								);
+
+								new Notice(
+									"Quartz Themes plugin added. Save to push changes.",
+								);
+							} catch (error) {
+								const message =
+									error instanceof Error
+										? error.message
+										: String(error);
+								new Notice(message);
+							}
+						} else {
+							const idx = this.cachedConfig.plugins.findIndex(
+								(p) =>
+									getPluginName(p.source) === "quartz-themes",
+							);
+
+							if (idx !== -1) {
+								this.cachedConfig.plugins.splice(idx, 1);
+
+								new Notice(
+									"Quartz Themes plugin removed. Save to push changes.",
+								);
+							}
+						}
+
+						this.markDirty();
+						this.display();
+					}),
+			);
+
+		if (quartzThemesPlugin) {
+			this.renderQuartzThemesConfig(quartzThemesPlugin);
+		} else {
+			this.renderColorSchemeSection(
+				"Light mode colors",
+				theme.colors.lightMode,
+				DEFAULT_LIGHT_COLORS,
+			);
+
+			this.renderColorSchemeSection(
+				"Dark mode colors",
+				theme.colors.darkMode,
+				DEFAULT_DARK_COLORS,
+			);
+		}
 	}
 
 	private renderColorSchemeSection(
@@ -762,22 +825,6 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			const defaultValue = defaults[key];
 			const isHexColor = /^#[0-9a-fA-F]{3,8}$/.test(currentValue);
 
-			if (isHexColor) {
-				setting.addColorPicker((picker) =>
-					picker.setValue(currentValue).onChange((value) => {
-						scheme[key] = value;
-						this.markDirty();
-					}),
-				);
-			}
-
-			setting.addText((text) =>
-				text.setValue(currentValue).onChange((value) => {
-					scheme[key] = value;
-					this.markDirty();
-				}),
-			);
-
 			if (currentValue !== defaultValue) {
 				setting.addExtraButton((button) =>
 					button
@@ -790,52 +837,152 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 						}),
 				);
 			}
+
+			if (isHexColor) {
+				setting.addColorPicker((picker) =>
+					picker.setValue(currentValue).onChange((value) => {
+						scheme[key] = value;
+						this.markDirty();
+						this.display();
+					}),
+				);
+			}
+
+			setting.addText((text) =>
+				text.setValue(currentValue).onChange((value) => {
+					scheme[key] = value;
+					this.markDirty();
+				}),
+			);
 		}
 	}
 
-	private renderQuartzThemesOption(): void {
-		if (!this.cachedConfig) return;
+	private findQuartzThemesPlugin(): QuartzPluginEntry | null {
+		if (!this.cachedConfig) return null;
 
-		const quartzThemesKey = "quartz-themes";
-		const hasQuartzThemes = this.cachedConfig.plugins.some(
-			(p) => getPluginSourceKey(p.source) === quartzThemesKey,
+		return (
+			this.cachedConfig.plugins.find(
+				(p) => getPluginName(p.source) === "quartz-themes",
+			) ?? null
 		);
+	}
 
-		const setting = new Setting(this.settingsRootElement)
-			.setName("Quartz Themes")
-			.setDesc(
-				hasQuartzThemes
-					? "Quartz Themes plugin is installed. It provides community color themes."
-					: "Add the Quartz Themes plugin for community color themes.",
-			);
+	private renderQuartzThemesConfig(plugin: QuartzPluginEntry): void {
+		if (!plugin.options) {
+			plugin.options = {};
+		}
 
-		if (!hasQuartzThemes) {
-			setting.addButton((button) =>
-				button.setButtonText("Add Quartz Themes").onClick(() => {
-					if (!this.cachedConfig) return;
+		const currentThemeName =
+			(plugin.options["theme"] as string) ?? "default";
 
-					try {
-						this.pluginManager.addPlugin(this.cachedConfig, {
-							name: "quartz-themes",
-							repo: "github:saberzero1/quartz-themes",
-							subdir: "plugin",
-							ref: "main",
-						});
-						this.markDirty();
-						this.display();
+		const currentVariation =
+			(plugin.options["variation"] as string | null) ?? null;
 
-						new Notice(
-							"Quartz Themes plugin added. Save to push changes.",
-						);
-					} catch (error) {
-						const message =
-							error instanceof Error
-								? error.message
-								: String(error);
-						new Notice(message);
+		const themes = this.cachedThemesJson;
+
+		if (!themes) {
+			new Setting(this.settingsRootElement)
+				.setName("Theme")
+				.setDesc("Loading available themes...");
+			this.fetchThemesJson().then(() => this.display());
+
+			return;
+		}
+
+		const themeNames = Object.keys(themes).sort();
+
+		new Setting(this.settingsRootElement)
+			.setName("Theme")
+			.setDesc("Select a community color theme.")
+			.addDropdown((dropdown) => {
+				for (const name of themeNames) {
+					dropdown.addOption(name, name);
+				}
+
+				dropdown.setValue(currentThemeName).onChange((value) => {
+					if (!plugin.options) plugin.options = {};
+					plugin.options["theme"] = value || "default";
+
+					// Reset variation when theme changes
+					const selectedTheme = value ? themes[value] : null;
+
+					const hasVariations =
+						selectedTheme &&
+						selectedTheme.variations &&
+						selectedTheme.variations.length > 0;
+
+					if (!hasVariations) {
+						delete plugin.options["variation"];
+					} else {
+						plugin.options["variation"] = null;
 					}
-				}),
+
+					this.markDirty();
+					this.display();
+				});
+			});
+
+		const selectedTheme = currentThemeName
+			? themes[currentThemeName]
+			: null;
+		const variations = selectedTheme?.variations ?? [];
+
+		if (variations.length > 0) {
+			new Setting(this.settingsRootElement)
+				.setName("Variation")
+				.setDesc("Select a theme variation.")
+				.addDropdown((dropdown) => {
+					dropdown.addOption("", "— No variation —");
+
+					for (const variation of variations) {
+						dropdown.addOption(variation.name, variation.name);
+					}
+
+					dropdown
+						.setValue(currentVariation ?? "")
+						.onChange((value) => {
+							if (!plugin.options) plugin.options = {};
+
+							if (value) {
+								plugin.options["variation"] = value;
+							} else {
+								delete plugin.options["variation"];
+							}
+
+							this.markDirty();
+						});
+				});
+		}
+	}
+
+	private async fetchThemesJson(): Promise<void> {
+		if (this.cachedThemesJson) return;
+
+		try {
+			const response = await fetch(
+				"https://raw.githubusercontent.com/saberzero1/quartz-themes/master/themes.json",
 			);
+
+			if (!response.ok) {
+				logger.warn(`Failed to fetch themes.json: ${response.status}`);
+
+				return;
+			}
+
+			const data = (await response.json()) as {
+				themes: Record<
+					string,
+					{
+						compatibility: string[];
+						modes: string[];
+						variations: { name: string; injects: unknown }[];
+					}
+				>;
+			};
+
+			this.cachedThemesJson = data.themes;
+		} catch (error) {
+			logger.warn("Failed to fetch themes.json:", error);
 		}
 	}
 
@@ -843,6 +990,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		if (!this.cachedConfig || this.isCheckingUpdates) return;
 
 		this.isCheckingUpdates = true;
+		this.display();
 
 		try {
 			const gitSettings = this.plugin.getGitSettingsWithSecret();
@@ -868,8 +1016,6 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			} else {
 				new Notice("All plugins are up to date.");
 			}
-
-			this.display();
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);
@@ -877,7 +1023,156 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			new Notice(`Failed to check for updates: ${message}`);
 		} finally {
 			this.isCheckingUpdates = false;
+			this.display();
 		}
+	}
+
+	private async updatePlugin(
+		pluginName: string,
+		newCommit: string,
+	): Promise<void> {
+		if (!this.cachedLockFile || !this.configService) return;
+
+		const lockEntry = this.cachedLockFile.plugins[pluginName];
+
+		if (!lockEntry) {
+			new Notice(`No lock entry found for ${pluginName}.`);
+
+			return;
+		}
+
+		try {
+			lockEntry.commit = newCommit;
+			lockEntry.installedAt = new Date().toISOString();
+
+			await this.configService.writeLockFile(
+				this.cachedLockFile,
+				`Update ${pluginName} to ${newCommit.slice(0, 7)} via Syncer`,
+			);
+
+			if (this.cachedUpdateStatuses) {
+				this.cachedUpdateStatuses.delete(pluginName);
+			}
+
+			new Notice(`Updated ${pluginName} to ${newCommit.slice(0, 7)}.`);
+			this.display();
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			logger.warn(`Failed to update ${pluginName}`, error);
+			new Notice(`Failed to update ${pluginName}: ${message}`);
+		}
+	}
+
+	private async updateAllPlugins(): Promise<void> {
+		if (
+			!this.cachedLockFile ||
+			!this.configService ||
+			!this.cachedUpdateStatuses
+		)
+			return;
+
+		const updatable = [...this.cachedUpdateStatuses.values()].filter(
+			(s) => s.hasUpdate && s.remoteCommit,
+		);
+
+		if (updatable.length === 0) {
+			new Notice("No plugin updates available.");
+
+			return;
+		}
+
+		try {
+			for (const status of updatable) {
+				const lockEntry = this.cachedLockFile.plugins[status.sourceKey];
+
+				if (lockEntry && status.remoteCommit) {
+					lockEntry.commit = status.remoteCommit;
+					lockEntry.installedAt = new Date().toISOString();
+				}
+			}
+
+			const names = updatable.map((s) => s.sourceKey).join(", ");
+
+			await this.configService.writeLockFile(
+				this.cachedLockFile,
+				`Update ${updatable.length} plugin(s) via Syncer: ${names}`,
+			);
+
+			this.cachedUpdateStatuses = null;
+
+			new Notice(`Updated ${updatable.length} plugin(s): ${names}`);
+			this.display();
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			logger.warn("Failed to update plugins", error);
+			new Notice(`Failed to update plugins: ${message}`);
+		}
+	}
+
+	private async installPlugin(source: QuartzPluginSource): Promise<void> {
+		if (!this.cachedConfig || !this.configService) {
+			throw new Error("Configuration not loaded.");
+		}
+
+		const entry = this.pluginManager.addPlugin(this.cachedConfig, source);
+
+		if (this.manifestService) {
+			try {
+				const manifest =
+					await this.manifestService.fetchManifest(source);
+
+				if (manifest?.defaultOptions) {
+					entry.options = { ...manifest.defaultOptions };
+				}
+			} catch {
+				// Manifest fetch is best-effort; proceed without defaults
+			}
+		}
+
+		await this.configService.writeConfig(this.cachedConfig);
+
+		const gitSettings = this.plugin.getGitSettingsWithSecret();
+
+		try {
+			const checker = new QuartzPluginUpdateChecker(
+				gitSettings.auth,
+				gitSettings.corsProxyUrl,
+			);
+
+			const statuses = await checker.checkUpdates(
+				[entry],
+				this.cachedLockFile,
+			);
+
+			const status = statuses[0];
+
+			if (
+				status?.remoteCommit &&
+				this.cachedLockFile &&
+				this.configService
+			) {
+				const name = getPluginName(source);
+
+				this.cachedLockFile.plugins[name] = {
+					source,
+					resolved: resolveSourceToGitUrl(source),
+					commit: status.remoteCommit,
+					installedAt: new Date().toISOString(),
+				};
+
+				await this.configService.writeLockFile(
+					this.cachedLockFile,
+					`Install ${name} via Syncer`,
+				);
+			}
+		} catch {
+			// Lock file update is best-effort
+		}
+
+		this.hasUnsavedChanges = false;
+		this.display();
 	}
 
 	private renderPluginListSection(): void {
@@ -904,6 +1199,36 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				.onClick(async () => {
 					await this.checkForUpdates();
 				}),
+		);
+
+		const updatableCount = this.cachedUpdateStatuses
+			? [...this.cachedUpdateStatuses.values()].filter((s) => s.hasUpdate)
+					.length
+			: 0;
+
+		if (updatableCount > 0) {
+			pluginHeading.addButton((button) =>
+				button
+					.setButtonText(`Update all (${updatableCount})`)
+					.onClick(async () => {
+						await this.updateAllPlugins();
+					}),
+			);
+		}
+
+		pluginHeading.addButton((button) =>
+			button.setButtonText("Browse plugins").onClick(() => {
+				if (!this.cachedConfig) return;
+
+				const modal = new PluginBrowserModal(
+					this.app,
+					this.pluginRegistry,
+					this.cachedConfig,
+					async (source) => this.installPlugin(source),
+				);
+
+				modal.open();
+			}),
 		);
 
 		let addPluginSource = "";
@@ -973,14 +1298,13 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			infoParts.push(`Position: ${plugin.layout.position}`);
 		}
 
-		const key = getPluginSourceKey(plugin.source);
-		const lockEntry = lockPlugins[key];
+		const lockEntry = lockPlugins[name];
 
 		if (lockEntry?.commit) {
 			infoParts.push(`Commit: ${lockEntry.commit.slice(0, 7)}`);
 		}
 
-		const updateStatus = this.cachedUpdateStatuses?.get(key);
+		const updateStatus = this.cachedUpdateStatuses?.get(name);
 
 		if (updateStatus?.hasUpdate) {
 			infoParts.push(
@@ -1061,7 +1385,23 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			this.renderPluginLayoutControls(plugin);
 		}
 
-		const isExpanded = this.expandedPlugins.has(key);
+		if (updateStatus?.hasUpdate && updateStatus.remoteCommit) {
+			setting.addExtraButton((button) =>
+				button
+					.setIcon("download")
+					.setTooltip(
+						`Update to ${updateStatus.remoteCommit?.slice(0, 7)}`,
+					)
+					.onClick(async () => {
+						await this.updatePlugin(
+							name,
+							updateStatus.remoteCommit!,
+						);
+					}),
+			);
+		}
+
+		const isExpanded = this.expandedPlugins.has(name);
 
 		setting.addExtraButton((button) =>
 			button
@@ -1069,19 +1409,19 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				.setTooltip(isExpanded ? "Hide options" : "Show options")
 				.onClick(async () => {
 					if (isExpanded) {
-						this.expandedPlugins.delete(key);
+						this.expandedPlugins.delete(name);
 					} else {
-						this.expandedPlugins.add(key);
+						this.expandedPlugins.add(name);
 
 						if (
-							!this.cachedManifests.has(key) &&
+							!this.cachedManifests.has(name) &&
 							this.manifestService
 						) {
 							const manifest =
 								await this.manifestService.fetchManifest(
 									plugin.source,
 								);
-							this.cachedManifests.set(key, manifest);
+							this.cachedManifests.set(name, manifest);
 						}
 					}
 
@@ -1090,7 +1430,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		);
 
 		if (isExpanded) {
-			this.renderPluginOptions(plugin, key);
+			this.renderPluginOptions(plugin, name);
 		}
 	}
 
@@ -1104,6 +1444,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		const manifest = this.cachedManifests.get(sourceKey);
 		const schema = manifest?.optionSchema ?? manifest?.configSchema ?? null;
+
 		const optionKeys = new Set<string>([
 			...Object.keys(plugin.options),
 			...(schema ? Object.keys(schema) : []),
@@ -1119,6 +1460,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		for (const optKey of optionKeys) {
 			const currentValue = plugin.options[optKey];
+
 			const schemaEntry = schema?.[optKey] as
 				| Record<string, unknown>
 				| undefined;
@@ -1155,6 +1497,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 						)
 						.onChange((value) => {
 							const num = parseFloat(value);
+
 							plugin.options![optKey] = isNaN(num)
 								? undefined
 								: num;

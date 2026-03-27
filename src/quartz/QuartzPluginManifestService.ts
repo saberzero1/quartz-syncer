@@ -84,11 +84,22 @@ export class QuartzPluginManifestService {
 		}
 
 		try {
-			const ref = resolveRef(source);
+			let ref = resolveRef(source);
+
+			if (!ref) {
+				const { defaultBranch } =
+					await RepositoryConnection.fetchRemoteBranches(
+						resolved.url,
+						this.auth,
+						this.corsProxyUrl,
+					);
+				ref = defaultBranch ?? "main";
+			}
+
 			const repo = new RepositoryConnection({
 				gitSettings: {
 					remoteUrl: resolved.url,
-					branch: ref ?? "main",
+					branch: ref,
 					auth: this.auth,
 					corsProxyUrl: this.corsProxyUrl,
 				},
@@ -110,6 +121,7 @@ export class QuartzPluginManifestService {
 
 			const content = Base64.decode(file.content);
 			const packageJson = JSON.parse(content);
+
 			const manifest =
 				(packageJson.quartz as QuartzPluginManifest) ?? null;
 

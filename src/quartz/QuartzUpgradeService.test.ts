@@ -1,101 +1,64 @@
 import assert from "node:assert";
-import {
-	QuartzUpgradeService,
-	type FetchRemoteHeadCommitFn,
-} from "./QuartzUpgradeService";
+import { QuartzUpgradeService } from "./QuartzUpgradeService";
 import { QuartzVersionDetector } from "./QuartzVersionDetector";
 import type { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 
-const CURRENT_COMMIT = "aaa1111222233334444555566667777888899990000";
-const UPSTREAM_COMMIT = "bbb1111222233334444555566667777888899990000";
-
-function makeMockRepo(overrides?: {
-	packageVersion?: string | null;
-	latestCommit?: string | null;
-	getLatestCommitThrows?: boolean;
-}): RepositoryConnection {
-	return {
-		getLatestCommit: overrides?.getLatestCommitThrows
-			? async () => {
-					throw new Error("fetch failed");
-				}
-			: async () =>
-					overrides?.latestCommit !== undefined
-						? overrides.latestCommit
-							? {
-									sha: overrides.latestCommit,
-									commit: { tree: { sha: "tree" } },
-								}
-							: undefined
-						: {
-								sha: CURRENT_COMMIT,
-								commit: { tree: { sha: "tree" } },
-							},
-	} as unknown as RepositoryConnection;
-}
-
 const originalGetQuartzPackageVersion =
 	QuartzVersionDetector.getQuartzPackageVersion;
+const originalFetch = global.fetch;
 
 afterEach(() => {
 	QuartzVersionDetector.getQuartzPackageVersion =
 		originalGetQuartzPackageVersion;
+	global.fetch = originalFetch;
 });
 
 function mockPackageVersion(version: string | null): void {
 	QuartzVersionDetector.getQuartzPackageVersion = async () => version;
 }
 
+function mockUpstreamFetch(version: string | null, ok = true): void {
+	global.fetch = jest.fn().mockResolvedValue({
+		ok,
+		json: async () => (version ? { version } : {}),
+	});
+}
+
+function makeMockRepo(): RepositoryConnection {
+	return {} as unknown as RepositoryConnection;
+}
+
 describe("QuartzUpgradeService", () => {
-	it("detects when upstream has a newer commit", async () => {
+	it("detects when upstream has a newer version", async () => {
 		mockPackageVersion("5.0.0");
+		mockUpstreamFetch("5.1.0");
 
-		const fetchFn: FetchRemoteHeadCommitFn = async () => UPSTREAM_COMMIT;
-
-		const service = new QuartzUpgradeService(
-			makeMockRepo(),
-			{ type: "none" },
-			fetchFn,
-		);
-
+		const service = new QuartzUpgradeService(makeMockRepo());
 		const status = await service.checkForUpgrade();
 
 		assert.strictEqual(status.hasUpgrade, true);
 		assert.strictEqual(status.currentVersion, "5.0.0");
-		assert.strictEqual(status.currentCommit, CURRENT_COMMIT);
-		assert.strictEqual(status.upstreamCommit, UPSTREAM_COMMIT);
+		assert.strictEqual(status.upstreamVersion, "5.1.0");
 		assert.strictEqual(status.error, undefined);
 	});
 
-	it("reports no upgrade when commits match", async () => {
+	it("reports no upgrade when versions match", async () => {
 		mockPackageVersion("5.0.0");
+		mockUpstreamFetch("5.0.0");
 
-		const fetchFn: FetchRemoteHeadCommitFn = async () => CURRENT_COMMIT;
-
-		const service = new QuartzUpgradeService(
-			makeMockRepo(),
-			{ type: "none" },
-			fetchFn,
-		);
-
+		const service = new QuartzUpgradeService(makeMockRepo());
 		const status = await service.checkForUpgrade();
 
 		assert.strictEqual(status.hasUpgrade, false);
-		assert.strictEqual(status.currentCommit, CURRENT_COMMIT);
-		assert.strictEqual(status.upstreamCommit, CURRENT_COMMIT);
+		assert.strictEqual(status.currentVersion, "5.0.0");
+		assert.strictEqual(status.upstreamVersion, "5.0.0");
 	});
 
-	it("reports no upgrade when upstream returns null", async () => {
+	it("reports no upgrade when upstream fetch fails", async () => {
 		mockPackageVersion("5.0.0");
+		mockUpstreamFetch(null, false);
 
-		const fetchFn: FetchRemoteHeadCommitFn = async () => null;
-
-		const service = new QuartzUpgradeService(
-			makeMockRepo(),
-			{ type: "none" },
-			fetchFn,
-		);
-
+		const service = new QuartzUpgradeService(makeMockRepo());
 		const status = await service.checkForUpgrade();
 
 		assert.strictEqual(status.hasUpgrade, false);
@@ -104,103 +67,52 @@ describe("QuartzUpgradeService", () => {
 
 	it("handles upstream fetch throwing an error", async () => {
 		mockPackageVersion("5.0.0");
+		global.fetch = jest.fn().mockRejectedValue(new Error("Network error"));
 
-		const fetchFn: FetchRemoteHeadCommitFn = async () => {
-			throw new Error("Network error");
-		};
-
-		const service = new QuartzUpgradeService(
-			makeMockRepo(),
-			{ type: "none" },
-			fetchFn,
-		);
-
+		const service = new QuartzUpgradeService(makeMockRepo());
 		const status = await service.checkForUpgrade();
 
 		assert.strictEqual(status.hasUpgrade, false);
 		assert.ok(status.error?.includes("Network error"));
 	});
 
-	it("handles missing current commit gracefully", async () => {
-		mockPackageVersion("5.0.0");
-
-		const fetchFn: FetchRemoteHeadCommitFn = async () => UPSTREAM_COMMIT;
-
-		const service = new QuartzUpgradeService(
-			makeMockRepo({ latestCommit: null }),
-			{ type: "none" },
-			fetchFn,
-		);
-
-		const status = await service.checkForUpgrade();
-
-		assert.strictEqual(status.hasUpgrade, false);
-		assert.strictEqual(status.currentCommit, null);
-		assert.strictEqual(status.upstreamCommit, UPSTREAM_COMMIT);
-	});
-
-	it("handles getLatestCommit throwing an error", async () => {
-		mockPackageVersion("5.0.0");
-
-		const fetchFn: FetchRemoteHeadCommitFn = async () => UPSTREAM_COMMIT;
-
-		const service = new QuartzUpgradeService(
-			makeMockRepo({ getLatestCommitThrows: true }),
-			{ type: "none" },
-			fetchFn,
-		);
-
-		const status = await service.checkForUpgrade();
-
-		assert.strictEqual(status.hasUpgrade, false);
-		assert.strictEqual(status.currentCommit, null);
-	});
-
-	it("handles missing package version gracefully", async () => {
+	it("handles missing current version gracefully", async () => {
 		QuartzVersionDetector.getQuartzPackageVersion = async () => {
 			throw new Error("no package.json");
 		};
+		mockUpstreamFetch("5.1.0");
 
-		const fetchFn: FetchRemoteHeadCommitFn = async () => UPSTREAM_COMMIT;
-
-		const service = new QuartzUpgradeService(
-			makeMockRepo(),
-			{ type: "none" },
-			fetchFn,
-		);
-
+		const service = new QuartzUpgradeService(makeMockRepo());
 		const status = await service.checkForUpgrade();
 
 		assert.strictEqual(status.currentVersion, null);
-		assert.strictEqual(status.hasUpgrade, true);
-		assert.strictEqual(status.upstreamCommit, UPSTREAM_COMMIT);
+		assert.strictEqual(status.hasUpgrade, false);
+		assert.strictEqual(status.upstreamVersion, "5.1.0");
 	});
 
-	it("passes corsProxyUrl to fetchRemoteHeadCommit", async () => {
+	it("handles null current version", async () => {
+		mockPackageVersion(null);
+		mockUpstreamFetch("5.1.0");
+
+		const service = new QuartzUpgradeService(makeMockRepo());
+		const status = await service.checkForUpgrade();
+
+		assert.strictEqual(status.hasUpgrade, false);
+		assert.strictEqual(status.currentVersion, null);
+	});
+
+	it("handles upstream with no version field", async () => {
 		mockPackageVersion("5.0.0");
 
-		let capturedProxy: string | undefined;
+		global.fetch = jest.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ name: "quartz" }),
+		});
 
-		const fetchFn: FetchRemoteHeadCommitFn = async (
-			_url,
-			_auth,
-			_ref,
-			corsProxy,
-		) => {
-			capturedProxy = corsProxy;
+		const service = new QuartzUpgradeService(makeMockRepo());
+		const status = await service.checkForUpgrade();
 
-			return UPSTREAM_COMMIT;
-		};
-
-		const service = new QuartzUpgradeService(
-			makeMockRepo(),
-			{ type: "none" },
-			fetchFn,
-			"https://proxy.example.com",
-		);
-
-		await service.checkForUpgrade();
-
-		assert.strictEqual(capturedProxy, "https://proxy.example.com");
+		assert.strictEqual(status.hasUpgrade, false);
+		assert.ok(status.error?.includes("Could not determine"));
 	});
 });

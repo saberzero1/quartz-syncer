@@ -38,13 +38,13 @@ const _PLUGIN_WITH_REF: QuartzPluginEntry = {
 const LOCK_FILE: QuartzLockFile = {
 	version: "1.0.0",
 	plugins: {
-		"github:quartz-community/explorer": {
+		explorer: {
 			source: "github:quartz-community/explorer",
 			resolved: "https://github.com/quartz-community/explorer.git",
 			commit: "aaa1111222233334444555566667777888899990000",
 			installedAt: "2026-03-20T00:00:00Z",
 		},
-		"github:quartz-community/search": {
+		search: {
 			source: "github:quartz-community/search",
 			resolved: "https://github.com/quartz-community/search.git",
 			commit: "bbb1111222233334444555566667777888899990000",
@@ -71,9 +71,7 @@ describe("QuartzPluginUpdateChecker", () => {
 
 		assert.strictEqual(results.length, 2);
 
-		const explorer = results.find(
-			(r) => r.sourceKey === "github:quartz-community/explorer",
-		)!;
+		const explorer = results.find((r) => r.sourceKey === "explorer")!;
 		assert.strictEqual(explorer.hasUpdate, true);
 
 		assert.strictEqual(
@@ -81,9 +79,7 @@ describe("QuartzPluginUpdateChecker", () => {
 			"ccc0000000000000000000000000000000000000",
 		);
 
-		const search = results.find(
-			(r) => r.sourceKey === "github:quartz-community/search",
-		)!;
+		const search = results.find((r) => r.sourceKey === "search")!;
 		assert.strictEqual(search.hasUpdate, false);
 	});
 
