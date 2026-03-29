@@ -27,6 +27,8 @@ export type GitProviderHint =
 
 export type DiffViewStyle = "split" | "unified" | "auto";
 
+export type UpgradeCheckStrategy = "version" | "commit";
+
 export type FrontmatterFormat = "yaml" | "json";
 
 /**
@@ -72,7 +74,6 @@ export default interface QuartzSyncerSettings {
 
 	/** Quartz settings */
 	contentFolder: string;
-	useFullResolutionImages: boolean;
 
 	/** Frontmatter settings */
 	publishFrontmatterKey: string;
@@ -177,6 +178,12 @@ export default interface QuartzSyncerSettings {
 	noteSettingsIsInitialized: boolean;
 	lastUsedSettingsTab: string;
 	pluginVersion: string;
+
+	/** Last known upstream Quartz commit SHA (per-device, for commit-based update checks) */
+	lastUpstreamCommitSha: string;
+
+	/** Strategy for checking Quartz updates: "version" compares package versions, "commit" compares upstream commit SHAs */
+	upgradeCheckStrategy: UpgradeCheckStrategy;
 
 	/** UI settings */
 	diffViewStyle: DiffViewStyle;

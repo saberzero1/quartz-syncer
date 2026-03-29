@@ -36,7 +36,6 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	/** Quartz settings */
 	contentFolder: "content",
-	useFullResolutionImages: false,
 	/** Frontmatter settings */
 	publishFrontmatterKey: "publish",
 	allNotesPublishableByDefault: false,
@@ -133,6 +132,8 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	lastUsedSettingsTab: "git",
 	noteSettingsIsInitialized: false,
 	pluginVersion: "",
+	lastUpstreamCommitSha: "",
+	upgradeCheckStrategy: "version",
 
 	/** UI settings */
 	diffViewStyle: "auto",

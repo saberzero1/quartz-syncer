@@ -4,7 +4,7 @@ import QuartzSyncer from "main";
 import QuartzSyncerSettingTabCollection from "src/models/SyncerTab";
 import { DataStore } from "src/publishFile/DataStore";
 import { GitSettings } from "./Views/GitSettings";
-import { QuartzSettings } from "./Views/QuartzSettings";
+import { QuartzV5SettingsTab } from "./Views/QuartzV5SettingsTab";
 import { FrontmatterSettings } from "./Views/FrontmatterSettings";
 import { IntegrationSettings } from "./Views/IntegrationSettings";
 import { PerformanceSettings } from "./Views/PerformanceSettings";
@@ -148,7 +148,7 @@ export default class SettingView {
 		);
 
 		settingTabs.push(
-			new QuartzSettings(
+			new QuartzV5SettingsTab(
 				this.app,
 				this.plugin,
 				this,
@@ -221,13 +221,6 @@ export default class SettingView {
 		);
 	}
 
-	/**
-	 * Creates a settings tab element with the specified name and icon.
-	 *
-	 * @param name - The name of the tab.
-	 * @param icon - The icon to display in the tab.
-	 * @returns The created tab element.
-	 */
 	private createTab(name: string, icon: string) {
 		const tab = this.settingsRootElement.createEl("div", {
 			cls: "quartz-syncer-navigation-item",

@@ -6,6 +6,9 @@ import {
 	RepositoryConnection,
 	TRepositoryContent,
 } from "src/repositoryConnection/RepositoryConnection";
+import type { QuartzVersion } from "src/quartz/QuartzConfigTypes";
+import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
+import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 
 export interface PathRewriteRule {
 	from: string;
@@ -25,6 +28,8 @@ export default class QuartzSyncerSiteManager {
 	metadataCache: MetadataCache;
 	baseSyncerConnection: RepositoryConnection;
 	userSyncerConnection: RepositoryConnection;
+	private quartzVersion: QuartzVersion | null = null;
+	private configService: QuartzConfigService | null = null;
 
 	constructor(
 		metadataCache: MetadataCache,
@@ -174,5 +179,38 @@ export default class QuartzSyncerSiteManager {
 		}
 
 		return hashes;
+	}
+
+	async getQuartzVersion(): Promise<QuartzVersion> {
+		if (!this.quartzVersion) {
+			this.quartzVersion =
+				await QuartzVersionDetector.detectQuartzVersion(
+					this.userSyncerConnection,
+				);
+		}
+
+		return this.quartzVersion;
+	}
+
+	async getConfigService(): Promise<QuartzConfigService | null> {
+		const version = await this.getQuartzVersion();
+
+		if (version !== "v5-yaml" && version !== "v5-json") {
+			return null;
+		}
+
+		if (!this.configService) {
+			this.configService = new QuartzConfigService(
+				this.userSyncerConnection,
+			);
+		}
+
+		return this.configService;
+	}
+
+	isQuartzV5(): boolean {
+		return (
+			this.quartzVersion === "v5-yaml" || this.quartzVersion === "v5-json"
+		);
 	}
 }

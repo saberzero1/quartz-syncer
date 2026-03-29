@@ -565,6 +565,63 @@ export class RepositoryConnection {
 		}
 	}
 
+	/**
+	 * Lists file and directory names in a specific directory path within the repository.
+	 * Only lists immediate children (non-recursive).
+	 *
+	 * @param dirPath - The directory path to list (e.g. "quartz/cli/templates").
+	 * @returns An array of entry names, or an empty array if the directory doesn't exist.
+	 */
+	async listDirectory(
+		dirPath: string,
+	): Promise<{ name: string; type: "blob" | "tree" }[]> {
+		try {
+			await this.ensureRepoInitialized();
+
+			const commitOid = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+			});
+
+			const { commit } = await git.readCommit({
+				...this.getGitConfig(),
+				oid: commitOid,
+			});
+
+			let currentOid = commit.tree;
+			const parts = dirPath.split("/").filter((p) => p.length > 0);
+
+			for (const part of parts) {
+				const { tree } = await git.readTree({
+					...this.getGitConfig(),
+					oid: currentOid,
+				});
+
+				const entry = tree.find(
+					(e) => e.path === part && e.type === "tree",
+				);
+
+				if (!entry) return [];
+
+				currentOid = entry.oid;
+			}
+
+			const { tree } = await git.readTree({
+				...this.getGitConfig(),
+				oid: currentOid,
+			});
+
+			return tree.map((e) => ({
+				name: e.path,
+				type: e.type as "blob" | "tree",
+			}));
+		} catch (error) {
+			logger.debug(`Could not list directory ${dirPath}`, error);
+
+			return [];
+		}
+	}
+
 	async getLatestCommit(): Promise<
 		{ sha: string; commit: { tree: { sha: string } } } | undefined
 	> {
@@ -602,6 +659,245 @@ export class RepositoryConnection {
 
 			return undefined;
 		}
+	}
+
+	async hasCommitInHistory(
+		targetOid: string,
+		fetchDepth: number = 100,
+	): Promise<boolean> {
+		try {
+			await this.ensureRepoInitialized();
+
+			await git.fetch({
+				...this.getGitConfig(),
+				url: this.remoteUrl,
+				ref: this.branch,
+				singleBranch: true,
+				depth: fetchDepth,
+			});
+
+			const commits = await git.log({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+				depth: fetchDepth,
+			});
+
+			return commits.some((entry) => entry.oid === targetOid);
+		} catch {
+			return false;
+		}
+	}
+
+	async upgradeFromUpstream(
+		upstreamUrl: string,
+		upstreamBranch: string,
+	): Promise<{ oid: string; alreadyMerged: boolean }> {
+		await this.ensureRepoInitialized();
+
+		await git.fetch({
+			...this.getGitConfig(),
+			url: this.remoteUrl,
+			ref: this.branch,
+			singleBranch: true,
+		});
+
+		const remoteCommit = await git.resolveRef({
+			...this.getGitConfig(),
+			ref: `origin/${this.branch}`,
+		});
+
+		await git.checkout({
+			...this.getGitConfig(),
+			ref: remoteCommit,
+			force: true,
+		});
+
+		await git.branch({
+			...this.getGitConfig(),
+			ref: this.branch,
+			object: remoteCommit,
+			force: true,
+		});
+
+		await git.checkout({
+			...this.getGitConfig(),
+			ref: this.branch,
+		});
+
+		const remoteName = "upstream";
+
+		const existingRemotes = await git.listRemotes({
+			...this.getGitConfig(),
+		});
+
+		if (existingRemotes.some((r) => r.remote === remoteName)) {
+			await git.deleteRemote({
+				...this.getGitConfig(),
+				remote: remoteName,
+			});
+		}
+
+		await git.addRemote({
+			...this.getGitConfig(),
+			remote: remoteName,
+			url: upstreamUrl,
+		});
+
+		await git.fetch({
+			...this.getGitConfig(),
+			url: upstreamUrl,
+			remote: remoteName,
+			ref: upstreamBranch,
+			singleBranch: true,
+		});
+
+		const mergeRef = `remotes/${remoteName}/${upstreamBranch}`;
+		const lockfilePath = "quartz.lock.json";
+
+		const mergeAuthor = {
+			name: "Quartz Syncer",
+			email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
+		};
+
+		let lockfileBackup: Uint8Array | null = null;
+
+		try {
+			const { blob } = await git.readBlob({
+				...this.getGitConfig(),
+				oid: remoteCommit,
+				filepath: lockfilePath,
+			});
+			lockfileBackup = blob;
+		} catch {
+			logger.debug("No quartz.lock.json found, skipping backup");
+		}
+
+		let result: {
+			oid?: string;
+			alreadyMerged?: boolean;
+		};
+
+		try {
+			result = await git.merge({
+				...this.getGitConfig(),
+				ours: this.branch,
+				theirs: mergeRef,
+				abortOnConflict: true,
+				author: mergeAuthor,
+			});
+		} catch (mergeError) {
+			const conflictFiles = this.extractConflictFiles(mergeError);
+
+			if (!conflictFiles) throw mergeError;
+
+			const nonLockfileConflicts = conflictFiles.filter(
+				(f: string) => f !== lockfilePath,
+			);
+
+			if (nonLockfileConflicts.length > 0) {
+				throw new Error(
+					`Merge conflicts in: ${conflictFiles.join(", ")}`,
+				);
+			}
+
+			if (!lockfileBackup) {
+				throw new Error(
+					`Merge conflicts in: ${conflictFiles.join(", ")}`,
+				);
+			}
+
+			logger.info("Only quartz.lock.json conflicts, auto-resolving");
+
+			try {
+				await git.merge({
+					...this.getGitConfig(),
+					ours: this.branch,
+					theirs: mergeRef,
+					abortOnConflict: false,
+					author: mergeAuthor,
+				});
+			} catch (retryError) {
+				const retryConflicts = this.extractConflictFiles(retryError);
+
+				if (!retryConflicts) throw retryError;
+
+				const retryNonLockfile = retryConflicts.filter(
+					(f: string) => f !== lockfilePath,
+				);
+
+				if (retryNonLockfile.length > 0) {
+					throw new Error(
+						`Merge conflicts in: ${retryConflicts.join(", ")}`,
+					);
+				}
+			}
+
+			const fullLockfilePath = `${this.dir}/${lockfilePath}`;
+
+			await this.getFs().promises.writeFile(
+				fullLockfilePath,
+				lockfileBackup,
+			);
+
+			await git.add({
+				...this.getGitConfig(),
+				filepath: lockfilePath,
+			});
+
+			const oursOid = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: this.branch,
+			});
+
+			const theirsOid = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: mergeRef,
+			});
+
+			const commitOid = await git.commit({
+				...this.getGitConfig(),
+				message: `Merge upstream/${upstreamBranch} (auto-resolved quartz.lock.json)`,
+				author: mergeAuthor,
+				parent: [oursOid, theirsOid],
+			});
+
+			result = { oid: commitOid, alreadyMerged: false };
+		}
+
+		if (result.alreadyMerged) {
+			return {
+				oid: result.oid ?? remoteCommit,
+				alreadyMerged: true,
+			};
+		}
+
+		await git.checkout({
+			...this.getGitConfig(),
+			ref: this.branch,
+		});
+
+		await this.pushWithRetry();
+
+		return {
+			oid: result.oid!,
+			alreadyMerged: false,
+		};
+	}
+
+	private extractConflictFiles(error: unknown): string[] | null {
+		if (
+			error &&
+			typeof error === "object" &&
+			"data" in error &&
+			error.data &&
+			typeof error.data === "object" &&
+			"filepaths" in error.data &&
+			Array.isArray(error.data.filepaths)
+		) {
+			return error.data.filepaths as string[];
+		}
+
+		return null;
 	}
 
 	async deleteFiles(
@@ -943,7 +1239,10 @@ export class RepositoryConnection {
 		}
 	}
 
-	async writeRawFiles(files: Map<string, string>): Promise<void> {
+	async writeRawFiles(
+		files: Map<string, string>,
+		commitMessage = "Updated integration styles",
+	): Promise<void> {
 		if (files.size === 0) return;
 
 		try {
@@ -983,7 +1282,7 @@ export class RepositoryConnection {
 
 			await git.commit({
 				...this.getGitConfig(),
-				message: "Updated integration styles",
+				message: commitMessage,
 				author: {
 					name: "Quartz Syncer",
 					email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
@@ -1045,6 +1344,40 @@ export class RepositoryConnection {
 			username: auth.username || "",
 			password: auth.secret || "",
 		});
+	}
+
+	static async fetchRemoteHeadCommit(
+		remoteUrl: string,
+		auth: GitAuth,
+		ref?: string,
+		corsProxyUrl?: string,
+	): Promise<string | null> {
+		try {
+			const prefix = ref ? `refs/heads/${ref}` : "HEAD";
+
+			const refs = await git.listServerRefs({
+				http: obsidianHttpClient,
+				url: remoteUrl,
+				corsProxy: corsProxyUrl,
+				onAuth: this.getOnAuth(auth),
+				prefix,
+				symrefs: true,
+			});
+
+			if (ref) {
+				const match = refs.find((r) => r.ref === `refs/heads/${ref}`);
+
+				return match?.oid ?? null;
+			}
+
+			const head = refs.find((r) => r.ref === "HEAD");
+
+			return head?.oid ?? null;
+		} catch (error) {
+			logger.debug("Failed to fetch remote HEAD commit", error);
+
+			return null;
+		}
 	}
 
 	static async fetchRemoteBranches(

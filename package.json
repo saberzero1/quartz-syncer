@@ -63,6 +63,7 @@
 		"wdio-obsidian-service": "^2.4.0"
 	},
 	"dependencies": {
+		"yaml": "^2.7.0",
 		"@blacksmithgu/datacore": "^0.1.24",
 		"@isomorphic-git/lightning-fs": "^4.6.2",
 		"@quartz-community/remark-obsidian": "github:quartz-community/remark-obsidian",

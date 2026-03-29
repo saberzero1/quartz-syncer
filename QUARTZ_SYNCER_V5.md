@@ -13,6 +13,7 @@ Notes and decisions for implementing Quartz v5 plugin management support in Quar
 - [Plugin Installation Lifecycle](#plugin-installation-lifecycle)
 - [Schema Validation](#schema-validation)
 - [Layout System](#layout-system)
+- [Frame/Template System](#frametemplate-system)
 - [Plugin Manifest (package.json quartz field)](#plugin-manifest-packagejson-quartz-field)
 - [Migration Considerations](#migration-considerations)
 - [Edge Cases and Gotchas](#edge-cases-and-gotchas)
@@ -40,14 +41,17 @@ Quartz v5 moves all user configuration from TypeScript files (`quartz.config.ts`
 
 ## File Ownership Model
 
-| File                         | Owner    | Syncer Can Edit? | Notes                                                         |
-| ---------------------------- | -------- | ---------------- | ------------------------------------------------------------- |
-| `quartz.config.yaml`         | **User** | **Yes**          | The source of truth. Syncer's primary interface.              |
-| `quartz.config.default.yaml` | Upstream | **No**           | Reference only. Seed file copied on `npx quartz create`.      |
-| `quartz.ts`                  | Upstream | **No**           | Thin template. Just imports from YAML loader.                 |
-| `quartz.lock.json`           | CLI      | Read only        | Tracks installed plugin versions/commits. Useful for display. |
-| `.quartz/plugins/`           | CLI      | **No**           | Git clones managed by CLI. `.gitignore`d.                     |
-| `content/`                   | User     | **Yes**          | Existing Syncer behavior unchanged.                           |
+| File                             | Owner    | Syncer Can Edit? | Notes                                                              |
+| -------------------------------- | -------- | ---------------- | ------------------------------------------------------------------ |
+| `quartz.config.yaml`            | **User** | **Yes**          | The source of truth. Syncer's primary interface.                   |
+| `quartz.config.default.yaml`    | Upstream | **No**           | Reference only. Seed file copied on `npx quartz create`.           |
+| `quartz.ts`                     | Upstream | **No**           | Thin template. Just imports from YAML loader.                      |
+| `quartz.lock.json`              | CLI      | Read only        | Tracks installed plugin versions/commits. Useful for display.      |
+| `.quartz/plugins/`              | CLI      | **No**           | Git clones managed by CLI. `.gitignore`d.                          |
+| `.quartz/plugins/*/package.json`| CLI      | Read only        | Plugin manifests. Read `quartz` field for metadata.                |
+| `.quartz/plugins/*/frames/`     | CLI      | Read only        | Plugin-provided page frames (templates). Discovered via manifests. |
+| `quartz/components/frames/`     | Upstream | **No**           | Built-in page frames: `default`, `full-width`, `minimal`.          |
+| `content/`                      | User     | **Yes**          | Existing Syncer behavior unchanged.                                |
 
 **Key insight:** Syncer only needs to read/write `quartz.config.yaml`. Everything else is handled by the CLI on the build side.
 
@@ -316,12 +320,12 @@ layout:
 
 Group definition fields:
 
-| Field       | Type    | Description                  |
-| ----------- | ------- | ---------------------------- |
-| `priority`  | number  | Sort priority for the group  |
-| `direction` | string  | Flex direction (e.g., `row`) |
-| `gap`       | string  | Gap between items            |
-| `wrap`      | boolean | Flex wrap                    |
+| Field       | Type   | Description                                                           |
+| ----------- | ------ | --------------------------------------------------------------------- |
+| `priority`  | number | Sort priority for the group                                           |
+| `direction` | string | Flex direction: `"row"`, `"row-reverse"`, `"column"`, `"column-reverse"` |
+| `gap`       | string | Gap between items (e.g., `"0.5rem"`)                                  |
+| `wrap`      | string | Flex wrap: `"nowrap"`, `"wrap"`, `"wrap-reverse"`                     |
 
 Per-plugin group options:
 
@@ -348,6 +352,71 @@ Each can `exclude` specific plugins or override `positions` entirely.
 
 ---
 
+## Frame/Template System
+
+Page frames control the inner HTML structure of a page inside the `<div id="quartz-root">` shell. Different frames produce different page layouts (e.g., with/without sidebars, full-width content) while the outer shell (html, head, body, quartz-root) remains stable for SPA navigation.
+
+### Built-in Frames
+
+Quartz ships with three built-in frames at `quartz/components/frames/`:
+
+| Frame Name    | Description                                           |
+| ------------- | ----------------------------------------------------- |
+| `default`     | Standard three-column Quartz layout (left, body, right) |
+| `full-width`  | Full-width layout without sidebars                    |
+| `minimal`     | Minimal layout (used by the 404 page)                 |
+
+### Plugin-Provided Frames
+
+Plugins can provide custom frames via the `frames` field in their `package.json` manifest. For example, the `canvas-page` plugin provides a `CanvasFrame`:
+
+```json
+{
+  "quartz": {
+    "frames": {
+      "CanvasFrame": {
+        "exportName": "CanvasFrame"
+      }
+    }
+  }
+}
+```
+
+Plugin frames are loaded from the plugin's `./frames` export path (e.g., `.quartz/plugins/canvas-page/dist/frames/index.js`) and registered in the frame registry under their declared `name` property.
+
+### Frame Resolution
+
+When rendering a page, the frame is resolved with the following priority:
+
+1. **Config override** — `layout.byPageType.<type>.template` in `quartz.config.yaml`
+2. **Page type declaration** — The `frame` property on the page type plugin instance
+3. **Default** — Falls back to the `"default"` frame
+
+If a frame name cannot be resolved, Quartz logs a warning and falls back to `"default"`.
+
+### Syncer Integration
+
+Syncer can read which frames are available by:
+
+1. **Built-in frames**: Always available — `default`, `full-width`, `minimal`
+2. **Plugin frames**: Read the `frames` field from `.quartz/plugins/*/package.json` manifests
+3. **Active frame overrides**: Read `layout.byPageType.<type>.template` from `quartz.config.yaml` (if present)
+
+Syncer can allow users to override the frame for specific page types via the `template` field:
+
+```yaml
+layout:
+  byPageType:
+    canvas:
+      template: CanvasFrame
+    "404":
+      template: minimal
+```
+
+> **Note:** Syncer should NOT modify frame source files. It only reads frame metadata from manifests and can set the `template` field in `quartz.config.yaml`.
+
+---
+
 ## Plugin Manifest (package.json quartz field)
 
 Each plugin's `package.json` contains a `quartz` field with metadata. Syncer can read this for display purposes (plugin names, descriptions, categories) but should NOT modify it.
@@ -357,7 +426,6 @@ Each plugin's `package.json` contains a `quartz` field with metadata. Syncer can
   "quartz": {
     "name": "note-properties",
     "displayName": "Note Properties",
-    "description": "Displays note frontmatter properties",
     "category": ["transformer", "component"],
     "version": "1.0.0",
     "quartzVersion": ">=5.0.0",
@@ -372,12 +440,21 @@ Each plugin's `package.json` contains a `quartz` field with metadata. Syncer can
         "defaultPosition": "beforeBody",
         "defaultPriority": 15
       }
+    },
+    "frames": {
+      "CanvasFrame": {
+        "exportName": "CanvasFrame"
+      }
     }
   }
 }
 ```
 
 > **Note:** Plugin manifests remain JSON (they live in `package.json`). Only the user-facing config file is YAML.
+>
+> **Note:** The `description` field is typically set at the `package.json` root level, not inside the `quartz` object. The config loader reads `quartz.description` first and falls back to the root-level `description` if absent.
+>
+> **Note:** There is currently a naming inconsistency in the Quartz v5 codebase: plugins use `optionSchema` in their `package.json` manifests, but the config loader reads `configSchema`. Until this is resolved upstream, Syncer should read `optionSchema` from manifests (matching what plugins actually publish) and be prepared to also check `configSchema` for forward compatibility.
 
 ### Categories
 
@@ -390,6 +467,16 @@ Each plugin's `package.json` contains a `quartz` field with metadata. Syncer can
 | `component`   | Provides UI components without emitting files   |
 
 > **Note:** A plugin's `category` field can be a single string or an array of strings (e.g., `["transformer", "component"]` for plugins that both transform content and provide a component).
+
+### Additional Manifest Fields
+
+The following fields are also available in the `quartz` manifest object:
+
+| Field            | Type    | Description                                                                                      |
+| ---------------- | ------- | ------------------------------------------------------------------------------------------------ |
+| `keywords`       | string[]| Searchable keywords for plugin discovery                                                         |
+| `frames`         | object  | Page frames provided by this plugin (see [Frame/Template System](#frametemplate-system))         |
+| `requiresInstall`| boolean | Whether the plugin requires `npm install` after cloning (e.g., for native dependencies like sharp)|
 
 ### Using Manifest Defaults
 
@@ -555,7 +642,15 @@ The Quartz CLI includes backward compatibility for `quartz.plugins.json`. If Syn
 
 The CLI's config loader handles this fallback automatically — it checks for `quartz.config.yaml` first, then falls back to `quartz.plugins.json`.
 
-### 10. Object Source Format
+### 10. Schema Discrepancies
+
+The JSON Schema at `quartz/plugins/quartz-plugins.schema.json` has a few known discrepancies with the runtime TypeScript types:
+
+- **Missing `priority` in groups**: The schema's `layout.groups` definition only includes `direction`, `wrap`, and `gap` properties. The `priority` field (used by the runtime `FlexGroupConfig` type and documented above) is missing from the schema. Syncer should still support `priority` in groups — it works at runtime even though the schema doesn't validate it.
+- **`wrap` type mismatch**: The schema defines `wrap` as `boolean`, but the TypeScript type uses string enum values (`"nowrap"`, `"wrap"`, `"wrap-reverse"`). The runtime accepts both forms, but Syncer should prefer the string enum values for consistency with the TypeScript types.
+- **Schema description text**: The schema's `description` field reads `"Schema for validating quartz.plugins.json configuration files"` — a remnant from before the YAML migration. The schema is valid for both YAML and JSON config formats.
+
+### 11. Object Source Format
 
 The `source` field supports an object format for monorepo-style plugins where the plugin code lives in a subdirectory of a larger repository. Syncer must handle both string and object source formats when:
 
@@ -591,49 +686,51 @@ No TypeScript parsing. No AST manipulation. No Node.js subprocess. Just YAML.
 
 ## Quick Reference: All Default Plugins
 
-| Plugin                     | Category            | Default Enabled | Has Component | Default Position |
-| -------------------------- | ------------------- | --------------- | ------------- | ---------------- |
-| note-properties            | transformer, component | Yes          | Yes           | beforeBody       |
-| created-modified-date      | transformer         | Yes             | No            | -                |
-| syntax-highlighting        | transformer         | Yes             | No            | -                |
-| obsidian-flavored-markdown | transformer         | Yes             | No            | -                |
-| github-flavored-markdown   | transformer         | Yes             | No            | -                |
-| table-of-contents          | transformer         | Yes             | Yes           | right            |
-| crawl-links                | transformer         | Yes             | No            | -                |
-| description                | transformer         | Yes             | No            | -                |
-| latex                      | transformer         | Yes             | No            | -                |
-| citations                  | transformer         | No              | No            | -                |
-| hard-line-breaks           | transformer         | No              | No            | -                |
-| ox-hugo                    | transformer         | No              | No            | -                |
-| roam                       | transformer         | No              | No            | -                |
-| remove-draft               | filter              | Yes             | No            | -                |
-| explicit-publish           | filter              | No              | No            | -                |
-| alias-redirects            | emitter             | Yes             | No            | -                |
-| content-index              | emitter             | Yes             | No            | -                |
-| favicon                    | emitter             | Yes             | No            | -                |
-| og-image                   | emitter             | Yes             | No            | -                |
-| cname                      | emitter             | Yes             | No            | -                |
-| canvas-page                | pageType            | Yes             | No            | -                |
-| content-page               | pageType            | Yes             | No            | -                |
-| bases-page                 | pageType            | Yes             | No            | -                |
-| folder-page                | pageType            | Yes             | No            | -                |
-| tag-page                   | pageType            | Yes             | No            | -                |
-| explorer                   | emitter             | Yes             | Yes           | left             |
-| graph                      | emitter             | Yes             | Yes           | right            |
-| search                     | emitter             | Yes             | Yes           | left             |
-| backlinks                  | emitter             | Yes             | Yes           | right            |
-| article-title              | emitter             | Yes             | Yes           | beforeBody       |
-| content-meta               | emitter             | Yes             | Yes           | beforeBody       |
-| tag-list                   | emitter             | No              | Yes           | beforeBody       |
-| page-title                 | emitter             | Yes             | Yes           | left             |
-| darkmode                   | emitter             | Yes             | Yes           | left             |
-| reader-mode                | emitter             | Yes             | Yes           | left             |
-| breadcrumbs                | emitter             | Yes             | Yes           | beforeBody       |
-| comments                   | emitter             | No              | Yes           | afterBody        |
-| footer                     | emitter             | Yes             | Yes           | -                |
-| recent-notes               | emitter             | No              | No            | -                |
-| spacer                     | component           | Yes             | Yes           | left             |
-| encrypted-pages            | emitter             | Yes             | Yes           | body             |
-| stacked-pages              | emitter             | No              | Yes           | afterBody        |
+| Plugin                     | Category                         | Default Enabled | Has Component | Default Position |
+| -------------------------- | -------------------------------- | --------------- | ------------- | ---------------- |
+| note-properties            | transformer, component           | Yes             | Yes           | beforeBody       |
+| created-modified-date      | transformer                      | Yes             | No            | -                |
+| syntax-highlighting        | transformer                      | Yes             | No            | -                |
+| obsidian-flavored-markdown | transformer                      | Yes             | No            | -                |
+| github-flavored-markdown   | transformer                      | Yes             | No            | -                |
+| table-of-contents          | transformer, component           | Yes             | Yes           | right            |
+| crawl-links                | transformer                      | Yes             | No            | -                |
+| description                | transformer                      | Yes             | No            | -                |
+| latex                      | transformer                      | Yes             | No            | -                |
+| citations                  | transformer                      | No              | No            | -                |
+| hard-line-breaks           | transformer                      | No              | No            | -                |
+| ox-hugo                    | transformer                      | No              | No            | -                |
+| roam                       | transformer                      | No              | No            | -                |
+| remove-draft               | filter                           | Yes             | No            | -                |
+| explicit-publish           | filter                           | No              | No            | -                |
+| alias-redirects            | emitter                          | Yes             | No            | -                |
+| content-index              | emitter                          | Yes             | No            | -                |
+| favicon                    | emitter                          | Yes             | No            | -                |
+| og-image                   | emitter                          | Yes             | No            | -                |
+| cname                      | emitter                          | Yes             | No            | -                |
+| canvas-page                | pageType, component              | Yes             | Yes           | -                |
+| content-page               | pageType, component              | Yes             | Yes           | -                |
+| bases-page                 | transformer, pageType, component | Yes             | Yes           | -                |
+| folder-page                | pageType, component              | Yes             | Yes           | -                |
+| tag-page                   | pageType, component              | Yes             | Yes           | -                |
+| explorer                   | component                        | Yes             | Yes           | left             |
+| graph                      | component                        | Yes             | Yes           | right            |
+| search                     | component                        | Yes             | Yes           | left             |
+| backlinks                  | component                        | Yes             | Yes           | right            |
+| article-title              | component                        | Yes             | Yes           | beforeBody       |
+| content-meta               | component                        | Yes             | Yes           | beforeBody       |
+| tag-list                   | component                        | No              | Yes           | beforeBody       |
+| page-title                 | component                        | Yes             | Yes           | left             |
+| darkmode                   | component                        | Yes             | Yes           | left             |
+| reader-mode                | component                        | Yes             | Yes           | left             |
+| breadcrumbs                | component                        | Yes             | Yes           | beforeBody       |
+| comments                   | component                        | No              | Yes           | afterBody        |
+| footer                     | component                        | Yes             | Yes           | -                |
+| recent-notes               | component                        | No              | Yes           | -                |
+| spacer                     | component                        | Yes             | Yes           | left             |
+| encrypted-pages            | transformer                      | Yes             | Yes           | body             |
+| stacked-pages              | component                        | No              | Yes           | afterBody        |
 
 > **Note:** The `footer` plugin's component is placed by the page frame/template, not through the standard `layout.position` system. The `encrypted-pages` plugin uses a special `body` position for content replacement that is outside the standard layout position enum. The `tag-list` plugin defaults to disabled in the default configuration.
+>
+> **Note:** Page type plugins (`canvas-page`, `content-page`, `folder-page`, `tag-page`, `bases-page`) typically have both `pageType` and `component` categories. The `bases-page` plugin additionally includes `transformer` for its data processing logic.
