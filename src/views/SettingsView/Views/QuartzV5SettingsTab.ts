@@ -136,6 +136,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private isSaving = false;
 	private isCheckingUpdates = false;
 	private isCheckingUpgrade = false;
+	private isUpgrading = false;
 	private hasUnsavedChanges = false;
 	private pluginManager = new QuartzPluginManager();
 
@@ -277,6 +278,13 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			this.cachedTemplateNames = templateNames;
 
 			this.display();
+
+			if (
+				this.settings.settings.upgradeCheckStrategy === "commit" &&
+				!this.settings.settings.lastUpstreamCommitSha
+			) {
+				this.checkForQuartzUpgrade();
+			}
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);
@@ -415,20 +423,77 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				}),
 		);
 
+		const strategy = this.settings.settings.upgradeCheckStrategy;
+
+		new Setting(this.settingsRootElement)
+			.setName("Update check strategy")
+			.setDesc(
+				"Version: check for new Quartz releases. " +
+					"Commit: check for any new upstream commits (including unreleased changes).",
+			)
+			.addDropdown((dropdown) => {
+				dropdown.addOption("version", "Version");
+				dropdown.addOption("commit", "Commit");
+
+				dropdown.setValue(strategy).onChange(async (value) => {
+					this.settings.settings.upgradeCheckStrategy = value as
+						| "version"
+						| "commit";
+					await this.settings.plugin.saveSettings();
+					this.cachedUpgradeStatus = null;
+					this.display();
+
+					if (
+						value === "commit" &&
+						!this.settings.settings.lastUpstreamCommitSha
+					) {
+						this.checkForQuartzUpgrade();
+					}
+				});
+			});
+
 		if (this.cachedUpgradeStatus) {
 			const status = this.cachedUpgradeStatus;
+
+			const upgradeAvailable =
+				strategy === "commit"
+					? status.hasNewerCommits
+					: status.hasUpgrade;
 
 			if (status.error) {
 				new Setting(this.settingsRootElement)
 					.setName("Upgrade check failed")
 					.setDesc(status.error);
-			} else if (status.hasUpgrade) {
+			} else if (upgradeAvailable) {
+				const desc =
+					strategy === "commit"
+						? `Latest upstream commit: ${status.latestUpstreamSha?.slice(0, 7) ?? "unknown"}.`
+						: `Your Quartz is at ${status.currentVersion ?? "unknown"}, upstream is at ${status.upstreamVersion ?? "unknown"}.`;
+
+				const upgradeSetting = new Setting(this.settingsRootElement)
+					.setName(
+						strategy === "commit"
+							? "New upstream commits available"
+							: "Quartz upgrade available",
+					)
+					.setDesc(desc);
+
+				upgradeSetting.addButton((button) =>
+					button
+						.setButtonText(
+							this.isUpgrading ? "Upgrading..." : "Upgrade now",
+						)
+						.setWarning()
+						.setDisabled(this.isUpgrading)
+						.onClick(async () => {
+							await this.performQuartzUpgrade();
+						}),
+				);
+			} else if (strategy === "commit" && status.latestUpstreamSha) {
 				new Setting(this.settingsRootElement)
-					.setName("Quartz update available")
+					.setName("Quartz is up to date")
 					.setDesc(
-						`Your Quartz is at ${status.currentVersion ?? "unknown"}, ` +
-							`upstream is at ${status.upstreamVersion ?? "unknown"}. ` +
-							"Run `npx quartz update` in your repository to upgrade.",
+						`Current upstream commit: ${status.latestUpstreamSha.slice(0, 7)}`,
 					);
 			} else {
 				new Setting(this.settingsRootElement)
@@ -455,9 +520,27 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 			this.cachedUpgradeStatus = await upgradeService.checkForUpgrade();
 
-			if (this.cachedUpgradeStatus.hasUpgrade) {
+			if (
+				this.cachedUpgradeStatus.latestUpstreamSha &&
+				!this.cachedUpgradeStatus.hasNewerCommits
+			) {
+				this.settings.settings.lastUpstreamCommitSha =
+					this.cachedUpgradeStatus.latestUpstreamSha;
+				await this.settings.plugin.saveSettings();
+			}
+
+			const useCommitStrategy =
+				this.settings.settings.upgradeCheckStrategy === "commit";
+
+			const hasUpdate = useCommitStrategy
+				? this.cachedUpgradeStatus.hasNewerCommits
+				: this.cachedUpgradeStatus.hasUpgrade;
+
+			if (hasUpdate) {
 				new Notice(
-					"A Quartz update is available. Run `npx quartz update` to upgrade.",
+					useCommitStrategy
+						? "New upstream Quartz commits available. Run `npx quartz upgrade` to upgrade."
+						: "A Quartz upgrade is available. Run `npx quartz upgrade` to upgrade.",
 				);
 			} else if (!this.cachedUpgradeStatus.error) {
 				new Notice("Quartz is up to date.");
@@ -473,6 +556,46 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			new Notice(`Failed to check for Quartz upgrade: ${message}`);
 		} finally {
 			this.isCheckingUpgrade = false;
+			this.display();
+		}
+	}
+
+	private async performQuartzUpgrade(): Promise<void> {
+		if (this.isUpgrading) return;
+
+		this.isUpgrading = true;
+		this.display();
+
+		try {
+			const siteManager = this.getOrCreateSiteManager();
+
+			const upgradeService = new QuartzUpgradeService(
+				siteManager.userSyncerConnection,
+			);
+
+			const result = await upgradeService.performUpgrade();
+
+			if (result.success) {
+				if (result.alreadyMerged) {
+					new Notice("Quartz is already up to date.");
+				} else {
+					new Notice(
+						`Quartz upgraded successfully to ${result.oid?.slice(0, 7)}.`,
+					);
+				}
+
+				this.cachedUpgradeStatus = null;
+				this.resetCache();
+			} else {
+				new Notice(result.error ?? "Upgrade failed.");
+			}
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			logger.warn("Failed to upgrade Quartz", error);
+			new Notice(`Failed to upgrade Quartz: ${message}`);
+		} finally {
+			this.isUpgrading = false;
 			this.display();
 		}
 	}

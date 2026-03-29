@@ -132,6 +132,8 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	lastUsedSettingsTab: "git",
 	noteSettingsIsInitialized: false,
 	pluginVersion: "",
+	lastUpstreamCommitSha: "",
+	upgradeCheckStrategy: "version",
 
 	/** UI settings */
 	diffViewStyle: "auto",

@@ -661,6 +661,245 @@ export class RepositoryConnection {
 		}
 	}
 
+	async hasCommitInHistory(
+		targetOid: string,
+		fetchDepth: number = 100,
+	): Promise<boolean> {
+		try {
+			await this.ensureRepoInitialized();
+
+			await git.fetch({
+				...this.getGitConfig(),
+				url: this.remoteUrl,
+				ref: this.branch,
+				singleBranch: true,
+				depth: fetchDepth,
+			});
+
+			const commits = await git.log({
+				...this.getGitConfig(),
+				ref: `origin/${this.branch}`,
+				depth: fetchDepth,
+			});
+
+			return commits.some((entry) => entry.oid === targetOid);
+		} catch {
+			return false;
+		}
+	}
+
+	async upgradeFromUpstream(
+		upstreamUrl: string,
+		upstreamBranch: string,
+	): Promise<{ oid: string; alreadyMerged: boolean }> {
+		await this.ensureRepoInitialized();
+
+		await git.fetch({
+			...this.getGitConfig(),
+			url: this.remoteUrl,
+			ref: this.branch,
+			singleBranch: true,
+		});
+
+		const remoteCommit = await git.resolveRef({
+			...this.getGitConfig(),
+			ref: `origin/${this.branch}`,
+		});
+
+		await git.checkout({
+			...this.getGitConfig(),
+			ref: remoteCommit,
+			force: true,
+		});
+
+		await git.branch({
+			...this.getGitConfig(),
+			ref: this.branch,
+			object: remoteCommit,
+			force: true,
+		});
+
+		await git.checkout({
+			...this.getGitConfig(),
+			ref: this.branch,
+		});
+
+		const remoteName = "upstream";
+
+		const existingRemotes = await git.listRemotes({
+			...this.getGitConfig(),
+		});
+
+		if (existingRemotes.some((r) => r.remote === remoteName)) {
+			await git.deleteRemote({
+				...this.getGitConfig(),
+				remote: remoteName,
+			});
+		}
+
+		await git.addRemote({
+			...this.getGitConfig(),
+			remote: remoteName,
+			url: upstreamUrl,
+		});
+
+		await git.fetch({
+			...this.getGitConfig(),
+			url: upstreamUrl,
+			remote: remoteName,
+			ref: upstreamBranch,
+			singleBranch: true,
+		});
+
+		const mergeRef = `remotes/${remoteName}/${upstreamBranch}`;
+		const lockfilePath = "quartz.lock.json";
+
+		const mergeAuthor = {
+			name: "Quartz Syncer",
+			email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
+		};
+
+		let lockfileBackup: Uint8Array | null = null;
+
+		try {
+			const { blob } = await git.readBlob({
+				...this.getGitConfig(),
+				oid: remoteCommit,
+				filepath: lockfilePath,
+			});
+			lockfileBackup = blob;
+		} catch {
+			logger.debug("No quartz.lock.json found, skipping backup");
+		}
+
+		let result: {
+			oid?: string;
+			alreadyMerged?: boolean;
+		};
+
+		try {
+			result = await git.merge({
+				...this.getGitConfig(),
+				ours: this.branch,
+				theirs: mergeRef,
+				abortOnConflict: true,
+				author: mergeAuthor,
+			});
+		} catch (mergeError) {
+			const conflictFiles = this.extractConflictFiles(mergeError);
+
+			if (!conflictFiles) throw mergeError;
+
+			const nonLockfileConflicts = conflictFiles.filter(
+				(f: string) => f !== lockfilePath,
+			);
+
+			if (nonLockfileConflicts.length > 0) {
+				throw new Error(
+					`Merge conflicts in: ${conflictFiles.join(", ")}`,
+				);
+			}
+
+			if (!lockfileBackup) {
+				throw new Error(
+					`Merge conflicts in: ${conflictFiles.join(", ")}`,
+				);
+			}
+
+			logger.info("Only quartz.lock.json conflicts, auto-resolving");
+
+			try {
+				await git.merge({
+					...this.getGitConfig(),
+					ours: this.branch,
+					theirs: mergeRef,
+					abortOnConflict: false,
+					author: mergeAuthor,
+				});
+			} catch (retryError) {
+				const retryConflicts = this.extractConflictFiles(retryError);
+
+				if (!retryConflicts) throw retryError;
+
+				const retryNonLockfile = retryConflicts.filter(
+					(f: string) => f !== lockfilePath,
+				);
+
+				if (retryNonLockfile.length > 0) {
+					throw new Error(
+						`Merge conflicts in: ${retryConflicts.join(", ")}`,
+					);
+				}
+			}
+
+			const fullLockfilePath = `${this.dir}/${lockfilePath}`;
+
+			await this.getFs().promises.writeFile(
+				fullLockfilePath,
+				lockfileBackup,
+			);
+
+			await git.add({
+				...this.getGitConfig(),
+				filepath: lockfilePath,
+			});
+
+			const oursOid = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: this.branch,
+			});
+
+			const theirsOid = await git.resolveRef({
+				...this.getGitConfig(),
+				ref: mergeRef,
+			});
+
+			const commitOid = await git.commit({
+				...this.getGitConfig(),
+				message: `Merge upstream/${upstreamBranch} (auto-resolved quartz.lock.json)`,
+				author: mergeAuthor,
+				parent: [oursOid, theirsOid],
+			});
+
+			result = { oid: commitOid, alreadyMerged: false };
+		}
+
+		if (result.alreadyMerged) {
+			return {
+				oid: result.oid ?? remoteCommit,
+				alreadyMerged: true,
+			};
+		}
+
+		await git.checkout({
+			...this.getGitConfig(),
+			ref: this.branch,
+		});
+
+		await this.pushWithRetry();
+
+		return {
+			oid: result.oid!,
+			alreadyMerged: false,
+		};
+	}
+
+	private extractConflictFiles(error: unknown): string[] | null {
+		if (
+			error &&
+			typeof error === "object" &&
+			"data" in error &&
+			error.data &&
+			typeof error.data === "object" &&
+			"filepaths" in error.data &&
+			Array.isArray(error.data.filepaths)
+		) {
+			return error.data.filepaths as string[];
+		}
+
+		return null;
+	}
+
 	async deleteFiles(
 		filePaths: string[],
 		onProgress?: (completed: number, total: number) => void | Promise<void>,

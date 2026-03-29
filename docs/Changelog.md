@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-03-27T23:38:05Z+0100
+modified: 2026-03-29T04:36:03Z+0200
 publish: true
 ---
 
@@ -18,17 +18,21 @@ publish: true
 
 ## Releases
 
+### Version 1.12.0
+
+- Added Quartz upgrade check and in-app upgrade support.
+	- Configurable update check strategy: "Version" (compare `package.json` versions) or "Commit" (compare upstream commit SHAs for unreleased changes).
+	- Detects whether the latest upstream Quartz commit exists in the user's repository history.
+	- "Upgrade now" button merges upstream changes directly from within Obsidian, with no external tools required.
+	- Automatic conflict resolution for `quartz.lock.json` — the most common merge conflict during upgrades.
+	- If other conflicts are detected, the merge is safely aborted and conflicting files are listed. No changes are made to the repository.
+	- Works on mobile — uses `isomorphic-git` for all git operations, no dependency on external git.
+- Removed dead settings: `applyEmbeds` and `pathRewriteRules`.
+- Removed SVG conversion, SCSS styles, and ExcalidrawAutomate dependency.
+
 ### Version 1.11.1
 
 - Fixed Obsidian styled comments breaking parsing.
-### Version 1.12.0
-
-- Removed dead settings: `applyEmbeds` and `pathRewriteRules`.
-- Removed "Apply embeds" toggle from Quartz settings panel.
-- Simplified Excalidraw integration to pass-through (push files only, Quartz v5 handles rendering).
-- Removed SVG conversion, SCSS styles, and ExcalidrawAutomate dependency.
-- Split Git connection status into separate read and write access checks. The settings panel now shows `(read: ok/failed)` and `(write: ok/failed)` independently, correctly identifying when a repository URL is valid but credentials lack push access.
-- Fixed canvas `extractBlobLinks` to only collect asset files (images, fonts, etc.) instead of all file nodes including markdown notes.
 
 ### Version 1.11.0
 
@@ -45,6 +49,10 @@ publish: true
 - Removed transclusion and SVG embedding logic (now handled by Quartz v5).
 - Removed publish file cache system (`cacheFilesMarkedForPublishing`, `clearPublishCache`).
 - Simplified `SyncerPageCompiler` constructor (removed `getFilesMarkedForPublishing` parameter).
+- Removed "Apply embeds" toggle from Quartz settings panel.
+- Simplified Excalidraw integration to pass-through (push files only, Quartz v5 handles rendering).
+- Split Git connection status into separate read and write access checks. The settings panel now shows `(read: ok/failed)` and `(write: ok/failed)` independently, correctly identifying when a repository URL is valid but credentials lack push access.
+- Fixed canvas `extractBlobLinks` to only collect asset files (images, fonts, etc.) instead of all file nodes including markdown notes.
 
 ### Version 1.10.1
 
