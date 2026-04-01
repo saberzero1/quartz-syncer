@@ -110,18 +110,25 @@ function getConfigValueByPath(
 	return current;
 }
 
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 function setConfigValueByPath(
 	config: QuartzSiteConfiguration,
 	path: string,
 	value: string | boolean,
 ): boolean {
 	const segments = path.split(".");
+
+	if (segments.some((s) => FORBIDDEN_KEYS.has(s))) {
+		return false;
+	}
+
 	let current: unknown = config;
 
 	for (let i = 0; i < segments.length - 1; i++) {
 		const segment = segments[i];
 
-		if (!isRecord(current) || !(segment in current)) {
+		if (!isRecord(current) || !Object.hasOwn(current, segment)) {
 			return false;
 		}
 
@@ -132,7 +139,13 @@ function setConfigValueByPath(
 		return false;
 	}
 
-	current[segments[segments.length - 1]] = value;
+	const lastSegment = segments[segments.length - 1];
+
+	if (!Object.hasOwn(current, lastSegment)) {
+		return false;
+	}
+
+	current[lastSegment] = value;
 
 	return true;
 }

@@ -79,18 +79,25 @@ function getValueByPath(settings: QuartzSyncerSettings, path: string): unknown {
 	return current;
 }
 
+const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 function setValueByPath(
 	settings: QuartzSyncerSettings,
 	path: string,
 	value: string | boolean,
 ): boolean {
 	const segments = path.split(".");
+
+	if (segments.some((s) => FORBIDDEN_KEYS.has(s))) {
+		return false;
+	}
+
 	let current: unknown = settings;
 
 	for (let i = 0; i < segments.length - 1; i++) {
 		const segment = segments[i];
 
-		if (!isRecord(current) || !(segment in current)) {
+		if (!isRecord(current) || !Object.hasOwn(current, segment)) {
 			return false;
 		}
 		current = current[segment];
@@ -100,7 +107,13 @@ function setValueByPath(
 		return false;
 	}
 
-	current[segments[segments.length - 1]] = value;
+	const lastSegment = segments[segments.length - 1];
+
+	if (!Object.hasOwn(current, lastSegment)) {
+		return false;
+	}
+
+	current[lastSegment] = value;
 
 	return true;
 }
