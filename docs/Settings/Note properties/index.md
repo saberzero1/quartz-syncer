@@ -2,7 +2,7 @@
 title: Note properties (frontmatter)
 description: Quartz Syncer settings related to note properties or frontmatter.
 created: 2025-05-17T15:08:00Z+0200
-modified: 2025-05-20T20:31:59Z+0200
+modified: 2026-04-01T17:15:09Z+0200
 publish: true
 tags: [settings/frontmatter]
 ---

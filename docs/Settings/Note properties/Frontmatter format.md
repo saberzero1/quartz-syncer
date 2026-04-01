@@ -2,7 +2,7 @@
 title: Frontmatter format
 description: Output format for frontmatter/note properties in published notes.
 created: 2026-01-09T07:32:00Z+0100
-modified: 2026-01-09T07:32:00Z+0100
+modified: 2026-04-01T17:15:09Z+0200
 publish: true
 tags: [settings/frontmatter]
 default_value: "`yaml`"

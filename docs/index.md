@@ -2,7 +2,7 @@
 title: Quartz Syncer Documentation
 description: Quartz Syncer allows you to manage your Quartz site content from Obsidian.
 created: 2025-04-20T00:00:00Z+0200
-modified: 2026-01-08T13:30:00Z+0100
+modified: 2026-04-01T17:15:09Z+0200
 publish: true
 aliases: [home]
 ---
@@ -30,6 +30,10 @@ Unsure on how to use Quartz Syncer, or just curious about its usage? Check out t
 ## Advanced usage
 
 For more advanced use-cases of Quartz Syncer, check the [[Guides/index|guides section]].
+
+## CLI
+
+Quartz Syncer supports the [Obsidian CLI](https://obsidian.md/cli) for automating publishing workflows from the terminal. See the [[Guides/CLI|CLI guide]] for the full command reference.
 
 ## Troubleshooting
 

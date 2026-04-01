@@ -2,7 +2,7 @@
 title: Quartz
 description: Quartz Syncer settings related to Quartz.
 created: 2025-05-15T16:03:13Z+0200
-modified: 2025-05-20T20:31:59Z+0200
+modified: 2026-04-01T17:15:09Z+0200
 publish: true
 tags: [settings/quartz]
 ---

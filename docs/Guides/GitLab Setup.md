@@ -2,7 +2,7 @@
 title: GitLab Setup
 description: Complete guide for setting up Quartz with GitLab and GitLab Pages.
 created: 2026-01-08T14:00:00Z+0100
-modified: 2026-01-08T17:24:14Z+0100
+modified: 2026-04-01T17:15:09Z+0200
 publish: true
 tags: [guides]
 ---
