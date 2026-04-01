@@ -1,4 +1,4 @@
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 import { createMarkHandler } from "src/cli/handlers/markHandler";
 import { CliData, RegisterFn } from "src/cli/types";
 import { resolvePathPattern } from "src/cli/pathResolver";

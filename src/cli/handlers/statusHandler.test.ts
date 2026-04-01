@@ -1,4 +1,4 @@
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 import { createStatusHandler } from "src/cli/handlers/statusHandler";
 import { CliData, RegisterFn } from "src/cli/types";
 import PublishStatusManager from "src/publisher/PublishStatusManager";

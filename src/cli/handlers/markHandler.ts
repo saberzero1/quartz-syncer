@@ -1,4 +1,4 @@
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 import { CliData, CliFlags, RegisterFn } from "../types";
 import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
 import { resolvePathPattern } from "../pathResolver";

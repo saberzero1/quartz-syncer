@@ -2,7 +2,7 @@ import { createUpgradeHandler } from "./upgradeHandler";
 import { CliData, CliHandler, RegisterFn } from "../types";
 import { validatePreFlight } from "src/cli/validators";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 
 const mockHasCommitInHistory = jest.fn();
 const mockUpgradeFromUpstream = jest.fn();

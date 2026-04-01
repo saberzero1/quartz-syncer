@@ -1,4 +1,4 @@
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 import { createHelpHandler } from "./helpHandler";
 import { CliData, RegisterFn } from "../types";
 

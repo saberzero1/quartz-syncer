@@ -1,4 +1,4 @@
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 import { createDeleteHandler } from "src/cli/handlers/deleteHandler";
 import { CliData, RegisterFn } from "src/cli/types";
 import PublishStatusManager from "src/publisher/PublishStatusManager";

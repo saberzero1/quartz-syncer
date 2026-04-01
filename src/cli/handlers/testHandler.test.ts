@@ -1,4 +1,4 @@
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 import { createTestHandler } from "src/cli/handlers/testHandler";
 import { CliData, RegisterFn } from "src/cli/types";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";

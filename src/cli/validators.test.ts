@@ -1,4 +1,4 @@
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 import { validatePreFlight } from "src/cli/validators";
 
 describe("validatePreFlight", () => {

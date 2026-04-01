@@ -1,4 +1,4 @@
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 import { CliData, CliFlags, RegisterFn } from "../types";
 import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
 import { validatePreFlight } from "../validators";
@@ -125,15 +125,6 @@ export function createPluginHandler(
 		FLAGS,
 		async (params: CliData): Promise<string> => {
 			try {
-				const validationError = validatePreFlight(plugin);
-
-				if (validationError) {
-					return formatCliOutput(
-						params,
-						cliError(COMMAND, validationError),
-					);
-				}
-
 				const verbose = params.verbose === "true";
 				const includeVerbose = verbose && params.format !== "json";
 
@@ -149,6 +140,15 @@ export function createPluginHandler(
 					return formatCliOutput(
 						params,
 						cliSuccess(COMMAND, message, { plugins }),
+					);
+				}
+
+				const validationError = validatePreFlight(plugin);
+
+				if (validationError) {
+					return formatCliOutput(
+						params,
+						cliError(COMMAND, validationError),
 					);
 				}
 

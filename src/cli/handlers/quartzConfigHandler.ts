@@ -1,4 +1,4 @@
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 import { CliData, CliFlags, RegisterFn } from "../types";
 import { formatCliOutput, cliError, cliSuccess } from "../formatOutput";
 import { validatePreFlight } from "../validators";

@@ -1,6 +1,6 @@
 import { createConfigHandler } from "./configHandler";
 import { CliData, CliHandler, RegisterFn } from "../types";
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 
 const createMockPlugin = (): QuartzSyncer => {
 	const settings = {

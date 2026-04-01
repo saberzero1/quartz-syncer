@@ -1,6 +1,6 @@
 import { createPluginHandler } from "./pluginHandler";
 import { CliData, CliHandler, RegisterFn } from "../types";
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 import type { PluginUpdateStatus } from "src/quartz/QuartzPluginUpdateChecker";
 import type {
 	QuartzPluginEntry,

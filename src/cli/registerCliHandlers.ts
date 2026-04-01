@@ -1,4 +1,4 @@
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 import { RegisterCliHandlerTarget, RegisterFn, CliData } from "./types";
 import {
 	normalizeCliParams,

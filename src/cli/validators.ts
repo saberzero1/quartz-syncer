@@ -1,4 +1,4 @@
-import QuartzSyncer from "main";
+import type QuartzSyncer from "main";
 
 /**
  * Pre-flight validation for CLI commands that depend on Git settings.
