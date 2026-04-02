@@ -38,7 +38,7 @@ const createMockPlugin = (): QuartzSyncer => {
 		getGitSettingsWithSecret: jest.fn().mockReturnValue({
 			remoteUrl: "https://github.com/test/repo.git",
 			branch: "main",
-			auth: {},
+			auth: { type: "basic", secret: "test-token" },
 			corsProxyUrl: "",
 		}),
 		datastore: {

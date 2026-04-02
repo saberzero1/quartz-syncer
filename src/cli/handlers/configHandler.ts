@@ -50,14 +50,17 @@ const WRITABLE_KEYS: Record<string, "string" | "boolean"> = {
 	diffViewStyle: "string",
 };
 
-function redactSettings(settings: QuartzSyncerSettings): QuartzSyncerSettings {
+function redactSettings(
+	settings: QuartzSyncerSettings,
+	hasToken: boolean,
+): QuartzSyncerSettings {
 	return {
 		...settings,
 		git: {
 			...settings.git,
 			auth: {
 				...settings.git.auth,
-				secret: settings.git.auth.secret ? "***" : undefined,
+				secret: hasToken ? "***" : undefined,
 			},
 		},
 	};
@@ -94,8 +97,11 @@ export function createConfigHandler(
 				const action =
 					typeof params.action === "string" ? params.action : "list";
 
+				const hasToken =
+					!!plugin.getGitSettingsWithSecret().auth?.secret;
+
 				if (action === "list") {
-					const data = redactSettings(plugin.settings);
+					const data = redactSettings(plugin.settings, hasToken);
 
 					const message = Object.entries(flattenObject(data))
 						.map(([key, value]) => `${key}=${value}`)
@@ -118,8 +124,9 @@ export function createConfigHandler(
 
 				if (action === "get") {
 					if (key === "git.auth.secret") {
-						const data = { key, value: "***" };
-						const baseMessage = `${key}="***"`;
+						const display = hasToken ? "***" : "not set";
+						const data = { key, value: display };
+						const baseMessage = `${key}="${display}"`;
 
 						const message = includeVerbose
 							? `${baseMessage} (type: string)`
