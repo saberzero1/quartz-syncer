@@ -133,7 +133,7 @@ describe("versionHandler", () => {
 		expect(result).toContain("Quartz: unknown (unknown)");
 	});
 
-	it("returns validation error when git is not configured", async () => {
+	it("returns plugin and Obsidian versions even without Git configured", async () => {
 		const plugin = createMockPlugin();
 		plugin.settings.git.remoteUrl = "";
 
@@ -141,7 +141,9 @@ describe("versionHandler", () => {
 
 		const result = await handler({} as CliData);
 
-		expect(result).toContain("Error: Git remote URL is not configured.");
+		expect(result).toContain("Quartz Syncer:");
+		expect(result).toContain("Obsidian:");
+		expect(result).toContain("Quartz: unknown (unknown)");
 		expect(RepositoryConnection).not.toHaveBeenCalled();
 	});
 });

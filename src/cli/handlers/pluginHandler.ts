@@ -13,6 +13,7 @@ import { QuartzPluginUpdateChecker } from "src/quartz/QuartzPluginUpdateChecker"
 import {
 	getPluginName,
 	getPluginSourceKey,
+	resolveSourceToGitUrl,
 } from "src/quartz/QuartzPluginUtils";
 import type {
 	QuartzPluginEntry,
@@ -250,14 +251,25 @@ export function createPluginHandler(
 					}
 
 					const newLockFile = lockFile ?? {
-						version: "1",
+						version: "1.0.0",
 						plugins: {},
 					};
 
 					for (const update of updatable) {
+						const plugin = config.plugins.find(
+							(p) => getPluginName(p.source) === update.name,
+						);
+
 						if (newLockFile.plugins[update.name]) {
 							newLockFile.plugins[update.name].commit =
 								update.remoteCommit!;
+						} else if (plugin) {
+							newLockFile.plugins[update.name] = {
+								source: plugin.source,
+								resolved: resolveSourceToGitUrl(plugin.source),
+								commit: update.remoteCommit!,
+								installedAt: new Date().toISOString(),
+							};
 						}
 					}
 

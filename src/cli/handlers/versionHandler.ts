@@ -32,36 +32,37 @@ export function createVersionHandler(
 		FLAGS,
 		async (params: CliData): Promise<string> => {
 			try {
-				const validationError = validatePreFlight(plugin);
-
-				if (validationError) {
-					return formatCliOutput(
-						params,
-						cliError(COMMAND, validationError),
-					);
-				}
-
-				const gitSettings = plugin.getGitSettingsWithSecret();
 				const verbose = params.verbose === "true";
 				const includeVerbose = verbose && params.format !== "json";
 
-				const connection = new RepositoryConnection({
-					gitSettings,
-					contentFolder: plugin.settings.contentFolder,
-					vaultPath: plugin.settings.vaultPath,
-				});
-
 				const pluginVersion = plugin.appVersion;
-
 				const obsidianVersion = apiVersion ?? "unknown";
 
-				const quartzFormat =
-					await QuartzVersionDetector.detectQuartzVersion(connection);
+				let quartzFormat: string = "unknown";
+				let quartzVersion: string | null = null;
+				let connection: RepositoryConnection | null = null;
 
-				const quartzVersion =
-					await QuartzVersionDetector.getQuartzPackageVersion(
-						connection,
-					);
+				const validationError = validatePreFlight(plugin);
+
+				if (!validationError) {
+					const gitSettings = plugin.getGitSettingsWithSecret();
+
+					connection = new RepositoryConnection({
+						gitSettings,
+						contentFolder: plugin.settings.contentFolder,
+						vaultPath: plugin.settings.vaultPath,
+					});
+
+					quartzFormat =
+						await QuartzVersionDetector.detectQuartzVersion(
+							connection,
+						);
+
+					quartzVersion =
+						await QuartzVersionDetector.getQuartzPackageVersion(
+							connection,
+						);
+				}
 
 				const displayQuartzVersion = quartzVersion ?? "unknown";
 				const displayQuartzFormat = quartzFormat ?? "unknown";
@@ -75,13 +76,16 @@ export function createVersionHandler(
 					`Quartz: ${displayQuartzVersion} (${displayQuartzFormat})`,
 				];
 
-				const message = includeVerbose
+				const verboseLines = connection
 					? [
-							...baseLines,
 							`Repository: ${connection.getRepositoryName()}`,
-							`Branch: ${gitSettings.branch}`,
+							`Branch: ${plugin.settings.git.branch}`,
 							`Quartz config: ${quartzConfigDetails}`,
-						].join("\n")
+						]
+					: [`Git: not configured`];
+
+				const message = includeVerbose
+					? [...baseLines, ...verboseLines].join("\n")
 					: baseLines.join("\n");
 
 				const data = {
