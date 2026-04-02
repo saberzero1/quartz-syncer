@@ -24,7 +24,7 @@ publish: true
 	- `obsidian quartz-syncer` (no subcommand) shows a help screen with all available commands, flags, and examples.
 	- All commands support `verbose` for detailed output (file paths, connection details, cache contents, commit SHAs).
 	- All commands support `help` for command-specific usage information.
-	- All commands support `format=json` for machine-readable output and `dry-run` for previewing changes.
+	- All commands support `format=json` for machine-readable output. Commands that make changes support `dry-run` for previewing.
 	- Publishing commands (`sync`, `publish`) execute without confirmation. Destructive commands (`delete`, `upgrade`) require `force`.
 	- `mark` command supports three path resolution modes: exact path, glob patterns (`notes/**/*.md`), and fuzzy search (`~my post`).
 	- `config` command enables reading and writing plugin settings from the terminal, with secret redaction for authentication tokens.
