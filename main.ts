@@ -10,6 +10,7 @@ import { QuartzSyncerSettingTab } from "./src/views/QuartzSyncerSettingTab";
 import { DataStore } from "src/publishFile/DataStore";
 import { SecretStorageService } from "src/utils/SecretStorageService";
 import Logger from "js-logger";
+import { registerCliHandlers } from "src/cli/registerCliHandlers";
 
 /**
  * QuartzSyncer plugin settings.
@@ -179,6 +180,7 @@ export default class QuartzSyncer extends Plugin {
 		this.addSettingTab(new QuartzSyncerSettingTab(this.app, this));
 
 		await this.addCommands();
+		registerCliHandlers(this);
 
 		addIcon("quartz-syncer-icon", quartzSyncerIcon);
 

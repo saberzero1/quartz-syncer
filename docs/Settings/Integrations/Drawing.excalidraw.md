@@ -1,6 +1,7 @@
 ---
 created: 2025-10-21T13:06:16Z+0200
-modified: 2026-01-10T00:01:45Z+0100
+modified: 2026-04-01T17:15:09Z+0200
+publish: true
 tags: [excalidraw]
 excalidraw-plugin: parsed
 ---

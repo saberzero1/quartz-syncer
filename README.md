@@ -9,6 +9,7 @@ Quartz Syncer is an [Obsidian](https://obsidian.md/) plugin for managing and pub
 - **Smart caching**: Caches compiled files for faster subsequent publishes. Dynamic content (Dataview/Datacore queries) is automatically detected and recompiled when needed.
 - **Diff viewer**: Preview exact changes before publishing with split (side-by-side) or unified view.
 - **Selective publishing**: Choose exactly which notes to publish, update, or remove.
+- **CLI support**: Automate publishing workflows from the terminal via the [Obsidian CLI](https://obsidian.md/cli) (requires Obsidian v1.12+).
 
 ## Installation
 
@@ -32,6 +33,61 @@ Unsure on how to use Quartz Syncer, or just curious about its usage? Check the [
 ## Advanced usage
 
 For more advanced usages of Quartz Syncer, check the [guides section](https://saberzero1.github.io/quartz-syncer-docs/Guides/).
+
+## CLI
+
+Quartz Syncer supports the [Obsidian CLI](https://obsidian.md/cli) (v1.12+) for automating publishing workflows from the terminal. Obsidian must be running for CLI commands to work.
+
+### Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `quartz-syncer` | Show available commands and usage | `obsidian quartz-syncer` |
+| `quartz-syncer:status` | Show publish status of all marked notes | `obsidian quartz-syncer:status format=json` |
+| `quartz-syncer:sync` | Publish pending notes and delete removed notes | `obsidian quartz-syncer:sync force` |
+| `quartz-syncer:publish` | Publish pending notes only (no deletions) | `obsidian quartz-syncer:publish` |
+| `quartz-syncer:delete` | Delete removed notes from remote | `obsidian quartz-syncer:delete force` |
+| `quartz-syncer:mark` | Set/unset/toggle publish flag on notes | `obsidian quartz-syncer:mark path="notes/post.md"` |
+| `quartz-syncer:test` | Test Git connection and credentials | `obsidian quartz-syncer:test` |
+| `quartz-syncer:cache` | Manage the plugin cache | `obsidian quartz-syncer:cache action=status` |
+| `quartz-syncer:config` | Read or write plugin settings | `obsidian quartz-syncer:config action=get key=git.branch` |
+| `quartz-syncer:upgrade` | Pull upstream Quartz changes | `obsidian quartz-syncer:upgrade force` |
+| `quartz-syncer:version` | Show plugin, Obsidian, and Quartz versions | `obsidian quartz-syncer:version` |
+| `quartz-syncer:plugin` | Manage Quartz v5 plugins | `obsidian quartz-syncer:plugin action=updates` |
+| `quartz-syncer:quartz-config` | Read or update Quartz v5 site config | `obsidian quartz-syncer:quartz-config action=get key=pageTitle` |
+
+The `config` and `quartz-config` commands default to listing all settings when no action is provided.
+
+### Common flags
+
+- `format=json` — Return machine-readable JSON output (default: human-readable text).
+- `dry-run` — Preview what would happen without making changes.
+- `force` — Required for destructive operations (`delete`, `upgrade`, and the delete phase of `sync`).
+- `verbose` — Enable detailed output (file paths, connection details).
+- `help` — Show command-specific help and available flags.
+
+### Path patterns
+
+The `mark` command supports three path resolution modes:
+
+- **Exact**: `path="notes/my-post.md"` — Match a single file.
+- **Glob**: `path="notes/**/*.md"` — Match files using glob patterns.
+- **Fuzzy**: `path="~my post"` — Fuzzy search by name (prefix with `~`).
+
+Use `dry-run` to preview matched files before modifying: `obsidian quartz-syncer:mark path="blog/**/*.md" dry-run`
+
+### Example workflow
+
+```bash
+# Check what needs publishing
+obsidian quartz-syncer:status
+
+# Publish all pending notes (additive, no force needed)
+obsidian quartz-syncer:publish
+
+# Full sync including deletions
+obsidian quartz-syncer:sync force
+```
 
 ## Troubleshooting
 

@@ -2,7 +2,7 @@
 title: Bitbucket Setup
 description: Complete guide for setting up Quartz with Bitbucket and Bitbucket Pipelines.
 created: 2026-01-08T14:00:00Z+0100
-modified: 2026-01-08T18:10:06Z+0100
+modified: 2026-04-01T17:15:10Z+0200
 publish: true
 tags: [guides]
 ---

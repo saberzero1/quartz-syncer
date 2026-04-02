@@ -2,7 +2,7 @@
 title: Excalidraw
 description: Enable support for the Excalidraw plugin to convert drawings to embedded SVG images.
 created: 2025-05-15T20:32:34Z+0200
-modified: 2026-01-09T23:42:47Z+0100
+modified: 2026-04-01T17:15:09Z+0200
 publish: true
 tags: [excalidraw, integration, settings/integrations]
 default_value: "true"

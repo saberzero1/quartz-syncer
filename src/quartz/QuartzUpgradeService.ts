@@ -8,9 +8,9 @@ const logger = Logger.get("quartz-upgrade-service");
 const UPSTREAM_PACKAGE_JSON_URL =
 	"https://raw.githubusercontent.com/jackyzha0/quartz/v5/package.json";
 
-const UPSTREAM_REPO_URL = "https://github.com/jackyzha0/quartz.git";
-const UPSTREAM_BRANCH = "v5";
-const UPSTREAM_AUTH: GitAuth = { type: "none" };
+export const UPSTREAM_REPO_URL = "https://github.com/jackyzha0/quartz.git";
+export const UPSTREAM_BRANCH = "v5";
+export const UPSTREAM_AUTH: GitAuth = { type: "none" };
 
 export interface QuartzUpgradeStatus {
 	currentVersion: string | null;
