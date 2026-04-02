@@ -6,10 +6,14 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function getValueByPath(obj: unknown, path: string): unknown {
 	const segments = path.split(".");
+
+	if (segments.some((s) => FORBIDDEN_KEYS.has(s))) return undefined;
+
 	let current: unknown = obj;
 
 	for (const segment of segments) {
-		if (!isRecord(current)) return undefined;
+		if (!isRecord(current) || !Object.hasOwn(current, segment))
+			return undefined;
 		current = current[segment];
 	}
 
