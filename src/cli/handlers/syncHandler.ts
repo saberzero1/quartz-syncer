@@ -74,9 +74,20 @@ export function createSyncHandler(
 					...status.changedNotes,
 				];
 
+				const notePaths = new Set([
+					...status.unpublishedNotes.map((f) => f.getPath()),
+					...status.changedNotes.map((f) => f.getPath()),
+					...status.publishedNotes.map((f) => f.getPath()),
+					...status.deletedNotePaths.map((p) => p.path),
+				]);
+
+				const filteredDeletedBlobs = status.deletedBlobPaths.filter(
+					(p) => !notePaths.has(p.path),
+				);
+
 				const deletions = [
 					...status.deletedNotePaths.map((p) => p.path),
-					...status.deletedBlobPaths.map((p) => p.path),
+					...filteredDeletedBlobs.map((p) => p.path),
 				];
 
 				const data = {
