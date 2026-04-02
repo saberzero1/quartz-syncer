@@ -30,11 +30,13 @@ export function resolvePathPattern(app: App, pattern: string): ResolvedFiles {
 	}
 
 	if (pattern.includes("*") || pattern.includes("?")) {
+		const normalizedGlob = pattern.replace(/\\/g, "/");
+
 		const files = app.vault
 			.getFiles()
-			.filter((f) => minimatch(f.path, pattern));
+			.filter((f) => minimatch(f.path, normalizedGlob));
 
-		return { files, mode: "glob", pattern };
+		return { files, mode: "glob", pattern: normalizedGlob };
 	}
 
 	const normalized = normalizePath(pattern);

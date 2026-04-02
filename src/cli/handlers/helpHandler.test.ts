@@ -64,7 +64,7 @@ describe("helpHandler", () => {
 		);
 	});
 
-	it("registers with null flags", () => {
+	it("registers with format flag", () => {
 		let capturedFlags: unknown;
 
 		const spyRegister: RegisterFn = (_cmd, _desc, flags, _h) => {
@@ -72,6 +72,6 @@ describe("helpHandler", () => {
 		};
 
 		createHelpHandler(spyRegister, mockPlugin);
-		expect(capturedFlags).toBeNull();
+		expect(capturedFlags).toHaveProperty("format");
 	});
 });

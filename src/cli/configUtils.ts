@@ -55,6 +55,8 @@ export function flattenObject(
 	}
 
 	for (const [key, value] of Object.entries(obj)) {
+		if (value === undefined) continue;
+
 		const nextPrefix = prefix ? `${prefix}.${key}` : key;
 
 		if (isRecord(value)) {

@@ -1,8 +1,15 @@
 import type QuartzSyncer from "main";
-import { CliData, RegisterFn } from "../types";
+import { CliData, CliFlags, RegisterFn } from "../types";
 import { formatCliOutput, cliSuccess } from "../formatOutput";
 
 const COMMAND = "quartz-syncer";
+
+const FLAGS: CliFlags = {
+	format: {
+		value: "<json|text>",
+		description: "Output format (default: text)",
+	},
+};
 
 const HELP_TEXT = `Quartz Syncer CLI — Manage and publish notes to Quartz from the terminal.
 
@@ -45,7 +52,7 @@ export function createHelpHandler(
 	register(
 		COMMAND,
 		"Show available commands and usage information",
-		null,
+		FLAGS,
 		(params: CliData): string => {
 			if (params.format === "json") {
 				return formatCliOutput(
