@@ -108,14 +108,15 @@ export function createConfigHandler(
 					!!plugin.getGitSettingsWithSecret().auth?.secret;
 
 				if (action === "list") {
-					const data = redactSettings(plugin.settings, hasToken);
+					const redacted = redactSettings(plugin.settings, hasToken);
+
+					const {
+						cache: _cache,
+						cacheTimestamp: _cacheTimestamp,
+						...data
+					} = redacted as unknown as Record<string, unknown>;
 
 					const message = Object.entries(flattenObject(data))
-						.filter(
-							([key]) =>
-								!key.startsWith("cache") &&
-								!key.startsWith("cacheTimestamp"),
-						)
 						.map(([key, value]) => `${key}=${value}`)
 						.join("\n");
 

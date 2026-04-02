@@ -7,11 +7,11 @@ import type QuartzSyncer from "main";
  */
 export function validatePreFlight(plugin: QuartzSyncer): string | null {
 	if (!plugin.settings.git.remoteUrl) {
-		return "Git remote URL is not configured. Set it in plugin settings or via 'quartz-syncer:config action=set key=git.remoteUrl value=<url>'.";
+		return "Git remote URL is not configured. Set it in plugin settings or via 'obsidian quartz-syncer:config action=set key=git.remoteUrl value=<url>'.";
 	}
 
 	if (!plugin.settings.git.branch) {
-		return "Git branch is not configured. Set it in plugin settings or via 'quartz-syncer:config action=set key=git.branch value=<branch>'.";
+		return "Git branch is not configured. Set it in plugin settings or via 'obsidian quartz-syncer:config action=set key=git.branch value=<branch>'.";
 	}
 
 	return null;

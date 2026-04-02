@@ -8,7 +8,7 @@ describe("validatePreFlight", () => {
 		} as unknown as QuartzSyncer;
 
 		expect(validatePreFlight(plugin)).toBe(
-			"Git remote URL is not configured. Set it in plugin settings or via 'quartz-syncer:config action=set key=git.remoteUrl value=<url>'.",
+			"Git remote URL is not configured. Set it in plugin settings or via 'obsidian quartz-syncer:config action=set key=git.remoteUrl value=<url>'.",
 		);
 	});
 
@@ -18,7 +18,7 @@ describe("validatePreFlight", () => {
 		} as unknown as QuartzSyncer;
 
 		expect(validatePreFlight(plugin)).toBe(
-			"Git branch is not configured. Set it in plugin settings or via 'quartz-syncer:config action=set key=git.branch value=<branch>'.",
+			"Git branch is not configured. Set it in plugin settings or via 'obsidian quartz-syncer:config action=set key=git.branch value=<branch>'.",
 		);
 	});
 

@@ -4,6 +4,7 @@ import {
 	normalizeCliParams,
 	generateCommandHelp,
 	withDashAliases,
+	formatCliOutput,
 } from "./formatOutput";
 import { createStatusHandler } from "./handlers/statusHandler";
 import { createSyncHandler } from "./handlers/syncHandler";
@@ -44,7 +45,21 @@ export function registerCliHandlers(plugin: QuartzSyncer): boolean {
 			const normalized = normalizeCliParams(params);
 
 			if (normalized.help === "true" && command !== "quartz-syncer") {
-				return generateCommandHelp(command, description, flags);
+				const helpText = generateCommandHelp(
+					command,
+					description,
+					flags,
+				);
+
+				if (normalized.format === "json") {
+					return formatCliOutput(normalized, {
+						ok: true,
+						command,
+						message: helpText,
+					});
+				}
+
+				return helpText;
 			}
 
 			return handler(normalized);
