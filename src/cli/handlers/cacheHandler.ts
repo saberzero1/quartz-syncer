@@ -1,4 +1,5 @@
 import type QuartzSyncer from "main";
+import { normalizePath } from "obsidian";
 import { CliData, CliFlags, RegisterFn } from "../types";
 import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
 
@@ -90,7 +91,7 @@ export function createCacheHandler(
 						);
 					}
 
-					const path = rawPath.replace(/\\/g, "/");
+					const path = normalizePath(rawPath);
 
 					await plugin.datastore.persister.removeItem(
 						plugin.datastore.fileKey(path),

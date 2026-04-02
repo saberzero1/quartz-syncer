@@ -1,7 +1,7 @@
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null;
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function getValueByPath(obj: unknown, path: string): unknown {

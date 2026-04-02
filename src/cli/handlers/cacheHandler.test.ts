@@ -2,6 +2,10 @@ import { createCacheHandler } from "./cacheHandler";
 import { CliData, CliHandler, RegisterFn } from "../types";
 import type QuartzSyncer from "main";
 
+jest.mock("obsidian", () => ({
+	normalizePath: (p: string) => p.replace(/\\/g, "/").replace(/^\//, ""),
+}));
+
 const createMockPlugin = (): QuartzSyncer => {
 	const settings = {
 		git: {
