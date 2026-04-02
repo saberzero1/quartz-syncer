@@ -151,8 +151,8 @@ describe("generateCommandHelp", () => {
 		expect(help).toContain("Show the publish status of all marked notes");
 		expect(help).toContain("format=<json|text>");
 		expect(help).toContain("Global flags:");
-		expect(help).toContain("--help");
-		expect(help).toContain("--verbose");
+		expect(help).toContain("help, h");
+		expect(help).toContain("verbose, v");
 	});
 
 	it("generates help with null flags", () => {

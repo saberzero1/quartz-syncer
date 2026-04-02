@@ -48,10 +48,14 @@ describe("helpHandler", () => {
 		expect(parsed.data.version).toBe("1.0.0");
 	});
 
-	it("includes common flags in text output", () => {
+	it("includes global and command-specific flags in text output", () => {
 		const result = handler({} as CliData);
 
 		expect(result).toContain("format=<json|text>");
+		expect(result).toContain("Global flags");
+		expect(result).toContain("help, h");
+		expect(result).toContain("verbose, v");
+		expect(result).toContain("Command-specific flags");
 		expect(result).toContain("dry-run");
 		expect(result).toContain("force");
 	});

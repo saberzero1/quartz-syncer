@@ -29,10 +29,14 @@ Commands:
   plugin         Manage Quartz v5 plugins
   quartz-config  Read or update Quartz v5 site configuration
 
-Common flags:
+Global flags (all commands):
   format=<json|text>   Output format (default: text)
-  dry-run              Preview changes without applying
-  force                Required for destructive operations
+  help, h              Show command-specific help
+  verbose, v           Enable detailed output
+
+Command-specific flags:
+  dry-run              Preview changes (sync, publish, delete, mark, upgrade)
+  force                Required for destructive operations (sync, delete, upgrade, plugin)
 
 Examples:
   obsidian quartz-syncer:status

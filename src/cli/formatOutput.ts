@@ -66,8 +66,8 @@ export function generateCommandHelp(
 	lines.push(
 		"",
 		"Global flags:",
-		"  help, --help        Show this help message",
-		"  verbose, --verbose  Enable verbose output",
+		"  help, h        Show this help message",
+		"  verbose, v     Enable verbose output",
 	);
 
 	return lines.join("\n");
