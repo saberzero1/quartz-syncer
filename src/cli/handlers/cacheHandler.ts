@@ -80,15 +80,17 @@ export function createCacheHandler(
 				}
 
 				if (action === "clear") {
-					const path =
+					const rawPath =
 						typeof params.path === "string" ? params.path : "";
 
-					if (!path) {
+					if (!rawPath) {
 						return formatCliOutput(
 							params,
 							cliError(COMMAND, "Missing required flag: path"),
 						);
 					}
+
+					const path = rawPath.replace(/\\/g, "/");
 
 					await plugin.datastore.persister.removeItem(
 						plugin.datastore.fileKey(path),

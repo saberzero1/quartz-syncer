@@ -119,7 +119,10 @@ export function createUpgradeHandler(
 					UPSTREAM_BRANCH,
 				);
 
-				if (!result.alreadyMerged) {
+				if (
+					result.oid &&
+					plugin.settings.lastUpstreamCommitSha !== result.oid
+				) {
 					plugin.settings.lastUpstreamCommitSha = result.oid;
 					await plugin.saveSettings();
 				}
