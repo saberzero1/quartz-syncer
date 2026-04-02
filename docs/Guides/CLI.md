@@ -232,16 +232,19 @@ Values are validated against the Quartz v5 schema. Boolean keys (`enableSPA`, `e
 
 Note: `ignorePatterns` and `analytics` cannot be set via CLI due to their complex structure. Use the plugin settings UI for these.
 
-## Common flags
+## Flags
 
-All commands support the following flags:
+### Global flags (all commands)
 
 - `format=json` — Returns structured JSON output, useful for scripts and CI pipelines.
 - `format=text` — Returns human-readable text (default).
-- `dry-run` — Preview what would happen without making changes.
-- `force` — Required for destructive operations (`delete`, `upgrade`, and the delete phase of `sync`).
-- `verbose` — Enable detailed output (file paths, connection details, commit SHAs).
-- `help` — Show command-specific help and available flags.
+- `verbose` (or `v`) — Enable detailed output (file paths, connection details, commit SHAs).
+- `help` (or `h`) — Show command-specific help and available flags.
+
+### Command-specific flags
+
+- `dry-run` — Preview what would happen without making changes. Supported by `sync`, `publish`, `delete`, `mark`, and `upgrade`.
+- `force` — Required for destructive operations. Supported by `sync` (delete phase), `delete`, `upgrade`, and `plugin` (remove/update).
 
 Long-running commands include timing information in the output (e.g., `Published 47 files. (23.4s)`).
 
