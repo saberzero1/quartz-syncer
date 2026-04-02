@@ -72,39 +72,34 @@ export function createUpgradeHandler(
 				if (dryRun) {
 					const lastUpstream = plugin.settings.lastUpstreamCommitSha;
 
-					if (!lastUpstream) {
-						const baseMessage =
-							"No upstream commit recorded. Run upgrade with force to set it.";
-
-						const message = buildVerboseMessage(baseMessage, [
-							"Recorded SHA: none",
-						]);
-
-						return formatCliOutput(
-							params,
-							cliSuccess(COMMAND, message, {
-								lastUpstreamCommitSha: null,
-								alreadyMerged: false,
-							}),
+					const upstreamHead =
+						await RepositoryConnection.fetchRemoteHeadCommit(
+							UPSTREAM_REPO_URL,
+							{ type: "none" },
+							UPSTREAM_BRANCH,
+							gitSettings.corsProxyUrl,
 						);
-					}
 
-					const alreadyMerged =
-						await connection.hasCommitInHistory(lastUpstream);
+					const hasUpdate =
+						upstreamHead !== null && upstreamHead !== lastUpstream;
 
-					const baseMessage = alreadyMerged
-						? "Already up to date."
-						: "Upstream updates available.";
+					const baseMessage = hasUpdate
+						? "Upstream updates available."
+						: "Already up to date.";
 
-					const message = buildVerboseMessage(baseMessage, [
-						`Recorded SHA: ${lastUpstream}`,
-					]);
+					const shaLines = [
+						`Recorded SHA: ${lastUpstream ?? "none"}`,
+						`Upstream HEAD: ${upstreamHead ?? "unknown"}`,
+					];
+
+					const message = buildVerboseMessage(baseMessage, shaLines);
 
 					return formatCliOutput(
 						params,
 						cliSuccess(COMMAND, message, {
-							lastUpstreamCommitSha: lastUpstream,
-							alreadyMerged,
+							lastUpstreamCommitSha: lastUpstream ?? null,
+							upstreamHead: upstreamHead ?? null,
+							hasUpdate,
 						}),
 					);
 				}

@@ -11,11 +11,19 @@ jest.mock("src/cli/validators", () => ({
 	validatePreFlight: jest.fn(),
 }));
 
+const mockFetchRemoteHeadCommit = jest.fn();
+
 jest.mock("src/repositoryConnection/RepositoryConnection", () => ({
-	RepositoryConnection: jest.fn().mockImplementation(() => ({
-		hasCommitInHistory: mockHasCommitInHistory,
-		upgradeFromUpstream: mockUpgradeFromUpstream,
-	})),
+	RepositoryConnection: Object.assign(
+		jest.fn().mockImplementation(() => ({
+			hasCommitInHistory: mockHasCommitInHistory,
+			upgradeFromUpstream: mockUpgradeFromUpstream,
+		})),
+		{
+			fetchRemoteHeadCommit: (...args: unknown[]) =>
+				mockFetchRemoteHeadCommit(...args),
+		},
+	),
 }));
 
 const createMockPlugin = (): QuartzSyncer => {
@@ -81,6 +89,7 @@ describe("upgradeHandler", () => {
 		jest.clearAllMocks();
 		(validatePreFlight as jest.Mock).mockReturnValue(null);
 		mockHasCommitInHistory.mockResolvedValue(true);
+		mockFetchRemoteHeadCommit.mockResolvedValue("abc123");
 
 		mockUpgradeFromUpstream.mockResolvedValue({
 			alreadyMerged: false,
@@ -88,21 +97,17 @@ describe("upgradeHandler", () => {
 		});
 	});
 
-	it("dry-run checks history when lastUpstreamCommitSha is set", async () => {
+	it("dry-run fetches upstream HEAD and reports up to date", async () => {
 		const result = await handler({
 			"dry-run": "true",
 			format: "json",
 		} as CliData);
 
-		const parsed = JSON.parse(result) as {
-			ok: boolean;
-			message?: string;
-			data?: { lastUpstreamCommitSha?: string; alreadyMerged?: boolean };
-		};
+		const parsed = JSON.parse(result);
 
-		expect(mockHasCommitInHistory).toHaveBeenCalledWith("abc123");
+		expect(mockFetchRemoteHeadCommit).toHaveBeenCalled();
 		expect(parsed.ok).toBe(true);
-		expect(parsed.data?.alreadyMerged).toBe(true);
+		expect(parsed.data?.hasUpdate).toBe(false);
 		expect(parsed.message).toBe("Already up to date.");
 	});
 
@@ -118,29 +123,19 @@ describe("upgradeHandler", () => {
 		expect(result).toContain("Recorded SHA: abc123");
 	});
 
-	it("dry-run reports missing upstream commit", async () => {
-		plugin.settings.lastUpstreamCommitSha = "";
+	it("dry-run detects updates when upstream HEAD differs", async () => {
+		mockFetchRemoteHeadCommit.mockResolvedValue("newsha789");
 
 		const result = await handler({
 			"dry-run": "true",
 			format: "json",
 		} as CliData);
 
-		const parsed = JSON.parse(result) as {
-			ok: boolean;
-			message?: string;
-			data?: {
-				lastUpstreamCommitSha?: string | null;
-				alreadyMerged?: boolean;
-			};
-		};
+		const parsed = JSON.parse(result);
 
 		expect(parsed.ok).toBe(true);
-		expect(parsed.data?.lastUpstreamCommitSha).toBeNull();
-
-		expect(parsed.message).toBe(
-			"No upstream commit recorded. Run upgrade with force to set it.",
-		);
+		expect(parsed.data?.hasUpdate).toBe(true);
+		expect(parsed.message).toBe("Upstream updates available.");
 	});
 
 	it("force upgrade calls RepositoryConnection and updates settings", async () => {

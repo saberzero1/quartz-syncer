@@ -205,9 +205,11 @@ export function createSyncHandler(
 
 				const baseMessage = messageParts.join(". ") + ".";
 
+				const actuallyDeleted = force ? deletions : [];
+
 				const message = buildVerboseMessage(
 					data.publish,
-					deletions,
+					actuallyDeleted,
 					skippedDeletes,
 					baseMessage,
 				);
