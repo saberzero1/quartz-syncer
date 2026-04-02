@@ -6,6 +6,7 @@ import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnect
 import {
 	UPSTREAM_REPO_URL,
 	UPSTREAM_BRANCH,
+	UPSTREAM_AUTH,
 } from "src/quartz/QuartzUpgradeService";
 
 const COMMAND = "quartz-syncer:upgrade";
@@ -76,13 +77,22 @@ export function createUpgradeHandler(
 					const upstreamHead =
 						await RepositoryConnection.fetchRemoteHeadCommit(
 							UPSTREAM_REPO_URL,
-							{ type: "none" },
+							UPSTREAM_AUTH,
 							UPSTREAM_BRANCH,
 							gitSettings.corsProxyUrl,
 						);
 
-					const hasUpdate =
-						upstreamHead !== null && upstreamHead !== lastUpstream;
+					if (upstreamHead === null) {
+						return formatCliOutput(
+							params,
+							cliError(
+								COMMAND,
+								"Could not check upstream. The remote may be unreachable.",
+							),
+						);
+					}
+
+					const hasUpdate = upstreamHead !== lastUpstream;
 
 					const baseMessage = hasUpdate
 						? "Upstream updates available."
@@ -90,7 +100,7 @@ export function createUpgradeHandler(
 
 					const shaLines = [
 						`Recorded SHA: ${lastUpstream ?? "none"}`,
-						`Upstream HEAD: ${upstreamHead ?? "unknown"}`,
+						`Upstream HEAD: ${upstreamHead}`,
 					];
 
 					const message = buildVerboseMessage(baseMessage, shaLines);
@@ -99,7 +109,7 @@ export function createUpgradeHandler(
 						params,
 						cliSuccess(COMMAND, message, {
 							lastUpstreamCommitSha: lastUpstream ?? null,
-							upstreamHead: upstreamHead ?? null,
+							upstreamHead,
 							hasUpdate,
 						}),
 					);
