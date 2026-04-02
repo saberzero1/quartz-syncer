@@ -50,6 +50,13 @@ const WRITABLE_KEYS: Record<string, "string" | "boolean"> = {
 	diffViewStyle: "string",
 };
 
+const VALID_VALUES: Record<string, readonly string[]> = {
+	"git.auth.type": ["none", "basic", "bearer"],
+	"git.providerHint": ["github", "gitlab", "bitbucket", "gitea", "custom"],
+	frontmatterFormat: ["yaml", "json"],
+	diffViewStyle: ["split", "unified", "auto"],
+};
+
 function redactSettings(
 	settings: QuartzSyncerSettings,
 	hasToken: boolean,
@@ -199,6 +206,22 @@ export function createConfigHandler(
 							cliError(
 								COMMAND,
 								`Invalid value for ${key}. Expected ${expectedType}.`,
+							),
+						);
+					}
+
+					const allowedValues = VALID_VALUES[key];
+
+					if (
+						allowedValues &&
+						typeof parsed === "string" &&
+						!allowedValues.includes(parsed)
+					) {
+						return formatCliOutput(
+							params,
+							cliError(
+								COMMAND,
+								`Invalid value for ${key}. Expected one of: ${allowedValues.join(", ")}.`,
 							),
 						);
 					}
