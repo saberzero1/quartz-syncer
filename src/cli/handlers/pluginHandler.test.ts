@@ -33,6 +33,7 @@ jest.mock("src/quartz/QuartzPluginManager", () => ({
 		removePlugin: mockRemovePlugin,
 		findPlugin: jest.fn(),
 	})),
+	DEFAULT_ORDER: 50,
 }));
 
 jest.mock("src/quartz/QuartzPluginRegistry", () => ({

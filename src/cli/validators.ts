@@ -3,7 +3,7 @@ import type QuartzSyncer from "main";
 /**
  * Pre-flight validation for CLI commands that depend on Git settings.
  * Returns an error message string if validation fails, or null if valid.
- * Runs in ~1 second to catch common misconfigurations before expensive operations.
+ * Catches common misconfigurations before expensive operations.
  */
 export function validatePreFlight(plugin: QuartzSyncer): string | null {
 	if (!plugin.settings.git.remoteUrl) {

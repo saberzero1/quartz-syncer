@@ -28,7 +28,7 @@ export function registerCliHandlers(plugin: QuartzSyncer): boolean {
 	const target = plugin as unknown as RegisterCliHandlerTarget;
 
 	if (typeof target.registerCliHandler !== "function") {
-		Logger.info(
+		Logger.debug(
 			"Skipping CLI handler registration: registerCliHandler is unavailable.",
 		);
 
