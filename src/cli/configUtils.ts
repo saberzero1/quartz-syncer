@@ -37,7 +37,6 @@ export function setValueByPath(
 	if (!isRecord(current)) return false;
 	const lastSegment = segments[segments.length - 1];
 
-	if (!Object.hasOwn(current, lastSegment)) return false;
 	current[lastSegment] = value;
 
 	return true;
