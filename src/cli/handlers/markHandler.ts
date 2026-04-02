@@ -202,10 +202,17 @@ export function createMarkHandler(
 						].join("\n")
 					: baseMessage;
 
-				return formatCliOutput(
-					params,
-					cliSuccess(COMMAND, message, data),
-				);
+				const result =
+					failed.length > 0
+						? {
+								ok: false as const,
+								command: COMMAND,
+								error: message,
+								data,
+							}
+						: cliSuccess(COMMAND, message, data);
+
+				return formatCliOutput(params, result);
 			} catch (error) {
 				return formatCliOutput(
 					params,

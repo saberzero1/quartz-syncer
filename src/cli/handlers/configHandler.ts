@@ -111,6 +111,11 @@ export function createConfigHandler(
 					const data = redactSettings(plugin.settings, hasToken);
 
 					const message = Object.entries(flattenObject(data))
+						.filter(
+							([key]) =>
+								!key.startsWith("cache") &&
+								!key.startsWith("cacheTimestamp"),
+						)
 						.map(([key, value]) => `${key}=${value}`)
 						.join("\n");
 

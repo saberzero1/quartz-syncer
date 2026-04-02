@@ -256,17 +256,19 @@ export function createPluginHandler(
 					};
 
 					for (const update of updatable) {
-						const plugin = config.plugins.find(
+						const pluginEntry = config.plugins.find(
 							(p) => getPluginName(p.source) === update.name,
 						);
 
 						if (newLockFile.plugins[update.name]) {
 							newLockFile.plugins[update.name].commit =
 								update.remoteCommit!;
-						} else if (plugin) {
+						} else if (pluginEntry) {
 							newLockFile.plugins[update.name] = {
-								source: plugin.source,
-								resolved: resolveSourceToGitUrl(plugin.source),
+								source: pluginEntry.source,
+								resolved: resolveSourceToGitUrl(
+									pluginEntry.source,
+								),
 								commit: update.remoteCommit!,
 								installedAt: new Date().toISOString(),
 							};
