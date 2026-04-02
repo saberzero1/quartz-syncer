@@ -6,7 +6,7 @@ const COMMAND = "quartz-syncer";
 
 const HELP_TEXT = `Quartz Syncer CLI — Manage and publish notes to Quartz from the terminal.
 
-Usage: obsidian quartz-syncer:<command> [flags]
+Usage: obsidian quartz-syncer[:<command>] [flags]
 
 Commands:
   status         Show the publish status of all marked notes

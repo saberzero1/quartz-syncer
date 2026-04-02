@@ -20,7 +20,7 @@ describe("helpHandler", () => {
 	it("returns help text in text mode", () => {
 		const result = handler({} as CliData);
 
-		expect(result).toContain("Usage: obsidian quartz-syncer:<command>");
+		expect(result).toContain("Usage: obsidian quartz-syncer[:<command>]");
 		expect(result).toContain("status");
 		expect(result).toContain("sync");
 		expect(result).toContain("publish");
@@ -35,7 +35,7 @@ describe("helpHandler", () => {
 	it("returns help text in verbose mode", () => {
 		const result = handler({ verbose: "true" } as CliData);
 
-		expect(result).toContain("Usage: obsidian quartz-syncer:<command>");
+		expect(result).toContain("Usage: obsidian quartz-syncer[:<command>]");
 	});
 
 	it("returns JSON with command list when format=json", () => {

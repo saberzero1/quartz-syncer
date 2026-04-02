@@ -56,7 +56,7 @@ describe("markHandler", () => {
 
 	it("marks a single file", async () => {
 		(resolvePathPattern as jest.Mock).mockReturnValue({
-			files: [{ path: "notes/post.md" }],
+			files: [{ path: "notes/post.md", extension: "md" }],
 			mode: "exact",
 			pattern: "notes/post.md",
 		});
@@ -71,7 +71,11 @@ describe("markHandler", () => {
 		}));
 
 		createMarkHandler(register, createMockPlugin());
-		const result = await handler({ path: "notes/post.md" } as CliData);
+
+		const result = await handler({
+			path: "notes/post.md",
+			extension: "md",
+		} as CliData);
 
 		expect(result).toContain("Updated 1 file.");
 		expect(set).toHaveBeenCalledWith("publish", true);
@@ -80,7 +84,10 @@ describe("markHandler", () => {
 
 	it("includes applied values in verbose text mode", async () => {
 		(resolvePathPattern as jest.Mock).mockReturnValue({
-			files: [{ path: "notes/post.md" }, { path: "notes/second.md" }],
+			files: [
+				{ path: "notes/post.md", extension: "md" },
+				{ path: "notes/second.md", extension: "md" },
+			],
 			mode: "exact",
 			pattern: "notes/*.md",
 		});
@@ -107,7 +114,7 @@ describe("markHandler", () => {
 
 	it("unmarks with value=false", async () => {
 		(resolvePathPattern as jest.Mock).mockReturnValue({
-			files: [{ path: "notes/post.md" }],
+			files: [{ path: "notes/post.md", extension: "md" }],
 			mode: "exact",
 			pattern: "notes/post.md",
 		});
@@ -135,7 +142,7 @@ describe("markHandler", () => {
 
 	it("toggles current value", async () => {
 		(resolvePathPattern as jest.Mock).mockReturnValue({
-			files: [{ path: "notes/post.md" }],
+			files: [{ path: "notes/post.md", extension: "md" }],
 			mode: "exact",
 			pattern: "notes/post.md",
 		});
@@ -163,7 +170,7 @@ describe("markHandler", () => {
 
 	it("dry-run shows matches without modifying", async () => {
 		(resolvePathPattern as jest.Mock).mockReturnValue({
-			files: [{ path: "notes/post.md" }],
+			files: [{ path: "notes/post.md", extension: "md" }],
 			mode: "exact",
 			pattern: "notes/post.md",
 		});

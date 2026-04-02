@@ -84,8 +84,17 @@ export function createMarkHandler(
 				const vaultPath = plugin.settings.vaultPath;
 				const vaultIsRoot = vaultPath === "/";
 
+				const supportedExtensions = new Set([
+					"md",
+					...(plugin.settings.useBases ? ["base"] : []),
+					...(plugin.settings.useCanvas ? ["canvas"] : []),
+					...(plugin.settings.useExcalidraw ? ["excalidraw"] : []),
+				]);
+
 				const files = resolved.files.filter(
-					(f) => vaultIsRoot || f.path.startsWith(vaultPath),
+					(f) =>
+						supportedExtensions.has(f.extension) &&
+						(vaultIsRoot || f.path.startsWith(vaultPath)),
 				);
 
 				if (files.length === 0) {

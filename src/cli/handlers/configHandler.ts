@@ -277,7 +277,20 @@ export function createConfigHandler(
 						);
 					}
 
-					const setOk = setValueByPath(plugin.settings, key, parsed);
+					const normalizedValue =
+						(key === "vaultPath" || key === "contentFolder") &&
+						typeof parsed === "string" &&
+						parsed !== "/"
+							? parsed.endsWith("/")
+								? parsed
+								: parsed + "/"
+							: parsed;
+
+					const setOk = setValueByPath(
+						plugin.settings,
+						key,
+						normalizedValue,
+					);
 
 					if (!setOk) {
 						return formatCliOutput(
