@@ -43,7 +43,7 @@ export function registerCliHandlers(plugin: QuartzSyncer): boolean {
 		rawRegister(command, description, expandedFlags, (params: CliData) => {
 			const normalized = normalizeCliParams(params);
 
-			if (normalized.help === "true") {
+			if (normalized.help === "true" && command !== "quartz-syncer") {
 				return generateCommandHelp(command, description, flags);
 			}
 

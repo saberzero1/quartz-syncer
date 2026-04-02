@@ -277,14 +277,17 @@ export function createConfigHandler(
 						);
 					}
 
-					const normalizedValue =
-						(key === "vaultPath" || key === "contentFolder") &&
-						typeof parsed === "string" &&
-						parsed !== "/"
-							? parsed.endsWith("/")
+					let normalizedValue = parsed;
+
+					if (typeof parsed === "string") {
+						if (key === "vaultPath" && parsed !== "/") {
+							normalizedValue = parsed.endsWith("/")
 								? parsed
-								: parsed + "/"
-							: parsed;
+								: parsed + "/";
+						} else if (key === "contentFolder") {
+							normalizedValue = parsed.replace(/\/+$/, "");
+						}
+					}
 
 					const setOk = setValueByPath(
 						plugin.settings,
@@ -301,7 +304,7 @@ export function createConfigHandler(
 
 					await plugin.saveSettings();
 
-					const data = { key, value: parsed };
+					const data = { key, value: normalizedValue };
 					const message = `Updated ${key}.`;
 
 					return formatCliOutput(

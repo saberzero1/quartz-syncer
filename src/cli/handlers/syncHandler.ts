@@ -137,6 +137,8 @@ export function createSyncHandler(
 				};
 
 				if (dryRun) {
+					data.summary.deleted = deletions.length;
+
 					const baseMessage = `Dry run: ${data.summary.published} to publish, ${deletions.length} to delete.`;
 
 					const message = buildVerboseMessage(
