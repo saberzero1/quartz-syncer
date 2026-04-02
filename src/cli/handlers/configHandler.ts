@@ -1,7 +1,9 @@
 import type QuartzSyncer from "main";
+import { normalizePath } from "obsidian";
 import { CliData, CliFlags, RegisterFn } from "../types";
 import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
 import QuartzSyncerSettings from "src/models/settings";
+import { flattenObject, getValueByPath, setValueByPath } from "../configUtils";
 
 const COMMAND = "quartz-syncer:config";
 
@@ -48,10 +50,6 @@ const WRITABLE_KEYS: Record<string, "string" | "boolean"> = {
 	diffViewStyle: "string",
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null;
-}
-
 function redactSettings(settings: QuartzSyncerSettings): QuartzSyncerSettings {
 	return {
 		...settings,
@@ -63,59 +61,6 @@ function redactSettings(settings: QuartzSyncerSettings): QuartzSyncerSettings {
 			},
 		},
 	};
-}
-
-function getValueByPath(settings: QuartzSyncerSettings, path: string): unknown {
-	const segments = path.split(".");
-	let current: unknown = settings;
-
-	for (const segment of segments) {
-		if (!isRecord(current)) {
-			return undefined;
-		}
-		current = current[segment];
-	}
-
-	return current;
-}
-
-const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-function setValueByPath(
-	settings: QuartzSyncerSettings,
-	path: string,
-	value: string | boolean,
-): boolean {
-	const segments = path.split(".");
-
-	if (segments.some((s) => FORBIDDEN_KEYS.has(s))) {
-		return false;
-	}
-
-	let current: unknown = settings;
-
-	for (let i = 0; i < segments.length - 1; i++) {
-		const segment = segments[i];
-
-		if (!isRecord(current) || !Object.hasOwn(current, segment)) {
-			return false;
-		}
-		current = current[segment];
-	}
-
-	if (!isRecord(current)) {
-		return false;
-	}
-
-	const lastSegment = segments[segments.length - 1];
-
-	if (!Object.hasOwn(current, lastSegment)) {
-		return false;
-	}
-
-	current[lastSegment] = value;
-
-	return true;
 }
 
 function parseValue(
@@ -131,32 +76,6 @@ function parseValue(
 	if (raw === "false") return false;
 
 	return null;
-}
-
-function flattenSettings(
-	settings: unknown,
-	prefix = "",
-	result: Record<string, string> = {},
-): Record<string, string> {
-	if (!isRecord(settings)) {
-		if (prefix) {
-			result[prefix] = JSON.stringify(settings);
-		}
-
-		return result;
-	}
-
-	for (const [key, value] of Object.entries(settings)) {
-		const nextPrefix = prefix ? `${prefix}.${key}` : key;
-
-		if (isRecord(value)) {
-			flattenSettings(value, nextPrefix, result);
-		} else {
-			result[nextPrefix] = JSON.stringify(value);
-		}
-	}
-
-	return result;
 }
 
 export function createConfigHandler(
@@ -178,7 +97,7 @@ export function createConfigHandler(
 				if (action === "list") {
 					const data = redactSettings(plugin.settings);
 
-					const message = Object.entries(flattenSettings(data))
+					const message = Object.entries(flattenObject(data))
 						.map(([key, value]) => `${key}=${value}`)
 						.join("\n");
 
@@ -280,12 +199,20 @@ export function createConfigHandler(
 					let normalizedValue = parsed;
 
 					if (typeof parsed === "string") {
-						if (key === "vaultPath" && parsed !== "/") {
-							normalizedValue = parsed.endsWith("/")
-								? parsed
-								: parsed + "/";
+						if (key === "vaultPath") {
+							const trimmed = parsed.trim();
+
+							if (trimmed === "/" || trimmed === "") {
+								normalizedValue = "/";
+							} else {
+								const np = normalizePath(trimmed);
+
+								normalizedValue = np.endsWith("/")
+									? np
+									: np + "/";
+							}
 						} else if (key === "contentFolder") {
-							normalizedValue = parsed.replace(/\/+$/, "");
+							normalizedValue = normalizePath(parsed.trim());
 						}
 					}
 

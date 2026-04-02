@@ -4,7 +4,10 @@ import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
 import { validatePreFlight } from "../validators";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
-import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
+import {
+	QuartzPluginManager,
+	DEFAULT_ORDER,
+} from "src/quartz/QuartzPluginManager";
 import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
 import { QuartzPluginUpdateChecker } from "src/quartz/QuartzPluginUpdateChecker";
 import {
@@ -37,8 +40,6 @@ const FLAGS: CliFlags = {
 		description: "Output format (default: text)",
 	},
 };
-
-const DEFAULT_ORDER = 50;
 
 function createConfigService(plugin: QuartzSyncer): QuartzConfigService {
 	const gitSettings = plugin.getGitSettingsWithSecret();

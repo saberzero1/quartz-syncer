@@ -2,9 +2,9 @@ import type QuartzSyncer from "main";
 import { CliData, CliFlags, RegisterFn } from "../types";
 import { formatCliOutput, cliError, cliSuccess } from "../formatOutput";
 import { validatePreFlight } from "../validators";
+import { flattenObject, getValueByPath, setValueByPath } from "../configUtils";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
-import type { QuartzSiteConfiguration } from "src/quartz/QuartzConfigTypes";
 
 const COMMAND = "quartz-syncer:quartz-config";
 
@@ -62,94 +62,6 @@ const WRITABLE_KEYS: Record<string, "string" | "boolean"> = {
 
 const FONT_ORIGINS = new Set(["googleFonts", "local"]);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null;
-}
-
-function flattenConfig(
-	config: unknown,
-	prefix = "",
-	result: Record<string, string> = {},
-): Record<string, string> {
-	if (!isRecord(config)) {
-		if (prefix) {
-			result[prefix] = JSON.stringify(config);
-		}
-
-		return result;
-	}
-
-	for (const [key, value] of Object.entries(config)) {
-		const nextPrefix = prefix ? `${prefix}.${key}` : key;
-
-		if (isRecord(value)) {
-			flattenConfig(value, nextPrefix, result);
-		} else {
-			result[nextPrefix] = JSON.stringify(value);
-		}
-	}
-
-	return result;
-}
-
-function getConfigValueByPath(
-	config: QuartzSiteConfiguration,
-	path: string,
-): unknown {
-	const segments = path.split(".");
-	let current: unknown = config;
-
-	for (const segment of segments) {
-		if (!isRecord(current)) {
-			return undefined;
-		}
-
-		current = current[segment];
-	}
-
-	return current;
-}
-
-const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-function setConfigValueByPath(
-	config: QuartzSiteConfiguration,
-	path: string,
-	value: string | boolean,
-): boolean {
-	const segments = path.split(".");
-
-	if (segments.some((s) => FORBIDDEN_KEYS.has(s))) {
-		return false;
-	}
-
-	let current: unknown = config;
-
-	for (let i = 0; i < segments.length - 1; i++) {
-		const segment = segments[i];
-
-		if (!isRecord(current) || !Object.hasOwn(current, segment)) {
-			return false;
-		}
-
-		current = current[segment];
-	}
-
-	if (!isRecord(current)) {
-		return false;
-	}
-
-	const lastSegment = segments[segments.length - 1];
-
-	if (!Object.hasOwn(current, lastSegment)) {
-		return false;
-	}
-
-	current[lastSegment] = value;
-
-	return true;
-}
-
 function parseConfigValue(
 	expectedType: "string" | "boolean",
 	rawValue: string,
@@ -198,7 +110,7 @@ export function createQuartzConfigHandler(
 
 				if (action === "list") {
 					const config = await configService.readConfig();
-					const flattened = flattenConfig(config.configuration);
+					const flattened = flattenObject(config.configuration);
 
 					const message = Object.entries(flattened)
 						.map(([key, value]) => `${key}=${value}`)
@@ -222,10 +134,7 @@ export function createQuartzConfigHandler(
 				if (action === "get") {
 					const config = await configService.readConfig();
 
-					const value = getConfigValueByPath(
-						config.configuration,
-						key,
-					);
+					const value = getValueByPath(config.configuration, key);
 
 					if (value === undefined) {
 						return formatCliOutput(
@@ -291,7 +200,7 @@ export function createQuartzConfigHandler(
 
 					const config = await configService.readConfig();
 
-					const setOk = setConfigValueByPath(
+					const setOk = setValueByPath(
 						config.configuration,
 						key,
 						parsed,

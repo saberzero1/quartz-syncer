@@ -5,7 +5,7 @@ import type {
 } from "./QuartzConfigTypes";
 import { getPluginSourceKey } from "./QuartzPluginUtils";
 
-const DEFAULT_ORDER = 50;
+export const DEFAULT_ORDER = 50;
 
 export class QuartzPluginManager {
 	addPlugin(
