@@ -222,7 +222,12 @@ export class SyncerPageCompiler {
 
 		let result = processor.stringify(transformed as Root);
 
-		result = result.replace(/^((?:> ?)+)\\\[(![\w-]+)\]/gm, "$1[$2]");
+		result = result.replace(
+			/^((?:> ?)+)\\\[(![\w-]+(?:\|[^\]]*)?)\]/gm,
+			"$1[$2]",
+		);
+
+		result = result.replace(/\\\[(\^[\w-]+)\]/g, "[$1]");
 
 		result = result.replace(/^(\|.*)/gm, (line) =>
 			line.replace(/(!?\[\[[^\]]*?)(?<!\\)\|([^\]]*?\]\])/g, "$1\\|$2"),

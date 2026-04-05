@@ -275,6 +275,120 @@ describe("SyncerPageCompiler", () => {
 		});
 	});
 
+	describe("astTransform — callout unescaping", () => {
+		it("unescapes a basic callout", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"> [!note] Title\n> Content",
+			);
+
+			expect(result).toContain("> [!note] Title");
+			expect(result).not.toContain("\\[");
+		});
+
+		it("unescapes a nested callout", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"> > [!warning] Nested\n> > Content",
+			);
+
+			expect(result).toContain("> > [!warning] Nested");
+			expect(result).not.toContain("\\[");
+		});
+
+		it("unescapes a callout with pipe-separated metadata", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"> [!columns|no-title 3]\n> Content",
+			);
+
+			expect(result).toContain("> [!columns|no-title 3]");
+			expect(result).not.toContain("\\[");
+		});
+
+		it("unescapes a nested callout with pipe-separated metadata", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"> > [!columns|no-title 3]\n> > Content",
+			);
+
+			expect(result).toContain("> > [!columns|no-title 3]");
+			expect(result).not.toContain("\\[");
+		});
+
+		it("unescapes a foldable callout with metadata", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"> [!note|wide]+ Foldable\n> Content",
+			);
+
+			expect(result).toContain("> [!note|wide]+ Foldable");
+			expect(result).not.toContain("\\[");
+		});
+	});
+
+	describe("astTransform — footnote unescaping", () => {
+		it("unescapes an inline footnote reference", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"Some text [^1] more text",
+			);
+
+			expect(result).toContain("[^1]");
+			expect(result).not.toContain("\\[^1]");
+		});
+
+		it("unescapes a footnote definition", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"[^1]: This is a footnote",
+			);
+
+			expect(result).toContain("[^1]:");
+			expect(result).not.toContain("\\[^1]:");
+		});
+
+		it("unescapes a footnote reference inside a callout", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"> [!note] Title\n> Content with [^1] ref",
+			);
+
+			expect(result).toContain("[^1]");
+			expect(result).not.toContain("\\[^1]");
+			expect(result).toContain("[!note]");
+			expect(result).not.toContain("\\[!note]");
+		});
+
+		it("unescapes a named footnote reference", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"See this [^my-note] for details",
+			);
+
+			expect(result).toContain("[^my-note]");
+			expect(result).not.toContain("\\[^my-note]");
+		});
+	});
+
 	describe("convertFrontMatter", () => {
 		it("replaces frontmatter with compiled version", () => {
 			const { compiler } = makeCompiler();
