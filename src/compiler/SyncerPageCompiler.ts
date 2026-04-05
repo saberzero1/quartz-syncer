@@ -223,7 +223,7 @@ export class SyncerPageCompiler {
 		let result = processor.stringify(transformed as Root);
 
 		result = result.replace(
-			/^((?:> ?)+)\\\[(![\w-]+(?:\|[^\]]*)?)\]/gm,
+			/^((?:> ?)+)\\\[(![\w-]+(?:\|[^\]\r\n]*)?)]/gm,
 			"$1[$2]",
 		);
 
