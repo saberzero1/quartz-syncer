@@ -1,8 +1,6 @@
 import { Platform } from "obsidian";
-import { Buffer as BufferPolyfill } from "buffer-es6";
-import { resolveBuffer } from "./src/utils/bufferPolyfill";
+import { Buffer as PolyfillBuffer } from "buffer-es6";
 
-const buffer = resolveBuffer(Platform.isMobileApp, BufferPolyfill);
+const buffer = Platform.isMobileApp ? PolyfillBuffer : globalThis.Buffer;
 
-globalThis.Buffer = buffer;
 export const Buffer = buffer;
