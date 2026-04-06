@@ -12,59 +12,70 @@
  *   support "base64url".
  *
  * Fix:
- * - Changed to `globalThis.Buffer = globalThis.Buffer || Buffer` so the polyfill
- *   is only injected when no native Buffer is available.
+ * - Adopted the same platform-aware approach used by the Obsidian Git plugin:
+ *   on mobile (no native Buffer), the polyfill is injected; on desktop
+ *   (Electron/Node.js), the native Buffer is preserved.
  */
+import { resolveBuffer } from "./bufferPolyfill";
+
 describe("Buffer shim: base64url encoding compatibility (issue #120)", () => {
-	it("supports base64url encoding without throwing", () => {
-		const testBuffer = Buffer.from("test-data");
+	describe("desktop path (isMobile = false)", () => {
+		it("returns the native globalThis.Buffer", () => {
+			const buffer = resolveBuffer(false, {} as typeof Buffer);
 
-		expect(() =>
-			testBuffer.toString("base64url" as BufferEncoding),
-		).not.toThrow();
+			expect(buffer).toBe(globalThis.Buffer);
+		});
+
+		it("supports base64url encoding without throwing", () => {
+			const buffer = resolveBuffer(false, {} as typeof Buffer);
+
+			expect(() =>
+				buffer
+					.from("test-data")
+					.toString("base64url" as BufferEncoding),
+			).not.toThrow();
+		});
+
+		it("produces a valid base64url string (no +, /, or = characters)", () => {
+			const buffer = resolveBuffer(false, {} as typeof Buffer);
+
+			const result = buffer
+				.from("test-data")
+				.toString("base64url" as BufferEncoding);
+
+			expect(result).toBeDefined();
+			expect(result).not.toContain("+");
+			expect(result).not.toContain("/");
+			expect(result).not.toContain("=");
+		});
 	});
 
-	it("produces a valid base64url string (no +, /, or = characters)", () => {
-		const testBuffer = Buffer.from("test-data");
-		const result = testBuffer.toString("base64url" as BufferEncoding);
-		expect(result).toBeDefined();
-		expect(result).not.toContain("+");
-		expect(result).not.toContain("/");
-		expect(result).not.toContain("=");
-	});
+	describe("mobile path (isMobile = true)", () => {
+		it("returns the provided polyfill, not the native Buffer", () => {
+			const fakePolyfill = {
+				from: jest.fn(),
+			} as unknown as typeof Buffer;
 
-	it("does not overwrite an existing Buffer that supports base64url", () => {
-		// Explicitly exercise the shim logic to verify a native Buffer is not
-		// clobbered by a polyfill that lacks base64url support.
-		const nativeBuffer = globalThis.Buffer;
+			const buffer = resolveBuffer(true, fakePolyfill);
 
-		const shimBuffer = {
-			from: () => ({
-				toString: (encoding?: string) => {
-					if (encoding === "base64url") {
-						throw new Error("Unknown encoding base64url");
-					}
+			expect(buffer).toBe(fakePolyfill);
+			expect(buffer).not.toBe(globalThis.Buffer);
+		});
 
-					return "shimmed";
-				},
-			}),
-		} as unknown as typeof Buffer;
+		it("delegates calls to the provided polyfill", () => {
+			const mockResult = {
+				toString: jest.fn().mockReturnValue("polyfilled"),
+			};
 
-		try {
-			globalThis.Buffer = nativeBuffer;
+			const fakePolyfill = {
+				from: jest.fn().mockReturnValue(mockResult),
+			} as unknown as typeof Buffer;
 
-			// Mirror the fixed shim behavior:
-			// globalThis.Buffer = globalThis.Buffer || Buffer
-			globalThis.Buffer = globalThis.Buffer || shimBuffer;
+			const buffer = resolveBuffer(true, fakePolyfill);
 
-			expect(globalThis.Buffer).toBe(nativeBuffer);
+			buffer.from("hello");
 
-			const result = globalThis.Buffer.from([
-				104, 101, 108, 108, 111,
-			]).toString("base64url" as BufferEncoding);
-			expect(result).toBe("aGVsbG8");
-		} finally {
-			globalThis.Buffer = nativeBuffer;
-		}
+			expect(fakePolyfill.from).toHaveBeenCalledWith("hello");
+		});
 	});
 });

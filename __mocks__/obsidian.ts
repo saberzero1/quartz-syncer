@@ -104,3 +104,10 @@ export type FrontMatterCache = Record<string, unknown> & {
 };
 
 export class FileManager {}
+
+export const Platform = {
+	isMobileApp: false,
+	isDesktop: true,
+	isMobile: false,
+	isDesktopApp: true,
+};
