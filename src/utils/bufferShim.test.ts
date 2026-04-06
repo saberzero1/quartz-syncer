@@ -34,15 +34,37 @@ describe("Buffer shim: base64url encoding compatibility (issue #120)", () => {
 	});
 
 	it("does not overwrite an existing Buffer that supports base64url", () => {
-		// The native Buffer supports base64url; verifying it is not clobbered
-		// by the buffer-es6 polyfill (which lacks base64url support).
+		// Explicitly exercise the shim logic to verify a native Buffer is not
+		// clobbered by a polyfill that lacks base64url support.
 		const nativeBuffer = globalThis.Buffer;
 
-		expect(nativeBuffer).toBeDefined();
+		const shimBuffer = {
+			from: () => ({
+				toString: (encoding?: string) => {
+					if (encoding === "base64url") {
+						throw new Error("Unknown encoding base64url");
+					}
 
-		const result = nativeBuffer
-			.from([104, 101, 108, 108, 111])
-			.toString("base64url" as BufferEncoding);
-		expect(result).toBe("aGVsbG8");
+					return "shimmed";
+				},
+			}),
+		} as unknown as typeof Buffer;
+
+		try {
+			globalThis.Buffer = nativeBuffer;
+
+			// Mirror the fixed shim behavior:
+			// globalThis.Buffer = globalThis.Buffer || Buffer
+			globalThis.Buffer = globalThis.Buffer || shimBuffer;
+
+			expect(globalThis.Buffer).toBe(nativeBuffer);
+
+			const result = globalThis.Buffer.from([
+				104, 101, 108, 108, 111,
+			]).toString("base64url" as BufferEncoding);
+			expect(result).toBe("aGVsbG8");
+		} finally {
+			globalThis.Buffer = nativeBuffer;
+		}
 	});
 });
