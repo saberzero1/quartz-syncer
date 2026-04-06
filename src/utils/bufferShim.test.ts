@@ -7,7 +7,7 @@
  *
  * Root cause:
  * - esbuild-buffer-shim.js was unconditionally overwriting `globalThis.Buffer`
- *   with the `buffer-es6` polyfill, which does not support the "base64url"
+ *   with the `buffer` polyfill, which does not support the "base64url"
  *   encoding. This replaced the native Electron/Node.js Buffer that does
  *   support "base64url".
  *
