@@ -19,7 +19,7 @@ esbuild.build({
 	},
 	entryPoints: ['main.ts'],
 	bundle: true,
-	external: ['obsidian', 'electron', ...builtins],
+	external: ['obsidian', 'electron', ...builtins.filter(m => m !== 'buffer')],
 	format: 'cjs',
 	target: 'es2024',
 	logLevel: "info",
