@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-04-07T12:52:09Z+0200
+modified: 2026-04-07T13:42:18Z+0200
 publish: true
 ---
 
@@ -16,6 +16,10 @@ publish: true
 ## Someday
 
 ## Releases
+
+### Version 1.13.3
+
+- Fixed crash on Obsidian mobile related to `Buffer` shim changes.
 
 ### Version 1.13.2
 
