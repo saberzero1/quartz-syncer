@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-04-07T12:41:48Z+0200
+modified: 2026-04-07T12:52:09Z+0200
 publish: true
 ---
 
@@ -20,7 +20,7 @@ publish: true
 ### Version 1.13.2
 
 - Replace `Buffer` polyfill with Obsidian Git's implementation.
-	- The polyfill is still needed for Capacitor (Obsidian Mobile.) Implementation matches Obsidian Git.
+	- The polyfill is still needed for Capacitor (Obsidian Mobile). Implementation matches Obsidian Git.
 
 ### Version 1.13.1
 
