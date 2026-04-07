@@ -67,7 +67,7 @@
 		"@isomorphic-git/lightning-fs": "^4.6.2",
 		"@quartz-community/remark-obsidian": "github:quartz-community/remark-obsidian",
 		"@sindresorhus/slugify": "^1.1.2",
-		"buffer-es6": "^4.9.3",
+		"buffer": "^6.0.3",
 		"crypto-js": "^4.2.0",
 		"diff": "^8.0.2",
 		"isomorphic-git": "^1.36.1",

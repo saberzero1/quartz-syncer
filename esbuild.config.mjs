@@ -30,9 +30,6 @@ esbuild.build({
 	define: {
 		'global': 'globalThis',
 	},
-	alias: {
-		'buffer': 'buffer-es6',
-	},
 	plugins: [
 		esbuildSvelte({
 		  compilerOptions: { css: 'injected' },
