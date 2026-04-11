@@ -127,10 +127,10 @@ export default interface QuartzSyncerSettings {
 	 */
 	useDataview: boolean;
 	/**
-	 * Enable Excalidraw integration.
-	 * This will allow the plugin to use Excalidraw drawings in the published notes.
+	 * Enable Datacore integration.
+	 * This will allow the plugin to use Datacore queries in the published notes.
 	 *
-	 * Excalidraw documentation: {@link https://blacksmithgu.github.io/datacore/}
+	 * Datacore documentation: {@link https://blacksmithgu.github.io/datacore/}
 	 */
 	useDatacore: boolean;
 	/**
