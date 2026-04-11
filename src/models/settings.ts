@@ -165,15 +165,6 @@ export default interface QuartzSyncerSettings {
 	/** Manage integration styles in Quartz (writes SCSS files and updates custom.scss) */
 	manageSyncerStyles: boolean;
 
-	/** Themes settings */
-	/**
-	 * Enable themes integration.
-	 * This will allow the plugin to use themes in the published notes.
-	 *
-	 * Themes documentation: {@link https://github.com/saberzero1/quartz-themes}
-	 */
-	useThemes: boolean;
-
 	/** Plugin state variables */
 	noteSettingsIsInitialized: boolean;
 	lastUsedSettingsTab: string;

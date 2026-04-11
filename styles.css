@@ -248,14 +248,6 @@ input[type="checkbox"]:indeterminate:after {
 	background-color: var(--text-error, var(--color-red));
 }
 
-.quartz-syncer-settings-upcoming
-	> .setting-item-info
-	> .setting-item-name:after {
-	content: " (upcoming feature)";
-	color: var(--text-warning, var(--color-orange));
-	font-weight: var(--font-bold);
-}
-
 .quartz-syncer-settings .setting-item-heading {
 	margin-top: var(--heading-spacing);
 }

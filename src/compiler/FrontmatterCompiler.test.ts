@@ -44,7 +44,6 @@ function makeSettings(
 		useFantasyStatblocks: false,
 		useBases: false,
 		useCanvas: false,
-		useThemes: false,
 		manageSyncerStyles: false,
 		noteSettingsIsInitialized: false,
 		lastUsedSettingsTab: "",

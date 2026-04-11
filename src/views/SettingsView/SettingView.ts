@@ -8,7 +8,6 @@ import { QuartzV5SettingsTab } from "./Views/QuartzV5SettingsTab";
 import { FrontmatterSettings } from "./Views/FrontmatterSettings";
 import { IntegrationSettings } from "./Views/IntegrationSettings";
 import { PerformanceSettings } from "./Views/PerformanceSettings";
-import { ThemesSettings } from "./Views/ThemesSettings";
 import { UISettings } from "./Views/UISettings";
 
 /**
@@ -121,7 +120,6 @@ export default class SettingView {
 		const frontmatterTab = this.createTab("Frontmatter", "archive");
 		const integrationTab = this.createTab("Integration", "cable");
 		const performanceTab = this.createTab("Performance", "zap");
-		const themesTab = this.createTab("Themes", "palette");
 		const uiTab = this.createTab("UI", "layout");
 
 		headerTabGroup.appendChild(gitTab);
@@ -129,7 +127,6 @@ export default class SettingView {
 		headerTabGroup.appendChild(frontmatterTab);
 		headerTabGroup.appendChild(integrationTab);
 		headerTabGroup.appendChild(performanceTab);
-		headerTabGroup.appendChild(themesTab);
 		headerTabGroup.appendChild(uiTab);
 
 		const content = this.settingsRootElement.createEl("div", {
@@ -180,15 +177,6 @@ export default class SettingView {
 				this.plugin,
 				this,
 				this.createSettingsTab(content, "Performance"),
-			),
-		);
-
-		settingTabs.push(
-			new ThemesSettings(
-				this.app,
-				this.plugin,
-				this,
-				this.createSettingsTab(content, "Themes"),
 			),
 		);
 

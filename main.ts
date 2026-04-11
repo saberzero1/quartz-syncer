@@ -120,15 +120,6 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	manageSyncerStyles: true,
 
-	/** Themes settings */
-	/**
-	 * Enable themes integration.
-	 * This will allow the plugin to use themes in the published notes.
-	 *
-	 * Themes documentation: {@link https://github.com/saberzero1/quartz-themes}
-	 */
-	useThemes: false,
-
 	/** Plugin state variables */
 	lastUsedSettingsTab: "git",
 	noteSettingsIsInitialized: false,
@@ -231,6 +222,7 @@ export default class QuartzSyncer extends Plugin {
 		);
 
 		this.migrateGitHubSettings();
+		this.migrateRemovedThemesTab();
 
 		this.secretStorageService = new SecretStorageService(this.app);
 
@@ -296,6 +288,26 @@ export default class QuartzSyncer extends Plugin {
 			this.settings.githubRepo = undefined;
 			this.settings.githubUserName = undefined;
 			this.settings.githubToken = undefined;
+		}
+	}
+
+	/**
+	 * Migrates away from the removed Themes settings tab. The tab and its
+	 * `useThemes` placeholder setting were removed in favor of Quartz v5's
+	 * native `quartz-themes` community plugin, which is configured via the
+	 * Quartz settings tab instead. This drops the obsolete key from the
+	 * persisted settings and rewrites `lastUsedSettingsTab` so returning
+	 * users don't open to a missing tab.
+	 */
+	private migrateRemovedThemesTab(): void {
+		const legacy = this.settings as unknown as Record<string, unknown>;
+
+		if ("useThemes" in legacy) {
+			delete legacy.useThemes;
+		}
+
+		if (this.settings.lastUsedSettingsTab === "themes") {
+			this.settings.lastUsedSettingsTab = "git";
 		}
 	}
 
