@@ -46,7 +46,6 @@ const createMockPlugin = (): QuartzSyncer => {
 		useFantasyStatblocks: false,
 		useBases: false,
 		useCanvas: false,
-		useThemes: false,
 		frontmatterFormat: "yaml",
 		diffViewStyle: "split",
 		allNotesPublishableByDefault: false,

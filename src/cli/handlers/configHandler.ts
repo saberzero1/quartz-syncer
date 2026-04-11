@@ -45,7 +45,6 @@ const WRITABLE_KEYS: Record<string, "string" | "boolean"> = {
 	useFantasyStatblocks: "boolean",
 	useBases: "boolean",
 	useCanvas: "boolean",
-	useThemes: "boolean",
 	frontmatterFormat: "string",
 	diffViewStyle: "string",
 };
