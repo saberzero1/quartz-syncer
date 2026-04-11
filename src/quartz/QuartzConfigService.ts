@@ -161,8 +161,16 @@ export class QuartzConfigService {
 	}
 
 	private ensureSchemaComment(doc: Document): void {
-		if (!doc.commentBefore?.includes("yaml-language-server")) {
-			doc.commentBefore = SCHEMA_COMMENT;
+		// The `yaml` library attaches a leading `# yaml-language-server: ...`
+		// line from a parsed document to the first key node's `commentBefore`,
+		// not to `doc.commentBefore` (which stays null). Checking only
+		// `doc.commentBefore` would therefore miss an existing schema comment
+		// and prepend a new one on every serialize, growing unbounded on
+		// repeated writes. Inspect the serialized output instead so the guard
+		// catches the schema wherever the library chose to store it.
+		if (doc.toString().includes("yaml-language-server")) {
+			return;
 		}
+		doc.commentBefore = SCHEMA_COMMENT;
 	}
 }

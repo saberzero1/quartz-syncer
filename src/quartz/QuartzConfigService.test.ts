@@ -229,6 +229,112 @@ describe("QuartzConfigService", () => {
 			);
 		});
 
+		it("does not duplicate schema comment across repeated serializations", async () => {
+			const repo = createMockRepo({
+				"quartz.config.yaml": SAMPLE_YAML,
+			});
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			const first = service.serializeConfig(config);
+			const second = service.serializeConfig(config);
+			const third = service.serializeConfig(config);
+
+			const countOccurrences = (haystack: string): number =>
+				(haystack.match(/yaml-language-server/g) || []).length;
+
+			assert.strictEqual(
+				countOccurrences(first),
+				1,
+				"First serialization should contain exactly one schema comment",
+			);
+
+			assert.strictEqual(
+				countOccurrences(second),
+				1,
+				"Second serialization should still contain exactly one schema comment",
+			);
+
+			assert.strictEqual(
+				countOccurrences(third),
+				1,
+				"Third serialization should still contain exactly one schema comment",
+			);
+		});
+
+		it("does not duplicate schema comment across repeated writes", async () => {
+			const writtenFiles = new Map<string, string>();
+
+			const repo = {
+				getRawFile: async (path: string) => {
+					if (path === "quartz.config.yaml") {
+						return {
+							content: Base64.encode(SAMPLE_YAML),
+							sha: "mock-sha",
+							path,
+							type: "file" as const,
+						};
+					}
+					throw new Error(`File not found: ${path}`);
+				},
+				writeRawFiles: async (files: Map<string, string>) => {
+					for (const [k, v] of files) writtenFiles.set(k, v);
+				},
+			} as unknown as RepositoryConnection;
+
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			await service.writeConfig(config);
+			await service.writeConfig(config);
+			await service.writeConfig(config);
+
+			const written = writtenFiles.get("quartz.config.yaml")!;
+			const count = (written.match(/yaml-language-server/g) || []).length;
+
+			assert.strictEqual(
+				count,
+				1,
+				"Schema comment must appear exactly once after repeated writes",
+			);
+		});
+
+		it("adds schema comment when parsing a YAML file that lacks one", async () => {
+			const yamlWithoutSchema = `configuration:
+  pageTitle: Legacy Site
+plugins: []
+`;
+
+			const repo = createMockRepo({
+				"quartz.config.yaml": yamlWithoutSchema,
+			});
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			const serialized = service.serializeConfig(config);
+
+			const count = (serialized.match(/yaml-language-server/g) || [])
+				.length;
+
+			assert.strictEqual(
+				count,
+				1,
+				"Schema comment should be added exactly once to a legacy file",
+			);
+
+			const serializedAgain = service.serializeConfig(config);
+
+			const countAgain = (
+				serializedAgain.match(/yaml-language-server/g) || []
+			).length;
+
+			assert.strictEqual(
+				countAgain,
+				1,
+				"Schema comment should remain exactly once on re-serialization",
+			);
+		});
+
 		it("preserves schema comment when creating new document", () => {
 			const service = new QuartzConfigService(createMockRepo({}));
 
