@@ -447,7 +447,7 @@ export class GitSettings extends PluginSettingTab {
 
 		desc.createEl("a", {
 			text: "Documentation",
-			href: "https://saberzero1.github.io/quartz-syncer-docs/Guides/Generating-an-access-token",
+			href: "https://saberzero1.github.io/quartz-syncer-docs/Settings/Git/Access-Token",
 		});
 
 		const hasToken = this.secretStorageService.hasToken();
