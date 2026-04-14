@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-04-14T14:05:14Z+0200
+modified: 2026-04-14T23:19:55Z+0200
 publish: true
 ---
 
@@ -16,6 +16,10 @@ publish: true
 ## Someday
 
 ## Releases
+
+### Version 1.13.6
+
+- Actually minify bundle correctly.
 
 ### Version 1.13.5
 
