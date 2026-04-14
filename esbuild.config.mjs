@@ -24,7 +24,7 @@ esbuild.build({
 	target: 'es2024',
 	logLevel: "info",
 	sourcemap: prod ? false : 'inline',
-	minify: prod ? false : true,
+	minify: prod ? true : false,
 	treeShaking: true,
 	outfile: 'main.js',
 	inject: ['./esbuild-buffer-shim.js'],
