@@ -24,6 +24,7 @@ esbuild.build({
 	target: 'es2024',
 	logLevel: "info",
 	sourcemap: prod ? false : 'inline',
+	minify: prod ? false : true,
 	treeShaking: true,
 	outfile: 'main.js',
 	inject: ['./esbuild-buffer-shim.js'],
@@ -32,7 +33,7 @@ esbuild.build({
 	},
 	plugins: [
 		esbuildSvelte({
-		  compilerOptions: { css: 'injected' },
+		  compilerOptions: { css: 'injected', dev: !prod },
 		  preprocess: sveltePreprocess(),
 		}),
 	  ],
