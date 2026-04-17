@@ -4,6 +4,7 @@ import tsdoc from "eslint-plugin-tsdoc";
 import svelte from "eslint-plugin-svelte";
 import prettier from "eslint-plugin-prettier";
 import prettierConfig from "eslint-config-prettier";
+import obsidianmd from "eslint-plugin-obsidianmd";
 
 export default [
 	// 1. Global ignores
@@ -24,8 +25,48 @@ export default [
 	// 5. Prettier configuration
 	prettierConfig,
 
+	// 5b. Obsidian plugin rules (scoped to TypeScript files only)
+	{
+		files: ["**/*.ts"],
+		plugins: {
+			obsidianmd,
+		},
+		rules: {
+			"obsidianmd/commands/no-command-in-command-id": "error",
+			"obsidianmd/commands/no-command-in-command-name": "error",
+			"obsidianmd/commands/no-default-hotkeys": "error",
+			"obsidianmd/commands/no-plugin-id-in-command-id": "error",
+			"obsidianmd/commands/no-plugin-name-in-command-name": "error",
+			"obsidianmd/settings-tab/no-manual-html-headings": "error",
+			"obsidianmd/settings-tab/no-problematic-settings-headings": "error",
+			"obsidianmd/vault/iterate": "error",
+			"obsidianmd/detach-leaves": "error",
+			"obsidianmd/editor-drop-paste": "error",
+			"obsidianmd/hardcoded-config-path": "error",
+			"obsidianmd/no-forbidden-elements": "error",
+			"obsidianmd/no-plugin-as-component": "error",
+			"obsidianmd/no-sample-code": "error",
+			"obsidianmd/no-tfile-tfolder-cast": "error",
+			"obsidianmd/no-view-references-in-plugin": "error",
+			"obsidianmd/no-static-styles-assignment": "error",
+			"obsidianmd/object-assign": "error",
+			"obsidianmd/platform": "error",
+			"obsidianmd/prefer-file-manager-trash-file": "error",
+			"obsidianmd/prefer-instanceof": "error",
+			"obsidianmd/prefer-abstract-input-suggest": "error",
+			"obsidianmd/prefer-active-window-timers": "error",
+			"obsidianmd/prefer-active-doc": "error",
+			"obsidianmd/regex-lookbehind": "error",
+			"obsidianmd/sample-names": "off",
+			"obsidianmd/no-unsupported-api": "error",
+			// "obsidianmd/ui/sentence-case": ["error", { enforceCamelCaseLower: true }],
+		},
+	},
+
+
 	// 6. TSDoc configuration
 	{
+		files: ["**/*.ts"],
 		languageOptions: {
 			parserOptions: {
 				project: "./tsconfig.eslint.json",
@@ -75,7 +116,7 @@ export default [
 				project: "./tsconfig.eslint.json",
 			},
 		},
-		ignores: [ "**/*.svelte" ],
+		ignores: [ "**/*.svelte", "**/*.json", "**/*.md" ],
 		plugins: {
 			prettier,
 		},
