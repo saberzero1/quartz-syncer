@@ -18,7 +18,7 @@ This guide covers setting up a Quartz v5 repository on GitLab, configuring GitLa
 3. Enter the Quartz repository URL: `https://github.com/jackyzha0/quartz.git`
 4. Set your **Project name** (e.g., `quartz`).
 5. Set **Visibility Level** to your preference.
-6. Click **Create project**.
+6. Click **Create project**. All branches (including `v5`) are imported automatically.
 
 ### Option 2: Mirror from GitHub
 
@@ -28,22 +28,34 @@ If you want to keep your GitLab repository in sync with the upstream Quartz repo
 2. Go to **Settings** > **Repository** > **Mirroring repositories**.
 3. Add `https://github.com/jackyzha0/quartz.git` as a mirror.
 
-## Check out the v5 Branch
+## Set v5 as the Default Branch
 
-Clone your new GitLab repository locally and switch to `v5`:
+The upstream Quartz repository currently defaults to `v4`. Change your project's default branch to `v5`:
+
+1. Go to your project on GitLab.
+2. Navigate to **Settings** > **Repository** > **Branch defaults**.
+3. Change the default branch to `v5`.
+4. Save the change.
+
+> [!NOTE] Quartz v5 is in beta
+> Quartz v5 is currently in beta and not yet the default upstream branch. Once v5 leaves beta it will become the default, and this step will no longer be necessary. See the [upstream migration guide](https://quartz.jzhao.xyz/migrating) if you are migrating existing content from v4.
+
+## Clone and Install
+
+Clone your GitLab repository and install dependencies:
 
 ```bash
 git clone https://gitlab.com/<username>/<project>.git
 cd <project>
-git remote add upstream https://github.com/jackyzha0/quartz.git
-git fetch upstream v5
-git checkout -b v5 upstream/v5
+git checkout v5
 npm ci
-git push -u origin v5
 ```
 
-> [!NOTE] Upstream default branch
-> The upstream Quartz repository still defaults to `v4`. The steps above explicitly create a local `v5` branch from upstream and push it to your GitLab project. See the [upstream migration guide](https://quartz.jzhao.xyz/migrating) if you are migrating existing content from v4.
+To pull future Quartz updates, add the upstream repository as a remote:
+
+```bash
+git remote add upstream https://github.com/jackyzha0/quartz.git
+```
 
 ## Run the Setup Wizard
 
@@ -53,7 +65,7 @@ Quartz v5 uses an interactive setup command to create `quartz.config.yaml` and i
 npx quartz create
 ```
 
-Pick a template (`default`, `obsidian`, `ttrpg`, or `blog`), set your base URL (e.g. `<username>.gitlab.io/<project>`), and choose a content strategy. Commit the generated config and lockfile:
+Pick a template (`default`, `obsidian`, `ttrpg`, or `blog`), set your base URL (e.g. `<username>.gitlab.io/<project>`), and choose a content strategy. The `obsidian` template is recommended when publishing from an Obsidian vault. Commit the generated config and lockfile:
 
 ```bash
 git add quartz.config.yaml quartz.lock.json
@@ -74,10 +86,16 @@ stages:
 
 image: node:24
 cache:
-  - key: npm-$CI_COMMIT_REF_SLUG
+  - key:
+      prefix: npm
+      files:
+        - package-lock.json
     paths:
       - .npm/
-  - key: plugins-$CI_COMMIT_REF_SLUG
+  - key:
+      prefix: plugins
+      files:
+        - quartz.lock.json
     paths:
       - .quartz/plugins/
 
@@ -85,20 +103,18 @@ build:
   stage: build
   rules:
     - if: '$CI_COMMIT_REF_NAME == "v5"'
-  before_script:
-    - hash -r
-    - npm ci --cache .npm --prefer-offline
   script:
+    - npm ci --cache .npm --prefer-offline
     - npx quartz plugin install
     - npx quartz build
   artifacts:
     paths:
       - public
-  tags:
-    - gitlab-org-docker
 
 pages:
   stage: deploy
+  needs:
+    - build
   rules:
     - if: '$CI_COMMIT_REF_NAME == "v5"'
   script:
@@ -109,7 +125,7 @@ pages:
 ```
 
 > [!TIP] Plugin install is mandatory in v5
-> Quartz v5 downloads community plugins into `.quartz/plugins/` at build time. The `npx quartz plugin install` step **must** run before `npx quartz build`, otherwise the build will fail. The `.quartz/plugins/` cache above keys on the branch name so plugins persist across CI runs.
+> Quartz v5 downloads community plugins into `.quartz/plugins/` at build time. The `npx quartz plugin install` step **must** run before `npx quartz build`, otherwise the build will fail. The caches above key on `package-lock.json` and `quartz.lock.json` respectively, so dependencies are only re-downloaded when you change your configuration.
 
 ### Verify GitLab Pages is Enabled
 
@@ -118,15 +134,6 @@ pages:
 3. GitLab Pages should be enabled by default for public projects.
 
 Your site will be deployed to `<username>.gitlab.io/<project-name>`.
-
-### Set v5 as the Default Branch
-
-After verifying the pipeline runs successfully on `v5`:
-
-1. Go to your repository on GitLab.
-2. Navigate to **Settings** > **Repository** > **Branch defaults**.
-3. Change the default branch to `v5`.
-4. Save the change.
 
 ## Generate an Access Token
 

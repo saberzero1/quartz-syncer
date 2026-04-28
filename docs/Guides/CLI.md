@@ -280,7 +280,9 @@ obsidian quartz-syncer:mark path="blog/**/*.md" value=true
 obsidian quartz-syncer:publish
 ```
 
-### CI/CD Integration
+### Scripting with JSON output
+
+The `format=json` flag makes it easy to integrate Quartz Syncer into local shell scripts:
 
 ```bash
 # Use JSON output for scripting
@@ -289,3 +291,6 @@ STATUS=$(obsidian quartz-syncer:status format=json)
 # Sync and capture result
 RESULT=$(obsidian quartz-syncer:sync force format=json)
 ```
+
+> [!NOTE] Local only
+> The Obsidian CLI controls the running Obsidian desktop app — it is not a headless tool. These scripting examples are meant for local automation (e.g., shell aliases, cron jobs on your machine), not for headless CI/CD environments.

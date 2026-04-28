@@ -2,7 +2,7 @@
 title: Usage Guide
 description: Details on using Quartz Syncer.
 created: 2025-05-05T00:00:00Z+0200
-modified: 2026-04-01T17:15:09Z+0200
+modified: 2026-04-24T19:37:00Z+0200
 publish: true
 tags: [guides]
 ---
@@ -47,7 +47,7 @@ Open the publication center (see above for instructions). Your eligible notes wi
 	- The diff viewer supports two modes: **Split view** (side-by-side comparison) and **Unified view** (interleaved changes). Toggle between them using the buttons at the top of the viewer.
 	- Configure the default view style in **Settings > UI > Diff view style**.
 - **Published notes (select to unpublished)**: notes that are in your in your Quartz repository. Any notes checked here will be unpublished and removed from your Quartz repository. Notes deleted from your vault need to be unpublished here to remove them from Quartz.
-- **Unchanged  notes**: a list of all unchanged notes that are currently published in your Quartz repository. It includes only unchanged notes that are also in your vault.
+- **Unchanged notes**: a list of all unchanged notes that are currently published in your Quartz repository. It includes only unchanged notes that are also in your vault.
 
 After you are satisfied with your selection, click the big button on the bottom left that says `PUBLISH SELECTED CHANGES` and watch the magic happen.
 
