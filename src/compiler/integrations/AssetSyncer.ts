@@ -175,8 +175,9 @@ export class AssetSyncer {
 			return `${SYNCER_IMPORT}\n`;
 		}
 
-		const baseImportPattern = /@use\s+["']\.\/base(?:\.scss)?["'];?/;
-		const match = content.match(baseImportPattern);
+		const firstLineImportPattern =
+			/@use\s+["']\.\/(?:base|variables)(?:\.scss)?["'](?:\s+as\s+\*)?;?/;
+		const match = content.match(firstLineImportPattern);
 
 		if (match) {
 			const insertPosition = match.index! + match[0].length;
