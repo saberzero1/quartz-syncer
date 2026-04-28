@@ -112,5 +112,5 @@ Earlier versions of Quartz Syncer shipped a dedicated **Themes** settings tab. T
 ## Troubleshooting
 
 - **Theme not applying**: make sure `npx quartz plugin install` ran after you edited `quartz.config.yaml`. Quartz v5 downloads community plugins into `.quartz/plugins/` and nothing is applied until they're present on disk.
-- **Node version errors**: `quartz-themes` requires Node 22 or later, matching Quartz v5's minimum requirement.
+- **Node version errors**: `quartz-themes` requires Node 22 or later, matching Quartz v5's minimum requirement. The setup guides use Node 24 (the current LTS), but any version from 22 onward will work.
 - **Missing variation**: only themes that ship multiple palettes accept `variation`. Check `themes.json` for the theme's declared variations.

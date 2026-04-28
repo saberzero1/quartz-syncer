@@ -11,24 +11,39 @@ This guide covers setting up a Quartz v5 repository on GitHub, configuring GitHu
 
 ## Create a Quartz Repository
 
-If you haven't set up a Quartz repository on GitHub yet, [click here](https://github.com/new?template_name=quartz&template_owner=jackyzha0) to create one using the official Quartz template.
+If you haven't set up a Quartz repository on GitHub yet, [click here](https://github.com/new?template_name=quartz&template_owner=jackyzha0) to create one using the official Quartz template. Make sure to check **Include all branches** so the `v5` branch is included.
 
-## Check out the v5 Branch
+## Set v5 as the Default Branch
 
-Clone your new repository locally, switch to the `v5` branch, and push it to your fork:
+The upstream Quartz repository currently defaults to `v4`. Change your repository's default branch to `v5`:
+
+1. Go to your repository on GitHub.
+2. Navigate to **Settings** > **General**.
+3. Under **Default branch**, click the switch icon next to the current default branch.
+4. Select `v5` from the dropdown and click **Update**.
+5. Confirm the change.
+
+This ensures new clones, pull requests, and GitHub Pages deployments all target v5.
+
+> [!NOTE] Quartz v5 is in beta
+> Quartz v5 is currently in beta and not yet the default upstream branch. Once v5 leaves beta it will become the default, and this step will no longer be necessary. See the [upstream migration guide](https://quartz.jzhao.xyz/migrating) if you are migrating existing content from v4.
+
+## Clone and Install
+
+Clone your repository and install dependencies:
 
 ```bash
 git clone https://github.com/<username>/<repository>.git
 cd <repository>
-git remote add upstream https://github.com/jackyzha0/quartz.git
-git fetch upstream v5
-git checkout -b v5 upstream/v5
+git checkout v5
 npm ci
-git push -u origin v5
 ```
 
-> [!NOTE] Upstream default branch
-> The upstream Quartz repository still defaults to `v4`. You need to explicitly create the `v5` branch on your fork as shown above. See the [upstream migration guide](https://quartz.jzhao.xyz/migrating) if you are migrating existing content from v4.
+To pull future Quartz updates, add the upstream repository as a remote:
+
+```bash
+git remote add upstream https://github.com/jackyzha0/quartz.git
+```
 
 ## Run the Setup Wizard
 
@@ -108,7 +123,7 @@ jobs:
       - name: Build Quartz
         run: npx quartz build
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: public
 
@@ -128,18 +143,6 @@ jobs:
 > Quartz v5 downloads community plugins into `.quartz/plugins/` at build time. The `npx quartz plugin install` step **must** run before `npx quartz build`, otherwise the build will fail. The `.quartz/plugins` cache above keys on `quartz.lock.json` so plugins are only re-downloaded when you change your configuration.
 
 Your site will be deployed to `<username>.github.io/<repository-name>`.
-
-### Set v5 as the Default Branch
-
-After verifying your workflow runs successfully on `v5`:
-
-1. Go to your repository on GitHub.
-2. Navigate to **Settings** > **General**.
-3. Under **Default branch**, click the switch icon next to the current default branch.
-4. Select `v5` from the dropdown and click **Update**.
-5. Confirm the change.
-
-This ensures new clones, pull requests, and GitHub Pages deployments all target v5.
 
 ## Generate an Access Token
 
