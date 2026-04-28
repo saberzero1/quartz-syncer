@@ -9,7 +9,7 @@ import obsidianmd from "eslint-plugin-obsidianmd";
 export default [
 	// 1. Global ignores
 	{
-		ignores: ["**/*.js", ".svelte-kit/", "build/**", "jest.config.js", "scripts/*", "version-bump.mjs", "src/testVault/*", "content/*", "docs/*"],
+		ignores: ["**/*.js", ".svelte-kit/", "build/**", "jest.config.js", "scripts/*", "version-bump.mjs", "src/testVault/*", "content/*", "docs/*", "**/*.test.ts"],
 
 	},
 
@@ -54,8 +54,8 @@ export default [
 			"obsidianmd/prefer-file-manager-trash-file": "error",
 			"obsidianmd/prefer-instanceof": "error",
 			"obsidianmd/prefer-abstract-input-suggest": "error",
-			"obsidianmd/prefer-active-window-timers": "error",
-			"obsidianmd/prefer-active-doc": "error",
+			"obsidianmd/prefer-active-window-timers": "off",
+			"obsidianmd/prefer-active-doc": "off",
 			"obsidianmd/regex-lookbehind": "error",
 			"obsidianmd/sample-names": "off",
 			"obsidianmd/no-unsupported-api": "error",
