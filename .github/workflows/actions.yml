@@ -8,7 +8,7 @@ jobs:
     lint-and-check-formatting:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - name: "Use node version"
               uses: actions/setup-node@v6
               with:
@@ -23,7 +23,7 @@ jobs:
     build:
       runs-on: ubuntu-latest
       steps:
-          - uses: actions/checkout@v4
+          - uses: actions/checkout@v6
           - name: "Use node version"
             uses: actions/setup-node@v6
             with:
@@ -34,7 +34,7 @@ jobs:
           - name: "Build"
             run: npm run build
           - name: Archive production artifacts
-            uses: actions/upload-artifact@v4
+            uses: actions/upload-artifact@v7
             with:
               name: dist-without-markdown
               path: |
@@ -42,7 +42,7 @@ jobs:
     run-tests:
       runs-on: ubuntu-latest
       steps:
-          - uses: actions/checkout@v4
+          - uses: actions/checkout@v6
           - name: "Use node version"
             uses: actions/setup-node@v6
             with:
@@ -55,7 +55,7 @@ jobs:
     run-typecheck:
       runs-on: ubuntu-latest
       steps:
-          - uses: actions/checkout@v4
+          - uses: actions/checkout@v6
           - name: "Use node version"
             uses: actions/setup-node@v6
             with:
@@ -69,7 +69,7 @@ jobs:
       runs-on: ubuntu-latest
       needs: build
       steps:
-          - uses: actions/checkout@v4
+          - uses: actions/checkout@v6
           - name: "Use node version"
             uses: actions/setup-node@v6
             with:
@@ -80,7 +80,7 @@ jobs:
           - name: "Build"
             run: npm run build
           - name: "Cache Obsidian"
-            uses: actions/cache@v4
+            uses: actions/cache@v5
             with:
                 path: .obsidian-cache
                 key: obsidian-cache-${{ runner.os }}-${{ hashFiles('manifest.json') }}
