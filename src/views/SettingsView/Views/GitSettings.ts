@@ -434,7 +434,7 @@ export class GitSettings extends PluginSettingTab {
 				"A GitHub Personal Access Token (classic or fine-grained) with 'Contents' permission";
 		} else if (providerHint === "gitlab") {
 			description =
-				"A GitLab Personal Access Token with 'write_repository' scope";
+				"A GitLab Personal Access Token with 'read_repository' and 'write_repository' scopes";
 		} else if (providerHint === "bitbucket") {
 			name = "App Password";
 
