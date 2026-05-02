@@ -204,6 +204,50 @@ describe("SyncerPageCompiler", () => {
 		});
 	});
 
+	describe("astTransform — math preservation", () => {
+		it("preserves inline math subscripts without escaping", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)("$x_i$");
+
+			expect(result).toContain("$x_i$");
+			expect(result).not.toContain("\\_");
+		});
+
+		it("preserves inline math with multiple subscripts", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result =
+				await compiler.astTransform(file)("$a_{ij} + b_{kl}$");
+
+			expect(result).toContain("$a_{ij} + b_{kl}$");
+			expect(result).not.toContain("\\_");
+		});
+
+		it("preserves display math without escaping", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result =
+				await compiler.astTransform(file)("$$\nx_{ij} = y\n$$");
+
+			expect(result).toContain("x_{ij} = y");
+			expect(result).not.toContain("\\_");
+			expect(result).not.toContain("\\=");
+		});
+
+		it("preserves inline math with equals sign", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)("$a = b$");
+
+			expect(result).toContain("$a = b$");
+		});
+	});
+
 	describe("linkTargeting", () => {
 		it("removes target=_blank from dataview links", () => {
 			const { compiler } = makeCompiler();
