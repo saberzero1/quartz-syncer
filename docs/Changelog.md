@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-04-28T17:01:28Z+0200
+modified: 2026-05-02T14:47:42Z+0200
 publish: true
 ---
 
@@ -17,10 +17,15 @@ publish: true
 
 ## Releases
 
+### Version 1.13.8
+
+- Updated GitLab token hint.
+- Updated GitLab setup guide.
+
 ### Version 1.13.7
 
 - Accept new `custom.scss` patterns.
-- Updated setup guides guides.
+- Updated setup guides.
 - Updated dependencies.
 
 ### Version 1.13.6
