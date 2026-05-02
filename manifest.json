@@ -1,7 +1,7 @@
 {
 	"id": "quartz-syncer",
 	"name": "Quartz Syncer",
-	"version": "1.13.7",
+	"version": "1.13.8",
 	"minAppVersion": "1.12.4",
 	"description": "Manage and publish your notes to Quartz, the fast, batteries-included static-site generator.",
 	"author": "Emile Bangma",
