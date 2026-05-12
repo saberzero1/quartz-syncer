@@ -29,7 +29,7 @@ export type QuartzSyncerCache = {
  * in the Quartz Syncer index.
  */
 export class DataStore {
-	/* eslint-disable-next-line no-undef */
+	/* eslint-disable-next-line no-undef -- LocalForage type provided at runtime */
 	public persister: LocalForage;
 
 	/**

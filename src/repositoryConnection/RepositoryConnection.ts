@@ -204,7 +204,7 @@ export class RepositoryConnection {
 				);
 
 				await new Promise((resolve) =>
-					activeWindow.setTimeout(resolve, delay),
+					window.setTimeout(resolve, delay),
 				);
 			}
 		}
@@ -513,7 +513,7 @@ export class RepositoryConnection {
 				filepath: path,
 			});
 
-			/* eslint-disable-next-line no-undef */
+			/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
 			const content = Buffer.from(blob).toString("base64");
 
 			return {
@@ -557,7 +557,7 @@ export class RepositoryConnection {
 				filepath: path,
 			});
 
-			/* eslint-disable-next-line no-undef */
+			/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
 			const content = Buffer.from(blob).toString("base64");
 
 			return {
@@ -993,7 +993,7 @@ export class RepositoryConnection {
 				// Yield to UI every 50 files
 				if (i % 50 === 49) {
 					await new Promise((resolve) =>
-						activeWindow.setTimeout(resolve, 0),
+						window.setTimeout(resolve, 0),
 					);
 				}
 			}
@@ -1144,7 +1144,7 @@ export class RepositoryConnection {
 				// For large batches, yield every 50 files to avoid capping at 60 files/sec.
 				if (totalItems <= 100 || completed % 50 === 0) {
 					await new Promise((resolve) =>
-						requestAnimationFrame(resolve),
+						window.requestAnimationFrame(resolve),
 					);
 				}
 			}

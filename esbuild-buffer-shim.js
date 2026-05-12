@@ -24,6 +24,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+// Required for Obsidian mobile Buffer polyfill; upstream uses require/global.
 import { Platform } from "obsidian";
 let buffer;
 if (Platform.isMobileApp) {

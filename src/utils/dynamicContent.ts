@@ -20,7 +20,7 @@ export function hasDynamicContent(text: string): boolean {
 
 	if (/```datacoretsx\s/ms.test(text)) return true;
 
-	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
+	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- Dataview API returns untyped values */
 	const dvApi = getAPI();
 
 	if (dvApi) {

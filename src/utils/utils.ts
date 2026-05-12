@@ -165,7 +165,7 @@ function sanitizePermalink(permalink: string): string {
  * @returns True if the plugin is enabled, false otherwise.
  */
 function isPluginEnabled(pluginId: string): boolean {
-	/* eslint-disable no-restricted-globals, no-undef, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
+	/* eslint-disable no-restricted-globals, no-undef, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return -- global app is only way to access internal plugins */
 	//@ts-expect-error global app is available in Obsidian
 	const plugins = app.plugins.enabledPlugins;
 
@@ -228,18 +228,18 @@ function renderPromise(
 	interval: number = 500,
 ) {
 	return new Promise<void>((resolve, reject) => {
-		/* eslint-disable-next-line no-undef */
+		/* eslint-disable-next-line no-undef -- NodeJS.Timeout type for timer reference */
 		let intervalTimer: NodeJS.Timeout;
 
 		const clearIntervalTimer = () => {
-			activeWindow.clearTimeout(intervalTimer as unknown as number);
+			window.clearTimeout(intervalTimer as unknown as number);
 		};
 
 		const observer = new MutationObserver(() => {
 			clearIntervalTimer();
 
-			/* eslint-disable no-undef */
-			intervalTimer = activeWindow.setTimeout(() => {
+			/* eslint-disable no-undef -- NodeJS.Timeout type for timer reference */
+			intervalTimer = window.setTimeout(() => {
 				cleanUp();
 				resolve();
 			}, interval) as unknown as NodeJS.Timeout;
@@ -256,12 +256,12 @@ function renderPromise(
 		const cleanUp = () => {
 			observer.disconnect();
 			clearIntervalTimer();
-			activeWindow.clearTimeout(timeoutTimer);
+			window.clearTimeout(timeoutTimer);
 		};
 
 		observer.observe(div, { childList: true, subtree: true });
 
-		const timeoutTimer = activeWindow.setTimeout(() => {
+		const timeoutTimer = window.setTimeout(() => {
 			cleanUp();
 			reject(new Error(`Timeout waiting for selector: ${selector}`));
 		}, timeout);
@@ -624,7 +624,7 @@ async function batchParallel<T, R>(
 		}
 
 		// Yield to the event loop so the UI can repaint progress updates.
-		await new Promise((resolve) => activeWindow.setTimeout(resolve, 0));
+		await new Promise((resolve) => window.setTimeout(resolve, 0));
 	}
 
 	return results;

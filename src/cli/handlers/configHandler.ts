@@ -110,8 +110,8 @@ export function createConfigHandler(
 					const redacted = redactSettings(plugin.settings, hasToken);
 
 					const {
-						cache: _cache,
-						cacheTimestamp: _cacheTimestamp,
+						cache: __cache,
+						cacheTimestamp: __cacheTimestamp,
 						...data
 					} = redacted as unknown as Record<string, unknown>;
 

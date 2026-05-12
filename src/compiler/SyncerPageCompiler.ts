@@ -308,7 +308,7 @@ export class SyncerPageCompiler {
 			const text = await file.cachedRead();
 
 			try {
-				/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
+				/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- canvas JSON nodes are untyped */
 				const canvasData = JSON.parse(text);
 
 				if (Array.isArray(canvasData?.nodes)) {

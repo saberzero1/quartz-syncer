@@ -24,7 +24,7 @@ function tryDVEvaluate(
 	filePath: string,
 	dvApi: DataviewApi,
 ): string | undefined | null {
-	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Dataview API returns untyped values */
 	let result = "";
 
 	try {
@@ -40,26 +40,13 @@ function tryDVEvaluate(
 	return result;
 }
 
-function tryEval(query: string) {
-	let result = "";
-
-	try {
-		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-implied-eval, @typescript-eslint/no-unsafe-call
-		result = new Function("dv", query)(getAPI());
-	} catch (e) {
-		Logger.warn("eval did not yield any result", e);
-	}
-
-	return result;
-}
-
 async function tryExecuteJs(
 	query: string,
 	filePath: string,
 	dvApi: DataviewApi,
 ) {
-	/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
-	const div = document.createElement("div");
+	/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Dataview API returns untyped values */
+	const div = activeDocument.createElement("div");
 	const component = new Component();
 	component.load();
 	await dvApi.executeJs(query, div, component, filePath);
@@ -86,7 +73,7 @@ export const DataviewIntegration: PluginIntegration = {
 	},
 
 	getPatterns(): PatternDescriptor[] {
-		/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
+		/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- Dataview API returns untyped values */
 		const dvApi = getDataviewApi();
 
 		const patterns: PatternDescriptor[] = [
@@ -138,7 +125,7 @@ export const DataviewIntegration: PluginIntegration = {
 		match: PatternMatch,
 		context: CompileContext,
 	): Promise<string> {
-		/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument */
+		/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument -- Dataview API returns untyped values */
 		const dvApi = getDataviewApi();
 
 		if (!dvApi) return match.fullMatch;
@@ -181,10 +168,6 @@ export const DataviewIntegration: PluginIntegration = {
 
 				case "dv-inline-js": {
 					result = tryDVEvaluate(query, filePath, dvApi);
-
-					if (!result) {
-						result = tryEval(query);
-					}
 
 					if (!result) {
 						result = await tryExecuteJs(query, filePath, dvApi);

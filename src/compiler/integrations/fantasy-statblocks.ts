@@ -432,7 +432,7 @@ async function tryRenderStatblock(
 	filePath: string,
 	api: FantasyStatblocksApi,
 ): Promise<HTMLDivElement> {
-	const div = document.createElement("div");
+	const div = activeDocument.createElement("div");
 	const component = new Component();
 	component.load();
 

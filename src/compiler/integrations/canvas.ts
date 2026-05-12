@@ -1,9 +1,9 @@
 import { PluginIntegration, PatternDescriptor, PatternMatch } from "./types";
 
 function isCanvasPluginEnabled(): boolean {
-	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
+	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call -- global app is only way to access internal plugins */
 	// @ts-expect-error global app is available in Obsidian
-	// eslint-disable-next-line no-restricted-globals, no-undef
+	// eslint-disable-next-line no-restricted-globals, no-undef -- global app is only way to access internal plugins
 	const internalPlugins = app?.internalPlugins;
 
 	if (!internalPlugins) {
@@ -12,7 +12,7 @@ function isCanvasPluginEnabled(): boolean {
 
 	const canvasPlugin = internalPlugins.getPluginById("canvas");
 
-	// eslint-disable-next-line @typescript-eslint/no-unsafe-return
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-return -- internal plugin API is untyped
 	return canvasPlugin?.enabled ?? false;
 	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 }

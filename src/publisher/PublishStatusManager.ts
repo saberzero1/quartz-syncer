@@ -235,7 +235,7 @@ export default class PublishStatusManager implements IPublishStatusManager {
 					}
 
 					const compiledFile = await file.compile();
-					const [content, _] = compiledFile.getCompiledFile();
+					const [content] = compiledFile.getCompiledFile();
 
 					const localHash = await generateBlobHash(content);
 					const remoteHash = remoteNoteHashes[file.getVaultPath()];

@@ -423,7 +423,7 @@ async function tryExecuteJs(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = document.createElement("div");
+	const div = activeDocument.createElement("div");
 	const component = new Component();
 
 	try {
@@ -455,7 +455,7 @@ async function tryExecuteJsx(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = document.createElement("div");
+	const div = activeDocument.createElement("div");
 	const component = new Component();
 
 	try {
@@ -485,7 +485,7 @@ async function tryExecuteTs(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = document.createElement("div");
+	const div = activeDocument.createElement("div");
 	const component = new Component();
 
 	try {
@@ -517,7 +517,7 @@ async function tryExecuteTsx(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = document.createElement("div");
+	const div = activeDocument.createElement("div");
 	const component = new Component();
 
 	try {
