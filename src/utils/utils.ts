@@ -348,7 +348,7 @@ function sanitizeHTMLToString(
 	let container = document.createElement("div");
 	container.appendChild(sanitizedHtml);
 
-	removeUnwantedElements(container, "script, link, meta, title");
+	removeUnwantedElements(container, "link, meta, title");
 
 	// Remove unwanted attributes from internal links
 	const internalLinks = container.querySelectorAll(
