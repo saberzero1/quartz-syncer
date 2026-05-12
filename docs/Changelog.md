@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-05-13T00:22:45Z+0200
+modified: 2026-05-13T00:45:53Z+0200
 publish: true
 ---
 
@@ -16,6 +16,11 @@ publish: true
 ## Someday
 
 ## Releases
+
+### Version 1.14.2
+
+- Added Stylelint to improve `styles.css`.
+- Additional refactors to match Obsidian's latest standards.
 
 ### Version 1.14.1
 
