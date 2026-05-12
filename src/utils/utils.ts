@@ -173,7 +173,7 @@ function isPluginEnabled(pluginId: string): boolean {
 		plugins.has(pluginId) || plugins.has(pluginId.toLowerCase());
 
 	return isEnabled;
-	/* eslint-enable no-restricted-globals, no-undef, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
+	/* eslint-enable no-restricted-globals, no-undef, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return -- end global app plugin access */
 }
 
 /**
@@ -243,7 +243,7 @@ function renderPromise(
 				cleanUp();
 				resolve();
 			}, interval) as unknown as NodeJS.Timeout;
-			/* eslint-enable no-undef */
+			/* eslint-enable no-undef -- end NodeJS.Timeout type reference */
 
 			/*
 			if (div.querySelector(selector)) {

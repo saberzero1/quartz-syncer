@@ -14,7 +14,7 @@ function isCanvasPluginEnabled(): boolean {
 
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-return -- internal plugin API is untyped
 	return canvasPlugin?.enabled ?? false;
-	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
+	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call -- end internal plugin API access */
 }
 
 export const CanvasIntegration: PluginIntegration = {

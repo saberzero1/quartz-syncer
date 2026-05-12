@@ -36,7 +36,7 @@ function tryDVEvaluate(
 		Logger.warn("dvapi.tryEvaluate did not yield any result", e);
 	}
 
-	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- end Dataview evaluation block */
 	return result;
 }
 
@@ -55,7 +55,7 @@ async function tryExecuteJs(
 
 	const markdown = htmlToMarkdown(div) || "";
 
-	/* eslint-enable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+	/* eslint-enable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- end Dataview executeJs block */
 	return cleanQueryResult(markdown);
 }
 
@@ -117,7 +117,7 @@ export const DataviewIntegration: PluginIntegration = {
 			);
 		}
 
-		/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
+		/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- end Dataview settings access */
 		return patterns;
 	},
 
@@ -188,6 +188,6 @@ export const DataviewIntegration: PluginIntegration = {
 
 			return match.fullMatch;
 		}
-		/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument */
+		/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument -- end Dataview compile block */
 	},
 };

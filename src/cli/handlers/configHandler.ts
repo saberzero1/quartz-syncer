@@ -109,11 +109,10 @@ export function createConfigHandler(
 				if (action === "list") {
 					const redacted = redactSettings(plugin.settings, hasToken);
 
-					const {
-						cache: __cache,
-						cacheTimestamp: __cacheTimestamp,
-						...data
-					} = redacted as unknown as Record<string, unknown>;
+					const { cache, cacheTimestamp, ...data } =
+						redacted as unknown as Record<string, unknown>;
+					void cache;
+					void cacheTimestamp;
 
 					const message = Object.entries(flattenObject(data))
 						.map(([key, value]) => `${key}=${value}`)

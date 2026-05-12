@@ -51,7 +51,7 @@ export function hasDynamicContent(text: string): boolean {
 
 		if (inlineJsDataViewRegex.test(text)) return true;
 	}
-	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
+	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- end Dataview plugin settings access */
 
 	return false;
 }

@@ -334,7 +334,7 @@ export class SyncerPageCompiler {
 						}
 					}
 				}
-				/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
+				/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- end canvas JSON parsing block */
 			} catch {
 				Logger.warn(`Failed to parse canvas file: ${file.getPath()}`);
 			}
