@@ -74,7 +74,7 @@ export function createCacheHandler(
 							? [
 									baseMessage,
 									...files.map((path) => `\t${path}`),
-							  ].join("\n")
+								].join("\n")
 							: baseMessage;
 
 					return formatCliOutput(

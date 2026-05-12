@@ -173,10 +173,10 @@ export function createMarkHandler(
 					dryRun
 						? `Dry run: ${updated.length} file${
 								updated.length === 1 ? "" : "s"
-						  } matched`
+							} matched`
 						: `Updated ${updated.length} file${
 								updated.length === 1 ? "" : "s"
-						  }`,
+							}`,
 					`Mode: ${resolved.mode}`,
 				];
 
@@ -207,9 +207,9 @@ export function createMarkHandler(
 								? data.appliedValues.map(
 										(entry) =>
 											`\t${entry.path} → ${entry.value}`,
-								  )
+									)
 								: []),
-					  ].join("\n")
+						].join("\n")
 					: baseMessage;
 
 				const result =
@@ -219,7 +219,7 @@ export function createMarkHandler(
 								command: COMMAND,
 								error: message,
 								data,
-						  }
+							}
 						: cliSuccess(COMMAND, message, data);
 
 				return formatCliOutput(params, result);
