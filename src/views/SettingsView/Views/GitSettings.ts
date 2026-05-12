@@ -442,11 +442,7 @@ export class GitSettings extends PluginSettingTab {
 				"A Bitbucket App Password with repository write access";
 		}
 
-		const desc = (
-			activeDocument as Document & {
-				createFragment: () => DocumentFragment;
-			}
-		).createFragment();
+		const desc = createFragment();
 		desc.createSpan({ text: description + ". " });
 
 		desc.createEl("a", {
@@ -558,11 +554,7 @@ export class GitSettings extends PluginSettingTab {
 	}
 
 	private initializeCorsProxySetting() {
-		const desc = (
-			activeDocument as Document & {
-				createFragment: () => DocumentFragment;
-			}
-		).createFragment();
+		const desc = createFragment();
 
 		desc.createSpan({
 			text: "A CORS proxy URL for browser environments. Required on mobile/web if your Git server doesn't support CORS. ",
