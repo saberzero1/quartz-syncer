@@ -9,7 +9,7 @@ import obsidianmd from "eslint-plugin-obsidianmd";
 export default [
 	// 1. Global ignores
 	{
-		ignores: ["**/*.js", ".svelte-kit/", "build/**", "jest.config.js", "scripts/*", "version-bump.mjs", "src/testVault/*", "content/*", "docs/*", "**/*.test.ts"],
+		ignores: ["**/*.js", ".svelte-kit/", "build/**", "jest.config.js", "scripts/*", "version-bump.mjs", "src/testVault/*", "content/*", "docs/*", "**/*.test.ts", "__mocks__/*", "src/test/*"],
 
 	},
 
@@ -26,40 +26,11 @@ export default [
 	prettierConfig,
 
 	// 5b. Obsidian plugin rules (scoped to TypeScript files only)
+	...obsidianmd.configs.recommended,
 	{
 		files: ["**/*.ts"],
-		plugins: {
-			obsidianmd,
-		},
 		rules: {
-			"obsidianmd/commands/no-command-in-command-id": "error",
-			"obsidianmd/commands/no-command-in-command-name": "error",
-			"obsidianmd/commands/no-default-hotkeys": "error",
-			"obsidianmd/commands/no-plugin-id-in-command-id": "error",
-			"obsidianmd/commands/no-plugin-name-in-command-name": "error",
-			"obsidianmd/settings-tab/no-manual-html-headings": "error",
-			"obsidianmd/settings-tab/no-problematic-settings-headings": "error",
-			"obsidianmd/vault/iterate": "error",
-			"obsidianmd/detach-leaves": "error",
-			"obsidianmd/editor-drop-paste": "error",
-			"obsidianmd/hardcoded-config-path": "error",
-			"obsidianmd/no-forbidden-elements": "error",
-			"obsidianmd/no-plugin-as-component": "error",
-			"obsidianmd/no-sample-code": "error",
-			"obsidianmd/no-tfile-tfolder-cast": "error",
-			"obsidianmd/no-view-references-in-plugin": "error",
-			"obsidianmd/no-static-styles-assignment": "error",
-			"obsidianmd/object-assign": "error",
-			"obsidianmd/platform": "error",
-			"obsidianmd/prefer-file-manager-trash-file": "error",
-			"obsidianmd/prefer-instanceof": "error",
-			"obsidianmd/prefer-abstract-input-suggest": "error",
-			"obsidianmd/prefer-active-window-timers": "off",
-			"obsidianmd/prefer-active-doc": "off",
-			"obsidianmd/regex-lookbehind": "error",
-			"obsidianmd/sample-names": "off",
-			"obsidianmd/no-unsupported-api": "error",
-			// "obsidianmd/ui/sentence-case": ["error", { enforceCamelCaseLower: true }],
+			"obsidianmd/ui/sentence-case": "off",
 		},
 	},
 
