@@ -133,7 +133,9 @@ export default class PublishStatusManager implements IPublishStatusManager {
 						);
 
 						controller.setIndexText(
-							`Syncing remote cache: ${syncIndex.toString().padStart(syncPadLength)}/${syncTotal}`,
+							`Syncing remote cache: ${syncIndex
+								.toString()
+								.padStart(syncPadLength)}/${syncTotal}`,
 						);
 
 						controller.setText(`Processing ${path}...`);
@@ -222,7 +224,9 @@ export default class PublishStatusManager implements IPublishStatusManager {
 						);
 
 						controller.setIndexText(
-							`Compiling: ${compileIndex.toString().padStart(compilePadLength)}/${compileTotal}`,
+							`Compiling: ${compileIndex
+								.toString()
+								.padStart(compilePadLength)}/${compileTotal}`,
 						);
 
 						controller.setText(

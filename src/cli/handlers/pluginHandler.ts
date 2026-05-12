@@ -245,7 +245,9 @@ export function createPluginHandler(
 							params,
 							cliError(
 								COMMAND,
-								`${updatable.length} plugin${updatable.length === 1 ? "" : "s"} can be updated (${names}). Use 'force' to apply.`,
+								`${updatable.length} plugin${
+									updatable.length === 1 ? "" : "s"
+								} can be updated (${names}). Use 'force' to apply.`,
 							),
 						);
 					}
@@ -277,11 +279,15 @@ export function createPluginHandler(
 
 					await configService.writeLockFile(
 						newLockFile,
-						`Update ${updatable.length} plugin${updatable.length === 1 ? "" : "s"}`,
+						`Update ${updatable.length} plugin${
+							updatable.length === 1 ? "" : "s"
+						}`,
 					);
 
 					const updatedNames = updatable.map((u) => u.name);
-					const message = `Updated ${updatable.length} plugin${updatable.length === 1 ? "" : "s"}: ${updatedNames.join(", ")}.`;
+					const message = `Updated ${updatable.length} plugin${
+						updatable.length === 1 ? "" : "s"
+					}: ${updatedNames.join(", ")}.`;
 
 					return formatCliOutput(
 						params,

@@ -90,7 +90,9 @@ export function createPublishHandler(
 					}
 
 					return [
-						`Published ${published.length} file${published.length === 1 ? "" : "s"}:`,
+						`Published ${published.length} file${
+							published.length === 1 ? "" : "s"
+						}:`,
 						...published.map((path) => `\t${path}`),
 					].join("\n");
 				};
@@ -137,7 +139,9 @@ export function createPublishHandler(
 					throw new Error("Failed to publish files.");
 				}
 
-				const baseMessage = `Published ${filesToPublish.length} file${filesToPublish.length === 1 ? "" : "s"}.`;
+				const baseMessage = `Published ${filesToPublish.length} file${
+					filesToPublish.length === 1 ? "" : "s"
+				}.`;
 				const message = buildVerboseMessage(data.publish, baseMessage);
 
 				return formatCliOutput(

@@ -143,7 +143,9 @@ export function createUpgradeHandler(
 
 				const message = buildVerboseMessage(baseMessage, [
 					`Upstream SHA: ${result.oid}`,
-					`Recorded SHA: ${plugin.settings.lastUpstreamCommitSha || "none"}`,
+					`Recorded SHA: ${
+						plugin.settings.lastUpstreamCommitSha || "none"
+					}`,
 				]);
 
 				return formatCliOutput(

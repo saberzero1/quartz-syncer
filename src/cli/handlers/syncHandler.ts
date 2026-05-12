@@ -114,21 +114,27 @@ export function createSyncHandler(
 
 					if (published.length > 0) {
 						lines.push(
-							`Published ${published.length} file${published.length === 1 ? "" : "s"}:`,
+							`Published ${published.length} file${
+								published.length === 1 ? "" : "s"
+							}:`,
 						);
 						lines.push(...published.map((path) => `\t${path}`));
 					}
 
 					if (deleted.length > 0) {
 						lines.push(
-							`Deleted ${deleted.length} file${deleted.length === 1 ? "" : "s"}:`,
+							`Deleted ${deleted.length} file${
+								deleted.length === 1 ? "" : "s"
+							}:`,
 						);
 						lines.push(...deleted.map((path) => `\t${path}`));
 					}
 
 					if (skipped.length > 0) {
 						lines.push(
-							`Skipped ${skipped.length} deletion${skipped.length === 1 ? "" : "s"}:`,
+							`Skipped ${skipped.length} deletion${
+								skipped.length === 1 ? "" : "s"
+							}:`,
 						);
 						lines.push(...skipped.map((path) => `\t${path}`));
 					}
@@ -206,13 +212,19 @@ export function createSyncHandler(
 				data.summary.skippedDeletes = skippedDeletes.length;
 
 				const messageParts = [
-					`Published ${filesToPublish.length} file${filesToPublish.length === 1 ? "" : "s"}`,
-					`Deleted ${deletedCount} file${deletedCount === 1 ? "" : "s"}`,
+					`Published ${filesToPublish.length} file${
+						filesToPublish.length === 1 ? "" : "s"
+					}`,
+					`Deleted ${deletedCount} file${
+						deletedCount === 1 ? "" : "s"
+					}`,
 				];
 
 				if (skippedDeletes.length > 0) {
 					messageParts.push(
-						`Skipped ${skippedDeletes.length} deletion${skippedDeletes.length === 1 ? "" : "s"} (use force)`,
+						`Skipped ${skippedDeletes.length} deletion${
+							skippedDeletes.length === 1 ? "" : "s"
+						} (use force)`,
 					);
 				}
 

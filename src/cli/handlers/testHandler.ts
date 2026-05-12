@@ -49,7 +49,7 @@ export function createTestHandler(
 							gitSettings.remoteUrl,
 							gitSettings.auth,
 							gitSettings.corsProxyUrl,
-						)
+					  )
 					: false;
 
 				const data = {
@@ -60,7 +60,9 @@ export function createTestHandler(
 				};
 
 				const baseMessage = canRead
-					? `Connection OK (read: ${canRead ? "yes" : "no"}, write: ${canWrite ? "yes" : "no"}).`
+					? `Connection OK (read: ${canRead ? "yes" : "no"}, write: ${
+							canWrite ? "yes" : "no"
+					  }).`
 					: "Connection failed.";
 
 				const authParts = [
@@ -78,7 +80,7 @@ export function createTestHandler(
 								`Repository: ${data.repository}`,
 								`Branch: ${data.branch}`,
 								`Auth: ${authParts.join(", ")}`,
-							].join("\n")
+						  ].join("\n")
 						: baseMessage;
 
 				return formatCliOutput(

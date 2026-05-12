@@ -379,7 +379,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		const versionLabel = this.cachedPackageVersion
 			? `${this.cachedPackageVersion} (${this.cachedVersion})`
-			: (this.cachedVersion ?? "unknown");
+			: this.cachedVersion ?? "unknown";
 
 		new Setting(this.settingsRootElement)
 			.setName("Quartz version")
@@ -467,8 +467,15 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			} else if (upgradeAvailable) {
 				const desc =
 					strategy === "commit"
-						? `Latest upstream commit: ${status.latestUpstreamSha?.slice(0, 7) ?? "unknown"}.`
-						: `Your Quartz is at ${status.currentVersion ?? "unknown"}, upstream is at ${status.upstreamVersion ?? "unknown"}.`;
+						? `Latest upstream commit: ${
+								status.latestUpstreamSha?.slice(0, 7) ??
+								"unknown"
+						  }.`
+						: `Your Quartz is at ${
+								status.currentVersion ?? "unknown"
+						  }, upstream is at ${
+								status.upstreamVersion ?? "unknown"
+						  }.`;
 
 				const upgradeSetting = new Setting(this.settingsRootElement)
 					.setName(
@@ -493,13 +500,18 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				new Setting(this.settingsRootElement)
 					.setName("Quartz is up to date")
 					.setDesc(
-						`Current upstream commit: ${status.latestUpstreamSha.slice(0, 7)}`,
+						`Current upstream commit: ${status.latestUpstreamSha.slice(
+							0,
+							7,
+						)}`,
 					);
 			} else {
 				new Setting(this.settingsRootElement)
 					.setName("Quartz is up to date")
 					.setDesc(
-						`Current version: ${status.currentVersion ?? "unknown"}`,
+						`Current version: ${
+							status.currentVersion ?? "unknown"
+						}`,
 					);
 			}
 		}
@@ -580,7 +592,10 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					new Notice("Quartz is already up to date.");
 				} else {
 					new Notice(
-						`Quartz upgraded successfully to ${result.oid?.slice(0, 7)}.`,
+						`Quartz upgraded successfully to ${result.oid?.slice(
+							0,
+							7,
+						)}.`,
 					);
 				}
 
@@ -1492,7 +1507,9 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 						this.display();
 
 						new Notice(
-							`Plugin "${getPluginName(plugin.source)}" removed. Save to push changes.`,
+							`Plugin "${getPluginName(
+								plugin.source,
+							)}" removed. Save to push changes.`,
 						);
 					} catch (error) {
 						const message =

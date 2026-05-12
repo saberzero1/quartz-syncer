@@ -101,7 +101,9 @@ export function createDeleteHandler(
 					}
 
 					return [
-						`Deleted ${deleted.length} file${deleted.length === 1 ? "" : "s"}:`,
+						`Deleted ${deleted.length} file${
+							deleted.length === 1 ? "" : "s"
+						}:`,
 						...deleted.map((path) => `\t${path}`),
 					].join("\n");
 				};
@@ -154,7 +156,9 @@ export function createDeleteHandler(
 					throw new Error("Failed to delete files.");
 				}
 
-				const baseMessage = `Deleted ${deletions.length} file${deletions.length === 1 ? "" : "s"}.`;
+				const baseMessage = `Deleted ${deletions.length} file${
+					deletions.length === 1 ? "" : "s"
+				}.`;
 				const message = buildVerboseMessage(deletions, baseMessage);
 
 				return formatCliOutput(

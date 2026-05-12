@@ -91,7 +91,10 @@ export class QuartzUpgradeService {
 
 		if (latestUpstreamSha) {
 			logger.info(
-				`Checking if ${latestUpstreamSha.slice(0, 7)} exists in user repo history`,
+				`Checking if ${latestUpstreamSha.slice(
+					0,
+					7,
+				)} exists in user repo history`,
 			);
 
 			const foundInHistory =
@@ -99,7 +102,9 @@ export class QuartzUpgradeService {
 			hasNewerCommits = !foundInHistory;
 
 			logger.info(
-				`Commit ${latestUpstreamSha.slice(0, 7)} ${foundInHistory ? "found" : "NOT found"} in user repo`,
+				`Commit ${latestUpstreamSha.slice(0, 7)} ${
+					foundInHistory ? "found" : "NOT found"
+				} in user repo`,
 			);
 		} else {
 			logger.warn(

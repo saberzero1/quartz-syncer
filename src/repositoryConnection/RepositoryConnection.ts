@@ -197,7 +197,9 @@ export class RepositoryConnection {
 				const delay = Math.pow(2, attempt) * 1000;
 
 				logger.warn(
-					`Push attempt ${attempt + 1} failed, retrying in ${delay}ms...`,
+					`Push attempt ${
+						attempt + 1
+					} failed, retrying in ${delay}ms...`,
 					error,
 				);
 				await new Promise((resolve) => setTimeout(resolve, delay));
@@ -989,7 +991,9 @@ export class RepositoryConnection {
 
 			await git.commit({
 				...this.getGitConfig(),
-				message: `Deleted ${filePaths.length} file${filePaths.length === 1 ? "" : "s"}`,
+				message: `Deleted ${filePaths.length} file${
+					filePaths.length === 1 ? "" : "s"
+				}`,
 				author: {
 					name: "Quartz Syncer",
 					email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
@@ -1158,7 +1162,9 @@ export class RepositoryConnection {
 
 			await git.commit({
 				...this.getGitConfig(),
-				message: `Published ${files.length} file${files.length === 1 ? "" : "s"}`,
+				message: `Published ${files.length} file${
+					files.length === 1 ? "" : "s"
+				}`,
 				author: {
 					name: "Quartz Syncer",
 					email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",

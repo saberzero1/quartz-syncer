@@ -64,14 +64,16 @@ export function createCacheHandler(
 						files,
 						lastUpdated,
 					};
-					const baseMessage = `Cache contains ${files.length} file${files.length === 1 ? "" : "s"}.`;
+					const baseMessage = `Cache contains ${files.length} file${
+						files.length === 1 ? "" : "s"
+					}.`;
 
 					const message =
 						includeVerbose && files.length > 0
 							? [
 									baseMessage,
 									...files.map((path) => `\t${path}`),
-								].join("\n")
+							  ].join("\n")
 							: baseMessage;
 
 					return formatCliOutput(

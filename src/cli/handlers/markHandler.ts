@@ -171,14 +171,20 @@ export function createMarkHandler(
 
 				const messageParts = [
 					dryRun
-						? `Dry run: ${updated.length} file${updated.length === 1 ? "" : "s"} matched`
-						: `Updated ${updated.length} file${updated.length === 1 ? "" : "s"}`,
+						? `Dry run: ${updated.length} file${
+								updated.length === 1 ? "" : "s"
+						  } matched`
+						: `Updated ${updated.length} file${
+								updated.length === 1 ? "" : "s"
+						  }`,
 					`Mode: ${resolved.mode}`,
 				];
 
 				if (failed.length > 0) {
 					messageParts.push(
-						`Failed: ${failed.length} file${failed.length === 1 ? "" : "s"}`,
+						`Failed: ${failed.length} file${
+							failed.length === 1 ? "" : "s"
+						}`,
 					);
 				}
 
@@ -186,7 +192,11 @@ export function createMarkHandler(
 
 				const verboseHeader = [
 					`Vault root: ${vaultIsRoot ? "/" : vaultPath}`,
-					`All notes publishable: ${plugin.settings.allNotesPublishableByDefault ? "yes" : "no"}`,
+					`All notes publishable: ${
+						plugin.settings.allNotesPublishableByDefault
+							? "yes"
+							: "no"
+					}`,
 				];
 
 				const message = includeVerbose
@@ -197,9 +207,9 @@ export function createMarkHandler(
 								? data.appliedValues.map(
 										(entry) =>
 											`\t${entry.path} → ${entry.value}`,
-									)
+								  )
 								: []),
-						].join("\n")
+					  ].join("\n")
 					: baseMessage;
 
 				const result =
@@ -209,7 +219,7 @@ export function createMarkHandler(
 								command: COMMAND,
 								error: message,
 								data,
-							}
+						  }
 						: cliSuccess(COMMAND, message, data);
 
 				return formatCliOutput(params, result);

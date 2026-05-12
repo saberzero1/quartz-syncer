@@ -226,7 +226,9 @@ export function createConfigHandler(
 							params,
 							cliError(
 								COMMAND,
-								`Invalid value for ${key}. Expected one of: ${allowedValues.join(", ")}.`,
+								`Invalid value for ${key}. Expected one of: ${allowedValues.join(
+									", ",
+								)}.`,
 							),
 						);
 					}

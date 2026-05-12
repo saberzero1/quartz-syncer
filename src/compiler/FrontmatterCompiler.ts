@@ -321,28 +321,28 @@ export class FrontmatterCompiler {
 
 			if (createdAt && (showCreatedTimestamp || overridden)) {
 				newFrontMatter["created"] = overridden
-					? (baseFrontMatter["created"] ??
-						baseFrontMatter["date"] ??
-						createdAt)
+					? baseFrontMatter["created"] ??
+					  baseFrontMatter["date"] ??
+					  createdAt
 					: createdAt;
 			}
 
 			if (updatedAt && (showUpdatedTimestamp || overridden)) {
 				newFrontMatter["modified"] = overridden
-					? (baseFrontMatter["modified"] ??
-						baseFrontMatter["lastmod"] ??
-						baseFrontMatter["updated"] ??
-						baseFrontMatter["last-modified"] ??
-						updatedAt)
+					? baseFrontMatter["modified"] ??
+					  baseFrontMatter["lastmod"] ??
+					  baseFrontMatter["updated"] ??
+					  baseFrontMatter["last-modified"] ??
+					  updatedAt
 					: updatedAt;
 			}
 
 			if (publishedAt && (showPublishedTimestamp || overridden)) {
 				newFrontMatter["published"] = overridden
-					? (baseFrontMatter["published"] ??
-						baseFrontMatter["publishDate"] ??
-						baseFrontMatter["date"] ??
-						publishedAt)
+					? baseFrontMatter["published"] ??
+					  baseFrontMatter["publishDate"] ??
+					  baseFrontMatter["date"] ??
+					  publishedAt
 					: publishedAt;
 			}
 

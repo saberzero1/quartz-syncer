@@ -463,7 +463,11 @@ export class GitSettings extends PluginSettingTab {
 		});
 
 		const statusIndicator = tokenContainer.createSpan({
-			cls: `quartz-syncer-token-status ${hasToken ? "quartz-syncer-token-status-set" : "quartz-syncer-token-status-unset"}`,
+			cls: `quartz-syncer-token-status ${
+				hasToken
+					? "quartz-syncer-token-status-set"
+					: "quartz-syncer-token-status-unset"
+			}`,
 		});
 
 		statusIndicator.setText(

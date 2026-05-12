@@ -124,7 +124,9 @@ export function createStatusHandler(
 				);
 
 				appendSection(
-					`Deleted:     ${data.summary.deletedNotes + data.summary.deletedBlobs}`,
+					`Deleted:     ${
+						data.summary.deletedNotes + data.summary.deletedBlobs
+					}`,
 					deletedPaths,
 				);
 
