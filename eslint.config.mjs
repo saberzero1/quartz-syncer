@@ -9,7 +9,7 @@ import obsidianmd from "eslint-plugin-obsidianmd";
 export default [
 	// 1. Global ignores
 	{
-		ignores: ["**/*.js", ".svelte-kit/", "build/**", "jest.config.js", "scripts/*", "version-bump.mjs", "src/testVault/*", "content/*", "docs/*", "**/*.test.ts", "__mocks__/*", "src/test/*"],
+		ignores: ["**/*.js", ".svelte-kit/", "build/**", "jest.config.js", "scripts/*", "version-bump.mjs", "src/testVault/*", "content/*", "docs/*", "**/*.test.ts", "__mocks__/*", "src/test/*", "test/*"],
 
 	},
 
