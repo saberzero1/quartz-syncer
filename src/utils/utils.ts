@@ -344,7 +344,8 @@ function sanitizeHTMLToString(
 	// Let Obsidian handle the sanitization
 	const sanitizedHtml = sanitizeHTMLToDom(div.innerHTML);
 
-	let container = activeDocument.createDiv();
+	// eslint-disable-next-line obsidianmd/prefer-create-el, obsidianmd/prefer-active-doc -- detached container for off-screen rendering
+	let container = document.createElement("div");
 	container.appendChild(sanitizedHtml);
 
 	removeUnwantedElements(container, "script, link, meta, title");
@@ -436,7 +437,8 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 	}
 
 	callouts.forEach((callout) => {
-		const blockquote = activeDocument.createEl("blockquote");
+		// eslint-disable-next-line obsidianmd/prefer-create-el, obsidianmd/prefer-active-doc -- detached element within off-screen container
+		const blockquote = document.createElement("blockquote");
 
 		// Map 'data-callout-fold' to the proper Quartz class
 		if (callout.hasAttribute("data-callout-fold")) {
@@ -474,7 +476,8 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 		const calloutContent = blockquote.querySelector(".callout-content");
 
 		if (calloutContent) {
-			const innerWrapper = activeDocument.createDiv();
+			// eslint-disable-next-line obsidianmd/prefer-create-el, obsidianmd/prefer-active-doc -- detached element within off-screen container
+			const innerWrapper = document.createElement("div");
 			innerWrapper.classList.add("callout-content-inner");
 
 			innerWrapper.replaceChildren(
@@ -509,7 +512,8 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 			calloutTitle.children &&
 			!calloutTitle.children[0].classList.contains("callout-icon")
 		) {
-			const icon = activeDocument.createDiv();
+			// eslint-disable-next-line obsidianmd/prefer-create-el, obsidianmd/prefer-active-doc -- detached element within off-screen container
+			const icon = document.createElement("div");
 			icon.classList.add("callout-icon");
 			calloutTitle.prepend(icon);
 		}

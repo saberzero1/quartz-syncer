@@ -2,7 +2,7 @@
 title: Auto Card Link
 description: Whether to enable support for the Auto Card Link plugin. Requires Auto Card Link to be installed and enabled.
 created: 2025-07-19T09:24:45Z+0200
-modified: 2026-04-01T17:15:09Z+0200
+modified: 2026-05-12T23:49:57Z+0200
 publish: true
 tags: [integration, settings/integrations]
 default_value: "false"
@@ -26,7 +26,7 @@ url: https://quartz.jzhao.xyz
 title: "Welcome to Quartz 4"
 description: "Quartz is a fast, batteries-included static-site generator that transforms Markdown content into fully functional websites."
 host: quartz.jzhao.xyz
-favicon: ./static/icon.png
+favicon: https://quartz.jzhao.xyz/static/icon.png
 image: https://quartz.jzhao.xyz/index-og-image.webp
 ```
 
