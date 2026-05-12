@@ -136,6 +136,8 @@ export class PublicationCenter {
 				const diffModal = new Modal(this.modal.app);
 				const title = notePath.split("/").pop() || "Diff";
 
+				diffModal.modalEl.addClass("quartz-syncer-diff-modal");
+
 				diffModal.titleEl
 					.createSpan({
 						text: `${title}`,
