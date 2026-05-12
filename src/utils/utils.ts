@@ -1,5 +1,4 @@
 import slugify from "@sindresorhus/slugify";
-import sha1 from "crypto-js/sha1";
 import { sanitizeHTMLToDom, htmlToMarkdown } from "obsidian";
 import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
 
@@ -40,12 +39,19 @@ function generateUrlPath(filePath: string, slugifyPath = true): string {
  * @param content - The content of the blob to hash.
  * @returns The SHA1 hash of the blob content.
  */
-function generateBlobHash(content: string) {
-	const byteLength = new TextEncoder().encode(content).byteLength;
-	const header = `blob ${byteLength}\0`;
-	const gitBlob = header + content;
+async function generateBlobHash(content: string): Promise<string> {
+	const encoder = new TextEncoder();
+	const contentBytes = encoder.encode(content);
+	const length = contentBytes.byteLength;
+	const header = encoder.encode(`blob ${length}\0`);
+	const combined = new Uint8Array(header.length + contentBytes.length);
+	combined.set(header, 0);
+	combined.set(contentBytes, header.length);
+	const hashBuffer = await crypto.subtle.digest("SHA-1", combined);
 
-	return sha1(gitBlob).toString();
+	return Array.from(new Uint8Array(hashBuffer))
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
 }
 
 /**
@@ -457,8 +463,9 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 			}
 		}
 
-		// eslint-disable-next-line no-unsanitized/property, @microsoft/sdl/no-inner-html -- intentional: rendering compiled HTML content
-		blockquote.innerHTML = callout.innerHTML;
+		blockquote.replaceChildren(
+			...Array.from(callout.childNodes, (n) => n.cloneNode(true)),
+		);
 
 		blockquote.classList.remove("datacore");
 
@@ -469,10 +476,14 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 		if (calloutContent) {
 			const innerWrapper = activeDocument.createDiv();
 			innerWrapper.classList.add("callout-content-inner");
-			// eslint-disable-next-line no-unsanitized/property, @microsoft/sdl/no-inner-html -- intentional: rendering compiled HTML content
-			innerWrapper.innerHTML = calloutContent.innerHTML;
 
-			calloutContent.innerHTML = "";
+			innerWrapper.replaceChildren(
+				...Array.from(calloutContent.childNodes, (n) =>
+					n.cloneNode(true),
+				),
+			);
+
+			calloutContent.replaceChildren();
 			calloutContent.appendChild(innerWrapper);
 		}
 

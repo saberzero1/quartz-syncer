@@ -44,8 +44,8 @@ function tryEval(query: string) {
 	let result = "";
 
 	try {
-		// eslint-disable-next-line no-eval, @typescript-eslint/no-unsafe-assignment -- intentional: executes Dataview JS expressions
-		result = (0, eval)("const dv = DataviewAPI;" + query);
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-implied-eval, @typescript-eslint/no-unsafe-call
+		result = new Function("dv", query)(getAPI());
 	} catch (e) {
 		Logger.warn("eval did not yield any result", e);
 	}

@@ -34,13 +34,7 @@ export default [
 		},
 	},
 
-	// 5c. Disable depend/ban-dependencies (dependency replacements tracked separately)
-	{
-		files: ["package.json"],
-		rules: {
-			"depend/ban-dependencies": "off",
-		},
-	},
+
 
 
 	// 6. TSDoc configuration

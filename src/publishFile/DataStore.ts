@@ -334,11 +334,14 @@ export class DataStore {
 	): Promise<void> {
 		const existingData = await this.getCacheEntry(path);
 
+		const localHash =
+			existingData?.localHash ?? (await generateBlobHash(data[0]));
+
 		await this.setCacheEntry(path, {
 			version: this.version,
 			time: timestamp ?? Date.now(),
 			localData: data,
-			localHash: existingData?.localHash ?? generateBlobHash(data[0]),
+			localHash,
 			remoteData: existingData?.remoteData ?? null, // Preserve remote data if it exists
 			remoteHash: existingData?.remoteHash, // Preserve remote hash if it exists
 			hasDynamicContent:

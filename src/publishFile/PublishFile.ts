@@ -105,7 +105,7 @@ export class PublishFile {
 					);
 				}
 
-				const localHash = generateBlobHash(storedFile[0]);
+				const localHash = await generateBlobHash(storedFile[0]);
 
 				await this.datastore.storeLocalFile(
 					this.file.path,

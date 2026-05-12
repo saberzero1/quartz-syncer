@@ -133,25 +133,25 @@ describe("utils", () => {
 	});
 
 	describe("generateBlobHash", () => {
-		it("returns a 40-character hex SHA1 hash", () => {
-			const hash = generateBlobHash("hello world");
+		it("returns a 40-character hex SHA1 hash", async () => {
+			const hash = await generateBlobHash("hello world");
 			expect(hash).toMatch(/^[0-9a-f]{40}$/);
 		});
 
-		it("returns consistent hash for same input", () => {
-			const hash1 = generateBlobHash("test content");
-			const hash2 = generateBlobHash("test content");
+		it("returns consistent hash for same input", async () => {
+			const hash1 = await generateBlobHash("test content");
+			const hash2 = await generateBlobHash("test content");
 			expect(hash1).toBe(hash2);
 		});
 
-		it("returns different hashes for different input", () => {
-			const hash1 = generateBlobHash("content A");
-			const hash2 = generateBlobHash("content B");
+		it("returns different hashes for different input", async () => {
+			const hash1 = await generateBlobHash("content A");
+			const hash2 = await generateBlobHash("content B");
 			expect(hash1).not.toBe(hash2);
 		});
 
-		it("handles empty string", () => {
-			const hash = generateBlobHash("");
+		it("handles empty string", async () => {
+			const hash = await generateBlobHash("");
 			expect(hash).toMatch(/^[0-9a-f]{40}$/);
 		});
 	});

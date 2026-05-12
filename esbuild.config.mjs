@@ -1,6 +1,6 @@
 import esbuild from "esbuild";
 import process from "process";
-import builtins from 'builtin-modules'
+import { builtinModules } from 'node:module'
 import esbuildSvelte from "esbuild-svelte";
 import sveltePreprocess from "svelte-preprocess";
 
@@ -19,7 +19,7 @@ esbuild.build({
 	},
 	entryPoints: ['main.ts'],
 	bundle: true,
-	external: ['obsidian', 'electron', ...builtins.filter(m => m !== 'buffer')],
+	external: ['obsidian', 'electron', ...builtinModules.filter(m => m !== 'buffer')],
 	format: 'cjs',
 	target: 'es2024',
 	logLevel: "info",
