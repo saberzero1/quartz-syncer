@@ -59,7 +59,7 @@ async function tryExecuteJs(
 	dvApi: DataviewApi,
 ) {
 	/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
-	const div = createDiv();
+	const div = document.createElement("div");
 	const component = new Component();
 	component.load();
 	await dvApi.executeJs(query, div, component, filePath);

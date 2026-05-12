@@ -34,6 +34,16 @@ export default [
 		},
 	},
 
+	// 5c. Compiler integrations build detached DOM for off-screen rendering;
+	// global createDiv()/createSpan() append to document.body, causing HierarchyRequestError.
+	{
+		files: ["src/compiler/integrations/*.ts"],
+		rules: {
+			"obsidianmd/prefer-create-el": "off",
+			"obsidianmd/prefer-active-doc": "off",
+		},
+	},
+
 
 
 

@@ -162,10 +162,10 @@ function parseLinkMetadataFromYaml(source: string): LinkMetadata {
 }
 
 function genErrorEl(errorMsg: string): HTMLElement {
-	const containerEl = createDiv();
+	const containerEl = document.createElement("div");
 	containerEl.addClass("auto-card-link-error-container");
 
-	const spanEl = createSpan();
+	const spanEl = document.createElement("span");
 	spanEl.textContent = `cardlink error: ${errorMsg}`;
 	containerEl.appendChild(spanEl);
 
@@ -176,37 +176,37 @@ function genLinkEl(
 	data: LinkMetadata,
 	app: CompileContext["app"],
 ): HTMLElement {
-	const containerEl = createDiv();
+	const containerEl = document.createElement("div");
 	containerEl.addClass("auto-card-link-container");
 	containerEl.setAttr("data-auto-card-link-depth", data.indent);
 
-	const cardEl = createEl("a");
+	const cardEl = document.createElement("a");
 	cardEl.addClass("auto-card-link-card");
 	cardEl.setAttr("href", data.url);
 	containerEl.appendChild(cardEl);
 
-	const mainEl = createDiv();
+	const mainEl = document.createElement("div");
 	mainEl.addClass("auto-card-link-main");
 	cardEl.appendChild(mainEl);
 
-	const titleEl = createDiv();
+	const titleEl = document.createElement("div");
 	titleEl.addClass("auto-card-link-title");
 	titleEl.textContent = data.title;
 	mainEl.appendChild(titleEl);
 
 	if (data.description) {
-		const descriptionEl = createDiv();
+		const descriptionEl = document.createElement("div");
 		descriptionEl.addClass("auto-card-link-description");
 		descriptionEl.textContent = data.description;
 		mainEl.appendChild(descriptionEl);
 	}
 
-	const hostEl = createDiv();
+	const hostEl = document.createElement("div");
 	hostEl.addClass("auto-card-link-host");
 	mainEl.appendChild(hostEl);
 
 	if (data.host) {
-		const hostNameEl = createSpan();
+		const hostNameEl = document.createElement("span");
 		hostNameEl.textContent = data.host;
 		hostEl.appendChild(hostNameEl);
 	}
@@ -227,7 +227,7 @@ function genLinkEl(
 			}
 		}
 
-		const thumbnailEl = createEl("img");
+		const thumbnailEl = document.createElement("img");
 		thumbnailEl.addClass("auto-card-link-thumbnail");
 		thumbnailEl.setAttr("src", imageSrc);
 		thumbnailEl.setAttr("draggable", "false");
@@ -273,7 +273,7 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 		const serializer = new XMLSerializer();
 
 		try {
-			const div = createDiv();
+			const div = document.createElement("div");
 
 			try {
 				const data = parseLinkMetadataFromYaml(query);
