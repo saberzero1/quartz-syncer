@@ -6,7 +6,6 @@ import {
 	PatternDescriptor,
 	PatternMatch,
 	CompileContext,
-	QuartzAssets,
 } from "./types";
 import {
 	escapeRegExp,
@@ -16,7 +15,7 @@ import {
 	sanitizeQuery,
 } from "src/utils/utils";
 
-function getDataviewApi(): DataviewApi | undefined {
+function getDataviewApi(): ReturnType<typeof getAPI> {
 	return getAPI();
 }
 
@@ -25,6 +24,7 @@ function tryDVEvaluate(
 	filePath: string,
 	dvApi: DataviewApi,
 ): string | undefined | null {
+	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 	let result = "";
 
 	try {
@@ -36,6 +36,7 @@ function tryDVEvaluate(
 		Logger.warn("dvapi.tryEvaluate did not yield any result", e);
 	}
 
+	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 	return result;
 }
 
@@ -43,6 +44,7 @@ function tryEval(query: string) {
 	let result = "";
 
 	try {
+		// eslint-disable-next-line no-eval, @typescript-eslint/no-unsafe-assignment -- intentional: executes Dataview JS expressions
 		result = (0, eval)("const dv = DataviewAPI;" + query);
 	} catch (e) {
 		Logger.warn("eval did not yield any result", e);
@@ -56,7 +58,8 @@ async function tryExecuteJs(
 	filePath: string,
 	dvApi: DataviewApi,
 ) {
-	const div = createEl("div");
+	/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
+	const div = createDiv();
 	const component = new Component();
 	component.load();
 	await dvApi.executeJs(query, div, component, filePath);
@@ -65,6 +68,7 @@ async function tryExecuteJs(
 
 	const markdown = htmlToMarkdown(div) || "";
 
+	/* eslint-enable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access */
 	return cleanQueryResult(markdown);
 }
 
@@ -75,13 +79,14 @@ export const DataviewIntegration: PluginIntegration = {
 	priority: 100,
 	category: "community",
 
-	assets: {} as QuartzAssets,
+	assets: {},
 
 	isAvailable(): boolean {
 		return !!getDataviewApi();
 	},
 
 	getPatterns(): PatternDescriptor[] {
+		/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 		const dvApi = getDataviewApi();
 
 		const patterns: PatternDescriptor[] = [
@@ -125,6 +130,7 @@ export const DataviewIntegration: PluginIntegration = {
 			);
 		}
 
+		/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 		return patterns;
 	},
 
@@ -132,6 +138,7 @@ export const DataviewIntegration: PluginIntegration = {
 		match: PatternMatch,
 		context: CompileContext,
 	): Promise<string> {
+		/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument */
 		const dvApi = getDataviewApi();
 
 		if (!dvApi) return match.fullMatch;
@@ -198,5 +205,6 @@ export const DataviewIntegration: PluginIntegration = {
 
 			return match.fullMatch;
 		}
+		/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument */
 	},
 };

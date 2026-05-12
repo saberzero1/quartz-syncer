@@ -192,7 +192,7 @@ export default class QuartzSyncer extends Plugin {
 		// Remove the datastore cache if it exists.
 		// This will also clear the cache when the plugin is updated.
 		if (!this.settings.persistCache) {
-			this.clearCacheForAllFiles(true);
+			void this.clearCacheForAllFiles(true);
 		}
 
 		super.onunload();
@@ -218,7 +218,7 @@ export default class QuartzSyncer extends Plugin {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
-			await this.loadData(),
+			(await this.loadData()) as QuartzSyncerSettings,
 		);
 
 		this.migrateGitHubSettings();
@@ -251,10 +251,17 @@ export default class QuartzSyncer extends Plugin {
 	 * This ensures backwards compatibility for users upgrading from older versions.
 	 */
 	private migrateGitHubSettings(): void {
+		type LegacyGitHubSettings = {
+			githubRepo?: string;
+			githubUserName?: string;
+			githubToken?: string;
+		};
+		const legacySettings = this.settings as LegacyGitHubSettings;
+
 		const hasLegacySettings =
-			this.settings.githubRepo ||
-			this.settings.githubUserName ||
-			this.settings.githubToken;
+			legacySettings.githubRepo ||
+			legacySettings.githubUserName ||
+			legacySettings.githubToken;
 
 		const hasNewSettings = this.settings.git?.remoteUrl;
 
@@ -263,9 +270,9 @@ export default class QuartzSyncer extends Plugin {
 				"Migrating legacy GitHub settings to generic Git settings",
 			);
 
-			const githubRepo = this.settings.githubRepo || "quartz";
-			const githubUserName = this.settings.githubUserName || "";
-			const githubToken = this.settings.githubToken || "";
+			const githubRepo = legacySettings.githubRepo || "quartz";
+			const githubUserName = legacySettings.githubUserName || "";
+			const githubToken = legacySettings.githubToken || "";
 
 			this.settings.git = {
 				remoteUrl: githubUserName
@@ -285,9 +292,9 @@ export default class QuartzSyncer extends Plugin {
 				this.settings.lastUsedSettingsTab = "git";
 			}
 
-			this.settings.githubRepo = undefined;
-			this.settings.githubUserName = undefined;
-			this.settings.githubToken = undefined;
+			legacySettings.githubRepo = undefined;
+			legacySettings.githubUserName = undefined;
+			legacySettings.githubToken = undefined;
 		}
 	}
 
@@ -372,7 +379,7 @@ export default class QuartzSyncer extends Plugin {
 			id: "mark-note-for-publish",
 			name: "Add publication flag",
 			callback: async () => {
-				this.setPublishFlagValue(true);
+				void this.setPublishFlagValue(true);
 			},
 		});
 
@@ -380,7 +387,7 @@ export default class QuartzSyncer extends Plugin {
 			id: "unmark-note-for-publish",
 			name: "Remove publication flag",
 			callback: async () => {
-				this.setPublishFlagValue(false);
+				void this.setPublishFlagValue(false);
 			},
 		});
 
@@ -388,7 +395,7 @@ export default class QuartzSyncer extends Plugin {
 			id: "mark-toggle-publish-status",
 			name: "Toggle publication flag",
 			callback: async () => {
-				this.togglePublishFlag();
+				void this.togglePublishFlag();
 			},
 		});
 
@@ -478,6 +485,7 @@ export default class QuartzSyncer extends Plugin {
 	async clearCacheForAllFiles(force = false) {
 		if (!force) {
 			// Show confirmation dialog before clearing the cache
+			// eslint-disable-next-line no-alert -- intentional user confirmation dialog
 			const confirmation = confirm(
 				"Are you sure you want to clear the Quartz Syncer cache for all files? This action cannot be undone.",
 			);
@@ -543,7 +551,7 @@ export default class QuartzSyncer extends Plugin {
 			activeFile,
 			this.app.fileManager,
 		);
-		engine.set(this.settings.publishFrontmatterKey, value).apply();
+		void engine.set(this.settings.publishFrontmatterKey, value).apply();
 	}
 
 	/**
@@ -564,7 +572,7 @@ export default class QuartzSyncer extends Plugin {
 			this.app.fileManager,
 		);
 
-		engine
+		void engine
 			.set(
 				this.settings.publishFrontmatterKey,
 				!engine.get(this.settings.publishFrontmatterKey),

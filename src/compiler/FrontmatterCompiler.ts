@@ -123,6 +123,7 @@ export class FrontmatterCompiler {
 
 				if (baseFrontMatter["aliases"] || baseFrontMatter["alias"]) {
 					const aliases: string[] = [];
+					const aliasesValue = baseFrontMatter["aliases"] as unknown;
 
 					if (typeof baseFrontMatter["aliases"] === "string") {
 						aliases.push(
@@ -130,9 +131,11 @@ export class FrontmatterCompiler {
 								.split(/,\s*/)
 								.filter(Boolean),
 						);
-					} else if (Array.isArray(baseFrontMatter["aliases"])) {
-						aliases.push(...baseFrontMatter["aliases"]);
+					} else if (Array.isArray(aliasesValue)) {
+						aliases.push(...(aliasesValue as string[]));
 					}
+
+					const aliasValue = baseFrontMatter["alias"];
 
 					if (typeof baseFrontMatter["alias"] === "string") {
 						aliases.push(
@@ -140,8 +143,8 @@ export class FrontmatterCompiler {
 								.split(/,\s*/)
 								.filter(Boolean),
 						);
-					} else if (Array.isArray(baseFrontMatter["alias"])) {
-						aliases.push(...baseFrontMatter["alias"]);
+					} else if (Array.isArray(aliasValue)) {
+						aliases.push(...(aliasValue as string[]));
 					}
 
 					if (aliases.length > 0) {
@@ -214,9 +217,11 @@ export class FrontmatterCompiler {
 						...fileFrontMatter["tag"].split(/,\s*/).filter(Boolean),
 					];
 				} else if (Array.isArray(fileFrontMatter["tag"])) {
+					const tagValue = fileFrontMatter["tag"] as unknown;
+
 					publishedFrontMatter["tags"] = [
 						...(publishedFrontMatter["tags"] ?? []),
-						...fileFrontMatter["tag"],
+						...(tagValue as string[]),
 					];
 				}
 			}
@@ -240,6 +245,8 @@ export class FrontmatterCompiler {
 		const cssclasses: string[] = [];
 
 		if (baseFrontMatter) {
+			const cssclassesValue = baseFrontMatter["cssclasses"];
+
 			if (baseFrontMatter["cssclasses"] !== undefined) {
 				if (typeof baseFrontMatter["cssclasses"] === "string") {
 					cssclasses.push(
@@ -247,10 +254,12 @@ export class FrontmatterCompiler {
 							.split(/\s+/)
 							.filter(Boolean),
 					);
-				} else if (Array.isArray(baseFrontMatter["cssclasses"])) {
-					cssclasses.push(...baseFrontMatter["cssclasses"]);
+				} else if (Array.isArray(cssclassesValue)) {
+					cssclasses.push(...(cssclassesValue as string[]));
 				}
 			}
+
+			const cssclassValue = baseFrontMatter["cssclass"];
 
 			if (baseFrontMatter["cssclass"] !== undefined) {
 				if (typeof baseFrontMatter["cssclass"] === "string") {
@@ -259,8 +268,8 @@ export class FrontmatterCompiler {
 							.split(/\s+/)
 							.filter(Boolean),
 					);
-				} else if (Array.isArray(baseFrontMatter["cssclass"])) {
-					cssclasses.push(...baseFrontMatter["cssclass"]);
+				} else if (Array.isArray(cssclassValue)) {
+					cssclasses.push(...(cssclassValue as string[]));
 				}
 			}
 		}

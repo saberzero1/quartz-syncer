@@ -70,7 +70,9 @@ export default class ObsidianFrontMatterEngine implements IFrontMatterEngine {
 	 * @returns The value of the key, or undefined if the key does not exist.
 	 */
 	get(key: string): string | boolean | number {
-		return this.getFrontMatterSnapshot()[key];
+		const value = this.getFrontMatterSnapshot()[key];
+
+		return value as string | boolean | number;
 	}
 
 	/**
@@ -80,41 +82,17 @@ export default class ObsidianFrontMatterEngine implements IFrontMatterEngine {
 	 * @returns A promise that resolves when the changes are applied.
 	 */
 	async apply(): Promise<void> {
-		const newFrontMatter = this.getFrontMatterSnapshot();
+		const newFrontMatter: Record<string, unknown> =
+			this.getFrontMatterSnapshot();
 
-		await this.fileManager.processFrontMatter(this.file, (frontMatter) => {
-			for (const key of Object.keys(newFrontMatter)) {
-				frontMatter[key] = newFrontMatter[key];
-			}
-		});
-	}
-
-	/**
-	 * Converts the front matter object to a YAML string.
-	 * It removes any keys with undefined values and formats the remaining keys as YAML.
-	 *
-	 * @param frontMatter - The front matter object to convert.
-	 * @returns A YAML string representation of the front matter.
-	 */
-	private frontMatterToYaml(frontMatter: Record<string, unknown>) {
-		for (const key of Object.keys(frontMatter)) {
-			if (frontMatter[key] === undefined) {
-				delete frontMatter[key];
-			}
-		}
-
-		if (Object.keys(frontMatter).length === 0) {
-			return "";
-		}
-
-		let yaml = "---\n";
-
-		for (const key of Object.keys(frontMatter)) {
-			yaml += `${key}: ${frontMatter[key]}\n`;
-		}
-		yaml += "---";
-
-		return yaml;
+		await this.fileManager.processFrontMatter(
+			this.file,
+			(frontMatter: Record<string, unknown>) => {
+				for (const key of Object.keys(newFrontMatter)) {
+					frontMatter[key] = newFrontMatter[key];
+				}
+			},
+		);
 	}
 
 	/**
@@ -123,7 +101,7 @@ export default class ObsidianFrontMatterEngine implements IFrontMatterEngine {
 	 *
 	 * @returns An object containing the merged front matter.
 	 */
-	private getFrontMatterSnapshot() {
+	private getFrontMatterSnapshot(): Record<string, unknown> {
 		const cachedFrontMatter = {
 			...this.metadataCache.getCache(this.file?.path)?.frontmatter,
 		};

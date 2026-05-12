@@ -85,7 +85,7 @@ export class FrontmatterSettings extends PluginSettingTab {
 		}
 
 		this.settings.settings.lastUsedSettingsTab = "frontmatter";
-		this.settings.plugin.saveSettings();
+		void this.settings.plugin.saveSettings();
 	}
 
 	/**

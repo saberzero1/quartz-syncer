@@ -90,6 +90,7 @@ export class SyncerPageCompiler {
 		this.settings = settings;
 		this.metadataCache = metadataCache;
 		this.datastore = datastore;
+		void this.datastore;
 	}
 
 	/**
@@ -178,7 +179,9 @@ export class SyncerPageCompiler {
 			text = text.replace(wikilinkRegex, "[[$1]]");
 			text = text.replace(markdownLinkRegex, "[$1]($2)");
 		} catch (e) {
-			Logger.error(`Error while stripping vault path from text: ${e}`);
+			Logger.error(
+				`Error while stripping vault path from text: ${String(e)}`,
+			);
 		}
 
 		return text;
@@ -203,7 +206,7 @@ export class SyncerPageCompiler {
 				rule: "-",
 			});
 
-		const tree = processor.parse(text) as Root;
+		const tree = processor.parse(text);
 		const transformed = await processor.run(tree);
 
 		if (hasVaultPath) {
@@ -305,6 +308,7 @@ export class SyncerPageCompiler {
 			const text = await file.cachedRead();
 
 			try {
+				/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 				const canvasData = JSON.parse(text);
 
 				if (Array.isArray(canvasData?.nodes)) {
@@ -330,6 +334,7 @@ export class SyncerPageCompiler {
 						}
 					}
 				}
+				/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 			} catch {
 				Logger.warn(`Failed to parse canvas file: ${file.getPath()}`);
 			}

@@ -35,7 +35,7 @@ export class UISettings extends PluginSettingTab {
 		this.initializeDiffViewStyleSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "ui";
-		this.settings.plugin.saveSettings();
+		void this.settings.plugin.saveSettings();
 	}
 
 	initializeUIHeader = () => {

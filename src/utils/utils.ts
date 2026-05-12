@@ -1,6 +1,6 @@
 import slugify from "@sindresorhus/slugify";
 import sha1 from "crypto-js/sha1";
-import { sanitizeHTMLToDom, htmlToMarkdown, Notice } from "obsidian";
+import { sanitizeHTMLToDom, htmlToMarkdown } from "obsidian";
 import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
 
 /**
@@ -159,10 +159,15 @@ function sanitizePermalink(permalink: string): string {
  * @returns True if the plugin is enabled, false otherwise.
  */
 function isPluginEnabled(pluginId: string): boolean {
+	/* eslint-disable no-restricted-globals, no-undef, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 	//@ts-expect-error global app is available in Obsidian
 	const plugins = app.plugins.enabledPlugins;
 
-	return plugins.has(pluginId) || plugins.has(pluginId.toLowerCase());
+	const isEnabled =
+		plugins.has(pluginId) || plugins.has(pluginId.toLowerCase());
+
+	return isEnabled;
+	/* eslint-enable no-restricted-globals, no-undef, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 }
 
 /**
@@ -217,15 +222,22 @@ function renderPromise(
 	interval: number = 500,
 ) {
 	return new Promise<void>((resolve, reject) => {
+		/* eslint-disable-next-line no-undef */
 		let intervalTimer: NodeJS.Timeout;
 
-		const observer = new MutationObserver(() => {
-			clearTimeout(intervalTimer);
+		const clearIntervalTimer = () => {
+			activeWindow.clearTimeout(intervalTimer as unknown as number);
+		};
 
-			intervalTimer = setTimeout(() => {
+		const observer = new MutationObserver(() => {
+			clearIntervalTimer();
+
+			/* eslint-disable no-undef */
+			intervalTimer = activeWindow.setTimeout(() => {
 				cleanUp();
 				resolve();
-			}, interval);
+			}, interval) as unknown as NodeJS.Timeout;
+			/* eslint-enable no-undef */
 
 			/*
 			if (div.querySelector(selector)) {
@@ -237,15 +249,15 @@ function renderPromise(
 
 		const cleanUp = () => {
 			observer.disconnect();
-			clearTimeout(intervalTimer);
-			clearTimeout(timeoutTimer);
+			clearIntervalTimer();
+			activeWindow.clearTimeout(timeoutTimer);
 		};
 
 		observer.observe(div, { childList: true, subtree: true });
 
-		const timeoutTimer = setTimeout(() => {
+		const timeoutTimer = activeWindow.setTimeout(() => {
 			cleanUp();
-			reject(new Notice(`Timeout waiting for selector: ${selector}`));
+			reject(new Error(`Timeout waiting for selector: ${selector}`));
 		}, timeout);
 	});
 }
@@ -326,7 +338,7 @@ function sanitizeHTMLToString(
 	// Let Obsidian handle the sanitization
 	const sanitizedHtml = sanitizeHTMLToDom(div.innerHTML);
 
-	let container = document.createElement("div");
+	let container = activeDocument.createDiv();
 	container.appendChild(sanitizedHtml);
 
 	removeUnwantedElements(container, "script, link, meta, title");
@@ -418,9 +430,7 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 	}
 
 	callouts.forEach((callout) => {
-		const blockquote = document.createElement(
-			"blockquote",
-		) as HTMLQuoteElement;
+		const blockquote = activeDocument.createEl("blockquote");
 
 		// Map 'data-callout-fold' to the proper Quartz class
 		if (callout.hasAttribute("data-callout-fold")) {
@@ -447,6 +457,7 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 			}
 		}
 
+		// eslint-disable-next-line no-unsanitized/property, @microsoft/sdl/no-inner-html -- intentional: rendering compiled HTML content
 		blockquote.innerHTML = callout.innerHTML;
 
 		blockquote.classList.remove("datacore");
@@ -456,9 +467,11 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 		const calloutContent = blockquote.querySelector(".callout-content");
 
 		if (calloutContent) {
-			const innerWrapper = document.createElement("div");
+			const innerWrapper = activeDocument.createDiv();
 			innerWrapper.classList.add("callout-content-inner");
+			// eslint-disable-next-line no-unsanitized/property, @microsoft/sdl/no-inner-html -- intentional: rendering compiled HTML content
 			innerWrapper.innerHTML = calloutContent.innerHTML;
+
 			calloutContent.innerHTML = "";
 			calloutContent.appendChild(innerWrapper);
 		}
@@ -485,7 +498,7 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 			calloutTitle.children &&
 			!calloutTitle.children[0].classList.contains("callout-icon")
 		) {
-			const icon = document.createElement("div");
+			const icon = activeDocument.createDiv();
 			icon.classList.add("callout-icon");
 			calloutTitle.prepend(icon);
 		}
@@ -563,7 +576,7 @@ function svgToData(svgElement: SVGSVGElement): string {
 	const serializer = new XMLSerializer();
 	const svgString = serializer.serializeToString(svgElement);
 
-	const encodedData = btoa(unescape(encodeURIComponent(svgString)));
+	const encodedData = btoa(decodeURIComponent(encodeURIComponent(svgString)));
 
 	return `data:image/svg+xml;base64,${encodedData}`;
 }
@@ -596,7 +609,7 @@ async function batchParallel<T, R>(
 		}
 
 		// Yield to the event loop so the UI can repaint progress updates.
-		await new Promise((resolve) => setTimeout(resolve, 0));
+		await new Promise((resolve) => activeWindow.setTimeout(resolve, 0));
 	}
 
 	return results;

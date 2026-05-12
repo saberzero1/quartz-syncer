@@ -104,3 +104,5 @@ export type FrontMatterCache = Record<string, unknown> & {
 };
 
 export class FileManager {}
+
+export const requestUrl = jest.fn();

@@ -15,10 +15,7 @@ import {
 	getPluginSourceKey,
 	resolveSourceToGitUrl,
 } from "src/quartz/QuartzPluginUtils";
-import type {
-	QuartzPluginEntry,
-	QuartzPluginSource,
-} from "src/quartz/QuartzConfigTypes";
+import type { QuartzPluginEntry } from "src/quartz/QuartzConfigTypes";
 import type { RegistryPluginEntry } from "src/quartz/QuartzPluginRegistry";
 import type { PluginUpdateStatus } from "src/quartz/QuartzPluginUpdateChecker";
 
@@ -285,6 +282,7 @@ export function createPluginHandler(
 					);
 
 					const updatedNames = updatable.map((u) => u.name);
+
 					const message = `Updated ${updatable.length} plugin${
 						updatable.length === 1 ? "" : "s"
 					}: ${updatedNames.join(", ")}.`;
@@ -315,10 +313,7 @@ export function createPluginHandler(
 
 					const pluginManager = new QuartzPluginManager();
 
-					const entry = pluginManager.addPlugin(
-						config,
-						source as QuartzPluginSource,
-					);
+					const entry = pluginManager.addPlugin(config, source);
 					const name = getPluginName(entry.source);
 
 					await configService.writeConfig(

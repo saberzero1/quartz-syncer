@@ -41,7 +41,7 @@ const obsidianHttpClient: HttpClient = {
 				url,
 				method,
 				headers,
-				body: bodyData ? (bodyData.buffer as ArrayBuffer) : undefined,
+				body: bodyData ? bodyData.buffer : undefined,
 				throw: false,
 			});
 
@@ -202,7 +202,10 @@ export class RepositoryConnection {
 					} failed, retrying in ${delay}ms...`,
 					error,
 				);
-				await new Promise((resolve) => setTimeout(resolve, delay));
+
+				await new Promise((resolve) =>
+					activeWindow.setTimeout(resolve, delay),
+				);
 			}
 		}
 	}
@@ -340,7 +343,9 @@ export class RepositoryConnection {
 		} catch (error) {
 			logger.error("Failed to clone repository", error);
 			throw new Error(
-				`Could not clone repository ${this.getRepositoryName()}: ${error}`,
+				`Could not clone repository ${this.getRepositoryName()}: ${String(
+					error,
+				)}`,
 			);
 		}
 	}
@@ -389,7 +394,7 @@ export class RepositoryConnection {
 					treeEntries.push({
 						path: fullPath,
 						oid: entry.oid,
-						type: entry.type as "blob" | "tree" | "commit",
+						type: entry.type,
 					});
 
 					if (entry.type === "tree") {
@@ -508,6 +513,7 @@ export class RepositoryConnection {
 				filepath: path,
 			});
 
+			/* eslint-disable-next-line no-undef */
 			const content = Buffer.from(blob).toString("base64");
 
 			return {
@@ -551,6 +557,7 @@ export class RepositoryConnection {
 				filepath: path,
 			});
 
+			/* eslint-disable-next-line no-undef */
 			const content = Buffer.from(blob).toString("base64");
 
 			return {
@@ -985,7 +992,9 @@ export class RepositoryConnection {
 
 				// Yield to UI every 50 files
 				if (i % 50 === 49) {
-					await new Promise((resolve) => setTimeout(resolve, 0));
+					await new Promise((resolve) =>
+						activeWindow.setTimeout(resolve, 0),
+					);
 				}
 			}
 

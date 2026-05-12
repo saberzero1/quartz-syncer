@@ -3,7 +3,7 @@
  * Boolean flags appear as `"true"`, string flags as their string value.
  */
 export interface CliData {
-	[key: string]: string | "true";
+	[key: string]: string;
 }
 
 /**

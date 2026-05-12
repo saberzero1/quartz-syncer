@@ -2,7 +2,7 @@ import * as path from "path";
 
 const cacheDir = path.resolve(".obsidian-cache");
 
-export const config: WebdriverIO.Config = {
+export const config = {
 	runner: "local",
 	framework: "mocha",
 

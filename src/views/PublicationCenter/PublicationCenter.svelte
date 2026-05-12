@@ -1,25 +1,32 @@
 <script lang="ts">
+	// biome-ignore assist/source/organizeImports: Keep explicit import ordering
 	import { getIcon, ProgressBarComponent } from "obsidian";
-	import TreeNode, { FileType } from "src/models/TreeNode";
-	import {
+	import { onMount, tick } from "svelte";
+	import type { LoadingController } from "src/models/ProgressBar";
+	import type TreeNode from "src/models/TreeNode";
+	import type { FileType } from "src/models/TreeNode";
+	import type { CompiledPublishFile } from "src/publishFile/PublishFile";
+	import type Publisher from "src/publisher/Publisher";
+	import type {
 		IPublishStatusManager,
 		PublishStatus,
 	} from "src/publisher/PublishStatusManager";
-	import { LoadingController } from "src/models/ProgressBar";
-	import TreeView from "src/ui/TreeView/TreeView.svelte";
-	import { onMount, tick } from "svelte";
-	import Publisher from "src/publisher/Publisher";
+	// biome-ignore lint/correctness/noUnusedImports: Used in markup
 	import Icon from "src/ui/Icon.svelte";
-	import { CompiledPublishFile } from "src/publishFile/PublishFile";
+	// biome-ignore lint/correctness/noUnusedImports: Used in markup
+	import TreeView from "src/ui/TreeView/TreeView.svelte";
 
 	export let publishStatusManager: IPublishStatusManager;
 	export let publisher: Publisher;
-	export let showDiff: (path: string) => void;
+	export let showDiff: (_path: string) => void;
 	export let close: () => void;
 
 	let publishStatus: PublishStatus;
+	// biome-ignore lint/correctness/noUnusedVariables: Used in markup
 	let showPublishingView: boolean = false;
+	// biome-ignore lint/correctness/noUnusedVariables: Used in markup
 	let progressText = "Preparing to load...";
+	// biome-ignore lint/correctness/noUnusedVariables: Used in markup
 	let progressIndexText = "Notes processed: 0/0";
 	let controller: LoadingController;
 	let publishController: LoadingController;
@@ -137,6 +144,7 @@
 	 * @param node - The HTML element to attach the progress bar to.
 	 * @returns An object with a destroy method to clean up the action.
 	 */
+	// biome-ignore lint/correctness/noUnusedVariables: Used in markup
 	function loadingProgressBar(node: HTMLElement) {
 		const progressBar = new ProgressBarComponent(node);
 
@@ -165,6 +173,7 @@
 	 * @param node - The HTML element to attach the progress bar to.
 	 * @returns An object with a destroy method to clean up the action.
 	 */
+	// biome-ignore lint/correctness/noUnusedVariables: Used in markup
 	function publishProgressBarAction(node: HTMLElement) {
 		const progressBar = new ProgressBarComponent(node);
 
@@ -187,8 +196,9 @@
 	 *
 	 * @returns An HTML element representing the icon, or null if not found.
 	 */
+	// biome-ignore lint/correctness/noUnusedVariables: Used in markup
 	const rotatingCog = () => {
-		let cog = getIcon("cog");
+		const cog = getIcon("cog");
 		cog?.classList.add("quartz-syncer-rotate", "quartz-syncer-cog");
 
 		return cog;
@@ -260,6 +270,15 @@
 					: ""),
 		);
 
+	let unpublishedToPublish: Array<CompiledPublishFile> = [];
+	let changedToPublish: Array<CompiledPublishFile> = [];
+	let pathsToDelete: Array<string> = [];
+
+	// biome-ignore lint/correctness/noUnusedVariables: Used in markup
+	let processingPaths: Array<string> = [];
+	let publishedPaths: Array<string> = []; // biome-ignore lint/style/useConst: Svelte state
+	let failedPublish: Array<string> = [];
+
 	$: publishProgress =
 		((publishedPaths.length + failedPublish.length) /
 			(unpublishedToPublish.length +
@@ -292,14 +311,7 @@
 		return paths;
 	};
 
-	let unpublishedToPublish: Array<CompiledPublishFile> = [];
-	let changedToPublish: Array<CompiledPublishFile> = [];
-	let pathsToDelete: Array<string> = [];
-
-	let processingPaths: Array<string> = [];
-	let publishedPaths: Array<string> = [];
-	let failedPublish: Array<string> = [];
-
+	// biome-ignore lint/correctness/noUnusedVariables: Used in markup
 	const publishMarkedNotes = async () => {
 		if (!unpublishedNoteTree || !changedNotesTree) return;
 
@@ -307,9 +319,12 @@
 			throw new Error("Publish status is undefined");
 		}
 
+		// biome-ignore lint/style/noNonNullAssertion: Guarded by earlier checks
 		const unpublishedPaths = traverseTree(unpublishedNoteTree!);
+		// biome-ignore lint/style/noNonNullAssertion: Guarded by earlier checks
 		const changedPaths = traverseTree(changedNotesTree!);
 
+		// biome-ignore lint/style/noNonNullAssertion: Guarded by earlier checks
 		pathsToDelete = traverseTree(deletedNoteTree!);
 
 		const notesToDelete = pathsToDelete.filter((path) =>
@@ -388,6 +403,7 @@
 		processingPaths = [];
 	};
 
+	// biome-ignore lint/correctness/noUnusedVariables: Used in markup
 	const emptyNode: TreeNode = {
 		name: "",
 		isRoot: false,

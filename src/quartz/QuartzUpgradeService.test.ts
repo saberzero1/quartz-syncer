@@ -2,10 +2,12 @@ import assert from "node:assert";
 import { QuartzUpgradeService } from "./QuartzUpgradeService";
 import { QuartzVersionDetector } from "./QuartzVersionDetector";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import { requestUrl } from "obsidian";
+
+const mockedRequestUrl = requestUrl as jest.MockedFunction<typeof requestUrl>;
 
 const originalGetQuartzPackageVersion =
 	QuartzVersionDetector.getQuartzPackageVersion;
-const originalFetch = global.fetch;
 
 const originalFetchRemoteHeadCommit =
 	RepositoryConnection.fetchRemoteHeadCommit;
@@ -13,7 +15,7 @@ const originalFetchRemoteHeadCommit =
 afterEach(() => {
 	QuartzVersionDetector.getQuartzPackageVersion =
 		originalGetQuartzPackageVersion;
-	global.fetch = originalFetch;
+	mockedRequestUrl.mockReset();
 	RepositoryConnection.fetchRemoteHeadCommit = originalFetchRemoteHeadCommit;
 });
 
@@ -22,9 +24,14 @@ function mockPackageVersion(version: string | null): void {
 }
 
 function mockUpstreamFetch(version: string | null, ok = true): void {
-	global.fetch = jest.fn().mockResolvedValue({
-		ok,
-		json: async () => (version ? { version } : {}),
+	const status = ok ? 200 : 500;
+
+	mockedRequestUrl.mockResolvedValue({
+		status,
+		json: version ? { version } : {},
+		text: JSON.stringify(version ? { version } : {}),
+		arrayBuffer: new ArrayBuffer(0),
+		headers: {},
 	});
 }
 
@@ -83,7 +90,7 @@ describe("QuartzUpgradeService", () => {
 
 	it("handles upstream fetch throwing an error", async () => {
 		mockPackageVersion("5.0.0");
-		global.fetch = jest.fn().mockRejectedValue(new Error("Network error"));
+		mockedRequestUrl.mockRejectedValue(new Error("Network error"));
 		mockRemoteHeadCommit(null);
 
 		const status = await makeService().checkForUpgrade();
@@ -120,9 +127,12 @@ describe("QuartzUpgradeService", () => {
 	it("handles upstream with no version field", async () => {
 		mockPackageVersion("5.0.0");
 
-		global.fetch = jest.fn().mockResolvedValue({
-			ok: true,
-			json: async () => ({ name: "quartz" }),
+		mockedRequestUrl.mockResolvedValue({
+			status: 200,
+			json: { name: "quartz" },
+			text: JSON.stringify({ name: "quartz" }),
+			arrayBuffer: new ArrayBuffer(0),
+			headers: {},
 		});
 		mockRemoteHeadCommit(null);
 

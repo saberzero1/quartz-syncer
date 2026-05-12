@@ -4,6 +4,7 @@ import {
 	PluginSettingTab,
 	Notice,
 	normalizePath,
+	requestUrl,
 } from "obsidian";
 import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
@@ -137,7 +138,6 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private isCheckingUpdates = false;
 	private isCheckingUpgrade = false;
 	private isUpgrading = false;
-	private hasUnsavedChanges = false;
 	private pluginManager = new QuartzPluginManager();
 
 	constructor(
@@ -158,7 +158,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		this.settingsRootElement.addClass("quartz-syncer-github-settings");
 
 		this.settings.settings.lastUsedSettingsTab = "quartz";
-		this.settings.plugin.saveSettings();
+		void this.settings.plugin.saveSettings();
 
 		this.renderQuartzHeader();
 		this.renderContentFolderSetting();
@@ -167,7 +167,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			this.renderV5Content();
 		} else {
 			this.renderLoading();
-			this.loadV5Data();
+			void this.loadV5Data();
 		}
 	}
 
@@ -283,7 +283,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				this.settings.settings.upgradeCheckStrategy === "commit" &&
 				!this.settings.settings.lastUpstreamCommitSha
 			) {
-				this.checkForQuartzUpgrade();
+				void this.checkForQuartzUpgrade();
 			}
 		} catch (error) {
 			const message =
@@ -334,12 +334,9 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		this.manifestService = null;
 		this.configService = null;
 		this.siteManager = null;
-		this.hasUnsavedChanges = false;
 	}
 
-	private markDirty(): void {
-		this.hasUnsavedChanges = true;
-	}
+	private markDirty(): void {}
 
 	private async saveConfig(): Promise<void> {
 		if (!this.cachedConfig || !this.configService || this.isSaving) return;
@@ -348,7 +345,6 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		try {
 			await this.configService.writeConfig(this.cachedConfig);
-			this.hasUnsavedChanges = false;
 			new Notice("Quartz configuration saved and pushed.");
 		} catch (error) {
 			const message =
@@ -447,7 +443,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 						value === "commit" &&
 						!this.settings.settings.lastUpstreamCommitSha
 					) {
-						this.checkForQuartzUpgrade();
+						void this.checkForQuartzUpgrade();
 					}
 				});
 			});
@@ -1022,7 +1018,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			new Setting(this.settingsRootElement)
 				.setName("Theme")
 				.setDesc("Loading available themes...");
-			this.fetchThemesJson().then(() => this.display());
+			void this.fetchThemesJson().then(() => this.display());
 
 			return;
 		}
@@ -1097,17 +1093,17 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		if (this.cachedThemesJson) return;
 
 		try {
-			const response = await fetch(
-				"https://raw.githubusercontent.com/saberzero1/quartz-themes/master/themes.json",
-			);
+			const response = await requestUrl({
+				url: "https://raw.githubusercontent.com/saberzero1/quartz-themes/master/themes.json",
+			});
 
-			if (!response.ok) {
+			if (response.status < 200 || response.status >= 300) {
 				logger.warn(`Failed to fetch themes.json: ${response.status}`);
 
 				return;
 			}
 
-			const data = (await response.json()) as {
+			const data = JSON.parse(response.text) as {
 				themes: Record<
 					string,
 					{
@@ -1309,7 +1305,6 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			// Lock file update is best-effort
 		}
 
-		this.hasUnsavedChanges = false;
 		this.display();
 	}
 
@@ -1582,6 +1577,14 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			plugin.options = {};
 		}
 
+		const formatOptionValue = (value: unknown): string => {
+			if (value !== null && typeof value === "object") {
+				return JSON.stringify(value);
+			}
+
+			return String(value);
+		};
+
 		const manifest = this.cachedManifests.get(sourceKey);
 		const schema = manifest?.optionSchema ?? manifest?.configSchema ?? null;
 
@@ -1627,12 +1630,12 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					text
 						.setValue(
 							currentValue !== undefined
-								? String(currentValue)
+								? formatOptionValue(currentValue)
 								: "",
 						)
 						.setPlaceholder(
 							schemaEntry?.default !== undefined
-								? String(schemaEntry.default)
+								? formatOptionValue(schemaEntry.default)
 								: "",
 						)
 						.onChange((value) => {
@@ -1649,12 +1652,12 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					text
 						.setValue(
 							currentValue !== undefined
-								? String(currentValue)
+								? formatOptionValue(currentValue)
 								: "",
 						)
 						.setPlaceholder(
 							schemaEntry?.default !== undefined
-								? String(schemaEntry.default)
+								? formatOptionValue(schemaEntry.default)
 								: "",
 						)
 						.onChange((value) => {

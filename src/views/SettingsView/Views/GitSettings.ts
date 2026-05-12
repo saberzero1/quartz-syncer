@@ -44,8 +44,8 @@ export class GitSettings extends PluginSettingTab {
 		this.writeStatus = "loading";
 		this.secretStorageService = new SecretStorageService(app);
 
-		this.readStatusElement = createEl("span", { text: "pending..." });
-		this.writeStatusElement = createEl("span", { text: "pending..." });
+		this.readStatusElement = createSpan({ text: "pending..." });
+		this.writeStatusElement = createSpan({ text: "pending..." });
 	}
 
 	display() {
@@ -64,18 +64,18 @@ export class GitSettings extends PluginSettingTab {
 		this.initializeVaultFolderSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "git";
-		this.settings.plugin.saveSettings();
+		void this.settings.plugin.saveSettings();
 	}
 
 	initializeGitHeader = () => {
-		this.readStatusElement = createEl("span", { text: "pending..." });
-		this.writeStatusElement = createEl("span", { text: "pending..." });
+		this.readStatusElement = createSpan({ text: "pending..." });
+		this.writeStatusElement = createSpan({ text: "pending..." });
 
-		this.checkConnectionAndSaveSettings();
+		void this.checkConnectionAndSaveSettings();
 
-		const statusContainer = createEl("span");
+		const statusContainer = createSpan();
 
-		const readWrapper = statusContainer.createEl("span");
+		const readWrapper = statusContainer.createSpan();
 		readWrapper.appendText(" (read: ");
 		readWrapper.append(this.readStatusElement);
 		readWrapper.appendText(")");
@@ -85,7 +85,7 @@ export class GitSettings extends PluginSettingTab {
 			"quartz-syncer-connection-status-pending",
 		);
 
-		const writeWrapper = statusContainer.createEl("span");
+		const writeWrapper = statusContainer.createSpan();
 		writeWrapper.appendText(" (write: ");
 		writeWrapper.append(this.writeStatusElement);
 		writeWrapper.appendText(")");
@@ -105,7 +105,7 @@ export class GitSettings extends PluginSettingTab {
 	};
 
 	checkConnectionAndSaveSettings = async () => {
-		this.settings.plugin.saveSettings();
+		void this.settings.plugin.saveSettings();
 		this.debouncedUpdateConnectionStatus();
 	};
 
@@ -442,8 +442,12 @@ export class GitSettings extends PluginSettingTab {
 				"A Bitbucket App Password with repository write access";
 		}
 
-		const desc = document.createDocumentFragment();
-		desc.createEl("span", { text: description + ". " });
+		const desc = (
+			activeDocument as Document & {
+				createFragment: () => DocumentFragment;
+			}
+		).createFragment();
+		desc.createSpan({ text: description + ". " });
 
 		desc.createEl("a", {
 			text: "Documentation",
@@ -510,7 +514,7 @@ export class GitSettings extends PluginSettingTab {
 			text: hasToken ? "Update" : "Save",
 		});
 
-		saveBtn.addEventListener("click", async () => {
+		const handleSaveClick = async () => {
 			const value = input.value.trim();
 
 			if (value) {
@@ -523,6 +527,10 @@ export class GitSettings extends PluginSettingTab {
 				saveBtn.setText("Update");
 				await this.checkConnectionAndSaveSettings();
 			}
+		};
+
+		saveBtn.addEventListener("click", () => {
+			void handleSaveClick();
 		});
 
 		if (hasToken) {
@@ -531,7 +539,7 @@ export class GitSettings extends PluginSettingTab {
 				text: "Clear",
 			});
 
-			clearBtn.addEventListener("click", async () => {
+			const handleClearClick = async () => {
 				this.secretStorageService.clearToken();
 				input.value = "";
 				input.placeholder = "Enter token";
@@ -541,14 +549,22 @@ export class GitSettings extends PluginSettingTab {
 				saveBtn.setText("Save");
 				clearBtn.remove();
 				await this.checkConnectionAndSaveSettings();
+			};
+
+			clearBtn.addEventListener("click", () => {
+				void handleClearClick();
 			});
 		}
 	}
 
 	private initializeCorsProxySetting() {
-		const desc = document.createDocumentFragment();
+		const desc = (
+			activeDocument as Document & {
+				createFragment: () => DocumentFragment;
+			}
+		).createFragment();
 
-		desc.createEl("span", {
+		desc.createSpan({
 			text: "A CORS proxy URL for browser environments. Required on mobile/web if your Git server doesn't support CORS. ",
 		});
 

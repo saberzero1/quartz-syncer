@@ -7,7 +7,6 @@ import type {
 	QuartzPluginSource,
 	QuartzV5Config,
 } from "src/quartz/QuartzConfigTypes";
-import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
 import { getPluginSourceKey } from "src/quartz/QuartzPluginUtils";
 import Logger from "js-logger";
 
@@ -24,7 +23,6 @@ export class PluginBrowserModal extends Modal {
 	private selectedTag = "";
 	private isLoading = false;
 	private installingPlugins: Set<string> = new Set();
-	private pluginManager = new QuartzPluginManager();
 
 	constructor(
 		app: App,
@@ -41,7 +39,7 @@ export class PluginBrowserModal extends Modal {
 	async onOpen(): Promise<void> {
 		this.modalEl.addClass("quartz-syncer-plugin-browser");
 		this.titleEl.setText("Community Plugin Browser");
-		this.loadAndRender();
+		void this.loadAndRender();
 	}
 
 	onClose(): void {
@@ -185,13 +183,13 @@ export class PluginBrowserModal extends Modal {
 			"quartz-syncer-plugin-browser-card-header",
 		);
 
-		headerEl.createEl("span", {
+		headerEl.createSpan({
 			text: entry.name,
 			cls: "quartz-syncer-plugin-browser-card-name",
 		});
 
 		if (entry.official) {
-			headerEl.createEl("span", {
+			headerEl.createSpan({
 				text: "official",
 				cls: "quartz-syncer-plugin-browser-badge-official",
 			});
@@ -211,14 +209,14 @@ export class PluginBrowserModal extends Modal {
 		);
 
 		for (const tag of entry.tags) {
-			tagsEl.createEl("span", {
+			tagsEl.createSpan({
 				text: tag,
 				cls: "quartz-syncer-plugin-browser-tag",
 			});
 		}
 
 		if (isInstalled) {
-			footerEl.createEl("span", {
+			footerEl.createSpan({
 				text: "Installed",
 				cls: "quartz-syncer-plugin-browser-installed",
 			});
@@ -232,8 +230,8 @@ export class PluginBrowserModal extends Modal {
 				installBtn.disabled = true;
 			}
 
-			installBtn.addEventListener("click", async () => {
-				await this.handleInstall(entry, installBtn);
+			installBtn.addEventListener("click", () => {
+				void this.handleInstall(entry, installBtn);
 			});
 		}
 	}

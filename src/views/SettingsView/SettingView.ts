@@ -52,7 +52,7 @@ export default class SettingView {
 	 * @returns A Node representing the icon.
 	 */
 	getIcon(name: string): Node {
-		return getIcon(name) ?? document.createElement("span");
+		return getIcon(name) ?? activeDocument.createSpan();
 	}
 
 	/**
@@ -63,11 +63,11 @@ export default class SettingView {
 	async initialize() {
 		this.settingsRootElement.empty();
 
-		const descriptionDiv = this.settingsRootElement.createEl("div", {
+		const descriptionDiv = this.settingsRootElement.createDiv({
 			cls: "quartz-syncer-settings-description",
 		});
 
-		descriptionDiv.createEl("span", {
+		descriptionDiv.createSpan({
 			text: "Remember to read the ",
 		});
 
@@ -76,7 +76,7 @@ export default class SettingView {
 			href: "https://saberzero1.github.io/quartz-syncer-docs/",
 		});
 
-		descriptionDiv.createEl("span", {
+		descriptionDiv.createSpan({
 			text: " if you haven't already. A ",
 		});
 
@@ -85,7 +85,7 @@ export default class SettingView {
 			href: "https://saberzero1.github.io/quartz-syncer-docs/Setup-Guide",
 		});
 
-		descriptionDiv.createEl("span", {
+		descriptionDiv.createSpan({
 			text: " and a ",
 		});
 
@@ -94,7 +94,7 @@ export default class SettingView {
 			href: "https://saberzero1.github.io/quartz-syncer-docs/Usage-Guide",
 		});
 
-		descriptionDiv.createEl("span", {
+		descriptionDiv.createSpan({
 			text: " are also available. If you encounter any issues, please see the ",
 		});
 
@@ -103,15 +103,15 @@ export default class SettingView {
 			href: "https://saberzero1.github.io/quartz-syncer-docs/Troubleshooting/",
 		});
 
-		descriptionDiv.createEl("span", {
+		descriptionDiv.createSpan({
 			text: " for help.",
 		});
 
-		const header = this.settingsRootElement.createEl("div", {
+		const header = this.settingsRootElement.createDiv({
 			cls: "quartz-syncer-setting-header",
 		});
 
-		const headerTabGroup = header.createEl("div", {
+		const headerTabGroup = header.createDiv({
 			cls: "quartz-syncer-setting-tab-group",
 		});
 
@@ -129,7 +129,7 @@ export default class SettingView {
 		headerTabGroup.appendChild(performanceTab);
 		headerTabGroup.appendChild(uiTab);
 
-		const content = this.settingsRootElement.createEl("div", {
+		const content = this.settingsRootElement.createDiv({
 			cls: "quartz-syncer-setting-content",
 		});
 
@@ -210,16 +210,16 @@ export default class SettingView {
 	}
 
 	private createTab(name: string, icon: string) {
-		const tab = this.settingsRootElement.createEl("div", {
+		const tab = this.settingsRootElement.createDiv({
 			cls: "quartz-syncer-navigation-item",
 			attr: { "data-quartz-syncer-tab": name.toLowerCase() },
 		});
 
-		tab.createEl("span", {
+		tab.createSpan({
 			cls: "quartz-syncer-navigation-item-icon",
 		}).appendChild(this.getIcon(icon));
 
-		tab.createEl("span", {
+		tab.createSpan({
 			text: name,
 			cls: "quartz-syncer-navigation-item-text",
 		});
@@ -235,7 +235,7 @@ export default class SettingView {
 	 * @returns The created tab content element.
 	 */
 	private createSettingsTab(parent: HTMLElement, name: string) {
-		const tab = parent.createEl("div", {
+		const tab = parent.createDiv({
 			cls: "quartz-syncer-tab-settings",
 		});
 

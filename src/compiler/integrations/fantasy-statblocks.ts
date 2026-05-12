@@ -5,7 +5,6 @@ import {
 	PatternDescriptor,
 	PatternMatch,
 	CompileContext,
-	QuartzAssets,
 } from "./types";
 import { isPluginEnabled, renderPromise } from "src/utils/utils";
 import { FANTASY_STATBLOCKS_PLUGIN_ID } from "src/ui/suggest/constants";
@@ -433,17 +432,19 @@ async function tryRenderStatblock(
 	filePath: string,
 	api: FantasyStatblocksApi,
 ): Promise<HTMLDivElement> {
-	const div = createEl("div");
+	const div = createDiv();
 	const component = new Component();
 	component.load();
 
 	try {
-		api.renderMarkdown(query, div, filePath, component);
+		void api.renderMarkdown(query, div, filePath, component);
 	} catch (error) {
 		Logger.error(error);
 
 		new Notice(
-			`Quartz Syncer: Fantasy Statblocks execution error: ${error}.`,
+			`Quartz Syncer: Fantasy Statblocks execution error: ${String(
+				error,
+			)}.`,
 		);
 
 		return div;
@@ -463,7 +464,7 @@ export const FantasyStatblocksIntegration: PluginIntegration = {
 
 	assets: {
 		scss: fantasyStatblocksScss,
-	} as QuartzAssets,
+	},
 
 	isAvailable(): boolean {
 		return !!getFantasyStatblocksApi();

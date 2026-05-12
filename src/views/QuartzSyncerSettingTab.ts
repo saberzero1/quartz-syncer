@@ -18,7 +18,7 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 
 		if (!this.plugin.settings.noteSettingsIsInitialized) {
 			this.plugin.settings.noteSettingsIsInitialized = true;
-			this.plugin.saveSettings();
+			void this.plugin.saveSettings();
 		}
 	}
 
@@ -26,7 +26,7 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 	 * Display the settings tab.
 	 * This method initializes the SettingView and displays it in the container element.
 	 */
-	async display(): Promise<void> {
+	display(): void {
 		const { containerEl } = this;
 
 		const settingView = new SettingView(
@@ -37,6 +37,6 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 			this.plugin.datastore,
 		);
 
-		await settingView.initialize();
+		void settingView.initialize();
 	}
 }

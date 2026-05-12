@@ -123,6 +123,7 @@ export class AssetSyncer {
 			const customScss = await connection.getRawFile(CUSTOM_SCSS_PATH);
 
 			if (customScss) {
+				/* eslint-disable-next-line no-undef */
 				const content = Buffer.from(
 					customScss.content,
 					"base64",
@@ -150,6 +151,7 @@ export class AssetSyncer {
 					await connection.getRawFile(CUSTOM_SCSS_PATH);
 
 				if (customScss) {
+					/* eslint-disable-next-line no-undef */
 					content = Buffer.from(
 						customScss.content,
 						"base64",

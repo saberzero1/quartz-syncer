@@ -55,7 +55,7 @@ export class QuartzVersionDetector {
 			if (!file) return null;
 
 			const content = Base64.decode(file.content);
-			const pkg: { version?: string } = JSON.parse(content);
+			const pkg = JSON.parse(content) as { version?: string };
 
 			return pkg.version ?? null;
 		} catch (error) {

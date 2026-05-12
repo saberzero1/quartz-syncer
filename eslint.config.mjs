@@ -34,6 +34,14 @@ export default [
 		},
 	},
 
+	// 5c. Disable depend/ban-dependencies (dependency replacements tracked separately)
+	{
+		files: ["package.json"],
+		rules: {
+			"depend/ban-dependencies": "off",
+		},
+	},
+
 
 	// 6. TSDoc configuration
 	{
@@ -69,6 +77,14 @@ export default [
 		rules: {
 			"svelte/block-lang": ["error" , { script: "ts" }],
 			"@typescript-eslint/no-unused-vars": [
+				"error",
+				{
+					argsIgnorePattern: "^_",
+					varsIgnorePattern: "^_",
+					caughtErrorsIgnorePattern: "^_",
+				},
+			],
+			"no-unused-vars": [
 				"error",
 				{
 					argsIgnorePattern: "^_",

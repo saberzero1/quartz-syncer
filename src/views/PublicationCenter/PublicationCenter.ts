@@ -1,4 +1,5 @@
 import { type App, Modal, getIcon, TFile, Vault } from "obsidian";
+import type { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import QuartzSyncerSettings from "src/models/settings";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import PublishStatusManager from "src/publisher/PublishStatusManager";
@@ -37,7 +38,7 @@ export class PublicationCenter {
 		this.vault = app.vault;
 
 		this.modal.titleEl
-			.createEl("span", { text: "Publication center" })
+			.createSpan({ text: "Publication center" })
 			.prepend(this.getIcon("quartz-syncer-icon"));
 
 		this.modal.titleEl.addClass("quartz-syncer-modal-title");
@@ -52,7 +53,7 @@ export class PublicationCenter {
 	 * @returns A Node representing the icon.
 	 */
 	getIcon(name: string): Node {
-		const icon = getIcon(name) ?? document.createElement("span");
+		const icon = getIcon(name) ?? activeDocument.createSpan();
 
 		if (icon instanceof SVGSVGElement) {
 			icon.addClass("quartz-syncer-svg-icon");
@@ -71,7 +72,10 @@ export class PublicationCenter {
 	 */
 	private showDiff = async (notePath: string) => {
 		try {
-			let remoteContent, remoteFile, localContent, localFile;
+			let remoteContent: TCompiledFile | null | undefined;
+			let remoteFile: string | undefined;
+			let localContent: TCompiledFile | TFile | null | undefined;
+			let localFile: string | undefined;
 
 			if (this.settings.useCache) {
 				await this.publisher.datastore.loadRemoteFile(notePath);
@@ -133,7 +137,7 @@ export class PublicationCenter {
 				const title = notePath.split("/").pop() || "Diff";
 
 				diffModal.titleEl
-					.createEl("span", {
+					.createSpan({
 						text: `${title}`,
 					})
 					.prepend(this.getIcon("file-diff"));

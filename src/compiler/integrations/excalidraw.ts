@@ -1,9 +1,4 @@
-import {
-	PluginIntegration,
-	PatternDescriptor,
-	PatternMatch,
-	QuartzAssets,
-} from "./types";
+import { PluginIntegration, PatternDescriptor, PatternMatch } from "./types";
 import { isPluginEnabled } from "src/utils/utils";
 import { EXCALIDRAW_PLUGIN_ID } from "src/ui/suggest/constants";
 
@@ -14,7 +9,7 @@ export const ExcalidrawIntegration: PluginIntegration = {
 	priority: 50,
 	category: "community",
 
-	assets: {} as QuartzAssets,
+	assets: {},
 
 	isAvailable(): boolean {
 		return isPluginEnabled(EXCALIDRAW_PLUGIN_ID);

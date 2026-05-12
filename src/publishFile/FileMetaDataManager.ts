@@ -32,7 +32,9 @@ export class FileMetadataManager {
 		const createdKeys = this.settings.createdTimestampKey.split(",");
 
 		for (const key of createdKeys) {
-			const customCreatedDate = this.frontmatter[key.trim()];
+			const customCreatedDate = this.frontmatter[key.trim()] as
+				| string
+				| undefined;
 
 			if (customCreatedDate) {
 				return customCreatedDate;
@@ -53,7 +55,9 @@ export class FileMetadataManager {
 		const updatedKeys = this.settings.updatedTimestampKey.split(",");
 
 		for (const key of updatedKeys) {
-			const customUpdatedDate = this.frontmatter[key.trim()];
+			const customUpdatedDate = this.frontmatter[key.trim()] as
+				| string
+				| undefined;
 
 			if (customUpdatedDate) {
 				return customUpdatedDate;
@@ -74,7 +78,9 @@ export class FileMetadataManager {
 		const publishedKeys = this.settings.publishedTimestampKey.split(",");
 
 		for (const key of publishedKeys) {
-			const customPublishedDate = this.frontmatter[key.trim()];
+			const customPublishedDate = this.frontmatter[key.trim()] as
+				| string
+				| undefined;
 
 			if (customPublishedDate) {
 				return customPublishedDate;

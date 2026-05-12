@@ -1,12 +1,9 @@
-import {
-	PluginIntegration,
-	PatternDescriptor,
-	PatternMatch,
-	QuartzAssets,
-} from "./types";
+import { PluginIntegration, PatternDescriptor, PatternMatch } from "./types";
 
 function isBasesPluginEnabled(): boolean {
+	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 	// @ts-expect-error global app is available in Obsidian
+	// eslint-disable-next-line no-restricted-globals, no-undef
 	const internalPlugins = app?.internalPlugins;
 
 	if (!internalPlugins) {
@@ -15,7 +12,9 @@ function isBasesPluginEnabled(): boolean {
 
 	const basesPlugin = internalPlugins.getPluginById("bases");
 
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-return
 	return basesPlugin?.enabled ?? false;
+	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 }
 
 export const BasesIntegration: PluginIntegration = {
@@ -25,7 +24,7 @@ export const BasesIntegration: PluginIntegration = {
 	priority: 200,
 	category: "core",
 
-	assets: {} as QuartzAssets,
+	assets: {},
 
 	isAvailable(): boolean {
 		return isBasesPluginEnabled();

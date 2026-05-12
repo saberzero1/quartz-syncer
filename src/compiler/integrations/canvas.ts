@@ -1,12 +1,9 @@
-import {
-	PluginIntegration,
-	PatternDescriptor,
-	PatternMatch,
-	QuartzAssets,
-} from "./types";
+import { PluginIntegration, PatternDescriptor, PatternMatch } from "./types";
 
 function isCanvasPluginEnabled(): boolean {
+	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 	// @ts-expect-error global app is available in Obsidian
+	// eslint-disable-next-line no-restricted-globals, no-undef
 	const internalPlugins = app?.internalPlugins;
 
 	if (!internalPlugins) {
@@ -15,7 +12,9 @@ function isCanvasPluginEnabled(): boolean {
 
 	const canvasPlugin = internalPlugins.getPluginById("canvas");
 
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-return
 	return canvasPlugin?.enabled ?? false;
+	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 }
 
 export const CanvasIntegration: PluginIntegration = {
@@ -25,7 +24,7 @@ export const CanvasIntegration: PluginIntegration = {
 	priority: 200,
 	category: "core",
 
-	assets: {} as QuartzAssets,
+	assets: {},
 
 	isAvailable(): boolean {
 		return isCanvasPluginEnabled();

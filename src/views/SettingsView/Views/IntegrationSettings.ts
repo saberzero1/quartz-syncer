@@ -5,7 +5,6 @@ import {
 	integrationRegistry,
 	PluginIntegration,
 } from "src/compiler/integrations";
-import QuartzSyncerSettings from "src/models/settings";
 
 export class IntegrationSettings extends PluginSettingTab {
 	app: App;
@@ -55,7 +54,7 @@ export class IntegrationSettings extends PluginSettingTab {
 		this.initializeManageSyncerStylesSetting();
 
 		this.settings.settings.lastUsedSettingsTab = "integration";
-		this.settings.plugin.saveSettings();
+		void this.settings.plugin.saveSettings();
 	}
 
 	private initializeCorePluginHeader() {
@@ -74,7 +73,7 @@ export class IntegrationSettings extends PluginSettingTab {
 
 	private initializeIntegrationSetting(integration: PluginIntegration) {
 		const isAvailable = integration.isAvailable();
-		const settingKey = integration.settingKey as keyof QuartzSyncerSettings;
+		const settingKey = integration.settingKey;
 		const currentValue = this.settings.settings[settingKey] as boolean;
 
 		new Setting(this.settingsRootElement)

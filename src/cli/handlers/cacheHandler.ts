@@ -64,6 +64,7 @@ export function createCacheHandler(
 						files,
 						lastUpdated,
 					};
+
 					const baseMessage = `Cache contains ${files.length} file${
 						files.length === 1 ? "" : "s"
 					}.`;

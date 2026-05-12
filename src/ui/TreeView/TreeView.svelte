@@ -1,11 +1,14 @@
 <script lang="ts">
+	import type TreeNode from "src/models/TreeNode";
+	// biome-ignore lint/correctness/noUnusedImports: Used in markup
 	import Node from "src/ui/TreeView/TreeNode.svelte";
-	import TreeNode from "src/models/TreeNode";
 
 	export let tree: TreeNode;
+	// biome-ignore lint/style/useConst: Svelte export
 	export let readOnly: boolean = false;
+	// biome-ignore lint/style/useConst: Svelte export
 	export let enableShowDiff: boolean = false;
-	export let showDiff: (path: string) => void;
+	export let showDiff: (_path: string) => void;
 
 	const treeMap: Record<string, TreeNode> = {};
 
@@ -85,7 +88,8 @@
 
 			parent = treeMap[parent.path];
 		}
-		tree = tree;
+		// biome-ignore lint/correctness/noSelfAssign: Svelte reactivity trigger
+		tree = tree; // eslint-disable-line no-self-assign -- Svelte reactivity trigger
 	}
 
 	// init the tree state

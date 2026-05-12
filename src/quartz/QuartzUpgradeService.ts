@@ -1,6 +1,7 @@
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import { QuartzVersionDetector } from "./QuartzVersionDetector";
 import type { GitAuth } from "src/models/settings";
+import { requestUrl } from "obsidian";
 import Logger from "js-logger";
 
 const logger = Logger.get("quartz-upgrade-service");
@@ -175,11 +176,11 @@ export class QuartzUpgradeService {
 	}
 
 	private async fetchUpstreamVersion(): Promise<string | null> {
-		const response = await fetch(UPSTREAM_PACKAGE_JSON_URL);
+		const response = await requestUrl({ url: UPSTREAM_PACKAGE_JSON_URL });
 
-		if (!response.ok) return null;
+		if (response.status < 200 || response.status >= 300) return null;
 
-		const data = (await response.json()) as { version?: string };
+		const data = response.json as { version?: string };
 
 		return data.version ?? null;
 	}

@@ -4,7 +4,6 @@ import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnect
 import type {
 	QuartzPluginManifest,
 	QuartzPluginSource,
-	QuartzPluginObjectSource,
 } from "./QuartzConfigTypes";
 import type { GitAuth } from "src/models/settings";
 
@@ -31,7 +30,7 @@ function resolveSourceToUrl(
 		return null;
 	}
 
-	const obj = source as QuartzPluginObjectSource;
+	const obj = source;
 
 	if (obj.repo.startsWith("github:")) {
 		const repoPath = obj.repo.replace("github:", "").split("#")[0];
@@ -52,7 +51,7 @@ function resolveRef(source: QuartzPluginSource): string | undefined {
 		return hashIndex >= 0 ? source.slice(hashIndex + 1) : undefined;
 	}
 
-	return (source as QuartzPluginObjectSource).ref;
+	return source.ref;
 }
 
 export class QuartzPluginManifestService {
@@ -120,7 +119,10 @@ export class QuartzPluginManifestService {
 			}
 
 			const content = Base64.decode(file.content);
-			const packageJson = JSON.parse(content);
+
+			const packageJson = JSON.parse(content) as {
+				quartz?: QuartzPluginManifest;
+			};
 
 			const manifest =
 				(packageJson.quartz as QuartzPluginManifest) ?? null;

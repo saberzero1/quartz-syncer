@@ -20,6 +20,7 @@ export function hasDynamicContent(text: string): boolean {
 
 	if (/```datacoretsx\s/ms.test(text)) return true;
 
+	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 	const dvApi = getAPI();
 
 	if (dvApi) {
@@ -50,6 +51,7 @@ export function hasDynamicContent(text: string): boolean {
 
 		if (inlineJsDataViewRegex.test(text)) return true;
 	}
+	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 
 	return false;
 }

@@ -5,7 +5,6 @@ import {
 	PatternDescriptor,
 	PatternMatch,
 	CompileContext,
-	QuartzAssets,
 } from "./types";
 import { isPluginEnabled, sanitizeHTMLToString } from "src/utils/utils";
 import { AUTO_CARD_LINK_PLUGIN_ID } from "src/ui/suggest/constants";
@@ -163,10 +162,10 @@ function parseLinkMetadataFromYaml(source: string): LinkMetadata {
 }
 
 function genErrorEl(errorMsg: string): HTMLElement {
-	const containerEl = createEl("div");
+	const containerEl = createDiv();
 	containerEl.addClass("auto-card-link-error-container");
 
-	const spanEl = createEl("span");
+	const spanEl = createSpan();
 	spanEl.textContent = `cardlink error: ${errorMsg}`;
 	containerEl.appendChild(spanEl);
 
@@ -177,7 +176,7 @@ function genLinkEl(
 	data: LinkMetadata,
 	app: CompileContext["app"],
 ): HTMLElement {
-	const containerEl = createEl("div");
+	const containerEl = createDiv();
 	containerEl.addClass("auto-card-link-container");
 	containerEl.setAttr("data-auto-card-link-depth", data.indent);
 
@@ -186,28 +185,28 @@ function genLinkEl(
 	cardEl.setAttr("href", data.url);
 	containerEl.appendChild(cardEl);
 
-	const mainEl = createEl("div");
+	const mainEl = createDiv();
 	mainEl.addClass("auto-card-link-main");
 	cardEl.appendChild(mainEl);
 
-	const titleEl = createEl("div");
+	const titleEl = createDiv();
 	titleEl.addClass("auto-card-link-title");
 	titleEl.textContent = data.title;
 	mainEl.appendChild(titleEl);
 
 	if (data.description) {
-		const descriptionEl = createEl("div");
+		const descriptionEl = createDiv();
 		descriptionEl.addClass("auto-card-link-description");
 		descriptionEl.textContent = data.description;
 		mainEl.appendChild(descriptionEl);
 	}
 
-	const hostEl = createEl("div");
+	const hostEl = createDiv();
 	hostEl.addClass("auto-card-link-host");
 	mainEl.appendChild(hostEl);
 
 	if (data.host) {
-		const hostNameEl = createEl("span");
+		const hostNameEl = createSpan();
 		hostNameEl.textContent = data.host;
 		hostEl.appendChild(hostNameEl);
 	}
@@ -247,7 +246,7 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 
 	assets: {
 		scss: autoCardLinkScss,
-	} as QuartzAssets,
+	},
 
 	isAvailable(): boolean {
 		return isPluginEnabled(AUTO_CARD_LINK_PLUGIN_ID);
@@ -274,7 +273,7 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 		const serializer = new XMLSerializer();
 
 		try {
-			const div = createEl("div");
+			const div = createDiv();
 
 			try {
 				const data = parseLinkMetadataFromYaml(query);
@@ -301,7 +300,7 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 			return sanitizeHTMLToString(div, serializer);
 		} catch (error) {
 			Logger.error(error);
-			new Notice(`Quartz Syncer: Auto Card Link error: ${error}`);
+			new Notice(`Quartz Syncer: Auto Card Link error: ${String(error)}`);
 
 			return match.fullMatch;
 		}

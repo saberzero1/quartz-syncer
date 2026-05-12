@@ -6,7 +6,6 @@ import {
 	PatternDescriptor,
 	PatternMatch,
 	CompileContext,
-	QuartzAssets,
 } from "./types";
 import {
 	isPluginEnabled,
@@ -424,7 +423,7 @@ async function tryExecuteJs(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = createEl("div");
+	const div = createDiv();
 	const component = new Component();
 
 	try {
@@ -433,7 +432,9 @@ async function tryExecuteJs(
 		Logger.error(error);
 
 		new Notice(
-			`Quartz Syncer: DatacoreJS execution error: ${error}, trying JSX...`,
+			`Quartz Syncer: DatacoreJS execution error: ${String(
+				error,
+			)}, trying JSX...`,
 		);
 
 		return tryExecuteJsx(query, filePath, dcApi);
@@ -454,14 +455,17 @@ async function tryExecuteJsx(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = createEl("div");
+	const div = createDiv();
 	const component = new Component();
 
 	try {
 		dcApi.executeJsx(query, div, component, filePath);
 	} catch (error) {
 		Logger.error(error);
-		new Notice(`Quartz Syncer: DatacoreJSX execution error: ${error}`);
+
+		new Notice(
+			`Quartz Syncer: DatacoreJSX execution error: ${String(error)}`,
+		);
 
 		return div;
 	}
@@ -481,7 +485,7 @@ async function tryExecuteTs(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = createEl("div");
+	const div = createDiv();
 	const component = new Component();
 
 	try {
@@ -490,7 +494,9 @@ async function tryExecuteTs(
 		Logger.error(error);
 
 		new Notice(
-			`Quartz Syncer: DatacoreTS execution error: ${error}, trying TSX...`,
+			`Quartz Syncer: DatacoreTS execution error: ${String(
+				error,
+			)}, trying TSX...`,
 		);
 
 		return tryExecuteTsx(query, filePath, dcApi);
@@ -511,14 +517,17 @@ async function tryExecuteTsx(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = createEl("div");
+	const div = createDiv();
 	const component = new Component();
 
 	try {
 		dcApi.executeTsx(query, div, component, filePath);
 	} catch (error) {
 		Logger.error(error);
-		new Notice(`Quartz Syncer: DatacoreTSX execution error: ${error}`);
+
+		new Notice(
+			`Quartz Syncer: DatacoreTSX execution error: ${String(error)}`,
+		);
 
 		return div;
 	}
@@ -542,7 +551,7 @@ export const DatacoreIntegration: PluginIntegration = {
 
 	assets: {
 		scss: datacoreScss,
-	} as QuartzAssets,
+	},
 
 	isAvailable(): boolean {
 		return !!getDatacoreApi();
@@ -631,7 +640,8 @@ export const DatacoreIntegration: PluginIntegration = {
 			return result;
 		} catch (error) {
 			Logger.error(error);
-			new Notice(`Quartz Syncer: Datacore query error: ${error}`);
+
+			new Notice(`Quartz Syncer: Datacore query error: ${String(error)}`);
 
 			return match.fullMatch;
 		}

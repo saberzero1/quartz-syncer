@@ -29,6 +29,7 @@ export type QuartzSyncerCache = {
  * in the Quartz Syncer index.
  */
 export class DataStore {
+	/* eslint-disable-next-line no-undef */
 	public persister: LocalForage;
 
 	/**
@@ -137,7 +138,7 @@ export class DataStore {
 			return this.memoryCache.get(key) ?? null;
 		}
 
-		return (await this.persister.getItem(key)) as QuartzSyncerCache | null;
+		return await this.persister.getItem(key);
 	}
 
 	/**
@@ -483,7 +484,7 @@ export class DataStore {
 		path: string,
 	): Promise<QuartzSyncerCache | null | undefined> {
 		return this.getCacheEntry(path).then((raw) => {
-			return raw as QuartzSyncerCache | null | undefined;
+			return raw;
 		});
 	}
 
@@ -575,7 +576,7 @@ export class DataStore {
 		plugin: QuartzSyncer,
 	): Promise<void> {
 		const cache = plugin.settings.cache;
-		const data: Record<string, QuartzSyncerCache> = JSON.parse(cache);
+		const data = JSON.parse(cache) as Record<string, QuartzSyncerCache>;
 
 		for (const [key, value] of Object.entries(data)) {
 			await this.persister.setItem(key, value);
