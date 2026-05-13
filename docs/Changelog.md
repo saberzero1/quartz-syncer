@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-05-13T01:38:01Z+0200
+modified: 2026-05-13T02:04:08Z+0200
 publish: true
 ---
 
@@ -20,6 +20,7 @@ publish: true
 ### Version 1.14.3
 
 - Additional refactors to match Obsidian's latest standards.
+- Fixed missing target `esnext` for Svelte.
 - Delegated sanitation to Obsidian's API `sanitizeHTMLToDom` function.
 
 ### Version 1.14.2
