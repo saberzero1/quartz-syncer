@@ -34,7 +34,14 @@ esbuild.build({
 	plugins: [
 		esbuildSvelte({
 		  compilerOptions: { css: 'injected', dev: !prod },
-		  preprocess: sveltePreprocess(),
+		  preprocess: sveltePreprocess({
+	    typescript: {
+	      compilerOptions: {
+	        module: "esnext",
+	        verbatimModuleSyntax: false,
+	      },
+	    },
+	  }),
 		}),
 	  ],
 }).catch(() => process.exit(1));
