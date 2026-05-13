@@ -72,7 +72,7 @@
 		"isomorphic-git": "^1.36.1",
 		"js-base64": "^3.7.5",
 		"js-logger": "^1.6.1",
-		"localforage": "^1.10.0",
+		"localspace": "^1.2.0",
 		"luxon": "^3.4.3",
 		"minimatch": "^10.2.5",
 		"obsidian-dataview": "^0.5.68",
