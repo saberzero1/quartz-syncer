@@ -2,7 +2,7 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-05-13T02:43:57Z+0200
+modified: 2026-05-13T02:58:04Z+0200
 publish: true
 ---
 
@@ -17,8 +17,9 @@ publish: true
 
 ## Releases
 
-### Version 1.14.4
+### Version 1.15.0
 
+- Switched to `localspace` over `localforage` as database driver.
 - Additional refactors to match Obsidian's latest standards.
 
 ### Version 1.14.3
