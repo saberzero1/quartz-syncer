@@ -86,7 +86,7 @@ export class PublishFile {
 				? await this.datastore.isLocalFileOutdated(
 						this.file.path,
 						this.file.stat.mtime,
-				  )
+					)
 				: true;
 
 			let storedFile = null;

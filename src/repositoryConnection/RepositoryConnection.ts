@@ -41,7 +41,7 @@ const obsidianHttpClient: HttpClient = {
 				url,
 				method,
 				headers,
-				body: bodyData ? bodyData.buffer : undefined,
+				body: bodyData ? (bodyData.buffer as ArrayBuffer) : undefined,
 				throw: false,
 			});
 

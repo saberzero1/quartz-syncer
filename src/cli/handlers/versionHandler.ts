@@ -81,7 +81,7 @@ export function createVersionHandler(
 							`Repository: ${connection.getRepositoryName()}`,
 							`Branch: ${plugin.settings.git.branch}`,
 							`Quartz config: ${quartzConfigDetails}`,
-					  ]
+						]
 					: [`Git: not configured`];
 
 				const message = includeVerbose
