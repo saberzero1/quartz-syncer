@@ -28,6 +28,7 @@ esbuild.build({
 	treeShaking: true,
 	outfile: 'main.js',
 	inject: ['./esbuild-buffer-shim.js'],
+	platform: 'browser',
 	define: {
 		'global': 'globalThis',
 	},
