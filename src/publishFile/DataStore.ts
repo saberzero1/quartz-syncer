@@ -1,4 +1,4 @@
-import localforage from "localforage";
+import localspace, { type LocalSpaceInstance } from "localspace";
 import QuartzSyncer from "main";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import { generateBlobHash } from "src/utils/utils";
@@ -29,8 +29,7 @@ export type QuartzSyncerCache = {
  * in the Quartz Syncer index.
  */
 export class DataStore {
-	/* eslint-disable-next-line no-undef -- LocalForage type provided at runtime */
-	public persister: LocalForage;
+	public persister: LocalSpaceInstance;
 
 	/**
 	 * In-memory cache for bulk-preloaded entries.
@@ -59,11 +58,9 @@ export class DataStore {
 		public appId: string,
 		public version: string,
 	) {
-		this.persister = localforage.createInstance({
+		this.persister = localspace.createInstance({
 			name: `quartz-syncer/cache/${vaultName}/${appId}/${version}`,
-			driver: [localforage.INDEXEDDB],
-			description:
-				"Cache metadata about files and sections in the quartz syncer index.",
+			driver: [localspace.INDEXEDDB],
 		});
 	}
 
@@ -168,17 +165,15 @@ export class DataStore {
 	 * @returns A promise that resolves when the cache is recreated.
 	 */
 	public async recreate() {
-		await localforage.dropInstance({
+		await localspace.dropInstance({
 			name: `quartz-syncer/cache/${this.vaultName}/${this.appId}/${this.version}`,
 		});
 
 		await this.dropOutdatedCache();
 
-		this.persister = localforage.createInstance({
+		this.persister = localspace.createInstance({
 			name: `quartz-syncer/cache/${this.vaultName}/${this.appId}/${this.version}`,
-			driver: [localforage.INDEXEDDB],
-			description:
-				"Cache metadata about files and sections in the quartz syncer index.",
+			driver: [localspace.INDEXEDDB],
 		});
 	}
 
