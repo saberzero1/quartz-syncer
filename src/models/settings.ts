@@ -2,7 +2,8 @@ import { ILogLevel } from "js-logger";
 
 /**
  * Git authentication configuration.
- * Supports multiple authentication methods for different Git providers.
+ * Used as a data transfer type for RepositoryConnection and related services.
+ * Not stored directly in settings — constructed from flat keys via getGitSettingsWithSecret().
  */
 export type GitAuthType = "none" | "basic" | "bearer";
 
@@ -10,7 +11,7 @@ export interface GitAuth {
 	type: GitAuthType;
 	/** Username for basic auth (e.g., GitHub username, 'oauth2' for GitLab) */
 	username?: string;
-	/** Secret token/password for authentication */
+	/** Secret token/password for authentication (from SecretStorageService, not persisted in settings) */
 	secret?: string;
 }
 
@@ -32,8 +33,9 @@ export type UpgradeCheckStrategy = "version" | "commit";
 export type FrontmatterFormat = "yaml" | "json";
 
 /**
- * Generic Git remote settings.
- * Works with any Git provider (GitHub, GitLab, Bitbucket, self-hosted, etc.)
+ * Git remote settings as a data transfer type.
+ * Used by RepositoryConnection, SiteManager, and related services.
+ * Constructed from flat settings keys via getGitSettingsWithSecret().
  */
 export interface GitRemoteSettings {
 	/** Full remote URL (e.g., https://github.com/user/repo.git) */
@@ -50,27 +52,46 @@ export interface GitRemoteSettings {
 
 /**
  * QuartzSyncer plugin settings.
- * Saved to data.json, changing requires a migration
+ * Saved to data.json. All keys are flat (top-level) for compatibility with the
+ * Obsidian 1.13 declarative settings API (getSettingDefinitions).
  */
 export default interface QuartzSyncerSettings {
-	/** Git remote settings (generic, works with any provider) */
-	git: GitRemoteSettings;
+	/** Settings schema version for data migrations */
+	settingsSchemaVersion: number;
+
+	/** Git remote URL (e.g., https://github.com/username/quartz.git) */
+	gitRemoteUrl: string;
+	/** Git branch to sync with */
+	gitBranch: string;
+	/** CORS proxy URL for browser environments (optional) */
+	gitCorsProxyUrl: string;
+	/** Git authentication type */
+	gitAuthType: GitAuthType;
+	/** Git username for basic auth */
+	gitAuthUsername: string;
+	/** Git provider hint for UI customization */
+	gitProviderHint: GitProviderHint;
 
 	/** Vault path settings */
 	vaultPath: string;
 
 	/**
-	 * @deprecated Use git.remoteUrl instead. Kept for migration.
+	 * @deprecated Use gitRemoteUrl instead. Kept for migration from pre-v4.
 	 */
 	githubRepo?: string;
 	/**
-	 * @deprecated Use git.auth.username instead. Kept for migration.
+	 * @deprecated Use gitAuthUsername instead. Kept for migration from pre-v4.
 	 */
 	githubUserName?: string;
 	/**
-	 * @deprecated Use git.auth.secret instead. Kept for migration.
+	 * @deprecated Use SecretStorageService instead. Kept for migration from pre-v4.
 	 */
 	githubToken?: string;
+
+	/**
+	 * @deprecated Use flat git* keys instead. Kept for migration from schema v1.
+	 */
+	git?: GitRemoteSettings;
 
 	/** Quartz settings */
 	contentFolder: string;

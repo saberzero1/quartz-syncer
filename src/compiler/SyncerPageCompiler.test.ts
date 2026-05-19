@@ -49,11 +49,12 @@ function makeSettings(
 		lastUsedSettingsTab: "",
 		pluginVersion: "0.0.0",
 		diffViewStyle: "auto",
-		git: {
-			remoteUrl: "",
-			branch: "main",
-			auth: { type: "none" },
-		},
+		gitRemoteUrl: "",
+		gitBranch: "main",
+		gitAuthType: "none",
+		gitAuthUsername: "",
+		gitCorsProxyUrl: "",
+		gitProviderHint: "github",
 		...overrides,
 	} as QuartzSyncerSettings;
 }

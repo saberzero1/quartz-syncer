@@ -24,10 +24,8 @@ describe("statusHandler", () => {
 				fileManager: {},
 			},
 			settings: {
-				git: {
-					remoteUrl: "https://github.com/test/repo.git",
-					branch: "main",
-				},
+				gitRemoteUrl: "https://github.com/test/repo.git",
+				gitBranch: "main",
 				publishFrontmatterKey: "publish",
 				useCache: true,
 				contentFolder: "content",
@@ -137,7 +135,7 @@ describe("statusHandler", () => {
 		}));
 
 		const plugin = createMockPlugin();
-		plugin.settings.git.remoteUrl = "";
+		plugin.settings.gitRemoteUrl = "";
 		createStatusHandler(register, plugin);
 		const result = await handler({} as CliData);
 

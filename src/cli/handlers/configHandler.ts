@@ -27,12 +27,12 @@ const FLAGS: CliFlags = {
 };
 
 const WRITABLE_KEYS: Record<string, "string" | "boolean"> = {
-	"git.remoteUrl": "string",
-	"git.branch": "string",
-	"git.corsProxyUrl": "string",
-	"git.auth.type": "string",
-	"git.auth.username": "string",
-	"git.providerHint": "string",
+	gitRemoteUrl: "string",
+	gitBranch: "string",
+	gitCorsProxyUrl: "string",
+	gitAuthType: "string",
+	gitAuthUsername: "string",
+	gitProviderHint: "string",
 	contentFolder: "string",
 	vaultPath: "string",
 	publishFrontmatterKey: "string",
@@ -50,8 +50,8 @@ const WRITABLE_KEYS: Record<string, "string" | "boolean"> = {
 };
 
 const VALID_VALUES: Record<string, readonly string[]> = {
-	"git.auth.type": ["none", "basic", "bearer"],
-	"git.providerHint": ["github", "gitlab", "bitbucket", "gitea", "custom"],
+	gitAuthType: ["none", "basic", "bearer"],
+	gitProviderHint: ["github", "gitlab", "bitbucket", "gitea", "custom"],
 	frontmatterFormat: ["yaml", "json"],
 	diffViewStyle: ["split", "unified", "auto"],
 };
@@ -59,17 +59,14 @@ const VALID_VALUES: Record<string, readonly string[]> = {
 function redactSettings(
 	settings: QuartzSyncerSettings,
 	hasToken: boolean,
-): QuartzSyncerSettings {
-	return {
-		...settings,
-		git: {
-			...settings.git,
-			auth: {
-				...settings.git.auth,
-				secret: hasToken ? "***" : undefined,
-			},
-		},
-	};
+): Record<string, unknown> {
+	const redacted: Record<string, unknown> = { ...settings };
+
+	if (hasToken) {
+		redacted.gitAuthSecret = "***";
+	}
+
+	return redacted;
 }
 
 function parseValue(

@@ -1,6 +1,8 @@
 import { Notice, Platform, Plugin, Workspace, addIcon } from "obsidian";
 import Publisher from "./src/publisher/Publisher";
-import QuartzSyncerSettings from "./src/models/settings";
+import QuartzSyncerSettings, {
+	type GitRemoteSettings,
+} from "./src/models/settings";
 import { quartzSyncerIcon } from "./src/ui/suggest/constants";
 import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
 import PublishStatusManager from "src/publisher/PublishStatusManager";
@@ -18,16 +20,15 @@ import { registerCliHandlers } from "src/cli/registerCliHandlers";
  * This interface defines the default settings for the QuartzSyncer plugin.
  */
 const DEFAULT_SETTINGS: QuartzSyncerSettings = {
-	git: {
-		remoteUrl: "",
-		branch: "v4",
-		corsProxyUrl: "",
-		auth: {
-			type: "basic",
-			username: "",
-		},
-		providerHint: "github",
-	},
+	settingsSchemaVersion: 2,
+
+	gitRemoteUrl: "",
+	gitBranch: "v4",
+	gitCorsProxyUrl: "",
+	gitAuthType: "basic",
+	gitAuthUsername: "",
+	gitProviderHint: "github",
+
 	vaultPath: "/",
 
 	// Deprecated fields kept for migration
@@ -222,7 +223,9 @@ export default class QuartzSyncer extends Plugin {
 		);
 
 		this.migrateGitHubSettings();
+		this.migrateNestedGitSettings();
 		this.migrateRemovedThemesTab();
+		this.migrateTimestampKeyDefaults();
 
 		this.secretStorageService = new SecretStorageService(this.app);
 
@@ -246,10 +249,6 @@ export default class QuartzSyncer extends Plugin {
 		await this.compareDataToCache();
 	}
 
-	/**
-	 * Migrates legacy GitHub-specific settings to the new generic Git settings.
-	 * This ensures backwards compatibility for users upgrading from older versions.
-	 */
 	private migrateGitHubSettings(): void {
 		type LegacyGitHubSettings = {
 			githubRepo?: string;
@@ -263,30 +262,31 @@ export default class QuartzSyncer extends Plugin {
 			legacySettings.githubUserName ||
 			legacySettings.githubToken;
 
-		const hasNewSettings = this.settings.git?.remoteUrl;
+		const hasNewSettings = this.settings.gitRemoteUrl;
 
 		if (hasLegacySettings && !hasNewSettings) {
 			Logger.info(
-				"Migrating legacy GitHub settings to generic Git settings",
+				"Migrating legacy GitHub settings to flat Git settings",
 			);
 
 			const githubRepo = legacySettings.githubRepo || "quartz";
 			const githubUserName = legacySettings.githubUserName || "";
 			const githubToken = legacySettings.githubToken || "";
 
-			this.settings.git = {
-				remoteUrl: githubUserName
-					? `https://github.com/${githubUserName}/${githubRepo}.git`
-					: "",
-				branch: "v4",
-				corsProxyUrl: "",
-				auth: {
-					type: "basic",
-					username: githubUserName,
-					secret: githubToken,
-				},
-				providerHint: "github",
-			};
+			this.settings.gitRemoteUrl = githubUserName
+				? `https://github.com/${githubUserName}/${githubRepo}.git`
+				: "";
+			this.settings.gitBranch = "v4";
+			this.settings.gitCorsProxyUrl = "";
+			this.settings.gitAuthType = "basic";
+			this.settings.gitAuthUsername = githubUserName;
+			this.settings.gitProviderHint = "github";
+
+			if (githubToken) {
+				(this.settings as unknown as Record<string, unknown>)[
+					"_pendingTokenMigration"
+				] = githubToken;
+			}
 
 			if (this.settings.lastUsedSettingsTab === "github") {
 				this.settings.lastUsedSettingsTab = "git";
@@ -298,14 +298,60 @@ export default class QuartzSyncer extends Plugin {
 		}
 	}
 
-	/**
-	 * Migrates away from the removed Themes settings tab. The tab and its
-	 * `useThemes` placeholder setting were removed in favor of Quartz v5's
-	 * native `quartz-themes` community plugin, which is configured via the
-	 * Quartz settings tab instead. This drops the obsolete key from the
-	 * persisted settings and rewrites `lastUsedSettingsTab` so returning
-	 * users don't open to a missing tab.
-	 */
+	private migrateNestedGitSettings(): void {
+		const raw = this.settings as unknown as Record<string, unknown>;
+
+		if (
+			raw["git"] &&
+			typeof raw["git"] === "object" &&
+			!this.settings.gitRemoteUrl
+		) {
+			Logger.info("Migrating nested git settings to flat keys");
+
+			const git = raw["git"] as Record<string, unknown>;
+			const auth = (git["auth"] as Record<string, unknown>) || {};
+
+			this.settings.gitRemoteUrl = (git["remoteUrl"] as string) || "";
+			this.settings.gitBranch = (git["branch"] as string) || "v4";
+
+			this.settings.gitCorsProxyUrl =
+				(git["corsProxyUrl"] as string) || "";
+
+			this.settings.gitAuthType =
+				(auth["type"] as QuartzSyncerSettings["gitAuthType"]) ||
+				"basic";
+			this.settings.gitAuthUsername = (auth["username"] as string) || "";
+
+			this.settings.gitProviderHint =
+				(git[
+					"providerHint"
+				] as QuartzSyncerSettings["gitProviderHint"]) || "github";
+
+			delete raw["git"];
+			this.settings.settingsSchemaVersion = 2;
+		}
+	}
+
+	private migrateTimestampKeyDefaults(): void {
+		const oldCreated = ["", "created"];
+		const oldUpdated = ["", "modified"];
+		const oldPublished = ["", "published"];
+
+		if (oldCreated.includes(this.settings.createdTimestampKey)) {
+			this.settings.createdTimestampKey = "created, created_at, date";
+		}
+
+		if (oldUpdated.includes(this.settings.updatedTimestampKey)) {
+			this.settings.updatedTimestampKey =
+				"modified, lastmod, updated, last-modified";
+		}
+
+		if (oldPublished.includes(this.settings.publishedTimestampKey)) {
+			this.settings.publishedTimestampKey =
+				"published, publishDate, date";
+		}
+	}
+
 	private migrateRemovedThemesTab(): void {
 		const legacy = this.settings as unknown as Record<string, unknown>;
 
@@ -322,13 +368,17 @@ export default class QuartzSyncer extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	getGitSettingsWithSecret(): typeof this.settings.git {
+	getGitSettingsWithSecret(): GitRemoteSettings {
 		return {
-			...this.settings.git,
+			remoteUrl: this.settings.gitRemoteUrl,
+			branch: this.settings.gitBranch,
+			corsProxyUrl: this.settings.gitCorsProxyUrl || undefined,
 			auth: {
-				...this.settings.git.auth,
+				type: this.settings.gitAuthType,
+				username: this.settings.gitAuthUsername || undefined,
 				secret: this.secretStorageService.getToken() || undefined,
 			},
+			providerHint: this.settings.gitProviderHint || undefined,
 		};
 	}
 

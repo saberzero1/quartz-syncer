@@ -29,10 +29,8 @@ describe("versionHandler", () => {
 			},
 			appVersion: "1.13.0",
 			settings: {
-				git: {
-					remoteUrl: "https://github.com/test/repo.git",
-					branch: "main",
-				},
+				gitRemoteUrl: "https://github.com/test/repo.git",
+				gitBranch: "main",
 				publishFrontmatterKey: "publish",
 				useCache: true,
 				contentFolder: "content",
@@ -135,7 +133,7 @@ describe("versionHandler", () => {
 
 	it("returns plugin and Obsidian versions even without Git configured", async () => {
 		const plugin = createMockPlugin();
-		plugin.settings.git.remoteUrl = "";
+		plugin.settings.gitRemoteUrl = "";
 
 		createVersionHandler(register, plugin);
 

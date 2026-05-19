@@ -16,10 +16,8 @@ const createMockPlugin = (): QuartzSyncer =>
 			fileManager: {},
 		},
 		settings: {
-			git: {
-				remoteUrl: "https://github.com/test/repo.git",
-				branch: "main",
-			},
+			gitRemoteUrl: "https://github.com/test/repo.git",
+			gitBranch: "main",
 			publishFrontmatterKey: "publish",
 			useCache: true,
 			contentFolder: "content",

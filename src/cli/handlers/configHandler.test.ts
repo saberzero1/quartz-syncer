@@ -8,13 +8,12 @@ jest.mock("obsidian", () => ({
 
 const createMockPlugin = (): QuartzSyncer => {
 	const settings = {
-		git: {
-			remoteUrl: "https://github.com/test/repo.git",
-			branch: "main",
-			auth: { type: "none", secret: "secret123" },
-			corsProxyUrl: "",
-			providerHint: "",
-		},
+		gitRemoteUrl: "https://github.com/test/repo.git",
+		gitBranch: "main",
+		gitAuthType: "none",
+		gitAuthUsername: "",
+		gitCorsProxyUrl: "",
+		gitProviderHint: "",
 		contentFolder: "content",
 		vaultPath: "/",
 		publishFrontmatterKey: "publish",
@@ -75,11 +74,11 @@ describe("configHandler", () => {
 
 		const parsed = JSON.parse(result) as {
 			ok: boolean;
-			data: { git: { auth: { secret?: string } } };
+			data: { gitAuthSecret?: string };
 		};
 
 		expect(parsed.ok).toBe(true);
-		expect(parsed.data.git.auth.secret).toBe("***");
+		expect(parsed.data.gitAuthSecret).toBe("***");
 	});
 
 	it("lists settings as key/value lines in verbose text mode", async () => {
@@ -88,17 +87,17 @@ describe("configHandler", () => {
 			verbose: "true",
 		} as CliData);
 
-		expect(result).toContain('git.branch="main"');
+		expect(result).toContain('gitBranch="main"');
 		expect(result).toContain("useCache=true");
 	});
 
 	it("gets a config value by key", async () => {
 		const result = await handler({
 			action: "get",
-			key: "git.branch",
+			key: "gitBranch",
 		} as CliData);
 
-		expect(result).toBe('git.branch="main"');
+		expect(result).toBe('gitBranch="main"');
 	});
 
 	it("redacts git.auth.secret when requested", async () => {
@@ -113,23 +112,23 @@ describe("configHandler", () => {
 	it("returns error for unknown key", async () => {
 		const result = await handler({
 			action: "get",
-			key: "git.nope",
+			key: "gitNope",
 		} as CliData);
 
 		expect(result).toBe("Error: Unknown setting key.");
 	});
 
 	it("sets writable keys and saves settings", async () => {
-		plugin.settings.git.branch = "develop";
+		plugin.settings.gitBranch = "develop";
 
 		const result = await handler({
 			action: "set",
-			key: "git.branch",
+			key: "gitBranch",
 			value: "main",
 		} as CliData);
 
-		expect(result).toBe("Updated git.branch.");
-		expect(plugin.settings.git.branch).toBe("main");
+		expect(result).toBe("Updated gitBranch.");
+		expect(plugin.settings.gitBranch).toBe("main");
 		expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
 	});
 
@@ -168,13 +167,13 @@ describe("configHandler", () => {
 	it("defaults to list when action is missing", async () => {
 		const result = await handler({} as CliData);
 
-		expect(result).toContain("git.branch=");
+		expect(result).toContain("gitBranch=");
 	});
 
 	it("returns JSON output when format=json", async () => {
 		const result = await handler({
 			action: "get",
-			key: "git.branch",
+			key: "gitBranch",
 			format: "json",
 		} as CliData);
 
@@ -184,6 +183,6 @@ describe("configHandler", () => {
 		};
 
 		expect(parsed.ok).toBe(true);
-		expect(parsed.data).toEqual({ key: "git.branch", value: "main" });
+		expect(parsed.data).toEqual({ key: "gitBranch", value: "main" });
 	});
 });

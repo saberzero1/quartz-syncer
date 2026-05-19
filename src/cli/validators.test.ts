@@ -2,30 +2,31 @@ import type QuartzSyncer from "main";
 import { validatePreFlight } from "src/cli/validators";
 
 describe("validatePreFlight", () => {
-	it("returns error when git.remoteUrl is empty", () => {
+	it("returns error when gitRemoteUrl is empty", () => {
 		const plugin = {
-			settings: { git: { remoteUrl: "", branch: "main" } },
+			settings: { gitRemoteUrl: "", gitBranch: "main" },
 		} as unknown as QuartzSyncer;
 
 		expect(validatePreFlight(plugin)).toBe(
-			"Git remote URL is not configured. Set it in plugin settings or via 'obsidian quartz-syncer:config action=set key=git.remoteUrl value=<url>'.",
+			"Git remote URL is not configured. Set it in plugin settings or via 'obsidian quartz-syncer:config action=set key=gitRemoteUrl value=<url>'.",
 		);
 	});
 
-	it("returns error when git.branch is empty", () => {
+	it("returns error when gitBranch is empty", () => {
 		const plugin = {
-			settings: { git: { remoteUrl: "https://example.com", branch: "" } },
+			settings: { gitRemoteUrl: "https://example.com", gitBranch: "" },
 		} as unknown as QuartzSyncer;
 
 		expect(validatePreFlight(plugin)).toBe(
-			"Git branch is not configured. Set it in plugin settings or via 'obsidian quartz-syncer:config action=set key=git.branch value=<branch>'.",
+			"Git branch is not configured. Set it in plugin settings or via 'obsidian quartz-syncer:config action=set key=gitBranch value=<branch>'.",
 		);
 	});
 
 	it("returns null when git settings are present", () => {
 		const plugin = {
 			settings: {
-				git: { remoteUrl: "https://example.com", branch: "main" },
+				gitRemoteUrl: "https://example.com",
+				gitBranch: "main",
 			},
 		} as unknown as QuartzSyncer;
 

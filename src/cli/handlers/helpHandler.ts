@@ -45,7 +45,7 @@ Examples:
   obsidian quartz-syncer:publish dry-run
   obsidian quartz-syncer:mark path="notes/post.md"
   obsidian quartz-syncer:mark path="blog/**/*.md" dry-run
-  obsidian quartz-syncer:config action=get key=git.branch
+  obsidian quartz-syncer:config action=get key=gitBranch
 
 Documentation: https://saberzero1.github.io/quartz-syncer-docs/`;
 

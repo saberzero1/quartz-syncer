@@ -50,13 +50,12 @@ jest.mock("src/quartz/QuartzPluginUpdateChecker", () => ({
 
 const createMockPlugin = (): QuartzSyncer => {
 	const settings = {
-		git: {
-			remoteUrl: "https://github.com/test/repo.git",
-			branch: "main",
-			auth: { type: "none", secret: "secret123" },
-			corsProxyUrl: "",
-			providerHint: "",
-		},
+		gitRemoteUrl: "https://github.com/test/repo.git",
+		gitBranch: "main",
+		gitAuthType: "none" as const,
+		gitAuthUsername: "",
+		gitCorsProxyUrl: "",
+		gitProviderHint: "" as const,
 		contentFolder: "content",
 		vaultPath: "/",
 		publishFrontmatterKey: "publish",

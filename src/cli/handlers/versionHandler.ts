@@ -79,7 +79,7 @@ export function createVersionHandler(
 				const verboseLines = connection
 					? [
 							`Repository: ${connection.getRepositoryName()}`,
-							`Branch: ${plugin.settings.git.branch}`,
+							`Branch: ${plugin.settings.gitBranch}`,
 							`Quartz config: ${quartzConfigDetails}`,
 						]
 					: [`Git: not configured`];

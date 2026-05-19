@@ -53,44 +53,77 @@ export class SecretStorageService {
 		settings: QuartzSyncerSettings,
 		saveSettings: () => Promise<void>,
 	): Promise<boolean> {
-		const legacyToken = settings.git?.auth?.secret;
+		const raw = settings as unknown as Record<string, unknown>;
+		const pendingToken = raw["_pendingTokenMigration"];
+
+		const legacyToken =
+			typeof pendingToken === "string" && pendingToken
+				? pendingToken
+				: this.getLegacyToken(raw);
 
 		if (!legacyToken) {
-			logger.debug(
-				"No legacy token found in settings, skipping migration",
-			);
-
 			return false;
 		}
 
 		const existingToken = this.getToken();
 
 		if (existingToken && existingToken !== "") {
-			logger.debug(
-				"Token already exists in secure storage, skipping migration",
-			);
-
-			if (settings.git?.auth?.secret) {
-				settings.git.auth.secret = undefined;
+			if (this.clearLegacyToken(raw)) {
 				await saveSettings();
-
-				logger.info(
-					"Cleared legacy token from settings (secure storage already has token)",
-				);
 			}
 
 			return false;
 		}
 
 		this.setToken(legacyToken);
-		settings.git.auth.secret = undefined;
-		await saveSettings();
 
-		logger.info(
-			"Successfully migrated Git authentication token from settings to secure storage",
-		);
+		if (this.clearLegacyToken(raw)) {
+			await saveSettings();
+		}
 
 		return true;
+	}
+
+	private getLegacyToken(
+		settings: Record<string, unknown>,
+	): string | undefined {
+		const rawGit = settings["git"];
+
+		if (!rawGit || typeof rawGit !== "object") {
+			return undefined;
+		}
+
+		const auth = (rawGit as Record<string, unknown>)["auth"];
+
+		if (!auth || typeof auth !== "object") {
+			return undefined;
+		}
+
+		const secret = (auth as Record<string, unknown>)["secret"];
+
+		return typeof secret === "string" && secret ? secret : undefined;
+	}
+
+	private clearLegacyToken(settings: Record<string, unknown>): boolean {
+		let didClear = false;
+
+		if ("_pendingTokenMigration" in settings) {
+			delete settings["_pendingTokenMigration"];
+			didClear = true;
+		}
+
+		const rawGit = settings["git"];
+
+		if (rawGit && typeof rawGit === "object") {
+			const auth = (rawGit as Record<string, unknown>)["auth"];
+
+			if (auth && typeof auth === "object" && "secret" in auth) {
+				(auth as Record<string, unknown>).secret = undefined;
+				didClear = true;
+			}
+		}
+
+		return didClear;
 	}
 
 	listSecrets(): string[] {
