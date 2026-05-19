@@ -1,3 +1,7 @@
+.quartz-syncer-hidden {
+	display: none;
+}
+
 /* Quartz Syncer Publication Center */
 .quartz-syncer-publisher-title-separator {
 	margin-top: 0;

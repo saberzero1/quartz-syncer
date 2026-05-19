@@ -1,12 +1,11 @@
 import {
 	Setting,
 	App,
-	PluginSettingTab,
+	SettingPage,
 	Notice,
 	normalizePath,
 	requestUrl,
 } from "obsidian";
-import SettingView from "src/views/SettingsView/SettingView";
 import QuartzSyncer from "main";
 import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteManager";
 import type { QuartzConfigService } from "src/quartz/QuartzConfigService";
@@ -103,11 +102,9 @@ const PAGE_TYPES: QuartzPageType[] = [
  * Displays version info, editable site config fields, and the plugin list.
  * Changes are committed and pushed to the repository on save.
  */
-export class QuartzV5SettingsTab extends PluginSettingTab {
-	app: App;
-	plugin: QuartzSyncer;
-	settings: SettingView;
-	private settingsRootElement: HTMLElement;
+export class QuartzV5Page extends SettingPage {
+	private app: App;
+	private plugin: QuartzSyncer;
 
 	private siteManager: QuartzSyncerSiteManager | null = null;
 	private configService: QuartzConfigService | null = null;
@@ -140,25 +137,16 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private isUpgrading = false;
 	private pluginManager = new QuartzPluginManager();
 
-	constructor(
-		app: App,
-		plugin: QuartzSyncer,
-		settings: SettingView,
-		settingsRootElement: HTMLElement,
-	) {
-		super(app, plugin);
+	constructor(app: App, plugin: QuartzSyncer) {
+		super();
 		this.app = app;
 		this.plugin = plugin;
-		this.settings = settings;
-		this.settingsRootElement = settingsRootElement;
+		this.title = "Quartz";
 	}
 
 	display(): void {
-		this.settingsRootElement.empty();
-		this.settingsRootElement.addClass("quartz-syncer-github-settings");
-
-		this.settings.settings.lastUsedSettingsTab = "quartz";
-		void this.settings.plugin.saveSettings();
+		this.containerEl.empty();
+		this.containerEl.addClass("quartz-syncer-github-settings");
 
 		this.renderQuartzHeader();
 		this.renderContentFolderSetting();
@@ -172,7 +160,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	}
 
 	private renderQuartzHeader(): void {
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Quartz")
 			.setDesc(
 				"Quartz Syncer will apply these settings to your Quartz notes.",
@@ -181,7 +169,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	}
 
 	private renderContentFolderSetting(): void {
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Content folder")
 			.setDesc(
 				'The folder in your Quartz repository where Quartz Syncer should store your notes. By default "content".',
@@ -189,23 +177,23 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			.addText((text) =>
 				text
 					.setPlaceholder("content")
-					.setValue(this.settings.settings.contentFolder)
+					.setValue(this.plugin.settings.contentFolder)
 					.onChange(async (value) => {
-						this.settings.settings.contentFolder =
+						this.plugin.settings.contentFolder =
 							normalizePath(value);
-						await this.settings.plugin.saveSettings();
+						await this.plugin.saveSettings();
 					}),
 			);
 	}
 
 	private renderLoading(): void {
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("v5 Configuration")
 			.setDesc("Loading configuration from repository...");
 	}
 
 	private renderNonV5Message(): void {
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Quartz v5 not detected")
 			.setDesc(
 				"Your Quartz site uses the v4 configuration format. " +
@@ -214,7 +202,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	}
 
 	private renderError(message: string): void {
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Error")
 			.setDesc(message)
 			.addButton((button) =>
@@ -280,8 +268,8 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			this.display();
 
 			if (
-				this.settings.settings.upgradeCheckStrategy === "commit" &&
-				!this.settings.settings.lastUpstreamCommitSha
+				this.plugin.settings.upgradeCheckStrategy === "commit" &&
+				!this.plugin.settings.lastUpstreamCommitSha
 			) {
 				void this.checkForQuartzUpgrade();
 			}
@@ -311,7 +299,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		if (!this.siteManager) {
 			this.siteManager = new QuartzSyncerSiteManager(
 				this.app.metadataCache,
-				this.settings.settings,
+				this.plugin.settings,
 				this.plugin.getGitSettingsWithSecret(),
 			);
 		}
@@ -366,7 +354,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	}
 
 	private renderVersionSection(): void {
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Quartz v5 Configuration")
 			.setDesc(
 				"Edit your Quartz v5 site configuration. Changes are pushed to your repository on save.",
@@ -377,17 +365,17 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			? `${this.cachedPackageVersion} (${this.cachedVersion})`
 			: (this.cachedVersion ?? "unknown");
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Quartz version")
 			.setDesc(versionLabel);
 
 		const configFormat = this.cachedVersion === "v5-yaml" ? "YAML" : "JSON";
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Configuration format")
 			.setDesc(configFormat);
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.addButton((button) =>
 				button.setButtonText("Save").onClick(async () => {
 					await this.saveConfig();
@@ -402,7 +390,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	}
 
 	private renderUpgradeSection(): void {
-		const upgradeSetting = new Setting(this.settingsRootElement)
+		const upgradeSetting = new Setting(this.containerEl)
 			.setName("Quartz Updates")
 			.setHeading();
 
@@ -419,9 +407,9 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				}),
 		);
 
-		const strategy = this.settings.settings.upgradeCheckStrategy;
+		const strategy = this.plugin.settings.upgradeCheckStrategy;
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Update check strategy")
 			.setDesc(
 				"Version: check for new Quartz releases. " +
@@ -432,16 +420,16 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				dropdown.addOption("commit", "Commit");
 
 				dropdown.setValue(strategy).onChange(async (value) => {
-					this.settings.settings.upgradeCheckStrategy = value as
+					this.plugin.settings.upgradeCheckStrategy = value as
 						| "version"
 						| "commit";
-					await this.settings.plugin.saveSettings();
+					await this.plugin.saveSettings();
 					this.cachedUpgradeStatus = null;
 					this.display();
 
 					if (
 						value === "commit" &&
-						!this.settings.settings.lastUpstreamCommitSha
+						!this.plugin.settings.lastUpstreamCommitSha
 					) {
 						void this.checkForQuartzUpgrade();
 					}
@@ -457,7 +445,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					: status.hasUpgrade;
 
 			if (status.error) {
-				new Setting(this.settingsRootElement)
+				new Setting(this.containerEl)
 					.setName("Upgrade check failed")
 					.setDesc(status.error);
 			} else if (upgradeAvailable) {
@@ -473,7 +461,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 								status.upstreamVersion ?? "unknown"
 							}.`;
 
-				const upgradeSetting = new Setting(this.settingsRootElement)
+				const upgradeSetting = new Setting(this.containerEl)
 					.setName(
 						strategy === "commit"
 							? "New upstream commits available"
@@ -493,7 +481,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 						}),
 				);
 			} else if (strategy === "commit" && status.latestUpstreamSha) {
-				new Setting(this.settingsRootElement)
+				new Setting(this.containerEl)
 					.setName("Quartz is up to date")
 					.setDesc(
 						`Current upstream commit: ${status.latestUpstreamSha.slice(
@@ -502,7 +490,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 						)}`,
 					);
 			} else {
-				new Setting(this.settingsRootElement)
+				new Setting(this.containerEl)
 					.setName("Quartz is up to date")
 					.setDesc(
 						`Current version: ${
@@ -532,13 +520,13 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				this.cachedUpgradeStatus.latestUpstreamSha &&
 				!this.cachedUpgradeStatus.hasNewerCommits
 			) {
-				this.settings.settings.lastUpstreamCommitSha =
+				this.plugin.settings.lastUpstreamCommitSha =
 					this.cachedUpgradeStatus.latestUpstreamSha;
-				await this.settings.plugin.saveSettings();
+				await this.plugin.saveSettings();
 			}
 
 			const useCommitStrategy =
-				this.settings.settings.upgradeCheckStrategy === "commit";
+				this.plugin.settings.upgradeCheckStrategy === "commit";
 
 			const hasUpdate = useCommitStrategy
 				? this.cachedUpgradeStatus.hasNewerCommits
@@ -614,7 +602,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private renderTemplateSection(): void {
 		if (this.cachedTemplateNames.length === 0) return;
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Templates")
 			.setDesc(
 				"Apply a configuration template to replace your current settings with a preset.",
@@ -622,9 +610,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			.setHeading();
 
 		for (const templateName of this.cachedTemplateNames) {
-			const setting = new Setting(this.settingsRootElement).setName(
-				templateName,
-			);
+			const setting = new Setting(this.containerEl).setName(templateName);
 
 			const cached = this.cachedTemplates.get(templateName);
 
@@ -704,14 +690,14 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		const config = this.cachedConfig.configuration;
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Site Configuration")
 			.setDesc(
 				"Edit site settings. Changes are applied when you click Save above.",
 			)
 			.setHeading();
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Page title")
 			.setDesc("The title shown in the browser tab and site header.")
 			.addText((text) =>
@@ -721,7 +707,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				}),
 			);
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Page title suffix")
 			.setDesc(
 				'Appended to the page title on subpages (e.g. " | My Site").',
@@ -735,7 +721,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("SPA mode")
 			.setDesc(
 				"Single Page Application mode for faster navigation between pages.",
@@ -747,7 +733,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				}),
 			);
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Popovers")
 			.setDesc("Show page preview popovers on hover.")
 			.addToggle((toggle) =>
@@ -759,7 +745,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Locale")
 			.setDesc(
 				"BCP 47 locale tag for date formatting and i18n (e.g. en-US).",
@@ -771,7 +757,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				}),
 			);
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Base URL")
 			.setDesc(
 				"The base URL where your site is hosted (without protocol, e.g. example.com/quartz).",
@@ -787,12 +773,12 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			);
 
 		if (config.analytics) {
-			new Setting(this.settingsRootElement)
+			new Setting(this.containerEl)
 				.setName("Analytics provider")
 				.setDesc(config.analytics.provider);
 		}
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Ignore patterns")
 			.setDesc(
 				"Comma-separated glob patterns for files to exclude from processing.",
@@ -818,39 +804,33 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 	private renderThemeSection(config: QuartzV5Config["configuration"]): void {
 		const theme = config.theme;
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Theme")
 			.setDesc("Typography and font settings.")
 			.setHeading();
 
-		new Setting(this.settingsRootElement)
-			.setName("Header font")
-			.addText((text) =>
-				text.setValue(theme.typography.header).onChange((value) => {
-					theme.typography.header = value;
-					this.markDirty();
-				}),
-			);
+		new Setting(this.containerEl).setName("Header font").addText((text) =>
+			text.setValue(theme.typography.header).onChange((value) => {
+				theme.typography.header = value;
+				this.markDirty();
+			}),
+		);
 
-		new Setting(this.settingsRootElement)
-			.setName("Body font")
-			.addText((text) =>
-				text.setValue(theme.typography.body).onChange((value) => {
-					theme.typography.body = value;
-					this.markDirty();
-				}),
-			);
+		new Setting(this.containerEl).setName("Body font").addText((text) =>
+			text.setValue(theme.typography.body).onChange((value) => {
+				theme.typography.body = value;
+				this.markDirty();
+			}),
+		);
 
-		new Setting(this.settingsRootElement)
-			.setName("Code font")
-			.addText((text) =>
-				text.setValue(theme.typography.code).onChange((value) => {
-					theme.typography.code = value;
-					this.markDirty();
-				}),
-			);
+		new Setting(this.containerEl).setName("Code font").addText((text) =>
+			text.setValue(theme.typography.code).onChange((value) => {
+				theme.typography.code = value;
+				this.markDirty();
+			}),
+		);
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("CDN caching")
 			.setDesc("Cache fonts via CDN for faster loading.")
 			.addToggle((toggle) =>
@@ -862,7 +842,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		const quartzThemesPlugin = this.findQuartzThemesPlugin();
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Use Quartz Themes")
 			.setDesc(
 				"Use community color themes from Quartz Themes instead of manual color editing.",
@@ -937,7 +917,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		scheme: QuartzColorScheme,
 		defaults: QuartzColorScheme,
 	): void {
-		new Setting(this.settingsRootElement).setName(heading).setHeading();
+		new Setting(this.containerEl).setName(heading).setHeading();
 
 		const colorFields: { key: keyof QuartzColorScheme; label: string }[] = [
 			{ key: "light", label: "Background" },
@@ -952,9 +932,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		];
 
 		for (const { key, label } of colorFields) {
-			const setting = new Setting(this.settingsRootElement).setName(
-				label,
-			);
+			const setting = new Setting(this.containerEl).setName(label);
 			const currentValue = scheme[key];
 			const defaultValue = defaults[key];
 			const isHexColor = /^#[0-9a-fA-F]{3,8}$/.test(currentValue);
@@ -1015,7 +993,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		const themes = this.cachedThemesJson;
 
 		if (!themes) {
-			new Setting(this.settingsRootElement)
+			new Setting(this.containerEl)
 				.setName("Theme")
 				.setDesc("Loading available themes...");
 			void this.fetchThemesJson().then(() => this.display());
@@ -1025,7 +1003,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		const themeNames = Object.keys(themes).sort();
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Theme")
 			.setDesc("Select a community color theme.")
 			.addDropdown((dropdown) => {
@@ -1062,7 +1040,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		const variations = selectedTheme?.variations ?? [];
 
 		if (variations.length > 0) {
-			new Setting(this.settingsRootElement)
+			new Setting(this.containerEl)
 				.setName("Variation")
 				.setDesc("Select a theme variation.")
 				.addDropdown((dropdown) => {
@@ -1314,7 +1292,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		const plugins = this.cachedConfig.plugins;
 		const lockPlugins = this.cachedLockFile?.plugins ?? {};
 
-		const pluginHeading = new Setting(this.settingsRootElement)
+		const pluginHeading = new Setting(this.containerEl)
 			.setName("Plugins")
 			.setDesc(
 				`${plugins.length} plugin(s) configured. Toggle enabled state or adjust execution order.`,
@@ -1366,7 +1344,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		let addPluginSource = "";
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Add plugin")
 			.setDesc(
 				'Enter a plugin source (e.g. "github:quartz-community/explorer").',
@@ -1402,7 +1380,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			);
 
 		if (plugins.length === 0) {
-			new Setting(this.settingsRootElement)
+			new Setting(this.containerEl)
 				.setName("No plugins")
 				.setDesc("No plugins are configured in your Quartz config.");
 
@@ -1457,7 +1435,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		const displayName = updateStatus?.hasUpdate ? `${name} *` : name;
 
-		const setting = new Setting(this.settingsRootElement)
+		const setting = new Setting(this.containerEl)
 			.setName(displayName)
 			.setDesc(infoParts.length > 0 ? infoParts.join(" · ") : "");
 
@@ -1594,7 +1572,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		]);
 
 		if (optionKeys.size === 0) {
-			new Setting(this.settingsRootElement).setDesc(
+			new Setting(this.containerEl).setDesc(
 				manifest
 					? "This plugin has no configurable options."
 					: "Loading manifest failed. You can still edit options manually.",
@@ -1610,7 +1588,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			const label = (schemaEntry?.title as string) ?? optKey;
 			const desc = (schemaEntry?.description as string) ?? "";
 
-			const setting = new Setting(this.settingsRootElement)
+			const setting = new Setting(this.containerEl)
 				.setName(label)
 				.setDesc(desc);
 
@@ -1670,7 +1648,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		let newOptionKey = "";
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setDesc("Add a custom option key.")
 			.addText((text) =>
 				text.setPlaceholder("optionKey").onChange((value) => {
@@ -1701,7 +1679,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		const layout = plugin.layout;
 
-		const layoutSetting = new Setting(this.settingsRootElement).setDesc(
+		const layoutSetting = new Setting(this.containerEl).setDesc(
 			"Layout: position, priority, and display mode for this plugin's component.",
 		);
 
@@ -1756,7 +1734,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 
 		const layout = config.layout;
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Layout Overrides")
 			.setDesc(
 				"Per-page-type layout overrides. Set a frame template or exclude plugins for specific page types.",
@@ -1779,7 +1757,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 		const override = layout.byPageType[pageType];
 		const hasOverride = override !== undefined;
 
-		const setting = new Setting(this.settingsRootElement).setName(pageType);
+		const setting = new Setting(this.containerEl).setName(pageType);
 
 		if (!hasOverride) {
 			setting.setDesc("No overrides configured.");
@@ -1810,7 +1788,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 			}),
 		);
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Template")
 			.setDesc(`Frame template for ${pageType} pages.`)
 			.addDropdown((dropdown) => {
@@ -1838,7 +1816,7 @@ export class QuartzV5SettingsTab extends PluginSettingTab {
 				});
 			});
 
-		new Setting(this.settingsRootElement)
+		new Setting(this.containerEl)
 			.setName("Excluded plugins")
 			.setDesc(
 				`Comma-separated plugin names to exclude from ${pageType} pages.`,
