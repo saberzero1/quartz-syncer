@@ -35,7 +35,6 @@ export class GitSettingsPage extends SettingPage {
 
 	display(): void {
 		this.containerEl.empty();
-		this.containerEl.addClass("quartz-syncer-github-settings");
 		this.branchSettingEl = null;
 
 		this.initializeGitHeader();
@@ -47,6 +46,10 @@ export class GitSettingsPage extends SettingPage {
 		this.initializeSecretSetting();
 		this.initializeCorsProxySetting();
 		this.initializeVaultFolderSetting();
+	}
+
+	hide(): void {
+		this.debouncedUpdateConnectionStatus.cancel();
 	}
 
 	private get settings() {

@@ -1,17 +1,8 @@
-import {
-	Setting,
-	type SettingDefinition,
-	type SettingDefinitionItem,
-	type SettingGroup,
-} from "obsidian";
-import type QuartzSyncer from "main";
-import type QuartzSyncerSettings from "src/models/settings";
+import type { SettingDefinition, SettingDefinitionItem } from "obsidian";
 import {
 	integrationRegistry,
 	type PluginIntegration,
 } from "src/compiler/integrations";
-
-type SettingsKey = keyof QuartzSyncerSettings;
 
 const integrationDescriptions: Record<string, string> = {
 	dataview: "Converts Dataview queries into Quartz-compatible markdown.",
@@ -26,10 +17,8 @@ const integrationDescriptions: Record<string, string> = {
 	canvas: "Publishes JSON Canvas (.canvas files) to Quartz. Processing is delegated to Quartz.",
 };
 
-export function integrationSettingDefinitions(
-	plugin: QuartzSyncer,
-): SettingDefinitionItem<SettingsKey>[] {
-	const items: SettingDefinitionItem<SettingsKey>[] = [];
+export function integrationSettingDefinitions(): SettingDefinitionItem[] {
+	const items: SettingDefinitionItem[] = [];
 
 	const coreIntegrations = integrationRegistry.getByCategory("core");
 
@@ -40,7 +29,7 @@ export function integrationSettingDefinitions(
 		items.push({
 			type: "group",
 			heading: "Core plugins",
-			items: coreIntegrations.map((i) => renderIntegration(plugin, i)),
+			items: coreIntegrations.map((i) => integrationDefinition(i)),
 		});
 	}
 
@@ -48,9 +37,7 @@ export function integrationSettingDefinitions(
 		items.push({
 			type: "group",
 			heading: "Community plugins",
-			items: communityIntegrations.map((i) =>
-				renderIntegration(plugin, i),
-			),
+			items: communityIntegrations.map((i) => integrationDefinition(i)),
 		});
 	}
 
@@ -73,38 +60,21 @@ export function integrationSettingDefinitions(
 	return items;
 }
 
-function renderIntegration(
-	plugin: QuartzSyncer,
+function integrationDefinition(
 	integration: PluginIntegration,
-): SettingDefinition<SettingsKey> {
+): SettingDefinition {
+	const settingKey = integration.settingKey as string;
+
 	return {
 		name: `Enable ${integration.name} integration`,
-		render: (setting: Setting, _group: SettingGroup) => {
-			const isAvailable = integration.isAvailable();
-			const settingKey = integration.settingKey;
-			const currentValue = plugin.settings[settingKey] as boolean;
-
-			setting
-				.setName(`Enable ${integration.name} integration`)
-				.setDesc(
-					integrationDescriptions[integration.id] ??
-						`Enables ${integration.id} integration.`,
-				)
-				.addToggle((toggle) =>
-					toggle
-						.setValue(currentValue && isAvailable)
-						.setDisabled(!isAvailable)
-						.onChange(async (value) => {
-							(plugin.settings[settingKey] as boolean) =
-								value && isAvailable;
-							await plugin.saveSettings();
-						}),
-				)
-				.setClass(
-					isAvailable
-						? "quartz-syncer-settings-enabled"
-						: "quartz-syncer-settings-disabled",
-				);
+		desc:
+			integrationDescriptions[integration.id] ??
+			`Enables ${integration.id} integration.`,
+		control: {
+			type: "toggle",
+			key: settingKey,
+			defaultValue: false,
+			disabled: () => !integration.isAvailable(),
 		},
 	};
 }

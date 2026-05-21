@@ -1,9 +1,6 @@
 import type { SettingDefinitionItem } from "obsidian";
-import type QuartzSyncerSettings from "src/models/settings";
 
-type SettingsKey = keyof QuartzSyncerSettings;
-
-export function uiSettingDefinitions(): SettingDefinitionItem<SettingsKey>[] {
+export function uiSettingDefinitions(): SettingDefinitionItem[] {
 	return [
 		{
 			type: "group",

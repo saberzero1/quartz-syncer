@@ -146,7 +146,6 @@ export class QuartzV5Page extends SettingPage {
 
 	display(): void {
 		this.containerEl.empty();
-		this.containerEl.addClass("quartz-syncer-github-settings");
 
 		this.renderQuartzHeader();
 		this.renderContentFolderSetting();
@@ -157,6 +156,14 @@ export class QuartzV5Page extends SettingPage {
 			this.renderLoading();
 			void this.loadV5Data();
 		}
+	}
+
+	hide(): void {
+		this.isLoading = false;
+		this.isSaving = false;
+		this.isCheckingUpdates = false;
+		this.isCheckingUpgrade = false;
+		this.isUpgrading = false;
 	}
 
 	private renderQuartzHeader(): void {
@@ -474,7 +481,7 @@ export class QuartzV5Page extends SettingPage {
 						.setButtonText(
 							this.isUpgrading ? "Upgrading..." : "Upgrade now",
 						)
-						.setWarning()
+						.setDestructive()
 						.setDisabled(this.isUpgrading)
 						.onClick(async () => {
 							await this.performQuartzUpgrade();
@@ -650,7 +657,7 @@ export class QuartzV5Page extends SettingPage {
 			setting.addButton((button) =>
 				button
 					.setButtonText("Apply")
-					.setWarning()
+					.setDestructive()
 					.onClick(async () => {
 						if (!this.cachedConfig || !this.templateService) return;
 
