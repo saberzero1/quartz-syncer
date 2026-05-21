@@ -148,7 +148,7 @@ Logger.useDefaults({
  * QuartzSyncer plugin main class.
  */
 export default class QuartzSyncer extends Plugin {
-	settings!: QuartzSyncerSettings;
+	declare settings: QuartzSyncerSettings;
 	appVersion!: string;
 	datastore!: DataStore;
 	secretStorageService!: SecretStorageService;
@@ -226,6 +226,7 @@ export default class QuartzSyncer extends Plugin {
 		this.migrateNestedGitSettings();
 		this.migrateRemovedThemesTab();
 		this.migrateTimestampKeyDefaults();
+		await this.saveSettings();
 
 		this.secretStorageService = new SecretStorageService(this.app);
 
@@ -301,11 +302,7 @@ export default class QuartzSyncer extends Plugin {
 	private migrateNestedGitSettings(): void {
 		const raw = this.settings as unknown as Record<string, unknown>;
 
-		if (
-			raw["git"] &&
-			typeof raw["git"] === "object" &&
-			!this.settings.gitRemoteUrl
-		) {
+		if (raw["git"] && typeof raw["git"] === "object") {
 			Logger.info("Migrating nested git settings to flat keys");
 
 			const git = raw["git"] as Record<string, unknown>;
