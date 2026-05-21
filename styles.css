@@ -1,7 +1,3 @@
-.quartz-syncer-hidden {
-	display: none;
-}
-
 /* Quartz Syncer Publication Center */
 .quartz-syncer-publisher-title-separator {
 	margin-top: 0;
@@ -204,7 +200,6 @@ input[type="checkbox"]:indeterminate::after {
 
 /* Quartz Syncer Settings */
 
-.quartz-syncer-settings button:disabled,
 .quartz-syncer-publish-status-view button:disabled {
 	pointer-events: none;
 	opacity: 0.4;
@@ -227,46 +222,6 @@ input[type="checkbox"]:indeterminate::after {
 .quartz-syncer-publish-status-view .collapsable {
 	cursor: var(--cursor);
 	margin-left: 10px;
-}
-
-.quartz-syncer-settings-enabled
-	> .setting-item-info
-	> .setting-item-name::after {
-	content: " (plugin enabled)";
-	color: var(--text-success, var(--color-green));
-	font-weight: var(--font-bold);
-}
-
-.quartz-syncer-settings-disabled > .setting-item-info > .setting-item-name {
-	color: var(--text-error, var(--color-red));
-}
-
-.quartz-syncer-settings-disabled
-	> .setting-item-info
-	> .setting-item-name::after {
-	content: " (plugin disabled)";
-	color: var(--text-error, var(--color-red));
-	font-weight: var(--font-bold);
-}
-
-.quartz-syncer-settings-disabled > .setting-item-control > .checkbox-container {
-	background-color: var(--text-error, var(--color-red));
-}
-
-.quartz-syncer-settings .setting-item-heading {
-	margin-top: var(--heading-spacing);
-}
-
-.quartz-syncer-settings-description {
-	margin-bottom: 10px;
-}
-
-.quartz-syncer-settings .svg-icon {
-	margin-right: 10px;
-}
-
-.quartz-syncer-navigation-item-icon > svg.svg-icon {
-	margin-right: 0;
 }
 
 .quartz-syncer-svg-icon {
@@ -325,175 +280,6 @@ input[type="checkbox"]:indeterminate::after {
 
 .quartz-syncer-modal-content:first-child {
 	width: 100%;
-}
-
-/* Folder select */
-.quartz-syncer-settings .search-input-container::before {
-	display: none;
-}
-
-.quartz-syncer-settings .search-input-container input {
-	padding-inline-start: 0;
-	padding: 4px 8px;
-}
-
-.quartz-syncer-settings.quartz-syncer-desktop .search-input-container input {
-	width: unset;
-}
-
-/* Settings tabs */
-.quartz-syncer-navigation-item {
-	cursor: var(--cursor);
-	border: var(--border-width) solid var(--background-modifier-border);
-	border-radius: var(--radius-m) var(--radius-m) var(--radius-s)
-		var(--radius-s);
-	font-weight: var(--font-bold);
-	font-size: var(--font-text-size);
-	display: flex;
-	flex-shrink: 0;
-	flex-direction: row;
-	white-space: nowrap;
-	padding: 4px 6px;
-	align-items: center;
-	gap: 4px;
-	overflow: hidden;
-	background-color: var(--background-secondary-alt);
-	transition:
-		color 0.25s ease-in-out,
-		padding 0.25s ease-in-out,
-		background-color 0.35s cubic-bezier(0.45, 0.25, 0.83, 0.67),
-		max-width 0.35s cubic-bezier(0.57, 0.04, 0.58, 1);
-	height: 32px;
-}
-
-@media screen and (width <= 1325px) {
-	.quartz-syncer-navigation-item.quartz-syncer-desktop {
-		max-width: 32px;
-	}
-}
-
-@media screen and (width <= 800px) {
-	.quartz-syncer-navigation-item.quartz-syncer-mobile {
-		max-width: 32px;
-	}
-}
-
-.quartz-syncer-navigation-item-icon,
-.quartz-syncer-warning {
-	padding-top: 5px;
-}
-
-.quartz-syncer-navigation-item:hover {
-	border-color: var(--interactive-accent-hover);
-	border-bottom: 0;
-}
-
-.quartz-syncer-navigation-item.quartz-syncer-navigation-item-active {
-	background-color: var(--interactive-accent);
-	color: var(--text-on-accent);
-	padding: 4px 9px;
-	max-width: 100%;
-	border: var(--border-width) solid var(--background-modifier-border);
-	border-radius: var(--radius-m) var(--radius-m) var(--radius-s)
-		var(--radius-s);
-	border-bottom: 0;
-	transition:
-		color 0.25s ease-in-out,
-		padding 0.25s ease-in-out,
-		background-color 0.35s cubic-bezier(0.45, 0.25, 0.83, 0.67),
-		max-width 0.45s cubic-bezier(0.57, 0.04, 0.58, 1) 0.2s;
-}
-
-.quartz-syncer-settings {
-	transition: transform 400ms 0s;
-}
-
-.quartz-syncer-setting-title {
-	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 30px;
-}
-
-.quartz-syncer-setting-title.quartz-syncer-mobile {
-	justify-content: space-around;
-}
-
-.quartz-syncer-setting-title h1 {
-	font-weight: 900;
-	margin-top: 6px;
-	margin-bottom: 12px;
-}
-
-.quartz-syncer-setting-header {
-	margin-bottom: 24px;
-	overflow: auto hidden;
-}
-
-.quartz-syncer-setting-header .quartz-syncer-setting-tab-group {
-	display: flex;
-	align-items: flex-end;
-	overflow-x: auto;
-	width: 100%;
-}
-
-.quartz-syncer-setting-tab-group {
-	margin-top: 6px;
-	padding-left: 2px;
-	padding-right: 2px;
-	border-bottom: var(--border-width) solid var(--background-modifier-border);
-}
-
-.quartz-syncer-setting-header .quartz-syncer-tab-settings {
-	padding: 6px 12px;
-	font-weight: 600;
-	cursor: var(--cursor);
-	white-space: nowrap;
-	border-left: var(--border-width) solid var(--background-modifier-border);
-	border-right: var(--border-width) solid var(--background-modifier-border);
-}
-
-.quartz-syncer-setting-header .quartz-syncer-tab-settings:first-child {
-	margin-left: 6px;
-}
-
-.quartz-syncer-setting-header
-	.quartz-syncer-tab-settings.quartz-syncer-tab-settings-active {
-	border-bottom: var(--border-width) solid var(--background-primary);
-	transform: translateY(2px);
-	border-radius: var(--radius-s);
-	border-left: var(--border-width) solid var(--background-modifier-border);
-	border-top: var(--border-width) solid var(--background-modifier-border);
-	border-right: var(--border-width) solid var(--background-modifier-border);
-}
-
-.quartz-syncer-setting-content
-	.quartz-syncer-tab-settings.quartz-syncer-tab-settings-active {
-	display: block;
-}
-
-.quartz-syncer-setting-content
-	.quartz-syncer-tab-settings:not(.quartz-syncer-tab-settings-active) {
-	display: none;
-}
-
-body.is-phone
-	.quartz-syncer-navigation-item:not(.quartz-syncer-navigation-item-active)
-	> span:nth-child(2),
-body.is-tablet
-	.quartz-syncer-navigation-item:not(.quartz-syncer-navigation-item-active)
-	> span:nth-child(2),
-body.is-mobile
-	.quartz-syncer-navigation-item:not(.quartz-syncer-navigation-item-active)
-	> span:nth-child(2) {
-	border: 0;
-	height: 1px;
-	margin: -1px;
-	overflow: hidden;
-	padding: 0;
-	position: absolute;
-	width: 1px;
-	white-space: nowrap;
 }
 
 /* Token/Secret Storage UI */
