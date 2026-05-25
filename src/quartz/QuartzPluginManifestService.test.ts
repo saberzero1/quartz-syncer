@@ -114,7 +114,6 @@ describe("QuartzPluginManifestService", () => {
 			name: "quartz-themes",
 			repo: "github:saberzero1/quartz-themes",
 			subdir: "plugin",
-			ref: "main",
 		});
 
 		assert.ok(manifest);

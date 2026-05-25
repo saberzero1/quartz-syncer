@@ -61,32 +61,23 @@ export class GitSettingsPage extends SettingPage {
 	}
 
 	private initializeGitHeader() {
-		this.readStatusElement = createSpan({ text: "pending..." });
-		this.writeStatusElement = createSpan({ text: "pending..." });
+		const statusContainer = createDiv({
+			cls: "quartz-syncer-git-status-container",
+		});
+
+		const readPill = statusContainer.createSpan({
+			cls: "quartz-syncer-git-status-pill quartz-syncer-git-status-pending",
+		});
+		readPill.setText("Read: pending");
+		this.readStatusElement = readPill;
+
+		const writePill = statusContainer.createSpan({
+			cls: "quartz-syncer-git-status-pill quartz-syncer-git-status-pending",
+		});
+		writePill.setText("Write: pending");
+		this.writeStatusElement = writePill;
 
 		void this.checkConnectionAndSaveSettings();
-
-		const statusContainer = createSpan();
-
-		const readWrapper = statusContainer.createSpan();
-		readWrapper.appendText(" (read: ");
-		readWrapper.append(this.readStatusElement);
-		readWrapper.appendText(")");
-
-		readWrapper.addClass(
-			"quartz-syncer-connection-status",
-			"quartz-syncer-connection-status-pending",
-		);
-
-		const writeWrapper = statusContainer.createSpan();
-		writeWrapper.appendText(" (write: ");
-		writeWrapper.append(this.writeStatusElement);
-		writeWrapper.appendText(")");
-
-		writeWrapper.addClass(
-			"quartz-syncer-connection-status",
-			"quartz-syncer-connection-status-pending",
-		);
 
 		new Setting(this.containerEl)
 			.setName("Git Repository")
@@ -181,55 +172,39 @@ export class GitSettingsPage extends SettingPage {
 	);
 
 	private updateConnectionStatusIndicator() {
-		this.applyStatusToElement(this.readStatusElement, this.readStatus);
-		this.applyStatusToElement(this.writeStatusElement, this.writeStatus);
+		this.applyStatusToElement(
+			this.readStatusElement,
+			this.readStatus,
+			"Read",
+		);
+
+		this.applyStatusToElement(
+			this.writeStatusElement,
+			this.writeStatus,
+			"Write",
+		);
 	}
 
 	private applyStatusToElement(
 		el: HTMLElement,
 		status: "loading" | "connected" | "error",
+		label: string,
 	) {
-		if (el.parentElement === null) {
-			return;
-		}
+		el.removeClass(
+			"quartz-syncer-git-status-pending",
+			"quartz-syncer-git-status-success",
+			"quartz-syncer-git-status-failed",
+		);
 
 		if (status === "loading") {
-			el.innerText = "pending...";
-
-			el.parentElement.classList.remove(
-				"quartz-syncer-connection-status-success",
-				"quartz-syncer-connection-status-failed",
-			);
-
-			el.parentElement.classList.add(
-				"quartz-syncer-connection-status-pending",
-			);
-		}
-
-		if (status === "connected") {
-			el.innerText = "ok";
-
-			el.parentElement.classList.remove(
-				"quartz-syncer-connection-status-pending",
-				"quartz-syncer-connection-status-failed",
-			);
-
-			el.parentElement.classList.add(
-				"quartz-syncer-connection-status-success",
-			);
-		}
-
-		if (status === "error") {
-			el.innerText = "failed";
-
-			el.parentElement.classList.remove(
-				"quartz-syncer-connection-status-pending",
-				"quartz-syncer-connection-status-success",
-			);
-
-			el.parentElement.classList.add(
-				"quartz-syncer-connection-status-failed",
-			);
+			el.setText(`${label}: pending`);
+			el.addClass("quartz-syncer-git-status-pending");
+		} else if (status === "connected") {
+			el.setText(`${label}: connected`);
+			el.addClass("quartz-syncer-git-status-success");
+		} else {
+			el.setText(`${label}: failed`);
+			el.addClass("quartz-syncer-git-status-failed");
 		}
 	}
 
@@ -321,6 +296,13 @@ export class GitSettingsPage extends SettingPage {
 					await this.checkConnectionAndSaveSettings();
 				});
 			});
+		} else if (this.settings.gitRemoteUrl && !this.branchesLoaded) {
+			setting.addText((text) =>
+				text
+					.setPlaceholder("Loading branches...")
+					.setValue(this.settings.gitBranch)
+					.setDisabled(true),
+			);
 		} else {
 			setting.addText((text) =>
 				text

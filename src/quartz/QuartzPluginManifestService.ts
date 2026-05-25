@@ -95,6 +95,52 @@ export class QuartzPluginManifestService {
 				ref = defaultBranch ?? "main";
 			}
 
+			const manifest = await this.fetchManifestFromRef(
+				resolved,
+				ref,
+				cacheKey,
+			);
+
+			if (manifest !== undefined) {
+				return manifest;
+			}
+
+			const { defaultBranch } =
+				await RepositoryConnection.fetchRemoteBranches(
+					resolved.url,
+					this.auth,
+					this.corsProxyUrl,
+				);
+
+			if (defaultBranch && defaultBranch !== ref) {
+				const fallback = await this.fetchManifestFromRef(
+					resolved,
+					defaultBranch,
+					cacheKey,
+				);
+
+				if (fallback !== undefined) {
+					return fallback;
+				}
+			}
+
+			this.cache.set(cacheKey, null);
+
+			return null;
+		} catch (error) {
+			logger.debug("Could not fetch plugin manifest", error);
+			this.cache.set(cacheKey, null);
+
+			return null;
+		}
+	}
+
+	private async fetchManifestFromRef(
+		resolved: { url: string; subdir?: string },
+		ref: string,
+		cacheKey: string,
+	): Promise<QuartzPluginManifest | null | undefined> {
+		try {
 			const repo = new RepositoryConnection({
 				gitSettings: {
 					remoteUrl: resolved.url,
@@ -130,11 +176,8 @@ export class QuartzPluginManifestService {
 			this.cache.set(cacheKey, manifest);
 
 			return manifest;
-		} catch (error) {
-			logger.debug("Could not fetch plugin manifest", error);
-			this.cache.set(cacheKey, null);
-
-			return null;
+		} catch {
+			return undefined;
 		}
 	}
 
