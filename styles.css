@@ -560,10 +560,6 @@ input[type="checkbox"]:indeterminate::after {
 	font-size: var(--font-ui-medium);
 }
 
-.quartz-syncer-hidden {
-	display: none !important;
-}
-
 /* Quartz V5 Settings - Sticky Action Bar */
 .quartz-syncer-v5-action-bar {
 	position: sticky;
