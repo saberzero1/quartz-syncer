@@ -1,6 +1,6 @@
 ---
 created: 2026-05-25T17:41:33Z+0200
-modified: 2026-05-25T17:57:55Z+0200
+modified: 2026-05-27T23:55:41Z+0200
 tags: [excalidraw]
 excalidraw-plugin: parsed
 ---
@@ -14,11 +14,13 @@ excalidraw-plugin: parsed
 npx quartz plugin add github:quartz-community/obsidian-plugin-excalidraw ^I1ZTc2HA
 
 ## Element Links
+
 jmIGvIPB: https://quartz.jzhao.xyz
 
 McGurXzs: [[Troubleshooting/Excalidraw]]
 
 ## Embedded Files
+
 379ae78af5fe62150aca93dc8f60c37fa8788ec7: [[quartz-logo.png]]
 
 589b12dac69d59bed3b188dfc79753921ea944b5: [[excalidraw-logo.png]]
@@ -26,7 +28,9 @@ McGurXzs: [[Troubleshooting/Excalidraw]]
 2fe5163079f0b10f15f9ad0bb8d779ea18d5a3e3: [[obsidian-icon.png]]
 
 %%
+
 ## Drawing
+
 ```compressed-json
 N4KAkARALgngDgUwgLgAQQQDwMYEMA2AlgCYBOuA7hADTgQBuCpAzoQPYB2KqATLZMzYBXUtiRoIACyhQ4zZAHoFAc0JRJQgEYA6bGwC2CgF7N6hbEcK4OCtptbErHALRY8RMpWdx8Q1TdIEfARcZgRmBShcZQUebR44gGYaOiCEfQQOKGZuAG1wMFAwYogSbgh9AHUAVk16XEwANRTiyFhEcsDsKI5lYJaSzG5nRIB2ADZ4gBZE8YBOHmqADgAG
 
@@ -114,4 +118,5 @@ il4kCA4UasPEAUQaivy/K1FQCuhmJpbopkUgCFHGUcgSAmKzuJTFKRuqlw3GCtF6qcVZzmV884IC3P9U
 
 Wq7AuEeAswDlDDq4AF5QNcOvXW9ymK3QQgIwGfBCKSIBisiJ9DSDnqS0DkHRQYG5UCo4edM09RdwMBygH1da8ePIq8ihAoAn4c9ZeuvWrYrVjgZgMGohpTwAoF5TIEIHplUlY5ygYsVhjOi1oMAx6kNXytnCWzega6vDYuvGWzgO5HQ1uPupxxEbcNRMHtWUMwC/rggj6jgIepskcZN4recAHRClAxVcwtyEsEAA
 ```
+
 %%
