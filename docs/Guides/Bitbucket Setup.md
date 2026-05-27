@@ -26,27 +26,14 @@ This guide covers setting up a Quartz v5 repository on Bitbucket, configuring de
 ### Option 2: Create and Push Manually
 
 1. Create a new repository on Bitbucket.
-2. Clone Quartz locally, switch to the v5 branch, change the remote, and push:
+2. Clone Quartz locally, change the remote, and push:
 
    ```bash
    git clone https://github.com/jackyzha0/quartz.git
    cd quartz
-   git checkout v5
    git remote set-url origin https://bitbucket.org/<workspace>/<repository>.git
-   git push -u origin v5
+   git push -u origin HEAD
    ```
-
-## Set v5 as the Default Branch
-
-The upstream Quartz repository currently defaults to `v4`. Change your repository's default branch to `v5`:
-
-1. Go to your repository on Bitbucket.
-2. Navigate to **Repository settings** > **Repository details**.
-3. Change the **Main branch** to `v5`.
-4. Save the change.
-
-> [!NOTE] Quartz v5 is in beta
-> Quartz v5 is currently in beta and not yet the default upstream branch. Once v5 leaves beta it will become the default, and this step will no longer be necessary. See the [upstream migration guide](https://quartz.jzhao.xyz/migrating) if you are migrating existing content from v4.
 
 ## Clone and Install
 
@@ -55,7 +42,6 @@ Clone your Bitbucket repository and install dependencies:
 ```bash
 git clone https://bitbucket.org/<workspace>/<repository>.git
 cd <repository>
-git checkout v5
 npm ci
 ```
 
@@ -190,7 +176,7 @@ Bitbucket uses App Passwords for API authentication instead of Personal Access T
 1. Open Obsidian and go to **Settings** > **Community Plugins** > **Quartz Syncer**.
 2. In the **Git** settings tab:
    - **Remote URL**: `https://bitbucket.org/<workspace>/<repository>.git`
-   - **Branch**: `v5`
+   - **Branch**: Your repository's default branch (typically `v5`)
    - **Provider**: Bitbucket
    - **Authentication Type**: Username & Token/Password
    - **Username**: `x-token-auth` (when using an App Password)

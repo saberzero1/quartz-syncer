@@ -13,7 +13,6 @@ import {
 	BLOCKREF_REGEX,
 	CODE_FENCE_REGEX,
 	CODEBLOCK_REGEX,
-	EXCALIDRAW_REGEX,
 	TRANSCLUDED_SVG_REGEX,
 	DATAVIEW_LINK_TARGET_BLANK_REGEX,
 	DATAVIEW_FIELD_REGEX,
@@ -386,14 +385,6 @@ describe("regexes", () => {
 				DATAVIEW_LINK_TARGET_BLANK_REGEX,
 				"target='_blank' rel='noopener'",
 			);
-			expect(matches).toHaveLength(1);
-		});
-	});
-
-	describe("EXCALIDRAW_REGEX", () => {
-		it("matches excalidraw coordinate patterns", () => {
-			const text = ":[[100,200],some data]]";
-			const matches = allMatches(EXCALIDRAW_REGEX, text);
 			expect(matches).toHaveLength(1);
 		});
 	});

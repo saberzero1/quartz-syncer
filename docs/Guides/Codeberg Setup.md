@@ -25,27 +25,14 @@ Codeberg is a free, community-driven Git hosting service powered by Gitea.
 ### Option 2: Create Empty and Push
 
 1. Create a new repository on Codeberg.
-2. Clone Quartz locally, switch to the v5 branch, change the remote, and push:
+2. Clone Quartz locally, change the remote, and push:
 
    ```bash
    git clone https://github.com/jackyzha0/quartz.git
    cd quartz
-   git checkout v5
    git remote set-url origin https://codeberg.org/<username>/quartz.git
-   git push -u origin v5
+   git push -u origin HEAD
    ```
-
-## Set v5 as the Default Branch
-
-The upstream Quartz repository currently defaults to `v4`. Change your repository's default branch to `v5`:
-
-1. Go to your repository on Codeberg.
-2. Navigate to **Settings** > **Branches**.
-3. Change the default branch to `v5`.
-4. Save the change.
-
-> [!NOTE] Quartz v5 is in beta
-> Quartz v5 is currently in beta and not yet the default upstream branch. Once v5 leaves beta it will become the default, and this step will no longer be necessary. See the [upstream migration guide](https://quartz.jzhao.xyz/migrating) if you are migrating existing content from v4.
 
 ## Clone and Install
 
@@ -54,7 +41,6 @@ Clone your Codeberg repository and install dependencies:
 ```bash
 git clone https://codeberg.org/<username>/<repository>.git
 cd <repository>
-git checkout v5
 npm ci
 ```
 
@@ -204,7 +190,7 @@ If you prefer not to use CI, you can manually build and deploy:
 1. Open Obsidian and go to **Settings** > **Community Plugins** > **Quartz Syncer**.
 2. In the **Git** settings tab:
    - **Remote URL**: `https://codeberg.org/<username>/<repository>.git`
-   - **Branch**: `v5`
+   - **Branch**: Your repository's default branch (typically `v5`)
    - **Provider**: Gitea / Codeberg
    - **Authentication Type**: Username & Token/Password
    - **Username**: Your Codeberg username

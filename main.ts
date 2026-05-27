@@ -1,9 +1,8 @@
-import { Notice, Platform, Plugin, Workspace, addIcon } from "obsidian";
+import { Notice, Plugin, Workspace } from "obsidian";
 import Publisher from "./src/publisher/Publisher";
 import QuartzSyncerSettings, {
 	type GitRemoteSettings,
 } from "./src/models/settings";
-import { quartzSyncerIcon } from "./src/ui/suggest/constants";
 import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
 import PublishStatusManager from "src/publisher/PublishStatusManager";
 import ObsidianFrontMatterEngine from "src/publishFile/ObsidianFrontMatterEngine";
@@ -11,6 +10,7 @@ import QuartzSyncerSiteManager from "src/repositoryConnection/QuartzSyncerSiteMa
 import { QuartzSyncerSettingTab } from "./src/views/QuartzSyncerSettingTab";
 import { DataStore } from "src/publishFile/DataStore";
 import { SecretStorageService } from "src/utils/SecretStorageService";
+import { ExtendedCacheService } from "src/services/ExtendedCacheService";
 import Logger from "js-logger";
 import { registerCliHandlers } from "src/cli/registerCliHandlers";
 
@@ -92,9 +92,11 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	useDatacore: false,
 	/**
 	 * Enable Excalidraw integration.
-	 * This will allow the plugin to use Excalidraw drawings in the published notes.
+	 * This will sync Excalidraw drawings (`.excalidraw.md` files) to Quartz as-is.
+	 * Rendering is handled by the Quartz Excalidraw plugin.
 	 *
-	 * Excalidraw documentation: {@link https://excalidraw-obsidian.online/wiki/welcome}
+	 * Excalidraw Obsidian plugin: {@link https://excalidraw-obsidian.online/wiki/welcome}
+	 * Quartz Excalidraw plugin: {@link https://github.com/quartz-community/obsidian-plugin-excalidraw}
 	 */
 	useExcalidraw: false,
 	/**
@@ -152,6 +154,7 @@ export default class QuartzSyncer extends Plugin {
 	appVersion!: string;
 	datastore!: DataStore;
 	secretStorageService!: SecretStorageService;
+	extendedCache!: ExtendedCacheService;
 
 	publishModal!: PublicationCenter;
 
@@ -163,6 +166,7 @@ export default class QuartzSyncer extends Plugin {
 		this.appVersion = this.manifest.version;
 
 		await this.loadSettings();
+		this.extendedCache = new ExtendedCacheService(this.app);
 
 		if (this.settings.logLevel) Logger.setLevel(this.settings.logLevel);
 
@@ -174,10 +178,8 @@ export default class QuartzSyncer extends Plugin {
 		await this.addCommands();
 		registerCliHandlers(this);
 
-		addIcon("quartz-syncer-icon", quartzSyncerIcon);
-
 		this.addRibbonIcon(
-			"quartz-syncer-icon",
+			"leaf",
 			"Quartz Syncer publication center",
 			async () => {
 				this.openPublishModal();
@@ -190,6 +192,8 @@ export default class QuartzSyncer extends Plugin {
 	 * Cleans up resources and saves settings.
 	 */
 	onunload() {
+		this.extendedCache?.destroy();
+
 		// Remove the datastore cache if it exists.
 		// This will also clear the cache when the plugin is updated.
 		if (!this.settings.persistCache) {
@@ -384,36 +388,6 @@ export default class QuartzSyncer extends Plugin {
 	 * These commands can be triggered from the command palette or ribbon icon.
 	 */
 	async addCommands() {
-		if (this.settings["ENABLE_DEVELOPER_TOOLS"] && Platform.isDesktop) {
-			Logger.info("Developer tools enabled");
-
-			const publisher = new Publisher(
-				this.app,
-				this,
-				this.app.vault,
-				this.app.metadataCache,
-				this.settings,
-				this.datastore,
-			);
-
-			import("./src/test/snapshot/generateSyncerSnapshot")
-				.then((snapshotGen) => {
-					this.addCommand({
-						id: "generate-snapshot",
-						name: "Generate snapshot",
-						callback: async () => {
-							await snapshotGen.generateSyncerSnapshot(
-								this.settings,
-								publisher,
-							);
-						},
-					});
-				})
-				.catch((e) => {
-					Logger.error("Unable to load generateSyncerSnapshot", e);
-				});
-		}
-
 		this.addCommand({
 			id: "open-publish-modal",
 			name: "Open publication center",
@@ -646,6 +620,7 @@ export default class QuartzSyncer extends Plugin {
 				this.app.metadataCache,
 				this.settings,
 				this.datastore,
+				this.extendedCache,
 			);
 
 			const publishStatusManager = new PublishStatusManager(

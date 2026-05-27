@@ -76,6 +76,7 @@
 		"luxon": "^3.4.3",
 		"minimatch": "^10.2.5",
 		"obsidian-dataview": "^0.5.68",
+		"obsidian-extended-metadatacache": "^0.5.1",
 		"remark-frontmatter": "^5.0.0",
 		"remark-parse": "^11.0.0",
 		"remark-stringify": "^11.0.0",

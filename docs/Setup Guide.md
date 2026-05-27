@@ -39,14 +39,13 @@ For Git providers not listed above, follow these general steps.
 
 ### 1. Create a Quartz Repository
 
-Create a new repository on your Git provider (start from the [official Quartz template](https://github.com/new?template_name=quartz&template_owner=jackyzha0) on GitHub, then import or mirror it to your provider of choice). Make sure the `v5` branch is available on your remote.
+Create a new repository on your Git provider (start from the [official Quartz template](https://github.com/new?template_name=quartz&template_owner=jackyzha0) on GitHub, then import or mirror it to your provider of choice).
 
 Clone the repository locally:
 
 ```bash
 git clone https://<provider>/<user>/<repo>.git
 cd <repo>
-git checkout v5
 npm ci
 ```
 
@@ -88,22 +87,18 @@ Popular hosting options:
 
 See the [Quartz hosting documentation](https://quartz.jzhao.xyz/hosting) for provider-specific CI examples, caching strategies, and custom domain setup.
 
-### 4. Set Your Default Branch to v5
-
-After verifying your site builds and deploys, update your repository's default branch to `v5` so new clones, pull requests, and deployments all target v5. The exact steps vary by provider, but every modern Git host supports changing the default branch from the repository settings page.
-
-### 5. Generate an Access Token
+### 4. Generate an Access Token
 
 Create a personal access token (or app password) with **write** access to your Quartz repository. The exact steps vary by provider — see the provider-specific guide linked above, or consult your provider's documentation.
 
-### 6. Configure Quartz Syncer
+### 5. Configure Quartz Syncer
 
 In Obsidian, go to **Settings** > **Community Plugins** > **Quartz Syncer** and configure:
 
 | Setting | Value |
 |---------|-------|
 | **Remote URL** | `https://<provider>/<user>/<repo>.git` |
-| **Branch** | `v5` |
+| **Branch** | Your repository's default branch (typically `v5`) |
 | **Provider** | Select your provider or "Custom" |
 | **Authentication Type** | Username & Token/Password |
 | **Username** | Your username (or `oauth2` for some providers) |

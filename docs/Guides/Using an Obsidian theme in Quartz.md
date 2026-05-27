@@ -2,7 +2,7 @@
 title: Using an Obsidian theme in Quartz
 description: Guide on how to use Quartz Themes to use an Obsidian theme in Quartz.
 created: 2025-05-16T11:05:44Z+0200
-modified: 2026-04-11T18:00:00Z+0200
+modified: 2026-05-25T18:19:13Z+0200
 publish: true
 tags: [guides]
 ---
@@ -48,12 +48,20 @@ Or let your CI pipeline handle it — every modern Quartz v5 build should run `n
 | `theme` | string | yes | `tokyo-night` | Theme identifier from the Quartz Themes registry. |
 | `mode` | `dark` \| `light` \| `both` | yes | `both` | Which color mode(s) to include. |
 | `variation` | string | no | — | Sub-variation for themes that ship multiple palettes (e.g. `frappe` for `catppuccin`). |
-| `calloutStyle` | string | no | — | Callout style variant (e.g. `glass`, `glow`). |
+| `calloutStyle` | string | no | — | Callout style variant (e.g. `glass`, `glow`, `draa`). See [available styles](#callout-styles). |
 | `fonts` | object | no | — | Override `header`, `body`, and `code` fonts. |
-| `aspects` | object | no | — | Mix-and-match specific aspects from different themes. |
+| `aspects` | object | no | — | Mix-and-match specific aspects from different themes, or `false` to exclude. |
 | `include` | array | no | all | Explicit list of aspects to apply (e.g. `[typography, callouts]`). |
+| `styleSettings` | object or string | no | — | Obsidian [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) overrides as a JSON object or file path. |
 
-**Available aspects** (for `aspects` and `include`): `base`, `typography`, `callouts`, `tables`, `code`, `links`, `blockquotes`, `checkboxes`, `images`, `embeds`, `cards`, `search`, `scrollbars`, `explorer`, `toc`, `graph`, `popover`, `footer`, `recentNotes`, `listPage`, `darkmode`, `breadcrumbs`, `lists`, `misc`.
+**Available aspects** (for `aspects` and `include`): `base`, `typography`, `callouts`, `tables`, `code`, `links`, `blockquotes`, `checkboxes`, `images`, `embeds`, `cards`, `search`, `scrollbars`, `explorer`, `toc`, `graph`, `popover`, `footer`, `recentNotes`, `listPage`, `darkmode`, `breadcrumbs`, `lists`, `canvas`, `bases`, `properties`, `stacked`, `misc`.
+
+> [!NOTE] Aspect auto-inclusion
+> Most aspects are included automatically when no `include` option is specified. The aspects `canvas`, `bases`, `properties`, and `stacked` require explicit inclusion via the `include` option.
+
+## Callout styles
+
+The `calloutStyle` option accepts the following values: `default`, `draa`, `empty`, `glass`, `glow`, `idlib`, `lorens`, `overrides`, `raka`.
 
 ## Available themes
 

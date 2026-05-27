@@ -5,7 +5,7 @@ created: 2026-01-08T14:00:00Z+0100
 modified: 2026-04-01T17:15:09Z+0200
 publish: true
 tags: [settings/git]
-default_value: '`"v4"`'
+default_value: '`"v5"`'
 ---
 
-Selects which branch to publish to. Quartz typically uses `v4` as the default branch. The dropdown auto-populates from the remote.
+Selects which branch to publish to. Quartz uses `v5` as the default branch. The dropdown auto-populates from the remote.

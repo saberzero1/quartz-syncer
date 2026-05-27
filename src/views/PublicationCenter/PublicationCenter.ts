@@ -39,7 +39,7 @@ export class PublicationCenter {
 
 		this.modal.titleEl
 			.createSpan({ text: "Publication center" })
-			.prepend(this.getIcon("quartz-syncer-icon"));
+			.prepend(this.getIcon("leaf"));
 
 		this.modal.titleEl.addClass("quartz-syncer-modal-title");
 		this.modal.contentEl.addClass("quartz-syncer-modal-content");

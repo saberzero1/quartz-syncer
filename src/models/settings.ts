@@ -156,9 +156,11 @@ export default interface QuartzSyncerSettings {
 	useDatacore: boolean;
 	/**
 	 * Enable Excalidraw integration.
-	 * This will allow the plugin to use Excalidraw drawings in the published notes.
+	 * This will sync Excalidraw drawings (`.excalidraw.md` files) to Quartz as-is.
+	 * Rendering is handled by the Quartz Excalidraw plugin.
 	 *
-	 * Excalidraw documentation: {@link https://excalidraw-obsidian.online/wiki/welcome}
+	 * Excalidraw Obsidian plugin: {@link https://excalidraw-obsidian.online/wiki/welcome}
+	 * Quartz Excalidraw plugin: {@link https://github.com/quartz-community/obsidian-plugin-excalidraw}
 	 */
 	useExcalidraw: boolean;
 	/**

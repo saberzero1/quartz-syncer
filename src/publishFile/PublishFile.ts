@@ -145,7 +145,10 @@ export class PublishFile {
 	 * @returns The file type: "excalidraw", "base", "canvas", or "markdown".
 	 */
 	getType(): "excalidraw" | "base" | "canvas" | "markdown" {
-		if (this.file.name.endsWith(".excalidraw")) {
+		if (
+			this.file.name.endsWith(".excalidraw") ||
+			this.file.name.endsWith(".excalidraw.md")
+		) {
 			return "excalidraw";
 		}
 
@@ -172,6 +175,13 @@ export class PublishFile {
 
 		if (this.file.extension === "canvas") {
 			return this.settings.useCanvas;
+		}
+
+		if (
+			this.file.name.endsWith(".excalidraw") ||
+			this.file.name.endsWith(".excalidraw.md")
+		) {
+			return this.settings.useExcalidraw;
 		}
 
 		return hasPublishFlag(

@@ -13,21 +13,6 @@ This guide covers setting up a Quartz v5 repository on GitHub, configuring GitHu
 
 If you haven't set up a Quartz repository on GitHub yet, [click here](https://github.com/new?template_name=quartz&template_owner=jackyzha0) to create one using the official Quartz template. Make sure to check **Include all branches** so the `v5` branch is included.
 
-## Set v5 as the Default Branch
-
-The upstream Quartz repository currently defaults to `v4`. Change your repository's default branch to `v5`:
-
-1. Go to your repository on GitHub.
-2. Navigate to **Settings** > **General**.
-3. Under **Default branch**, click the switch icon next to the current default branch.
-4. Select `v5` from the dropdown and click **Update**.
-5. Confirm the change.
-
-This ensures new clones, pull requests, and GitHub Pages deployments all target v5.
-
-> [!NOTE] Quartz v5 is in beta
-> Quartz v5 is currently in beta and not yet the default upstream branch. Once v5 leaves beta it will become the default, and this step will no longer be necessary. See the [upstream migration guide](https://quartz.jzhao.xyz/migrating) if you are migrating existing content from v4.
-
 ## Clone and Install
 
 Clone your repository and install dependencies:
@@ -35,7 +20,6 @@ Clone your repository and install dependencies:
 ```bash
 git clone https://github.com/<username>/<repository>.git
 cd <repository>
-git checkout v5
 npm ci
 ```
 
@@ -172,7 +156,7 @@ Your site will be deployed to `<username>.github.io/<repository-name>`.
 1. Open Obsidian and go to **Settings** > **Community Plugins** > **Quartz Syncer**.
 2. In the **Git** settings tab:
    - **Remote URL**: `https://github.com/<username>/<repository>.git`
-   - **Branch**: `v5`
+   - **Branch**: Your repository's default branch (typically `v5`)
    - **Provider**: GitHub
    - **Authentication Type**: Username & Token/Password
    - **Username**: Your GitHub username

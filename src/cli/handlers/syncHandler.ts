@@ -60,6 +60,7 @@ export function createSyncHandler(
 					plugin.app.metadataCache,
 					plugin.settings,
 					plugin.datastore,
+					plugin.extendedCache,
 				);
 
 				const statusManager = new PublishStatusManager(

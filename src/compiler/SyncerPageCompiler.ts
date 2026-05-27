@@ -122,22 +122,52 @@ export class SyncerPageCompiler {
 	 * @returns A promise that resolves to a tuple containing the compiled text and the assets.
 	 * @throws If the file is an Excalidraw file, a warning is logged as Excalidraw files are not supported yet.
 	 */
+	private async resolveEmbeddedAssets(file: PublishFile): Promise<Asset[]> {
+		const blobPaths = await this.extractBlobLinks(file);
+		const assets: Asset[] = [];
+
+		for (const blobPath of blobPaths) {
+			try {
+				const linkedFile = this.vault.getFileByPath(blobPath);
+
+				if (!linkedFile) continue;
+
+				const blob = await this.vault.readBinary(linkedFile);
+
+				assets.push({
+					path: linkedFile.path,
+					content: arrayBufferToBase64(blob),
+				});
+			} catch {
+				continue;
+			}
+		}
+
+		return assets;
+	}
+
 	async generateMarkdown(file: PublishFile): Promise<TCompiledFile> {
 		const vaultFileText = await file.cachedRead();
 
 		if (file.getType() === "base") {
-			return [vaultFileText, { blobs: [] }];
+			const blobs = await this.resolveEmbeddedAssets(file);
+
+			return [vaultFileText, { blobs }];
 		}
 
 		if (file.getType() === "canvas") {
-			return [vaultFileText, { blobs: [] }];
+			const blobs = await this.resolveEmbeddedAssets(file);
+
+			return [vaultFileText, { blobs }];
 		}
 
 		if (
 			file.file.name.endsWith(".excalidraw") ||
 			file.file.name.endsWith(".excalidraw.md")
 		) {
-			return [vaultFileText, { blobs: [] }];
+			const blobs = await this.resolveEmbeddedAssets(file);
+
+			return [vaultFileText, { blobs }];
 		}
 
 		// ORDER MATTERS!
@@ -343,6 +373,36 @@ export class SyncerPageCompiler {
 		}
 
 		const cache = this.metadataCache.getCache(file.getPath());
+
+		// Excalidraw files reference images via [[wikilinks]] (in the
+		// "## Embedded Files" section), which Obsidian registers as links,
+		// not embeds. Check cache.links for asset references.
+		if (file.getType() === "excalidraw" && cache?.links) {
+			for (const link of cache.links) {
+				try {
+					const linkedFile = this.metadataCache.getFirstLinkpathDest(
+						getLinkpath(link.link),
+						file.getPath(),
+					);
+
+					if (!linkedFile) continue;
+
+					if (
+						!SyncerPageCompiler.ASSET_EXTENSIONS.has(
+							linkedFile.extension,
+						)
+					) {
+						continue;
+					}
+
+					assets.push(linkedFile.path);
+				} catch {
+					continue;
+				}
+			}
+
+			return assets;
+		}
 
 		if (!cache?.embeds) return assets;
 

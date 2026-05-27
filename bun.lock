@@ -18,6 +18,7 @@
         "luxon": "^3.4.3",
         "minimatch": "^10.2.5",
         "obsidian-dataview": "^0.5.68",
+        "obsidian-extended-metadatacache": "^0.5.1",
         "remark-frontmatter": "^5.0.0",
         "remark-parse": "^11.0.0",
         "remark-stringify": "^11.0.0",
@@ -1647,6 +1648,8 @@
     "obsidian-daily-notes-interface": ["obsidian-daily-notes-interface@0.8.4", "", { "dependencies": { "obsidian": "github:obsidianmd/obsidian-api#master", "tslib": "2.1.0" }, "bin": { "obsidian-daily-notes-interface": "dist/main.js" } }, "sha512-REKQtAuIOKDbvNH/th1C1gWmJWCP5tRn9T/mfZGZt4Zncgko7McXK0aSKFtEInipvgbZJ2nScivvyLdiWluSMw=="],
 
     "obsidian-dataview": ["obsidian-dataview@0.5.68", "", { "dependencies": { "@codemirror/language": "git+https://github.com/lishid/cm-language.git", "@codemirror/state": "^6.0.1", "@codemirror/view": "^6.0.1", "emoji-regex": "^10.0.0", "localforage": "^1.10.0", "luxon": "^3.2.0", "obsidian-calendar-ui": "^0.3.12", "papaparse": "^5.3.1", "parsimmon": "^1.18.0", "preact": "^10.6.5", "remove-markdown": "^0.5.5" } }, "sha512-eoYVxqgeAUM64fV6/YXWuXvmm9DaVoR1h/O+vBIHS0yQ+n9x5MaVndD3WjcVWuaJmrMM9iwvutkbZ0aCWpLmHw=="],
+
+    "obsidian-extended-metadatacache": ["obsidian-extended-metadatacache@0.5.1", "", { "peerDependencies": { "obsidian": ">=1.5.7" } }, "sha512-KkkHo1L2NRtiPyNh5MWOiUxC+eKku+csTduXkRdqQ+jhNC6Rm6Qm3vdwOvmTNBfyoYUaGn3G0nPAtIgDvX8GSA=="],
 
     "obsidian-launcher": ["obsidian-launcher@2.4.0", "", { "dependencies": { "7z-wasm": "1.2.0", "@electron/get": "~4.0.2", "@supercharge/promise-pool": "~3.2.0", "chrome-remote-interface": "~0.33.3", "classic-level": "~3.0.0", "commander": "~14.0.2", "consola": "~3.4.2", "dotenv": "~17.2.3", "extract-zip": "~2.0.1", "lodash": "~4.17.21", "readline-sync": "~1.4.10", "semver": "~7.7.3" }, "bin": { "obsidian-launcher": "dist/cli.js" } }, "sha512-jCVSUVQq1tl06G98fUAe2pMEJ+DAg/L83bg4DaUM0Y15swLg/G4ImzAl0J07B6tuRYLYI5FBOKZoiOoqWqZjtw=="],
 

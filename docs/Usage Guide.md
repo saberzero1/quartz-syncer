@@ -18,7 +18,7 @@ tags: [guides]
 There are two ways to open the publication center:
 
 1. From the command palette: `Quartz Syncer: Open publication center`.
-2. Clicking the Quartz crystal icon.
+2. Clicking the leaf icon in the ribbon.
 	1. (On desktop): By default, in the vertical bar on the left side of your screen.
 	2. (On mobile): By default, press the hamburger button on the bottom right (three horizontal lines) and press `Quartz Syncer publication center`.
 

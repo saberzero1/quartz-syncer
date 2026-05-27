@@ -7,10 +7,7 @@ publish: true
 tags: [settings/themes, themes]
 ---
 
-> [!WARNING] Upcoming feature
-> Configuring Quartz Themes using Quartz Syncer is an upcoming feature. It is not released yet.
->
-> If you want to use an Obsidian theme in Quartz right now, see the [Quartz Themes GitHub repository](https://github.com/saberzero1/quartz-themes#installation) for installation instructions.
+Quartz Themes is configured as a [Quartz v5 community plugin](https://github.com/saberzero1/quartz-themes) via `quartz.config.yaml`. See [[Using an Obsidian theme in Quartz]] for setup instructions and available options.
 
 ![[social-preview.png]]
 
