@@ -4,11 +4,12 @@ export function uiSettingDefinitions(): SettingDefinitionItem[] {
 	return [
 		{
 			type: "group",
-			heading: "User Interface",
+			heading: "User interface",
 			items: [
 				{
 					name: "Diff view style",
 					desc: "Choose how differences are displayed when comparing local and published files.",
+					aliases: ["compare", "side-by-side", "preview"],
 					control: {
 						type: "dropdown",
 						key: "diffViewStyle",

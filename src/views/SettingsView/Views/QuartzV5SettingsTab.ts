@@ -590,10 +590,10 @@ export class QuartzV5Page extends SettingPage {
 
 	private renderVersionSection(): void {
 		this.renderCollapsibleHeading(
-			"Quartz v5 Configuration",
+			"Quartz v5 configuration",
 			"Edit your Quartz v5 site configuration. Changes are pushed to your repository on save.",
 		);
-		const content = this.renderSectionContent("Quartz v5 Configuration");
+		const content = this.renderSectionContent("Quartz v5 configuration");
 
 		if (!content) return;
 
@@ -661,8 +661,8 @@ export class QuartzV5Page extends SettingPage {
 	}
 
 	private renderUpgradeSection(): void {
-		this.renderCollapsibleHeading("Quartz Updates", "");
-		const content = this.renderSectionContent("Quartz Updates");
+		this.renderCollapsibleHeading("Quartz updates", "");
+		const content = this.renderSectionContent("Quartz updates");
 
 		if (!content) return;
 
@@ -1033,10 +1033,10 @@ export class QuartzV5Page extends SettingPage {
 		const config = this.cachedConfig.configuration;
 
 		this.renderCollapsibleHeading(
-			"Site Configuration",
+			"Site configuration",
 			"Edit site settings. Changes are applied when you click Save above.",
 		);
-		const content = this.renderSectionContent("Site Configuration");
+		const content = this.renderSectionContent("Site configuration");
 
 		if (!content) {
 			if (config.theme) {
@@ -2022,10 +2022,10 @@ export class QuartzV5Page extends SettingPage {
 		const layout = config.layout;
 
 		this.renderCollapsibleHeading(
-			"Layout Overrides",
+			"Layout overrides",
 			"Per-page-type layout overrides. Set a frame template or exclude plugins for specific page types.",
 		);
-		const content = this.renderSectionContent("Layout Overrides");
+		const content = this.renderSectionContent("Layout overrides");
 
 		if (!content) return;
 

@@ -1,6 +1,29 @@
 import type { SettingDefinition, SettingDefinitionItem } from "obsidian";
 import type QuartzSyncer from "main";
 
+/**
+ * Validates a comma-separated list of frontmatter keys.
+ * Each key must be non-empty and contain only word characters or hyphens.
+ */
+function validateTimestampKeys(value: string): string | undefined {
+	const keys = value
+		.split(",")
+		.map((k) => k.trim())
+		.filter((k) => k.length > 0);
+
+	if (keys.length === 0) {
+		return "At least one key is required.";
+	}
+
+	const invalid = keys.find((k) => !/^[\w-]+$/.test(k));
+
+	if (invalid) {
+		return `Invalid key "${invalid}". Keys may only contain letters, digits, underscores, and hyphens.`;
+	}
+
+	return undefined;
+}
+
 export function frontmatterSettingDefinitions(
 	plugin: QuartzSyncer,
 ): SettingDefinitionItem[] {
@@ -20,6 +43,7 @@ function buildFrontmatterItems(plugin: QuartzSyncer): SettingDefinition[] {
 		{
 			name: "Frontmatter format",
 			desc: "Output format for frontmatter in published notes. YAML is more readable, JSON is supported in case you need it.",
+			aliases: ["yaml", "json", "properties"],
 			control: {
 				type: "dropdown",
 				key: "frontmatterFormat",
@@ -33,17 +57,23 @@ function buildFrontmatterItems(plugin: QuartzSyncer): SettingDefinition[] {
 		{
 			name: "Publish key",
 			desc: 'Note property key used to mark a note as eligible to publish. By default "publish".',
+			aliases: ["frontmatter", "property", "flag"],
 			visible: () => !settings.allNotesPublishableByDefault,
 			control: {
 				type: "text",
 				key: "publishFrontmatterKey",
 				defaultValue: "publish",
 				placeholder: "publish",
+				validate: (value: string) =>
+					value.trim().length === 0
+						? "Publish key cannot be empty."
+						: undefined,
 			},
 		},
 		{
 			name: "All notes publishable by default",
 			desc: "Make all notes publishable by default. This will override the publish key setting.",
+			aliases: ["public", "default publish"],
 			control: {
 				type: "toggle",
 				key: "allNotesPublishableByDefault",
@@ -80,6 +110,7 @@ function buildFrontmatterItems(plugin: QuartzSyncer): SettingDefinition[] {
 				key: "createdTimestampKey",
 				defaultValue: "created, created_at, date",
 				placeholder: "created, created_at, date",
+				validate: validateTimestampKeys,
 			},
 		},
 		{
@@ -103,6 +134,7 @@ function buildFrontmatterItems(plugin: QuartzSyncer): SettingDefinition[] {
 				key: "updatedTimestampKey",
 				defaultValue: "modified, lastmod, updated, last-modified",
 				placeholder: "modified, lastmod, updated, last-modified",
+				validate: validateTimestampKeys,
 			},
 		},
 		{
@@ -126,11 +158,13 @@ function buildFrontmatterItems(plugin: QuartzSyncer): SettingDefinition[] {
 				key: "publishedTimestampKey",
 				defaultValue: "published, publishDate, date",
 				placeholder: "published, publishDate, date",
+				validate: validateTimestampKeys,
 			},
 		},
 		{
 			name: "Enable permalinks",
 			desc: "Use the note's permalink as the Quartz note's URL if \"permalink\" is not in the frontmatter.",
+			aliases: ["slug", "url", "path"],
 			control: {
 				type: "toggle",
 				key: "usePermalink",

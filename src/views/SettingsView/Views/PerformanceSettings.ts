@@ -14,6 +14,7 @@ export function performanceSettingDefinitions(
 				{
 					name: "Enable caching",
 					desc: "Enable or disable the Quartz Syncer cache. This can improve performance by storing compiled files locally.",
+					aliases: ["speed", "local storage"],
 					control: {
 						type: "toggle",
 						key: "useCache",
@@ -23,6 +24,7 @@ export function performanceSettingDefinitions(
 				{
 					name: "Synchronize cache between devices",
 					desc: "Whether to write the cache to `data.json`. This is useful for syncing the cache across devices.",
+					aliases: ["sync", "data.json", "multi-device"],
 					visible: () => settings.useCache,
 					control: {
 						type: "toggle",

@@ -80,7 +80,7 @@ export class GitSettingsPage extends SettingPage {
 		void this.checkConnectionAndSaveSettings();
 
 		new Setting(this.containerEl)
-			.setName("Git Repository")
+			.setName("Git repository")
 			.setDesc(
 				"Configure your Git remote. Works with GitHub, GitLab, Bitbucket, and self-hosted Git servers.",
 			)
@@ -340,7 +340,7 @@ export class GitSettingsPage extends SettingPage {
 
 	private initializeAuthTypeSetting() {
 		new Setting(this.containerEl)
-			.setName("Authentication Type")
+			.setName("Authentication type")
 			.setDesc("How to authenticate with the Git server")
 			.addDropdown((dropdown) =>
 				dropdown
@@ -397,7 +397,7 @@ export class GitSettingsPage extends SettingPage {
 		}
 
 		const providerHint = this.settings.gitProviderHint;
-		let name = "Access Token";
+		let name = "Access token";
 		let description = "Your personal access token or password";
 
 		if (providerHint === "github") {
@@ -407,7 +407,7 @@ export class GitSettingsPage extends SettingPage {
 			description =
 				"A GitLab Personal Access Token with 'read_repository' and 'write_repository' scopes";
 		} else if (providerHint === "bitbucket") {
-			name = "App Password";
+			name = "App password";
 
 			description =
 				"A Bitbucket App Password with repository write access";
@@ -537,7 +537,7 @@ export class GitSettingsPage extends SettingPage {
 		});
 
 		new Setting(this.containerEl)
-			.setName("CORS Proxy (optional)")
+			.setName("CORS proxy (optional)")
 			.setDesc(desc)
 			.addText((text) =>
 				text

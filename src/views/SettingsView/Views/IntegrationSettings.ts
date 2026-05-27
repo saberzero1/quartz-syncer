@@ -49,6 +49,7 @@ export function integrationSettingDefinitions(): SettingDefinitionItem[] {
 			{
 				name: "Manage integration styles",
 				desc: "When enabled, Quartz Syncer will automatically write SCSS files for enabled integrations and ensure custom.scss imports them.",
+				aliases: ["scss", "css", "custom.scss"],
 				control: {
 					type: "toggle",
 					key: "manageSyncerStyles",
