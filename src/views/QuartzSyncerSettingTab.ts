@@ -205,7 +205,9 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 
 				if (version === "v5-yaml" || version === "v5-json") {
 					setting.setDesc(
-						`Quartz v5 (${version === "v5-yaml" ? "YAML" : "JSON"} config)`,
+						`Quartz v5 (${
+							version === "v5-yaml" ? "YAML" : "JSON"
+						} config)`,
 					);
 				} else {
 					setting.setDesc("Quartz v4");
