@@ -1,4 +1,3 @@
-import { DatacoreApi } from "@blacksmithgu/datacore/build/library/index";
 import { Component, Notice } from "obsidian";
 import Logger from "js-logger";
 import {
@@ -15,6 +14,7 @@ import {
 	sanitizeQuery,
 } from "src/utils/utils";
 import { DATACORE_PLUGIN_ID } from "src/ui/suggest/constants";
+import { type DatacoreApi } from "src/compiler/integrations/apis/datacore";
 
 const datacoreScss = `
 /* Card styles */

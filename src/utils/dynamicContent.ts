@@ -1,4 +1,4 @@
-import { getAPI } from "obsidian-dataview";
+import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
 import { escapeRegExp } from "src/utils/utils";
 
 /**
@@ -20,11 +20,11 @@ export function hasDynamicContent(text: string): boolean {
 
 	if (/```datacoretsx\s/ms.test(text)) return true;
 
-	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- Dataview API returns untyped values */
-	const dvApi = getAPI();
+	const dvApi = getDataviewApi();
 
 	if (dvApi) {
-		const dataviewJsPrefix = dvApi.settings.dataviewJsKeyword;
+		const dataviewJsPrefix =
+			dvApi.settings.dataviewJsKeyword || "dataviewjs";
 
 		const dataViewJsRegex = new RegExp(
 			"```" + escapeRegExp(dataviewJsPrefix) + "\\s",
@@ -33,7 +33,7 @@ export function hasDynamicContent(text: string): boolean {
 
 		if (dataViewJsRegex.test(text)) return true;
 
-		const inlineQueryPrefix = dvApi.settings.inlineQueryPrefix;
+		const inlineQueryPrefix = dvApi.settings.inlineQueryPrefix || "=";
 
 		const inlineDataViewRegex = new RegExp(
 			"`" + escapeRegExp(inlineQueryPrefix) + ".+?`",
@@ -42,7 +42,7 @@ export function hasDynamicContent(text: string): boolean {
 
 		if (inlineDataViewRegex.test(text)) return true;
 
-		const inlineJsQueryPrefix = dvApi.settings.inlineJsQueryPrefix;
+		const inlineJsQueryPrefix = dvApi.settings.inlineJsQueryPrefix || "$=";
 
 		const inlineJsDataViewRegex = new RegExp(
 			"`" + escapeRegExp(inlineJsQueryPrefix) + ".+?`",
@@ -51,7 +51,6 @@ export function hasDynamicContent(text: string): boolean {
 
 		if (inlineJsDataViewRegex.test(text)) return true;
 	}
-	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- end Dataview plugin settings access */
 
 	return false;
 }

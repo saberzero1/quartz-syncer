@@ -1,5 +1,4 @@
 import { Component, Notice, htmlToMarkdown } from "obsidian";
-import { DataviewApi, getAPI } from "obsidian-dataview";
 import Logger from "js-logger";
 import {
 	PluginIntegration,
@@ -14,17 +13,16 @@ import {
 	surroundWithCalloutBlock,
 	sanitizeQuery,
 } from "src/utils/utils";
-
-function getDataviewApi(): ReturnType<typeof getAPI> {
-	return getAPI();
-}
+import {
+	type DataviewApi,
+	getDataviewApi,
+} from "src/compiler/integrations/apis/dataview";
 
 function tryDVEvaluate(
 	query: string,
 	filePath: string,
 	dvApi: DataviewApi,
 ): string | undefined | null {
-	/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Dataview API returns untyped values */
 	let result = "";
 
 	try {
@@ -36,7 +34,6 @@ function tryDVEvaluate(
 		Logger.warn("dvapi.tryEvaluate did not yield any result", e);
 	}
 
-	/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- end Dataview evaluation block */
 	return result;
 }
 
@@ -45,7 +42,6 @@ async function tryExecuteJs(
 	filePath: string,
 	dvApi: DataviewApi,
 ) {
-	/* eslint-disable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- Dataview API returns untyped values */
 	const div = activeDocument.createElement("div");
 	const component = new Component();
 	component.load();
@@ -55,7 +51,6 @@ async function tryExecuteJs(
 
 	const markdown = htmlToMarkdown(div) || "";
 
-	/* eslint-enable @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- end Dataview executeJs block */
 	return cleanQueryResult(markdown);
 }
 
@@ -73,7 +68,6 @@ export const DataviewIntegration: PluginIntegration = {
 	},
 
 	getPatterns(): PatternDescriptor[] {
-		/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- Dataview API returns untyped values */
 		const dvApi = getDataviewApi();
 
 		const patterns: PatternDescriptor[] = [
@@ -117,7 +111,6 @@ export const DataviewIntegration: PluginIntegration = {
 			);
 		}
 
-		/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- end Dataview settings access */
 		return patterns;
 	},
 
@@ -125,7 +118,6 @@ export const DataviewIntegration: PluginIntegration = {
 		match: PatternMatch,
 		context: CompileContext,
 	): Promise<string> {
-		/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument -- Dataview API returns untyped values */
 		const dvApi = getDataviewApi();
 
 		if (!dvApi) return match.fullMatch;
@@ -188,6 +180,5 @@ export const DataviewIntegration: PluginIntegration = {
 
 			return match.fullMatch;
 		}
-		/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument -- end Dataview compile block */
 	},
 };

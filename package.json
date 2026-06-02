@@ -63,7 +63,6 @@
 		"wdio-obsidian-service": "^3.0.3"
 	},
 	"dependencies": {
-		"@blacksmithgu/datacore": "^0.1.24",
 		"@isomorphic-git/lightning-fs": "^4.6.2",
 		"@quartz-community/remark-obsidian": "github:quartz-community/remark-obsidian",
 		"@sindresorhus/slugify": "^1.1.2",
@@ -75,7 +74,6 @@
 		"localspace": "^1.2.0",
 		"luxon": "^3.4.3",
 		"minimatch": "^10.2.5",
-		"obsidian-dataview": "^0.5.68",
 		"obsidian-extended-metadatacache": "^0.5.1",
 		"remark-frontmatter": "^5.0.0",
 		"remark-parse": "^11.0.0",
