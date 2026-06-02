@@ -67,7 +67,7 @@
 		"@quartz-community/remark-obsidian": "github:quartz-community/remark-obsidian",
 		"@sindresorhus/slugify": "^1.1.2",
 		"buffer": "^6.0.3",
-		"diff": "^8.0.2",
+		"diff": "^8.0.4",
 		"isomorphic-git": "^1.36.1",
 		"js-base64": "^3.7.5",
 		"js-logger": "^1.6.1",
@@ -81,5 +81,9 @@
 		"unified": "^11.0.5",
 		"unist-util-visit": "^5.1.0",
 		"yaml": "^2.8.3"
+	},
+	"overrides": {
+		"diff": "^8.0.4",
+		"serialize-javascript": "^7.0.5"
 	}
 }
