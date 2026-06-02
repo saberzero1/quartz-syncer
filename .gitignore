@@ -21,8 +21,6 @@ data.json
 !src/testVault/.obsidian/plugins/dataview/data.json
 !content/.obsidian/plugins/obsidian-excalidraw-plugin/data.json
 !content/.obsidian/plugins/dataview/data.json
-deploy.ps1
-deploy.sh
 
 # mac
 .DS_Store
@@ -30,8 +28,7 @@ yarn.lock
 
 .env
 .obsidian-cache
-src/testVault/.obsidian/workspace.json
-content/.obsidian/workspace.json
+content/.obsidian
 
 # Documentation
 docs/.obsidian
