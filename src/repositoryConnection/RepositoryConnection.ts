@@ -808,7 +808,7 @@ export class RepositoryConnection {
 			contents: string[];
 			path: string;
 		}) => {
-			const [_base, ours, theirs] = contents;
+			const [, ours, theirs] = contents;
 
 			if (isUserOwnedPath(path)) {
 				resolutions.set(path, "ours");
