@@ -2,7 +2,7 @@
 title: CLI
 description: Automate Quartz Syncer workflows from the terminal using the Obsidian CLI.
 created: 2026-04-01T00:00:00Z+0200
-modified: 2026-04-01T17:15:10Z+0200
+modified: 2026-06-08T15:22:53Z+0200
 publish: true
 tags: [guides]
 ---
@@ -168,9 +168,11 @@ obsidian quartz-syncer:upgrade dry-run format=json
 | `dry-run` | Check for available updates without applying them. |
 | `format` | Output format: `json` or `text` (default). |
 
-> [!WARNING] Merge conflicts
+> [!INFO] Smart conflict resolution
 >
-> If the upgrade encounters merge conflicts (other than `quartz.lock.json`, which is auto-resolved), the command will fail and list the conflicting files. Resolve them manually in your repository.
+> Quartz Syncer automatically resolves most upgrade conflicts. User files (`quartz.config.yaml`, `quartz.lock.json`, `quartz.ts`, `quartz/styles/custom.scss`, `content/`, `.github/`, `quartz/static/`, and `quartz/styles/syncer/`) are preserved, while framework files accept upstream changes.
+>
+> If you have modified framework files (e.g., `package.json`, files in `quartz/components/`), the upgrade will fail and list which files were modified. In that case, run `npx quartz upgrade` in your repository to resolve conflicts manually.
 
 ### `quartz-syncer:version`
 

@@ -2,13 +2,25 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-06-02T19:09:30Z+0200
+modified: 2026-06-08T15:17:47Z+0200
 publish: true
 ---
 
 ## Upcoming
 
 ## Releases
+
+### Version 1.18.0
+
+- Significantly improved Quartz upgrade reliability with smart conflict resolution.
+	- Upgrades now automatically succeed when the user has only modified dedicated user files (`quartz.config.yaml`, `quartz.lock.json`, `quartz.ts`, `quartz/styles/custom.scss`, `content/`, `.github/`, `quartz/static/`, and `quartz/styles/syncer/`).
+	- Framework files (everything else) automatically accept upstream changes during upgrade.
+	- User-owned files are preserved across upgrades via snapshot and restore, even if upstream cleanly modified them.
+	- If the user has modified framework files, the upgrade fails with a specific list of which files were modified, instead of a generic merge conflict error.
+	- `quartz.config.default.yaml` is automatically accepted from upstream without blocking the upgrade.
+- Removed unnecessary post-merge commits when user files were not changed by upstream.
+- Updated upgrade notification to reference the in-app Upgrade button instead of `npx quartz upgrade`.
+	- `npx quartz upgrade` is now only recommended as a fallback when the in-app upgrade fails.
 
 ### Version 1.17.3
 

@@ -187,3 +187,90 @@ describe("QuartzUpgradeService", () => {
 		assert.strictEqual(status.latestUpstreamSha, "abc1234");
 	});
 });
+
+describe("QuartzUpgradeService.performUpgrade", () => {
+	it("returns success on clean merge", async () => {
+		const mockRepo = {
+			hasCommitInHistory: async () => true,
+			upgradeFromUpstream: async () => ({
+				oid: "abc123",
+				alreadyMerged: false,
+			}),
+		} as unknown as RepositoryConnection;
+
+		const service = new QuartzUpgradeService(mockRepo);
+		const result = await service.performUpgrade();
+
+		assert.strictEqual(result.success, true);
+		assert.strictEqual(result.oid, "abc123");
+		assert.strictEqual(result.alreadyMerged, false);
+	});
+
+	it("returns success when already merged", async () => {
+		const mockRepo = {
+			hasCommitInHistory: async () => true,
+			upgradeFromUpstream: async () => ({
+				oid: "abc123",
+				alreadyMerged: true,
+			}),
+		} as unknown as RepositoryConnection;
+
+		const service = new QuartzUpgradeService(mockRepo);
+		const result = await service.performUpgrade();
+
+		assert.strictEqual(result.success, true);
+		assert.strictEqual(result.alreadyMerged, true);
+	});
+
+	it("detects 'Cannot auto-upgrade' as conflict error", async () => {
+		const mockRepo = {
+			hasCommitInHistory: async () => true,
+			upgradeFromUpstream: async () => {
+				throw new Error(
+					"Cannot auto-upgrade: you have modified framework files",
+				);
+			},
+		} as unknown as RepositoryConnection;
+
+		const service = new QuartzUpgradeService(mockRepo);
+		const result = await service.performUpgrade();
+
+		assert.strictEqual(result.success, false);
+		assert.ok(result.error?.includes("Cannot auto-upgrade"));
+		assert.ok(result.error?.includes("npx quartz upgrade"));
+	});
+
+	it("detects 'Merge conflicts in' as conflict error", async () => {
+		const mockRepo = {
+			hasCommitInHistory: async () => true,
+			upgradeFromUpstream: async () => {
+				throw new Error(
+					"Merge conflicts in: package.json, tsconfig.json",
+				);
+			},
+		} as unknown as RepositoryConnection;
+
+		const service = new QuartzUpgradeService(mockRepo);
+		const result = await service.performUpgrade();
+
+		assert.strictEqual(result.success, false);
+		assert.ok(result.error?.includes("Merge conflicts in:"));
+		assert.ok(result.error?.includes("npx quartz upgrade"));
+	});
+
+	it("treats non-conflict errors as generic failures", async () => {
+		const mockRepo = {
+			hasCommitInHistory: async () => true,
+			upgradeFromUpstream: async () => {
+				throw new Error("Network timeout");
+			},
+		} as unknown as RepositoryConnection;
+
+		const service = new QuartzUpgradeService(mockRepo);
+		const result = await service.performUpgrade();
+
+		assert.strictEqual(result.success, false);
+		assert.ok(result.error?.includes("Network timeout"));
+		assert.ok(!result.error?.includes("npx quartz upgrade"));
+	});
+});

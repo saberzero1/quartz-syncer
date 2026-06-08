@@ -199,4 +199,41 @@ describe("upgradeHandler", () => {
 		expect(result).toBe("Error: Git remote URL is not configured.");
 		expect(RepositoryConnection).not.toHaveBeenCalled();
 	});
+
+	it("surfaces framework modification error from upgrade", async () => {
+		mockUpgradeFromUpstream.mockRejectedValue(
+			new Error(
+				"Cannot auto-upgrade: you have modified framework files that would " +
+					"conflict with upstream changes:\n  - package.json\n" +
+					"Run `npx quartz upgrade` manually to resolve these conflicts.",
+			),
+		);
+
+		const result = await handler({
+			force: "true",
+			format: "json",
+		} as CliData);
+
+		const parsed = JSON.parse(result);
+
+		expect(parsed.ok).toBe(false);
+		expect(parsed.error).toContain("Cannot auto-upgrade");
+		expect(parsed.error).toContain("package.json");
+	});
+
+	it("surfaces merge conflict error from upgrade", async () => {
+		mockUpgradeFromUpstream.mockRejectedValue(
+			new Error("Merge conflicts in: quartz/build.ts, quartz/cli.ts"),
+		);
+
+		const result = await handler({
+			force: "true",
+			format: "json",
+		} as CliData);
+
+		const parsed = JSON.parse(result);
+
+		expect(parsed.ok).toBe(false);
+		expect(parsed.error).toContain("Merge conflicts in:");
+	});
 });

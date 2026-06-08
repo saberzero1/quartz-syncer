@@ -861,8 +861,8 @@ export class QuartzV5Page extends SettingPage {
 			if (hasUpdate) {
 				new Notice(
 					useCommitStrategy
-						? "New upstream Quartz commits available. Run `npx quartz upgrade` to upgrade."
-						: "A Quartz upgrade is available. Run `npx quartz upgrade` to upgrade.",
+						? "New upstream Quartz commits available. Use the Upgrade button in settings to upgrade."
+						: "A Quartz upgrade is available. Use the Upgrade button in settings to upgrade.",
 				);
 			} else if (!this.cachedUpgradeStatus.error) {
 				new Notice("Quartz is up to date.");

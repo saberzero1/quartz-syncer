@@ -153,6 +153,7 @@ export class QuartzUpgradeService {
 
 			const isConflict =
 				message.includes("Merge conflicts in:") ||
+				message.includes("Cannot auto-upgrade:") ||
 				message.includes("MergeNotSupportedError") ||
 				message.includes("MergeConflictError") ||
 				message.includes("Merges with conflicts");

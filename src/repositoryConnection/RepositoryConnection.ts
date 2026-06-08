@@ -4,6 +4,11 @@ import { normalizePath, requestUrl } from "obsidian";
 import { CompiledPublishFile } from "src/publishFile/PublishFile";
 import { GitAuth, GitRemoteSettings } from "src/models/settings";
 import { removeLeadingSlash } from "src/utils/utils";
+import {
+	isPreflightExempt,
+	isUserOwnedPath,
+	USER_OWNED_FILES,
+} from "./fileOwnership";
 
 async function collectBody(
 	body: AsyncIterableIterator<Uint8Array> | undefined,
@@ -696,6 +701,137 @@ export class RepositoryConnection {
 		}
 	}
 
+	private async detectFrameworkModifications(
+		oursOid: string,
+		baseOid: string,
+	): Promise<string[]> {
+		const modified: string[] = [];
+
+		await git.walk({
+			...this.getGitConfig(),
+			trees: [git.TREE({ ref: oursOid }), git.TREE({ ref: baseOid })],
+			map: async (filepath, [ours, base]) => {
+				if (filepath === ".") return undefined;
+
+				const oursType = ours ? await ours.type() : undefined;
+				const baseType = base ? await base.type() : undefined;
+
+				if (oursType === "tree" || baseType === "tree") return filepath;
+
+				if (isPreflightExempt(filepath)) return undefined;
+
+				const oursOidVal = ours ? await ours.oid() : undefined;
+				const baseOidVal = base ? await base.oid() : undefined;
+
+				if (oursOidVal !== baseOidVal) {
+					modified.push(filepath);
+				}
+
+				return undefined;
+			},
+		});
+
+		return modified;
+	}
+
+	private async snapshotUserOwnedFiles(
+		commitOid: string,
+	): Promise<Map<string, Uint8Array>> {
+		const snapshots = new Map<string, Uint8Array>();
+
+		for (const filepath of USER_OWNED_FILES) {
+			try {
+				const { blob } = await git.readBlob({
+					...this.getGitConfig(),
+					oid: commitOid,
+					filepath,
+				});
+				snapshots.set(filepath, blob);
+			} catch {
+				// File doesn't exist in this commit — skip
+			}
+		}
+
+		return snapshots;
+	}
+
+	private async restoreUserOwnedFiles(
+		snapshots: Map<string, Uint8Array>,
+	): Promise<boolean> {
+		let restored = false;
+
+		for (const [filepath, blob] of snapshots) {
+			const fullPath = `${this.dir}/${filepath}`;
+
+			try {
+				const current = await this.getFs().promises.readFile(fullPath);
+
+				if (
+					current.length === blob.length &&
+					current.every((byte: number, i: number) => byte === blob[i])
+				) {
+					continue;
+				}
+			} catch {
+				/* file missing after merge */
+			}
+
+			await this.ensureDirectory(filepath);
+			await this.getFs().promises.writeFile(fullPath, blob);
+
+			await git.add({
+				...this.getGitConfig(),
+				filepath,
+			});
+
+			restored = true;
+		}
+
+		return restored;
+	}
+
+	private createUpgradeMergeDriver(): {
+		driver: (args: {
+			branches: string[];
+			contents: string[];
+			path: string;
+		}) => Promise<{ cleanMerge: boolean; mergedText: string }>;
+		resolutions: Map<string, "ours" | "theirs">;
+	} {
+		const resolutions = new Map<string, "ours" | "theirs">();
+
+		const driver = async ({
+			contents,
+			path,
+		}: {
+			branches: string[];
+			contents: string[];
+			path: string;
+		}) => {
+			const [_base, ours, theirs] = contents;
+
+			if (isUserOwnedPath(path)) {
+				resolutions.set(path, "ours");
+
+				console.debug(
+					`Auto-resolved conflict in ${path}: keeping ours`,
+				);
+
+				return { cleanMerge: true, mergedText: ours ?? "" };
+			}
+
+			resolutions.set(path, "theirs");
+
+			console.debug(
+				`Auto-resolved conflict in ${path}: accepting theirs`,
+			);
+
+			return { cleanMerge: true, mergedText: theirs ?? "" };
+		};
+
+		return { driver, resolutions };
+	}
+
 	async upgradeFromUpstream(
 		upstreamUrl: string,
 		upstreamBranch: string,
@@ -744,22 +880,52 @@ export class RepositoryConnection {
 		});
 
 		const mergeRef = `remotes/${remoteName}/${upstreamBranch}`;
-		const lockfilePath = "quartz.lock.json";
-
 		const mergeAuthor = RepositoryConnection.COMMIT_AUTHOR;
 
-		let lockfileBackup: Uint8Array | null = null;
+		const oursOid = await git.resolveRef({
+			...this.getGitConfig(),
+			ref: this.branch,
+		});
 
-		try {
-			const { blob } = await git.readBlob({
-				...this.getGitConfig(),
-				oid: remoteCommit,
-				filepath: lockfilePath,
-			});
-			lockfileBackup = blob;
-		} catch {
-			console.debug("No quartz.lock.json found, skipping backup");
+		const theirsOid = await git.resolveRef({
+			...this.getGitConfig(),
+			ref: mergeRef,
+		});
+
+		// Phase 1: Preflight — detect framework modifications
+		const mergeBaseOids: string[] = (await git.findMergeBase({
+			...this.getGitConfig(),
+			oids: [oursOid, theirsOid],
+		})) as string[];
+
+		if (mergeBaseOids.length === 0) {
+			throw new Error(
+				"Cannot determine merge base between your repository and upstream. " +
+					"Run `npx quartz upgrade` manually.",
+			);
 		}
+
+		const baseOid = mergeBaseOids[0];
+
+		const frameworkMods = await this.detectFrameworkModifications(
+			oursOid,
+			baseOid,
+		);
+
+		if (frameworkMods.length > 0) {
+			const fileList = frameworkMods.map((f) => `  - ${f}`).join("\n");
+			throw new Error(
+				`Cannot auto-upgrade: you have modified framework files that would ` +
+					`conflict with upstream changes:\n${fileList}\n` +
+					`Run \`npx quartz upgrade\` manually to resolve these conflicts.`,
+			);
+		}
+
+		// Phase 2: Snapshot + Merge
+		const snapshots = await this.snapshotUserOwnedFiles(oursOid);
+
+		const { driver: mergeDriver, resolutions } =
+			this.createUpgradeMergeDriver();
 
 		let result: {
 			oid?: string;
@@ -771,65 +937,44 @@ export class RepositoryConnection {
 				...this.getGitConfig(),
 				ours: this.branch,
 				theirs: mergeRef,
-				abortOnConflict: true,
+				abortOnConflict: false,
+				mergeDriver,
 				author: mergeAuthor,
 			});
 		} catch (mergeError) {
-			const conflictFiles = this.throwIfNonLockfileConflicts(
-				mergeError,
-				lockfilePath,
-			);
+			const conflictFiles = this.extractConflictFiles(mergeError);
 
-			if (!lockfileBackup) {
-				throw new Error(
-					`Merge conflicts in: ${conflictFiles.join(", ")}`,
-				);
-			}
+			if (!conflictFiles) throw mergeError;
 
-			console.debug("Only quartz.lock.json conflicts, auto-resolving");
-
-			try {
-				await git.merge({
-					...this.getGitConfig(),
-					ours: this.branch,
-					theirs: mergeRef,
-					abortOnConflict: false,
-					author: mergeAuthor,
-				});
-			} catch (retryError) {
-				this.throwIfNonLockfileConflicts(retryError, lockfilePath);
-			}
-
-			const fullLockfilePath = `${this.dir}/${lockfilePath}`;
-
-			await this.getFs().promises.writeFile(
-				fullLockfilePath,
-				lockfileBackup,
-			);
-
-			await git.add({
-				...this.getGitConfig(),
-				filepath: lockfilePath,
-			});
-
-			const oursOid = await git.resolveRef({
-				...this.getGitConfig(),
-				ref: this.branch,
-			});
-
-			const theirsOid = await git.resolveRef({
-				...this.getGitConfig(),
-				ref: mergeRef,
-			});
+			await this.restoreUserOwnedFiles(snapshots);
 
 			const commitOid = await git.commit({
 				...this.getGitConfig(),
-				message: `Merge upstream/${upstreamBranch} (auto-resolved quartz.lock.json)`,
+				message: `Merge upstream/${upstreamBranch} (auto-resolved conflicts)`,
 				author: mergeAuthor,
 				parent: [oursOid, theirsOid],
 			});
 
 			result = { oid: commitOid, alreadyMerged: false };
+
+			if (resolutions.size > 0) {
+				console.debug(
+					`Auto-resolved ${resolutions.size} conflict(s):`,
+					Object.fromEntries(resolutions),
+				);
+			}
+
+			await git.checkout({
+				...this.getGitConfig(),
+				ref: this.branch,
+			});
+
+			await this.pushWithRetry();
+
+			return {
+				oid: result.oid!,
+				alreadyMerged: false,
+			};
 		}
 
 		if (result.alreadyMerged) {
@@ -837,6 +982,28 @@ export class RepositoryConnection {
 				oid: result.oid ?? remoteCommit,
 				alreadyMerged: true,
 			};
+		}
+
+		// Phase 3: Post-merge restore — even on clean merge, restore user files
+		// in case upstream cleanly modified them
+		const filesRestored = await this.restoreUserOwnedFiles(snapshots);
+
+		let finalOid = result.oid!;
+
+		if (filesRestored) {
+			finalOid = await git.commit({
+				...this.getGitConfig(),
+				message: `Merge upstream/${upstreamBranch}`,
+				author: mergeAuthor,
+				parent: [oursOid, theirsOid],
+			});
+		}
+
+		if (resolutions.size > 0) {
+			console.debug(
+				`Auto-resolved ${resolutions.size} conflict(s):`,
+				Object.fromEntries(resolutions),
+			);
 		}
 
 		await git.checkout({
@@ -847,7 +1014,7 @@ export class RepositoryConnection {
 		await this.pushWithRetry();
 
 		return {
-			oid: result.oid!,
+			oid: finalOid,
 			alreadyMerged: false,
 		};
 	}
@@ -918,25 +1085,6 @@ export class RepositoryConnection {
 			...this.getGitConfig(),
 			ref: this.branch,
 		});
-	}
-
-	private throwIfNonLockfileConflicts(
-		error: unknown,
-		lockfilePath: string,
-	): string[] {
-		const conflictFiles = this.extractConflictFiles(error);
-
-		if (!conflictFiles) throw error;
-
-		const nonLockfileConflicts = conflictFiles.filter(
-			(f: string) => f !== lockfilePath,
-		);
-
-		if (nonLockfileConflicts.length > 0) {
-			throw new Error(`Merge conflicts in: ${conflictFiles.join(", ")}`);
-		}
-
-		return conflictFiles;
 	}
 
 	async deleteFiles(
