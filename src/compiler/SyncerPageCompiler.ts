@@ -308,6 +308,7 @@ export class SyncerPageCompiler {
 		"wav",
 		"ogg",
 		"pdf",
+		"svg",
 	]);
 
 	/**
