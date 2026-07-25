@@ -1,0 +1,66 @@
+name: E2E Tests
+
+on:
+    push:
+        branches: ["main", "master"]
+    pull_request:
+        branches: ["main", "master"]
+    workflow_dispatch:
+
+jobs:
+    discover:
+        runs-on: ubuntu-latest
+        outputs:
+            specs: ${{ steps.find.outputs.specs }}
+        steps:
+            - uses: actions/checkout@v6
+            - id: find
+              run: |
+                  specs=$(find test/specs -name '*.e2e.ts' | sort | jq -R -s -c 'split("\n") | map(select(. != ""))')
+                  echo "specs=$specs" >> "$GITHUB_OUTPUT"
+
+    e2e:
+        needs: discover
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                spec: ${{ fromJson(needs.discover.outputs.specs) }}
+
+        steps:
+            - uses: actions/checkout@v6
+
+            - name: Use Node.js 24.x
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 24.x
+                  cache: "npm"
+
+            - name: Install dependencies
+              run: npm install
+
+            - name: Build
+              run: npm run build
+
+            - name: Cache Obsidian
+              uses: actions/cache@v5
+              with:
+                  path: .obsidian-cache
+                  key: obsidian-cache-${{ runner.os }}-${{ hashFiles('manifest.json') }}
+
+            - name: Setup virtual display
+              run: |
+                  sudo rm -rf /etc/apt/sources.list.d/*.list
+                  echo "set man-db/auto-update false" | sudo debconf-communicate
+                  sudo dpkg-reconfigure man-db
+                  sudo apt-get update -q
+                  sudo apt-get install -q herbstluftwm dzen2 x11-xserver-utils
+                  export DISPLAY=:99
+                  echo "DISPLAY=$DISPLAY" >> "$GITHUB_ENV"
+                  Xvfb $DISPLAY -screen 0 1280x1024x24 +extension GLX -noreset &
+                  sleep 1
+                  herbstluftwm &
+                  sleep 1
+
+            - name: Run E2E test
+              run: npx wdio run ./wdio.conf.mts --spec '${{ matrix.spec }}'
