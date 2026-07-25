@@ -1,0 +1,17 @@
+{
+	"settingsSchemaVersion": 1,
+	"git": {
+		"remoteUrl": "https://github.com/testuser/quartz.git",
+		"branch": "v4",
+		"corsProxyUrl": "",
+		"auth": {
+			"type": "basic",
+			"username": "testuser",
+			"secret": "ghp_test123"
+		},
+		"providerHint": "github"
+	},
+	"publishFrontmatterKey": "publish",
+	"contentFolder": "content",
+	"useDataview": true
+}

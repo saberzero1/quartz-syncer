@@ -1,0 +1,8 @@
+{
+	"githubRepo": "quartz",
+	"githubUserName": "testuser",
+	"githubToken": "ghp_test123",
+	"publishFrontmatterKey": "publish",
+	"contentFolder": "content",
+	"useDataview": true
+}
