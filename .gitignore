@@ -25,6 +25,7 @@ bun.lock
 
 .env
 .obsidian-cache
+.sisyphus/
 
 # Documentation
 docs/.obsidian
