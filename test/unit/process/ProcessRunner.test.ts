@@ -28,14 +28,13 @@ describe("ProcessRunner", () => {
 
 	beforeEach(() => {
 		execFileMock = vi.fn();
-		(
-			window as Window & { require?: (module: string) => unknown }
-		).require = vi.fn((module: string) => {
-			if (module === "child_process") {
-				return { execFile: execFileMock };
-			}
-			throw new Error("Unknown module");
-		});
+		(window as Window & { require?: (module: string) => unknown }).require =
+			vi.fn((module: string) => {
+				if (module === "child_process") {
+					return { execFile: execFileMock };
+				}
+				throw new Error("Unknown module");
+			});
 		Platform.isDesktopApp = true;
 		ProcessRunner.resetChildProcessCache();
 		runner = new ProcessRunner();
@@ -70,7 +69,11 @@ describe("ProcessRunner", () => {
 
 	it("marks killed on timeout", async () => {
 		execFileMock.mockImplementation((_, __, ___, callback) => {
-			callback({ code: 1, signal: "SIGTERM", message: "timeout" }, "", "");
+			callback(
+				{ code: 1, signal: "SIGTERM", message: "timeout" },
+				"",
+				"",
+			);
 			return { kill: vi.fn() };
 		});
 
@@ -87,11 +90,7 @@ describe("ProcessRunner", () => {
 
 	it("returns error on ENOENT", async () => {
 		execFileMock.mockImplementation((_, __, ___, callback) => {
-			callback(
-				{ code: "ENOENT", message: "not found" },
-				"",
-				"",
-			);
+			callback({ code: "ENOENT", message: "not found" }, "", "");
 			return { kill: vi.fn() };
 		});
 

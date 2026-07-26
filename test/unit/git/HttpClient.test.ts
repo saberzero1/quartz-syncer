@@ -35,9 +35,7 @@ describe("HttpClient", () => {
 
 	describe("JSON convenience methods", () => {
 		it("makes GET requests", async () => {
-			mockRequestUrl.mockResolvedValue(
-				mockResponse(200, { id: 1 }),
-			);
+			mockRequestUrl.mockResolvedValue(mockResponse(200, { id: 1 }));
 			const result = await client.get<{ id: number }>(
 				"https://api.example.com/test",
 				{ Authorization: "Bearer token" },
@@ -53,9 +51,7 @@ describe("HttpClient", () => {
 		});
 
 		it("makes POST requests with body", async () => {
-			mockRequestUrl.mockResolvedValue(
-				mockResponse(201, { sha: "abc" }),
-			);
+			mockRequestUrl.mockResolvedValue(mockResponse(201, { sha: "abc" }));
 			const result = await client.post<{ sha: string }>(
 				"https://api.example.com/test",
 				{},
@@ -171,7 +167,9 @@ describe("HttpClient", () => {
 		it("implements request() returning statusCode and headers", async () => {
 			mockRequestUrl.mockResolvedValue({
 				status: 200,
-				headers: { "Content-Type": "application/x-git-upload-pack-result" },
+				headers: {
+					"Content-Type": "application/x-git-upload-pack-result",
+				},
 				arrayBuffer: new Uint8Array([1, 2, 3]).buffer,
 			});
 

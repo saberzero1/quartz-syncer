@@ -56,7 +56,10 @@ export class GitRunner {
 		if (result.exitCode !== 0) {
 			return {
 				ok: false,
-				error: result.error ?? result.stderr ?? "Failed to get git version",
+				error:
+					result.error ??
+					result.stderr ??
+					"Failed to get git version",
 				processResult: result,
 			};
 		}
@@ -89,7 +92,9 @@ export class GitRunner {
 		};
 		const result = await this.runner.run({
 			...config,
-			...(resolvedOptions?.signal ? { signal: resolvedOptions.signal } : {}),
+			...(resolvedOptions?.signal
+				? { signal: resolvedOptions.signal }
+				: {}),
 			...(resolvedOptions?.onStdout
 				? { onStdout: resolvedOptions.onStdout }
 				: {}),
@@ -126,7 +131,9 @@ export class GitRunner {
 		};
 		const result = await this.runner.run({
 			...config,
-			...(resolvedOptions?.signal ? { signal: resolvedOptions.signal } : {}),
+			...(resolvedOptions?.signal
+				? { signal: resolvedOptions.signal }
+				: {}),
 			...(resolvedOptions?.onStdout
 				? { onStdout: resolvedOptions.onStdout }
 				: {}),
@@ -163,7 +170,9 @@ export class GitRunner {
 		};
 		const result = await this.runner.run({
 			...config,
-			...(resolvedOptions?.signal ? { signal: resolvedOptions.signal } : {}),
+			...(resolvedOptions?.signal
+				? { signal: resolvedOptions.signal }
+				: {}),
 			...(resolvedOptions?.onStdout
 				? { onStdout: resolvedOptions.onStdout }
 				: {}),
@@ -200,7 +209,9 @@ export class GitRunner {
 		};
 		const result = await this.runner.run({
 			...config,
-			...(resolvedOptions?.signal ? { signal: resolvedOptions.signal } : {}),
+			...(resolvedOptions?.signal
+				? { signal: resolvedOptions.signal }
+				: {}),
 			...(resolvedOptions?.onStdout
 				? { onStdout: resolvedOptions.onStdout }
 				: {}),

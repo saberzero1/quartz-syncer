@@ -32,7 +32,10 @@ describe("BackgroundEngine", () => {
 		const app = new App();
 		const engine = new BackgroundEngine(app, createPluginStub());
 		const spy = vi
-			.spyOn(engine as unknown as { processQueue: () => Promise<void> }, "processQueue")
+			.spyOn(
+				engine as unknown as { processQueue: () => Promise<void> },
+				"processQueue",
+			)
 			.mockResolvedValue();
 
 		(engine as unknown as { enqueue: (path: string) => void }).enqueue(

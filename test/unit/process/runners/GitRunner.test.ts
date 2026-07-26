@@ -20,7 +20,10 @@ describe("GitRunner", () => {
 			...successResult,
 			stdout: "git version 2.44.0\n",
 		});
-		const runner = new GitRunner({ run } as unknown as ProcessRunner, "/tmp");
+		const runner = new GitRunner(
+			{ run } as unknown as ProcessRunner,
+			"/tmp",
+		);
 
 		const result = await runner.version();
 
@@ -32,7 +35,10 @@ describe("GitRunner", () => {
 
 	it("clone passes correct args", async () => {
 		const run = vi.fn().mockResolvedValue(successResult);
-		const runner = new GitRunner({ run } as unknown as ProcessRunner, "/repo");
+		const runner = new GitRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
 		await runner.clone("https://example.com/repo.git", "dest");
 
 		expect(run).toHaveBeenCalledWith({
@@ -44,7 +50,10 @@ describe("GitRunner", () => {
 
 	it("pull passes correct args", async () => {
 		const run = vi.fn().mockResolvedValue(successResult);
-		const runner = new GitRunner({ run } as unknown as ProcessRunner, "/repo");
+		const runner = new GitRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
 		await runner.pull();
 
 		expect(run).toHaveBeenCalledWith({

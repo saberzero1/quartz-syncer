@@ -75,7 +75,8 @@ export class TerminalOutputModal extends Modal {
 				signal: this.abortController.signal,
 			});
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
+			const message =
+				error instanceof Error ? error.message : String(error);
 			this.appendLine(message, true);
 			new Notice(`Command failed: ${message}`);
 		} finally {
@@ -84,7 +85,8 @@ export class TerminalOutputModal extends Modal {
 	}
 
 	private abort(): void {
-		if (!this.abortController || this.abortController.signal.aborted) return;
+		if (!this.abortController || this.abortController.signal.aborted)
+			return;
 		this.abortController.abort();
 		if (this.isRunning) {
 			this.appendLine("Process aborted.", true);

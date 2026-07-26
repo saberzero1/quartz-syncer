@@ -289,13 +289,15 @@ export class BundledGitBackend implements GitBackend {
 
 	private toWriteData(file: FileChange): string | Uint8Array {
 		if (file.encoding === "base64" && typeof file.content === "string") {
-            // eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
+			// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 			return new Uint8Array(Buffer.from(file.content, "base64"));
 		}
 		return file.content;
 	}
 
-	private toWriteOptions(file: FileChange): { encoding?: string } | undefined {
+	private toWriteOptions(
+		file: FileChange,
+	): { encoding?: string } | undefined {
 		if (file.encoding === "base64") {
 			return { encoding: "base64" };
 		}

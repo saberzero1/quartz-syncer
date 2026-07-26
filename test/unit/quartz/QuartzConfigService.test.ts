@@ -22,10 +22,7 @@ function createMockRepo(files: Record<string, string>): RepositoryConnection {
 	} as unknown as RepositoryConnection;
 }
 
-function requireValue<T>(
-	value: T | undefined | null,
-	message: string,
-): T {
+function requireValue<T>(value: T | undefined | null, message: string): T {
 	if (value === undefined || value === null) {
 		throw new Error(message);
 	}

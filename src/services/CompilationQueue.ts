@@ -105,7 +105,10 @@ export class CompilationQueue {
 
 	private async runItem(item: QueueItem): Promise<void> {
 		try {
-			await this.processor(item.path, this.ensureAbortController().signal);
+			await this.processor(
+				item.path,
+				this.ensureAbortController().signal,
+			);
 			this.completedCount += 1;
 		} catch {
 			this.failedCount += 1;

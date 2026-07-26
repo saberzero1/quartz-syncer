@@ -7,7 +7,13 @@ import type {
 	GitHubUser,
 } from "src/github/types";
 
-type WizardStep = "token" | "flow" | "create" | "connect" | "configure" | "success";
+type WizardStep =
+	| "token"
+	| "flow"
+	| "create"
+	| "connect"
+	| "configure"
+	| "success";
 
 export class OnboardingWizard extends Modal {
 	private plugin: QuartzSyncer;

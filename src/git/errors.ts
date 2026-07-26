@@ -19,10 +19,7 @@ export class AuthError extends GitError {
 }
 
 export class NetworkError extends GitError {
-	constructor(
-		message = "Network request failed",
-		cause?: unknown,
-	) {
+	constructor(message = "Network request failed", cause?: unknown) {
 		super(message, cause);
 	}
 }
@@ -59,10 +56,7 @@ export class NotFoundError extends GitError {
 }
 
 export class ProviderError extends GitError {
-	constructor(
-		message: string,
-		cause?: unknown,
-	) {
+	constructor(message: string, cause?: unknown) {
 		super(message, cause);
 	}
 }

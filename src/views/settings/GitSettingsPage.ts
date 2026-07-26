@@ -21,9 +21,7 @@ export class GitSettingsPage extends SettingPageBase {
 
 		new Setting(this.containerEl)
 			.setName("Git repository")
-			.setDesc(
-				"Configure your git remote, branch, and authentication.",
-			)
+			.setDesc("Configure your git remote, branch, and authentication.")
 			.setHeading();
 
 		this.renderRemoteUrl();
@@ -52,9 +50,7 @@ export class GitSettingsPage extends SettingPageBase {
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder(
-						"https://github.com/username/quartz.git",
-					)
+					.setPlaceholder("https://github.com/username/quartz.git")
 					.setValue(this.settings.gitRemoteUrl)
 					.onChange(async (value) => {
 						this.settings.gitRemoteUrl = value;
@@ -172,7 +168,8 @@ export class GitSettingsPage extends SettingPageBase {
 				"A GitLab Personal Access Token with 'read_repository' and 'write_repository' scopes";
 		} else if (providerHint === "bitbucket") {
 			name = "App password";
-			description = "A Bitbucket App Password with repository write access";
+			description =
+				"A Bitbucket App Password with repository write access";
 		}
 
 		const desc = createFragment();
@@ -199,9 +196,7 @@ export class GitSettingsPage extends SettingPageBase {
 				? "quartz-syncer-token-status-set"
 				: "quartz-syncer-token-status-unset",
 		});
-		statusEl.setText(
-			hasToken ? "Token stored securely" : "No token set",
-		);
+		statusEl.setText(hasToken ? "Token stored securely" : "No token set");
 
 		const input = tokenRow.createEl("input", {
 			type: "password",
@@ -279,9 +274,7 @@ export class GitSettingsPage extends SettingPageBase {
 	private renderConnectionTest(): void {
 		const setting = new Setting(this.containerEl)
 			.setName("Connection test")
-			.setDesc(
-				"Verify read/write access with the current settings.",
-			);
+			.setDesc("Verify read/write access with the current settings.");
 
 		setting.addButton((button) => {
 			button
@@ -298,7 +291,9 @@ export class GitSettingsPage extends SettingPageBase {
 		});
 	}
 
-	private async runConnectionTest(buttonEl: HTMLButtonElement): Promise<void> {
+	private async runConnectionTest(
+		buttonEl: HTMLButtonElement,
+	): Promise<void> {
 		if (!this.settings.gitRemoteUrl) {
 			this.updateStatus("Set a remote URL first.");
 			return;

@@ -601,16 +601,32 @@ export const DatacoreIntegration: PluginIntegration = {
 
 			switch (match.descriptor.id) {
 				case "dc-js":
-					queryResult = await tryExecuteJs(finalQuery, filePath, dcApi);
+					queryResult = await tryExecuteJs(
+						finalQuery,
+						filePath,
+						dcApi,
+					);
 					break;
 				case "dc-jsx":
-					queryResult = await tryExecuteJsx(finalQuery, filePath, dcApi);
+					queryResult = await tryExecuteJsx(
+						finalQuery,
+						filePath,
+						dcApi,
+					);
 					break;
 				case "dc-ts":
-					queryResult = await tryExecuteTs(finalQuery, filePath, dcApi);
+					queryResult = await tryExecuteTs(
+						finalQuery,
+						filePath,
+						dcApi,
+					);
 					break;
 				case "dc-tsx":
-					queryResult = await tryExecuteTsx(finalQuery, filePath, dcApi);
+					queryResult = await tryExecuteTsx(
+						finalQuery,
+						filePath,
+						dcApi,
+					);
 					break;
 				default:
 					return match.fullMatch;

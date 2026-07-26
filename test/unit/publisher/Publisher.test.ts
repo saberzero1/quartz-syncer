@@ -10,64 +10,61 @@ import type { DataStore } from "src/cache/DataStore";
 
 const makeSettings = (
 	overrides: Partial<QuartzSyncerSettings> = {},
-): QuartzSyncerSettings =>
-	({
-		settingsSchemaVersion: 2,
-		gitRemoteUrl: "",
-		gitBranch: "main",
-		gitCorsProxyUrl: "",
-		gitAuthType: "none",
-		gitAuthUsername: "",
-		gitProviderHint: "github",
-		vaultPath: "/",
-		contentFolder: "content",
-		publishFrontmatterKey: "publish",
-		allNotesPublishableByDefault: false,
-		showCreatedTimestamp: false,
-		showUpdatedTimestamp: false,
-		showPublishedTimestamp: false,
-		usePermalink: false,
-		includeAllFrontmatter: false,
-		frontmatterFormat: "yaml",
-		createdTimestampKey: "created",
-		updatedTimestampKey: "updated",
-		publishedTimestampKey: "published",
-		timestampFormat: "YYYY-MM-DD",
-		useCache: true,
-		syncCache: false,
-		persistCache: false,
-		cacheTimestamp: 0,
-		cache: "{}",
-		useAutoCardLink: false,
-		useDataview: false,
-		useDatacore: false,
-		useFantasyStatblocks: false,
-		useBases: false,
-		useCanvas: false,
-		useExcalidraw: false,
-		manageSyncerStyles: false,
-		noteSettingsIsInitialized: false,
-		lastUsedSettingsTab: "",
-		pluginVersion: "0.0.0",
-		lastUpstreamCommitSha: "",
-		upgradeCheckStrategy: "version",
-		diffViewStyle: "auto",
-		...overrides,
-	});
+): QuartzSyncerSettings => ({
+	settingsSchemaVersion: 2,
+	gitRemoteUrl: "",
+	gitBranch: "main",
+	gitCorsProxyUrl: "",
+	gitAuthType: "none",
+	gitAuthUsername: "",
+	gitProviderHint: "github",
+	vaultPath: "/",
+	contentFolder: "content",
+	publishFrontmatterKey: "publish",
+	allNotesPublishableByDefault: false,
+	showCreatedTimestamp: false,
+	showUpdatedTimestamp: false,
+	showPublishedTimestamp: false,
+	usePermalink: false,
+	includeAllFrontmatter: false,
+	frontmatterFormat: "yaml",
+	createdTimestampKey: "created",
+	updatedTimestampKey: "updated",
+	publishedTimestampKey: "published",
+	timestampFormat: "YYYY-MM-DD",
+	useCache: true,
+	syncCache: false,
+	persistCache: false,
+	cacheTimestamp: 0,
+	cache: "{}",
+	useAutoCardLink: false,
+	useDataview: false,
+	useDatacore: false,
+	useFantasyStatblocks: false,
+	useBases: false,
+	useCanvas: false,
+	useExcalidraw: false,
+	manageSyncerStyles: false,
+	noteSettingsIsInitialized: false,
+	lastUsedSettingsTab: "",
+	pluginVersion: "0.0.0",
+	lastUpstreamCommitSha: "",
+	upgradeCheckStrategy: "version",
+	diffViewStyle: "auto",
+	...overrides,
+});
 
-const makePlugin = (
-	settings: QuartzSyncerSettings,
-): QuartzSyncer =>
+const makePlugin = (settings: QuartzSyncerSettings): QuartzSyncer =>
 	({
 		settings,
 		saveSettings: vi.fn(),
-	} as unknown as QuartzSyncer);
+	}) as unknown as QuartzSyncer;
 
 const makePublishFile = (path: string): PublishFile =>
 	({
 		file: { path, stat: { mtime: 1000 } },
 		getVaultPath: () => path,
-	} as PublishFile);
+	}) as PublishFile;
 
 describe("Publisher", () => {
 	it("publishBatch calls writeFiles with compiled content", async () => {
@@ -85,9 +82,7 @@ describe("Publisher", () => {
 		} as unknown as GitBackend;
 		const compiler = {} as SyncerPageCompiler;
 		const dataStore = {
-			loadLocalFile: vi
-				.fn()
-				.mockResolvedValue(["hello", { blobs: [] }]),
+			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
 			storeRemoteHash: vi.fn(),
 		} as unknown as DataStore;

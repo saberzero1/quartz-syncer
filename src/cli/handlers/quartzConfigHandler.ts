@@ -33,7 +33,10 @@ export function createQuartzConfigHandler(plugin: QuartzSyncer): CliHandler {
 			}
 			const value = getValueByPath(configRecord, key);
 			if (value === undefined) {
-				return { success: false, error: `Config key not found: ${key}` };
+				return {
+					success: false,
+					error: `Config key not found: ${key}`,
+				};
 			}
 			return { success: true, data: { key, value } };
 		}

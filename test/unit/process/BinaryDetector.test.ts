@@ -20,7 +20,9 @@ const failureResult: ProcessResult = {
 describe("BinaryDetector", () => {
 	it("detects and caches binaries", async () => {
 		const run = vi.fn().mockResolvedValue(successResult);
-		const detector = new BinaryDetector({ run } as unknown as ProcessRunner);
+		const detector = new BinaryDetector({
+			run,
+		} as unknown as ProcessRunner);
 
 		const first = await detector.detect("git");
 		const second = await detector.detect("git");
@@ -32,7 +34,9 @@ describe("BinaryDetector", () => {
 
 	it("returns null when detection fails", async () => {
 		const run = vi.fn().mockResolvedValue(failureResult);
-		const detector = new BinaryDetector({ run } as unknown as ProcessRunner);
+		const detector = new BinaryDetector({
+			run,
+		} as unknown as ProcessRunner);
 
 		const found = await detector.detect("git");
 		const cached = await detector.detect("git");
@@ -44,7 +48,9 @@ describe("BinaryDetector", () => {
 
 	it("detectAll returns every binary", async () => {
 		const run = vi.fn().mockResolvedValue(successResult);
-		const detector = new BinaryDetector({ run } as unknown as ProcessRunner);
+		const detector = new BinaryDetector({
+			run,
+		} as unknown as ProcessRunner);
 
 		const results = await detector.detectAll();
 

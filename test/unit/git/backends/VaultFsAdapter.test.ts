@@ -31,9 +31,7 @@ describe("VaultFsAdapter", () => {
 		});
 
 		expect(result).toBe("hello");
-		expect(adapter.read).toHaveBeenCalledWith(
-			`${basePath}/notes/test.md`,
-		);
+		expect(adapter.read).toHaveBeenCalledWith(`${basePath}/notes/test.md`);
 	});
 
 	it("readFile returns Uint8Array for binary", async () => {

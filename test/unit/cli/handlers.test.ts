@@ -38,7 +38,9 @@ const makeBackend = (files: Record<string, string>): GitBackend => {
 	const encoder = new TextEncoder();
 	return {
 		readTree: vi.fn(async () => entries),
-		readBlob: vi.fn(async (sha: string) => encoder.encode(files[sha] ?? "")),
+		readBlob: vi.fn(async (sha: string) =>
+			encoder.encode(files[sha] ?? ""),
+		),
 		writeFiles: vi.fn(async (_branch, _message, changes) => {
 			for (const change of changes) {
 				files[change.path] = change.content;
@@ -84,9 +86,11 @@ describe("CLI handlers", () => {
 
 	it("cacheHandler returns status and clears cache", async () => {
 		const persister = {
-			iterate: vi.fn(async (callback: (value: unknown, key: string) => void) => {
-				await callback({ foo: "bar" }, "file:notes/test.md");
-			}),
+			iterate: vi.fn(
+				async (callback: (value: unknown, key: string) => void) => {
+					await callback({ foo: "bar" }, "file:notes/test.md");
+				},
+			),
 		};
 		const dataStore = {
 			dropAllFiles: vi.fn(async () => undefined),
@@ -99,7 +103,10 @@ describe("CLI handlers", () => {
 		const handler = createCacheHandler(plugin);
 
 		const status = await handler(buildParams({ action: "status" }));
-		const statusData = status.data as { entries: number; sizeEstimateBytes: number };
+		const statusData = status.data as {
+			entries: number;
+			sizeEstimateBytes: number;
+		};
 		expect(status.success).toBe(true);
 		expect(statusData.entries).toBe(1);
 		expect(statusData.sizeEstimateBytes).toBeGreaterThan(0);
@@ -113,7 +120,9 @@ describe("CLI handlers", () => {
 		const plugin = buildPlugin();
 		const handler = createConfigHandler(plugin);
 
-		const getResult = await handler(buildParams({ action: "get", key: "gitBranch" }));
+		const getResult = await handler(
+			buildParams({ action: "get", key: "gitBranch" }),
+		);
 		expect(getResult.success).toBe(true);
 		expect(getResult.data).toEqual({ key: "gitBranch", value: "main" });
 

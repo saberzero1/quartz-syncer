@@ -1,6 +1,9 @@
 import type QuartzSyncer from "src/main";
 import type { CliHandler } from "src/cli/types";
-import { createRepositoryAdapter, parseCliValue } from "src/cli/handlers/cliUtils";
+import {
+	createRepositoryAdapter,
+	parseCliValue,
+} from "src/cli/handlers/cliUtils";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
 import type { QuartzPluginSource } from "src/quartz/QuartzConfigTypes";

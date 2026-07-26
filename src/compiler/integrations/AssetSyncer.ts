@@ -3,7 +3,9 @@ import { integrationRegistry } from "./registry";
 import QuartzSyncerSettings from "src/models/settings";
 
 export interface RepositoryConnection {
-	getContent(): Promise<{ tree: Array<{ path: string; type: "blob" | "tree" }> } | null>;
+	getContent(): Promise<{
+		tree: Array<{ path: string; type: "blob" | "tree" }>;
+	} | null>;
 	getRawFile(path: string): Promise<{ content: string } | null>;
 }
 
@@ -150,7 +152,8 @@ export class AssetSyncer {
 			let content = "";
 
 			try {
-				const customScss = await connection.getRawFile(CUSTOM_SCSS_PATH);
+				const customScss =
+					await connection.getRawFile(CUSTOM_SCSS_PATH);
 
 				if (customScss) {
 					/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */

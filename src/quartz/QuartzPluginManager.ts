@@ -3,7 +3,11 @@ import type {
 	QuartzPluginEntry,
 	QuartzPluginSource,
 } from "./QuartzConfigTypes";
-import { getPluginName, getPluginSourceKey, isObjectSource } from "./QuartzPluginUtils";
+import {
+	getPluginName,
+	getPluginSourceKey,
+	isObjectSource,
+} from "./QuartzPluginUtils";
 import type { QuartzRunner } from "src/process/runners/QuartzRunner";
 
 export const DEFAULT_ORDER = 50;

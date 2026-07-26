@@ -6,9 +6,7 @@ import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnect
 import { requestUrl } from "obsidian";
 
 vi.mock("obsidian", async () => {
-	const actual = await vi.importActual<typeof import("obsidian")>(
-		"obsidian",
-	);
+	const actual = await vi.importActual<typeof import("obsidian")>("obsidian");
 	return {
 		...actual,
 		requestUrl: vi.fn(),

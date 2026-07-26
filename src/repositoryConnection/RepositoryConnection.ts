@@ -106,9 +106,7 @@ export class RepositoryConnection {
 		);
 	}
 
-	async listDirectory(
-		_path: string,
-	): Promise<RepositoryDirectoryEntry[]> {
+	async listDirectory(_path: string): Promise<RepositoryDirectoryEntry[]> {
 		return [];
 	}
 

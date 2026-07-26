@@ -173,7 +173,10 @@ export default class QuartzSyncer extends Plugin {
 	async onload() {
 		this.appVersion = this.manifest.version;
 
-		const rawData = (await this.loadData()) as Record<string, unknown> | null;
+		const rawData = (await this.loadData()) as Record<
+			string,
+			unknown
+		> | null;
 		const previousVersion =
 			typeof rawData?.pluginVersion === "string"
 				? rawData.pluginVersion
@@ -196,13 +199,9 @@ export default class QuartzSyncer extends Plugin {
 
 		this.addCommands();
 		registerCliHandlers(this);
-		this.addRibbonIcon(
-			"leaf",
-			"Quartz Syncer publication center",
-			() => {
-				new PublicationCenter(this.app, this).open();
-			},
-		);
+		this.addRibbonIcon("leaf", "Quartz Syncer publication center", () => {
+			new PublicationCenter(this.app, this).open();
+		});
 
 		this.statusBar = this.addStatusBarItem();
 		this.statusBar.setText("Quartz Syncer: ready");

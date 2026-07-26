@@ -30,7 +30,10 @@ export class QuartzUpgradeService {
 	private userRepo: RepositoryConnection;
 	private runtime?: QuartzUpgradeRuntime;
 
-	constructor(userRepo: RepositoryConnection, runtime?: QuartzUpgradeRuntime) {
+	constructor(
+		userRepo: RepositoryConnection,
+		runtime?: QuartzUpgradeRuntime,
+	) {
 		this.userRepo = userRepo;
 		this.runtime = runtime;
 	}

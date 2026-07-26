@@ -25,7 +25,7 @@ class GitBackendRepositoryAdapter {
 		if (!match) return undefined;
 
 		const blob = await this.backend.readBlob(match.sha);
-        // eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
+		// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 		const content = Buffer.from(blob).toString("base64");
 
 		return {
@@ -103,10 +103,7 @@ export function createRepositoryAdapter(
 	);
 	const branch = plugin.settings.gitBranch || "v4";
 
-	return new GitBackendRepositoryAdapter(
-		backend,
-		branch,
-	) as unknown as RepositoryConnection;
+	return new GitBackendRepositoryAdapter(backend, branch);
 }
 
 export function getValueByPath(
@@ -159,7 +156,11 @@ export function setValueByPath(
 		}
 
 		const existing = current[part];
-		if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+		if (
+			!existing ||
+			typeof existing !== "object" ||
+			Array.isArray(existing)
+		) {
 			const next: Record<string, unknown> = {};
 			current[part] = next;
 			current = next;
@@ -176,8 +177,7 @@ export function parseCliValue(rawValue: string | undefined): unknown {
 
 	if (trimmed === "") return "";
 
-	const looksLikeJson =
-		trimmed.startsWith("{") || trimmed.startsWith("[");
+	const looksLikeJson = trimmed.startsWith("{") || trimmed.startsWith("[");
 	const isPrimitive =
 		trimmed === "true" ||
 		trimmed === "false" ||

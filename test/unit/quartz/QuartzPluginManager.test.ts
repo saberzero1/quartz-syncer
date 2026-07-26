@@ -46,10 +46,7 @@ function makeConfig(plugins: QuartzV5Config["plugins"] = []): QuartzV5Config {
 	};
 }
 
-function requireValue<T>(
-	value: T | undefined | null,
-	message: string,
-): T {
+function requireValue<T>(value: T | undefined | null, message: string): T {
 	if (value === undefined || value === null) {
 		throw new Error(message);
 	}
@@ -146,10 +143,7 @@ describe("QuartzPluginManager", () => {
 				"Expected second plugin",
 			);
 
-			assert.strictEqual(
-				second.source,
-				"github:quartz-community/graph",
-			);
+			assert.strictEqual(second.source, "github:quartz-community/graph");
 		});
 	});
 

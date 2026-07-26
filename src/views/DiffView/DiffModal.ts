@@ -31,7 +31,10 @@ export class DiffModal extends Modal {
 	private mode: DiffViewMode;
 	private scrollSync: ScrollSync | null = null;
 
-	constructor(app: App, private props: DiffModalProps) {
+	constructor(
+		app: App,
+		private props: DiffModalProps,
+	) {
 		super(app);
 		this.mode = Platform.isDesktopApp ? "split" : "unified";
 	}
@@ -91,14 +94,21 @@ export class DiffModal extends Modal {
 		const container = this.contentEl.createDiv({
 			cls: "diff-split-container",
 		});
-		const leftPane = container.createDiv({ cls: "diff-pane diff-pane-left" });
+		const leftPane = container.createDiv({
+			cls: "diff-pane diff-pane-left",
+		});
 		const rightPane = container.createDiv({
 			cls: "diff-pane diff-pane-right",
 		});
 
 		const rows = this.buildSplitRows();
 		for (const row of rows) {
-			this.renderSplitRow(leftPane, row.leftNumber, row.leftText, row.leftClass);
+			this.renderSplitRow(
+				leftPane,
+				row.leftNumber,
+				row.leftText,
+				row.leftClass,
+			);
 			this.renderSplitRow(
 				rightPane,
 				row.rightNumber,
@@ -144,7 +154,10 @@ export class DiffModal extends Modal {
 
 	private buildSplitRows(): DiffRow[] {
 		const rows: DiffRow[] = [];
-		const changes = diffLines(this.props.remoteContent, this.props.localContent);
+		const changes = diffLines(
+			this.props.remoteContent,
+			this.props.localContent,
+		);
 		let leftNumber = 1;
 		let rightNumber = 1;
 
@@ -191,7 +204,10 @@ export class DiffModal extends Modal {
 
 	private buildUnifiedRows(): UnifiedRow[] {
 		const rows: UnifiedRow[] = [];
-		const changes = diffLines(this.props.remoteContent, this.props.localContent);
+		const changes = diffLines(
+			this.props.remoteContent,
+			this.props.localContent,
+		);
 		let lineNumber = 1;
 
 		for (const change of changes) {

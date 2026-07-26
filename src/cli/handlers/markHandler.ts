@@ -23,7 +23,8 @@ export function createMarkHandler(_plugin: QuartzSyncer): CliHandler {
 		);
 		const key = _plugin.settings.publishFrontmatterKey;
 		const currentValue = Boolean(engine.get(key));
-		const rawState = params.args.state ??
+		const rawState =
+			params.args.state ??
 			(params.flags.has("toggle") ? "toggle" : undefined);
 		const state = rawState?.toLowerCase();
 
@@ -36,9 +37,7 @@ export function createMarkHandler(_plugin: QuartzSyncer): CliHandler {
 		) {
 			nextValue = true;
 			engine.set(key, true);
-		} else if (
-			["false", "off", "no", "0"].includes(state)
-		) {
+		} else if (["false", "off", "no", "0"].includes(state)) {
 			nextValue = false;
 			engine.set(key, false);
 		} else if (["unset", "remove", "clear"].includes(state)) {
@@ -54,8 +53,7 @@ export function createMarkHandler(_plugin: QuartzSyncer): CliHandler {
 			success: true,
 			data: {
 				path,
-				publish:
-					nextValue === null ? "removed" : nextValue,
+				publish: nextValue === null ? "removed" : nextValue,
 			},
 		};
 	};

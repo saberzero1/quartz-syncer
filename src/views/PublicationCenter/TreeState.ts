@@ -1,4 +1,8 @@
-export type PublishCategory = "unpublished" | "changed" | "deleted" | "published";
+export type PublishCategory =
+	| "unpublished"
+	| "changed"
+	| "deleted"
+	| "published";
 
 export type SelectableCategory = Exclude<PublishCategory, "published">;
 

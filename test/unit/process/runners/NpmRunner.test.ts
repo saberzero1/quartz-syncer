@@ -20,7 +20,10 @@ describe("NpmRunner", () => {
 			...successResult,
 			stdout: "10.2.0\n",
 		});
-		const runner = new NpmRunner({ run } as unknown as ProcessRunner, "/repo");
+		const runner = new NpmRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
 
 		const result = await runner.version();
 
@@ -32,7 +35,10 @@ describe("NpmRunner", () => {
 
 	it("update passes correct args", async () => {
 		const run = vi.fn().mockResolvedValue(successResult);
-		const runner = new NpmRunner({ run } as unknown as ProcessRunner, "/repo");
+		const runner = new NpmRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
 		await runner.update("obsidian");
 
 		expect(run).toHaveBeenCalledWith({

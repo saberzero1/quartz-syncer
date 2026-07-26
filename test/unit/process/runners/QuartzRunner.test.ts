@@ -17,7 +17,10 @@ describe("QuartzRunner", () => {
 
 	it("update calls npx quartz update", async () => {
 		const run = vi.fn().mockResolvedValue(successResult);
-		const runner = new QuartzRunner({ run } as unknown as ProcessRunner, "/repo");
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
 		await runner.update();
 
 		expect(run).toHaveBeenCalledWith({
@@ -29,7 +32,10 @@ describe("QuartzRunner", () => {
 
 	it("pluginAdd calls correct args", async () => {
 		const run = vi.fn().mockResolvedValue(successResult);
-		const runner = new QuartzRunner({ run } as unknown as ProcessRunner, "/repo");
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
 		await runner.pluginAdd("github:org/plugin");
 
 		expect(run).toHaveBeenCalledWith({

@@ -55,10 +55,7 @@ function makeConfig(overrides?: Partial<QuartzV5Config>): QuartzV5Config {
 	};
 }
 
-function requireValue<T>(
-	value: T | undefined | null,
-	message: string,
-): T {
+function requireValue<T>(value: T | undefined | null, message: string): T {
 	if (value === undefined || value === null) {
 		throw new Error(message);
 	}
@@ -243,10 +240,7 @@ describe("QuartzTemplateService", () => {
 			);
 			assert.strictEqual(current.configuration.enableSPA, false);
 			assert.strictEqual(current.plugins.length, 1);
-			const plugin = requireValue(
-				current.plugins[0],
-				"Expected plugin",
-			);
+			const plugin = requireValue(current.plugins[0], "Expected plugin");
 			assert.strictEqual(plugin.order, 20);
 
 			assert.deepStrictEqual(

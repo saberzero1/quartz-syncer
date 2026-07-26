@@ -94,10 +94,7 @@ export default defineConfig(
 		},
 	},
 	{
-		files: [
-			"src/compiler/integrations/**/*.ts",
-			"src/utils/utils.ts",
-		],
+		files: ["src/compiler/integrations/**/*.ts", "src/utils/utils.ts"],
 		rules: {
 			"@typescript-eslint/no-unsafe-assignment": "off",
 			"@typescript-eslint/no-unsafe-call": "off",

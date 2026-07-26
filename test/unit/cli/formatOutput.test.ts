@@ -13,8 +13,6 @@ describe("formatCliOutput", () => {
 		const result = { success: true, data: { message: "All good" } };
 		const output = formatCliOutput(result, "text");
 
-		expect(output).toBe(
-			`Success: ${JSON.stringify(result.data, null, 2)}`,
-		);
+		expect(output).toBe(`Success: ${JSON.stringify(result.data, null, 2)}`);
 	});
 });

@@ -81,7 +81,8 @@ export function registerCliHandlers(plugin: QuartzSyncer): void {
 
 		plugin.addCommand({
 			id: command.replace(/[:/]/g, "-"),
-			name: COMMAND_LABELS[command as (typeof COMMANDS)[number]] ??
+			name:
+				COMMAND_LABELS[command as (typeof COMMANDS)[number]] ??
 				`Quartz Syncer: ${command}`,
 			callback: () => {
 				void handleCommand(command, {});
@@ -123,7 +124,10 @@ function normalizeCliParams(
 		const trimmedKey = key.trim();
 		const trimmedValue = value?.trim();
 
-		if (trimmedKey.includes("=") && (!trimmedValue || trimmedValue === "true")) {
+		if (
+			trimmedKey.includes("=") &&
+			(!trimmedValue || trimmedValue === "true")
+		) {
 			const [parsedKey, parsedValue] = trimmedKey.split("=", 2);
 			if (parsedKey && parsedValue) {
 				args[parsedKey] = parsedValue;

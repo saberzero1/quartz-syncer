@@ -11,8 +11,13 @@ export type QuartzServeResult =
 			ok: true;
 			process: ProcessStartResult["process"];
 			result: ProcessStartResult["result"];
-		}
-	| { ok: false; error: string; process: null; result?: Promise<ProcessResult> };
+	  }
+	| {
+			ok: false;
+			error: string;
+			process: null;
+			result?: Promise<ProcessResult>;
+	  };
 
 export type QuartzRunnerOptions = {
 	cwd?: string;
@@ -54,7 +59,9 @@ export class QuartzRunner {
 		};
 		const result = await this.runner.run({
 			...config,
-			...(resolvedOptions?.signal ? { signal: resolvedOptions.signal } : {}),
+			...(resolvedOptions?.signal
+				? { signal: resolvedOptions.signal }
+				: {}),
 			...(resolvedOptions?.onStdout
 				? { onStdout: resolvedOptions.onStdout }
 				: {}),
@@ -97,7 +104,8 @@ export class QuartzRunner {
 		if (result.exitCode !== 0) {
 			return {
 				ok: false,
-				error: result.error ?? result.stderr ?? "quartz plugin add failed",
+				error:
+					result.error ?? result.stderr ?? "quartz plugin add failed",
 				processResult: result,
 			};
 		}
@@ -129,7 +137,10 @@ export class QuartzRunner {
 		if (result.exitCode !== 0) {
 			return {
 				ok: false,
-				error: result.error ?? result.stderr ?? "quartz plugin remove failed",
+				error:
+					result.error ??
+					result.stderr ??
+					"quartz plugin remove failed",
 				processResult: result,
 			};
 		}
@@ -175,7 +186,11 @@ export class QuartzRunner {
 			typeof options === "number" ? { port: options } : options;
 		const cwd = this.resolveCwd(resolvedOptions?.cwd);
 		if (!cwd) {
-			return { ok: false, error: "Quartz repo path not set", process: null };
+			return {
+				ok: false,
+				error: "Quartz repo path not set",
+				process: null,
+			};
 		}
 		const args = resolvedOptions?.port
 			? [

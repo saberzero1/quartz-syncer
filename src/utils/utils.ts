@@ -187,9 +187,11 @@ function sanitizePermalink(permalink: string): string {
  * @returns True if the plugin is enabled, false otherwise.
  */
 function isPluginEnabled(pluginId: string): boolean {
-	const plugins = (window as {
-		app?: { plugins?: { enabledPlugins?: Set<string> } };
-	}).app?.plugins?.enabledPlugins;
+	const plugins = (
+		window as {
+			app?: { plugins?: { enabledPlugins?: Set<string> } };
+		}
+	).app?.plugins?.enabledPlugins;
 
 	if (!plugins) {
 		return false;
@@ -254,18 +256,17 @@ function renderPromise(
 		let intervalTimer: NodeJS.Timeout;
 
 		const clearIntervalTimer = () => {
-			window.clearTimeout(intervalTimer as unknown as number);
+			window.clearTimeout(intervalTimer);
 		};
 
 		const observer = new MutationObserver(() => {
 			clearIntervalTimer();
 
-			/* eslint-disable no-undef -- NodeJS.Timeout type for timer reference */
+			// @ts-expect-error -- TypeScript is complaining about the type of intervalTimer, but we know it's a valid timer reference.
 			intervalTimer = window.setTimeout(() => {
 				cleanUp();
 				resolve();
-			}, interval) as unknown as NodeJS.Timeout;
-			/* eslint-enable no-undef -- end NodeJS.Timeout type reference */
+			}, interval);
 
 			/*
 			if (div.querySelector(selector)) {

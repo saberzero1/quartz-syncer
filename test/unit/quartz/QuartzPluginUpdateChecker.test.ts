@@ -2,7 +2,10 @@ import assert from "node:assert";
 import { afterEach, describe, it } from "vitest";
 import { QuartzPluginUpdateChecker } from "src/quartz/QuartzPluginUpdateChecker";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
-import type { QuartzPluginEntry, QuartzLockFile } from "src/quartz/QuartzConfigTypes";
+import type {
+	QuartzPluginEntry,
+	QuartzLockFile,
+} from "src/quartz/QuartzConfigTypes";
 
 const originalFetchRemoteHeadCommit =
 	RepositoryConnection.fetchRemoteHeadCommit;
@@ -21,10 +24,7 @@ function mockFetchRemoteHeadCommit(
 	};
 }
 
-function requireValue<T>(
-	value: T | undefined | null,
-	message: string,
-): T {
+function requireValue<T>(value: T | undefined | null, message: string): T {
 	if (value === undefined || value === null) {
 		throw new Error(message);
 	}
@@ -102,7 +102,10 @@ describe("QuartzPluginUpdateChecker", () => {
 
 		const checker = new QuartzPluginUpdateChecker({ type: "none" });
 
-		const results = await checker.checkUpdates([PLUGIN_EXPLORER], LOCK_FILE);
+		const results = await checker.checkUpdates(
+			[PLUGIN_EXPLORER],
+			LOCK_FILE,
+		);
 
 		const first = requireValue(results[0], "Expected result");
 		assert.strictEqual(first.hasUpdate, false);
@@ -139,7 +142,10 @@ describe("QuartzPluginUpdateChecker", () => {
 
 		const checker = new QuartzPluginUpdateChecker({ type: "none" });
 
-		const results = await checker.checkUpdates([PLUGIN_EXPLORER], LOCK_FILE);
+		const results = await checker.checkUpdates(
+			[PLUGIN_EXPLORER],
+			LOCK_FILE,
+		);
 
 		const first = requireValue(results[0], "Expected result");
 		assert.strictEqual(first.hasUpdate, false);
@@ -153,7 +159,10 @@ describe("QuartzPluginUpdateChecker", () => {
 
 		const checker = new QuartzPluginUpdateChecker({ type: "none" });
 
-		const results = await checker.checkUpdates([PLUGIN_EXPLORER], LOCK_FILE);
+		const results = await checker.checkUpdates(
+			[PLUGIN_EXPLORER],
+			LOCK_FILE,
+		);
 
 		const first = requireValue(results[0], "Expected result");
 		assert.strictEqual(first.hasUpdate, false);

@@ -85,7 +85,7 @@ export class VaultFsAdapter implements FsClient {
 		const encoding = options?.encoding;
 		if (typeof data === "string") {
 			if (encoding === "base64") {
-                // eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
+				// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 				const bytes = Buffer.from(data, "base64");
 				await this.adapter.writeBinary(
 					resolvedPath,
@@ -97,8 +97,7 @@ export class VaultFsAdapter implements FsClient {
 			return;
 		}
 
-		const bytes =
-			data instanceof Uint8Array ? data : new Uint8Array(data);
+		const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
 		await this.adapter.writeBinary(resolvedPath, toArrayBuffer(bytes));
 	}
 
@@ -172,7 +171,11 @@ function basename(path: string): string {
 	return parts[parts.length - 1] ?? "";
 }
 
-function buildStat(stat: { type: string; mtime?: number; size?: number }): FsStat {
+function buildStat(stat: {
+	type: string;
+	mtime?: number;
+	size?: number;
+}): FsStat {
 	const isFile = stat.type === "file";
 	const isDirectory = stat.type === "folder";
 	return {
@@ -185,7 +188,9 @@ function buildStat(stat: { type: string; mtime?: number; size?: number }): FsSta
 }
 
 function createEnoent(path: string): Error & { code: string } {
-	const error = new Error(`ENOENT: no such file or directory, ${path}`) as Error & {
+	const error = new Error(
+		`ENOENT: no such file or directory, ${path}`,
+	) as Error & {
 		code: string;
 	};
 	error.code = "ENOENT";

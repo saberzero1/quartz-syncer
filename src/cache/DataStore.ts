@@ -167,8 +167,7 @@ export class DataStore {
 		timestamp?: number,
 	): Promise<void> {
 		const existing = await this.getCacheEntry(path);
-		const sourceMtime =
-			updates.sourceMtime ?? existing?.sourceMtime ?? 0;
+		const sourceMtime = updates.sourceMtime ?? existing?.sourceMtime ?? 0;
 
 		await this.setCacheEntry(path, {
 			version: this.version,
@@ -328,10 +327,7 @@ export class DataStore {
 			return null;
 		}
 
-		if (
-			currentMtime !== undefined &&
-			data.sourceMtime !== currentMtime
-		) {
+		if (currentMtime !== undefined && data.sourceMtime !== currentMtime) {
 			return null;
 		}
 
@@ -424,10 +420,7 @@ export class DataStore {
 		if (!data?.localHash) {
 			return null;
 		}
-		if (
-			currentMtime !== undefined &&
-			data.sourceMtime !== currentMtime
-		) {
+		if (currentMtime !== undefined && data.sourceMtime !== currentMtime) {
 			return null;
 		}
 		return data.localHash;

@@ -50,7 +50,10 @@ export class NpmRunner {
 		if (result.exitCode !== 0) {
 			return {
 				ok: false,
-				error: result.error ?? result.stderr ?? "Failed to get npm version",
+				error:
+					result.error ??
+					result.stderr ??
+					"Failed to get npm version",
 				processResult: result,
 			};
 		}
@@ -80,7 +83,9 @@ export class NpmRunner {
 		};
 		const result = await this.runner.run({
 			...config,
-			...(resolvedOptions?.signal ? { signal: resolvedOptions.signal } : {}),
+			...(resolvedOptions?.signal
+				? { signal: resolvedOptions.signal }
+				: {}),
 			...(resolvedOptions?.onStdout
 				? { onStdout: resolvedOptions.onStdout }
 				: {}),
@@ -119,7 +124,9 @@ export class NpmRunner {
 		};
 		const result = await this.runner.run({
 			...config,
-			...(resolvedOptions?.signal ? { signal: resolvedOptions.signal } : {}),
+			...(resolvedOptions?.signal
+				? { signal: resolvedOptions.signal }
+				: {}),
 			...(resolvedOptions?.onStdout
 				? { onStdout: resolvedOptions.onStdout }
 				: {}),

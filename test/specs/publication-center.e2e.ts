@@ -9,9 +9,7 @@ describe("Publication center", function () {
 
 	it("opens and closes the publication center modal", async function () {
 		await browser.executeObsidian(({ app }) => {
-			app.commands.executeCommandById(
-				"quartz-syncer:open-publish-modal",
-			);
+			app.commands.executeCommandById("quartz-syncer:open-publish-modal");
 		});
 		await browser.pause(300);
 

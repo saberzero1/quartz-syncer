@@ -106,9 +106,7 @@ function makeMockPublishFile(
 		getPath: vi.fn().mockReturnValue(path),
 		getVaultPath: vi.fn().mockReturnValue(path),
 		getType: vi.fn().mockReturnValue("markdown"),
-		cachedRead: vi
-			.fn()
-			.mockResolvedValue(overrides.cachedReadValue ?? ""),
+		cachedRead: vi.fn().mockResolvedValue(overrides.cachedReadValue ?? ""),
 		getCompiledFrontmatter: vi
 			.fn()
 			.mockReturnValue(

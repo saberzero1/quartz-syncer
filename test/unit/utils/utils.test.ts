@@ -104,9 +104,7 @@ describe("utils", () => {
 		});
 
 		it("strips file extension and appends trailing slash", () => {
-			expect(generateUrlPath("notes/my-note.md")).toBe(
-				"notes/my-note/",
-			);
+			expect(generateUrlPath("notes/my-note.md")).toBe("notes/my-note/");
 		});
 
 		it("slugifies path segments by default", () => {
@@ -172,9 +170,7 @@ describe("utils", () => {
 		});
 
 		it("handles paths with multiple segments", () => {
-			expect(sanitizePermalink("notes/sub/page")).toBe(
-				"/notes/sub/page",
-			);
+			expect(sanitizePermalink("notes/sub/page")).toBe("/notes/sub/page");
 		});
 	});
 
@@ -192,9 +188,7 @@ describe("utils", () => {
 		});
 
 		it("escapes multiple special characters", () => {
-			expect(escapeRegExp("a.b*c+d?e")).toBe(
-				"a\\.b\\*c\\+d\\?e",
-			);
+			expect(escapeRegExp("a.b*c+d?e")).toBe("a\\.b\\*c\\+d\\?e");
 		});
 
 		it("leaves plain strings unchanged", () => {

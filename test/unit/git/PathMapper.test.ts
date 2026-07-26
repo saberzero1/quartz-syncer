@@ -11,16 +11,12 @@ describe("PathMapper", () => {
 
 		it("handles root content folder", () => {
 			const mapper = new PathMapper("/");
-			expect(mapper.toRepoPath("notes/hello.md")).toBe(
-				"notes/hello.md",
-			);
+			expect(mapper.toRepoPath("notes/hello.md")).toBe("notes/hello.md");
 		});
 
 		it("handles empty content folder", () => {
 			const mapper = new PathMapper("");
-			expect(mapper.toRepoPath("notes/hello.md")).toBe(
-				"notes/hello.md",
-			);
+			expect(mapper.toRepoPath("notes/hello.md")).toBe("notes/hello.md");
 		});
 
 		it("strips leading/trailing slashes from folder", () => {
@@ -39,16 +35,12 @@ describe("PathMapper", () => {
 
 		it("returns as-is if no prefix match", () => {
 			const mapper = new PathMapper("content");
-			expect(mapper.toVaultPath("other/hello.md")).toBe(
-				"other/hello.md",
-			);
+			expect(mapper.toVaultPath("other/hello.md")).toBe("other/hello.md");
 		});
 
 		it("handles root content folder", () => {
 			const mapper = new PathMapper("/");
-			expect(mapper.toVaultPath("notes/hello.md")).toBe(
-				"notes/hello.md",
-			);
+			expect(mapper.toVaultPath("notes/hello.md")).toBe("notes/hello.md");
 		});
 	});
 

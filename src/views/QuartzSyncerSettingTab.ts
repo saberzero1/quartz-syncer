@@ -23,7 +23,6 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-
 	getSettingDefinitions(): SettingDefinitionItem[] {
 		return [
 			...this.buildOverviewItems(),
@@ -32,14 +31,20 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 				name: "Git",
 				desc: "Configure your Git remote, authentication, and branch.",
 				page: () =>
-					new GitSettingsPage(this.app, this.plugin) as unknown as import("obsidian").SettingPage,
+					new GitSettingsPage(
+						this.app,
+						this.plugin,
+					) as unknown as import("obsidian").SettingPage,
 			},
 			{
 				type: "page",
 				name: "Quartz",
 				desc: "Quartz site configuration, plugins, and templates.",
 				page: () =>
-					new QuartzSettingsPage(this.app, this.plugin) as unknown as import("obsidian").SettingPage,
+					new QuartzSettingsPage(
+						this.app,
+						this.plugin,
+					) as unknown as import("obsidian").SettingPage,
 			},
 			{
 				type: "page",

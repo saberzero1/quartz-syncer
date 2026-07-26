@@ -9,7 +9,7 @@ const makeFile = (path: string): PublishFile =>
 	({
 		file: { path, stat: { mtime: 1000 } },
 		getVaultPath: () => path,
-	} as PublishFile);
+	}) as PublishFile;
 
 describe("PublishStatusManager", () => {
 	it("categorizes published files when hashes match", async () => {

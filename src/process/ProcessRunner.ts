@@ -21,10 +21,16 @@ type ExecFileOptions = {
 export type ChildProcessHandle = {
 	kill(signal?: string | number): void;
 	stdout?: {
-		on: (event: "data", listener: (chunk: Uint8Array | string) => void) => void;
+		on: (
+			event: "data",
+			listener: (chunk: Uint8Array | string) => void,
+		) => void;
 	};
 	stderr?: {
-		on: (event: "data", listener: (chunk: Uint8Array | string) => void) => void;
+		on: (
+			event: "data",
+			listener: (chunk: Uint8Array | string) => void,
+		) => void;
 	};
 };
 
@@ -173,7 +179,8 @@ export class ProcessRunner {
 			return createErrorResult("Aborted", "Aborted", true);
 		}
 
-		const timeout = config.timeout && config.timeout > 0 ? config.timeout : 30000;
+		const timeout =
+			config.timeout && config.timeout > 0 ? config.timeout : 30000;
 
 		terminatePendingProcess();
 
@@ -217,9 +224,15 @@ export class ProcessRunner {
 						}
 
 						const killed =
-							Boolean(error?.signal) || Boolean(error?.killed) || aborted;
+							Boolean(error?.signal) ||
+							Boolean(error?.killed) ||
+							aborted;
 						const exitCode =
-							typeof error?.code === "number" ? error.code : error ? 1 : 0;
+							typeof error?.code === "number"
+								? error.code
+								: error
+									? 1
+									: 0;
 						const result: ProcessResult = {
 							stdout,
 							stderr,
@@ -272,7 +285,10 @@ export class ProcessRunner {
 			return {
 				process: null,
 				result: Promise.resolve(
-					createErrorResult("Not available on mobile", "Desktop only"),
+					createErrorResult(
+						"Not available on mobile",
+						"Desktop only",
+					),
 				),
 			};
 		}
@@ -299,7 +315,8 @@ export class ProcessRunner {
 			};
 		}
 
-		const timeout = config.timeout && config.timeout > 0 ? config.timeout : 30000;
+		const timeout =
+			config.timeout && config.timeout > 0 ? config.timeout : 30000;
 		terminatePendingProcess();
 
 		const result = new Promise<ProcessResult>((resolve) => {
@@ -342,9 +359,15 @@ export class ProcessRunner {
 						}
 
 						const killed =
-							Boolean(error?.signal) || Boolean(error?.killed) || aborted;
+							Boolean(error?.signal) ||
+							Boolean(error?.killed) ||
+							aborted;
 						const exitCode =
-							typeof error?.code === "number" ? error.code : error ? 1 : 0;
+							typeof error?.code === "number"
+								? error.code
+								: error
+									? 1
+									: 0;
 						const result: ProcessResult = {
 							stdout,
 							stderr,

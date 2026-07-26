@@ -6,9 +6,9 @@ const SAFE_STORAGE_KEY = "quartz-syncer-encrypted-token";
 
 interface SafeStorage {
 	isEncryptionAvailable(): boolean;
-    // eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
+	// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 	encryptString(plainText: string): Buffer;
-    // eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
+	// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 	decryptString(encrypted: Buffer): string;
 }
 
@@ -16,10 +16,16 @@ function getSafeStorage(): SafeStorage | null {
 	if (!Platform.isDesktopApp) return null;
 	try {
 		const electron = (
-			window as unknown as { require: (id: string) => { safeStorage: SafeStorage } }
+			window as unknown as {
+				require: (id: string) => { safeStorage: SafeStorage };
+			}
 		).require("electron");
 		const ss = electron.safeStorage;
-		if (ss && typeof ss.isEncryptionAvailable === "function" && ss.isEncryptionAvailable()) {
+		if (
+			ss &&
+			typeof ss.isEncryptionAvailable === "function" &&
+			ss.isEncryptionAvailable()
+		) {
 			return ss;
 		}
 	} catch {
@@ -49,7 +55,7 @@ export class SecretStorageService {
 			const encrypted = this.secretStorage.getSecret(SAFE_STORAGE_KEY);
 			if (encrypted) {
 				try {
-                    // eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
+					// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 					const buf = Buffer.from(encrypted, "base64");
 					this.cachedToken = this.safeStorage.decryptString(buf);
 					return this.cachedToken;
@@ -73,7 +79,10 @@ export class SecretStorageService {
 
 		if (this.safeStorage) {
 			const encrypted = this.safeStorage.encryptString(token);
-			this.secretStorage.setSecret(SAFE_STORAGE_KEY, encrypted.toString("base64"));
+			this.secretStorage.setSecret(
+				SAFE_STORAGE_KEY,
+				encrypted.toString("base64"),
+			);
 			this.secretStorage.setSecret(GIT_AUTH_SECRET_ID, "");
 			console.debug("Git authentication token stored with encryption");
 		} else {

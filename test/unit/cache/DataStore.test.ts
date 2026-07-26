@@ -7,9 +7,7 @@ const { createInstance, dropInstance, setStore } = vi.hoisted(() => {
 		currentStore = store;
 	};
 	const createInstance = vi.fn(() => ({
-		getItem: vi.fn((key: string) =>
-			Promise.resolve(currentStore.get(key)),
-		),
+		getItem: vi.fn((key: string) => Promise.resolve(currentStore.get(key))),
 		setItem: vi.fn((key: string, value: unknown) => {
 			currentStore.set(key, value);
 			return Promise.resolve();

@@ -190,7 +190,9 @@ export class PublicationCenter extends Modal {
 				"Published via Quartz Syncer",
 			);
 			if (!result.success) {
-				new Notice(`Publish failed: ${result.error ?? "Unknown error"}`);
+				new Notice(
+					`Publish failed: ${result.error ?? "Unknown error"}`,
+				);
 				return;
 			}
 			new Notice(`Published ${result.filesPublished} file(s).`);
@@ -251,5 +253,4 @@ export class PublicationCenter extends Modal {
 		const percent = total === 0 ? 0 : Math.round((current / total) * 100);
 		this.progressIndicatorEl.style.width = `${percent}%`;
 	}
-
 }

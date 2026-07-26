@@ -117,19 +117,33 @@ export class HttpClient {
 		this.onRateLimit = options.onRateLimit;
 	}
 
-	async get<T>(url: string, headers: Record<string, string> = {}): Promise<HttpResponse<T>> {
+	async get<T>(
+		url: string,
+		headers: Record<string, string> = {},
+	): Promise<HttpResponse<T>> {
 		return this.jsonRequest<T>("GET", url, headers);
 	}
 
-	async post<T>(url: string, headers: Record<string, string> = {}, body?: unknown): Promise<HttpResponse<T>> {
+	async post<T>(
+		url: string,
+		headers: Record<string, string> = {},
+		body?: unknown,
+	): Promise<HttpResponse<T>> {
 		return this.jsonRequest<T>("POST", url, headers, body);
 	}
 
-	async patch<T>(url: string, headers: Record<string, string> = {}, body?: unknown): Promise<HttpResponse<T>> {
+	async patch<T>(
+		url: string,
+		headers: Record<string, string> = {},
+		body?: unknown,
+	): Promise<HttpResponse<T>> {
 		return this.jsonRequest<T>("PATCH", url, headers, body);
 	}
 
-	async delete<T>(url: string, headers: Record<string, string> = {}): Promise<HttpResponse<T>> {
+	async delete<T>(
+		url: string,
+		headers: Record<string, string> = {},
+	): Promise<HttpResponse<T>> {
 		return this.jsonRequest<T>("DELETE", url, headers);
 	}
 
@@ -157,9 +171,7 @@ export class HttpClient {
 					throw: false,
 				});
 
-				const responseHeaders = normalizeHeaders(
-					response.headers as Record<string, string | string[]>,
-				);
+				const responseHeaders = normalizeHeaders(response.headers);
 				parseRateLimitHeaders(responseHeaders, this.onRateLimit);
 
 				if (response.status >= 400) {
@@ -170,7 +182,7 @@ export class HttpClient {
 						const retryAfter = responseHeaders["retry-after"];
 						const delay = retryAfter
 							? parseInt(retryAfter, 10) * 1000
-							: RETRY_DELAYS[attempt] ?? 4000;
+							: (RETRY_DELAYS[attempt] ?? 4000);
 						await sleep(delay);
 						continue;
 					}
@@ -220,9 +232,7 @@ export class HttpClient {
 					throw: false,
 				});
 
-				const responseHeaders = normalizeHeaders(
-					response.headers as Record<string, string | string[]>,
-				);
+				const responseHeaders = normalizeHeaders(response.headers);
 				parseRateLimitHeaders(responseHeaders, this.onRateLimit);
 
 				if (
@@ -253,7 +263,10 @@ export class HttpClient {
 				}
 			}
 		}
-		throw new NetworkError("Git HTTP request failed after retries", lastError);
+		throw new NetworkError(
+			"Git HTTP request failed after retries",
+			lastError,
+		);
 	}
 }
 

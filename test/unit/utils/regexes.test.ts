@@ -201,7 +201,7 @@ describe("regexes", () => {
 		it("matches markdown image with anchor and title", () => {
 			const matches = allMatches(
 				FILE_REGEX,
-				"![alt](goliath.webp#right \"title\")",
+				'![alt](goliath.webp#right "title")',
 			);
 			expect(matches).toHaveLength(1);
 		});
@@ -230,7 +230,10 @@ describe("regexes", () => {
 		});
 
 		it("matches markdown image with path ![](folder/img.png)", () => {
-			const matches = allMatches(FILE_REGEX, "![](some/path/to/photo.png)");
+			const matches = allMatches(
+				FILE_REGEX,
+				"![](some/path/to/photo.png)",
+			);
 			expect(matches).toHaveLength(1);
 		});
 
@@ -240,7 +243,10 @@ describe("regexes", () => {
 		});
 
 		it("does not match regular links [text](url)", () => {
-			const matches = allMatches(FILE_REGEX, "[link](http://example.com)");
+			const matches = allMatches(
+				FILE_REGEX,
+				"[link](http://example.com)",
+			);
 			expect(matches).toHaveLength(0);
 		});
 	});
@@ -257,10 +263,7 @@ describe("regexes", () => {
 
 	describe("DATAVIEW_FIELD_REGEX", () => {
 		it("matches dataview field syntax", () => {
-			const matches = allMatches(
-				DATAVIEW_FIELD_REGEX,
-				"field:: value",
-			);
+			const matches = allMatches(DATAVIEW_FIELD_REGEX, "field:: value");
 			expect(matches).toHaveLength(1);
 			expect(matches[0][1]).toBe("field");
 			expect(matches[0][2]).toBe("value");
@@ -301,7 +304,10 @@ describe("regexes", () => {
 
 	describe("BLOCKREF_REGEX", () => {
 		it("matches block references", () => {
-			const matches = allMatches(BLOCKREF_REGEX, "This is a block ^abc123");
+			const matches = allMatches(
+				BLOCKREF_REGEX,
+				"This is a block ^abc123",
+			);
 			expect(matches).toHaveLength(1);
 		});
 	});
@@ -315,10 +321,7 @@ describe("regexes", () => {
 
 	describe("CODEBLOCK_REGEX", () => {
 		it("matches fenced code blocks", () => {
-			const matches = allMatches(
-				CODEBLOCK_REGEX,
-				"```\ncode here\n```",
-			);
+			const matches = allMatches(CODEBLOCK_REGEX, "```\ncode here\n```");
 			expect(matches).toHaveLength(1);
 		});
 	});

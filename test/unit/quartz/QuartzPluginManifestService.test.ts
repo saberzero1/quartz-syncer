@@ -54,10 +54,7 @@ function encodeJson(obj: unknown): string {
 	return Buffer.from(JSON.stringify(obj)).toString("base64");
 }
 
-function requireValue<T>(
-	value: T | undefined | null,
-	message: string,
-): T {
+function requireValue<T>(value: T | undefined | null, message: string): T {
 	if (value === undefined || value === null) {
 		throw new Error(message);
 	}

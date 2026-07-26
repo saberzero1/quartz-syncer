@@ -152,10 +152,16 @@ export class BackgroundEngine {
 			if (pending.length === 0 && deleted.length === 0) return;
 
 			if (pending.length > 0) {
-				await publisher.publishBatch(pending, "Auto-published via Quartz Syncer");
+				await publisher.publishBatch(
+					pending,
+					"Auto-published via Quartz Syncer",
+				);
 			}
 			if (deleted.length > 0) {
-				await publisher.deleteBatch(deleted, "Auto-deleted via Quartz Syncer");
+				await publisher.deleteBatch(
+					deleted,
+					"Auto-deleted via Quartz Syncer",
+				);
 			}
 
 			console.debug(

@@ -108,12 +108,8 @@ function makeMockPublishFile(
 			.fn()
 			.mockReturnValue(overrides.vaultPath ?? "notes/test.md"),
 		meta: {
-			getCreatedAt: vi
-				.fn()
-				.mockReturnValue(overrides.createdAt ?? null),
-			getUpdatedAt: vi
-				.fn()
-				.mockReturnValue(overrides.updatedAt ?? null),
+			getCreatedAt: vi.fn().mockReturnValue(overrides.createdAt ?? null),
+			getUpdatedAt: vi.fn().mockReturnValue(overrides.updatedAt ?? null),
 			getPublishedAt: vi
 				.fn()
 				.mockReturnValue(overrides.publishedAt ?? null),
@@ -475,7 +471,10 @@ describe("FrontmatterCompiler", () => {
 				compiler as unknown as PrivateFrontmatterCompiler;
 			const file = makeMockPublishFile({ createdAt: "2024-01-01" });
 
-			const result = compilerPrivate.addTimestampsFrontmatter(file)({}, {});
+			const result = compilerPrivate.addTimestampsFrontmatter(file)(
+				{},
+				{},
+			);
 
 			expect(result.created).toBe("2024-01-01");
 		});
@@ -486,7 +485,10 @@ describe("FrontmatterCompiler", () => {
 				compiler as unknown as PrivateFrontmatterCompiler;
 			const file = makeMockPublishFile({ updatedAt: "2024-01-02" });
 
-			const result = compilerPrivate.addTimestampsFrontmatter(file)({}, {});
+			const result = compilerPrivate.addTimestampsFrontmatter(file)(
+				{},
+				{},
+			);
 
 			expect(result.modified).toBe("2024-01-02");
 		});
@@ -497,7 +499,10 @@ describe("FrontmatterCompiler", () => {
 				compiler as unknown as PrivateFrontmatterCompiler;
 			const file = makeMockPublishFile({ publishedAt: "2024-01-03" });
 
-			const result = compilerPrivate.addTimestampsFrontmatter(file)({}, {});
+			const result = compilerPrivate.addTimestampsFrontmatter(file)(
+				{},
+				{},
+			);
 
 			expect(result.published).toBe("2024-01-03");
 		});

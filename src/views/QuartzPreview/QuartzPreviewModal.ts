@@ -101,7 +101,8 @@ export class QuartzPreviewModal extends Modal {
 	}
 
 	private abort(): void {
-		if (!this.abortController || this.abortController.signal.aborted) return;
+		if (!this.abortController || this.abortController.signal.aborted)
+			return;
 		this.abortController.abort();
 	}
 }

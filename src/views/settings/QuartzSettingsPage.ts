@@ -39,7 +39,7 @@ class GitBackendRepositoryAdapter {
 		if (!match) return undefined;
 
 		const blob = await this.backend.readBlob(match.sha);
-        // eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
+		// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 		const content = Buffer.from(blob).toString("base64");
 
 		return {
@@ -133,7 +133,9 @@ export class QuartzSettingsPage extends SettingPageBase {
 	private renderVersionDetection(): void {
 		const setting = new Setting(this.containerEl)
 			.setName("Quartz version")
-			.setDesc("Detected configuration format in your Quartz repository.");
+			.setDesc(
+				"Detected configuration format in your Quartz repository.",
+			);
 
 		this.versionStatusEl = setting.controlEl.createSpan({
 			text: "Detecting...",
@@ -153,9 +155,8 @@ export class QuartzSettingsPage extends SettingPageBase {
 
 		try {
 			const repo = this.createRepositoryAdapter();
-			const version = await QuartzVersionDetector.detectQuartzVersion(
-				repo,
-			);
+			const version =
+				await QuartzVersionDetector.detectQuartzVersion(repo);
 			const pkgVersion =
 				await QuartzVersionDetector.getQuartzPackageVersion(repo);
 
@@ -221,18 +222,18 @@ export class QuartzSettingsPage extends SettingPageBase {
 	private renderBinaryDetection(): void {
 		const setting = new Setting(this.containerEl)
 			.setName("Binary detection")
-			.setDesc("Detect git, npm, npx, and node availability on this device.");
+			.setDesc(
+				"Detect git, npm, npx, and node availability on this device.",
+			);
 
 		this.binaryStatusEl = setting.controlEl.createDiv({
 			cls: "qs-binary-status",
 		});
 
 		setting.addButton((button) => {
-			button
-				.setButtonText("Refresh detection")
-				.onClick(() => {
-					void this.refreshBinaryDetection(true);
-				});
+			button.setButtonText("Refresh detection").onClick(() => {
+				void this.refreshBinaryDetection(true);
+			});
 		});
 
 		void this.refreshBinaryDetection(false);
@@ -305,9 +306,7 @@ export class QuartzSettingsPage extends SettingPageBase {
 	private renderSystemCommandsToggle(): void {
 		new Setting(this.containerEl)
 			.setName("Enable system commands")
-			.setDesc(
-				"Allow Quartz Syncer to run local git/npm/npx commands.",
-			)
+			.setDesc("Allow Quartz Syncer to run local git/npm/npx commands.")
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.enableSystemCommands)
@@ -327,29 +326,35 @@ export class QuartzSettingsPage extends SettingPageBase {
 			.setDesc("Run Quartz CLI commands locally.");
 
 		setting.addButton((button) => {
-			button.setButtonText("Update Quartz").setCta().onClick(() => {
-				const repoPath = this.getRepoPathOrNotice();
-				if (!repoPath) return;
-				if (!this.plugin.quartzRunner) {
-					new Notice("Quartz runner is unavailable.");
-					return;
-				}
-				new TerminalOutputModal(
-					this.app,
-					"Update Quartz",
-					async ({ onStdout, onStderr, signal }) => {
-						const result = await this.plugin.quartzRunner?.update({
-							cwd: repoPath,
-							signal,
-							onStdout,
-							onStderr,
-						});
-						if (!result?.ok) {
-							throw new Error(result?.error ?? "Quartz update failed");
-						}
-					},
-				).open();
-			});
+			button
+				.setButtonText("Update Quartz")
+				.setCta()
+				.onClick(() => {
+					const repoPath = this.getRepoPathOrNotice();
+					if (!repoPath) return;
+					if (!this.plugin.quartzRunner) {
+						new Notice("Quartz runner is unavailable.");
+						return;
+					}
+					new TerminalOutputModal(
+						this.app,
+						"Update Quartz",
+						async ({ onStdout, onStderr, signal }) => {
+							const result =
+								await this.plugin.quartzRunner?.update({
+									cwd: repoPath,
+									signal,
+									onStdout,
+									onStderr,
+								});
+							if (!result?.ok) {
+								throw new Error(
+									result?.error ?? "Quartz update failed",
+								);
+							}
+						},
+					).open();
+				});
 		});
 
 		setting.addButton((button) => {
@@ -371,7 +376,9 @@ export class QuartzSettingsPage extends SettingPageBase {
 							onStderr,
 						});
 						if (!result?.ok) {
-							throw new Error(result?.error ?? "npm install failed");
+							throw new Error(
+								result?.error ?? "npm install failed",
+							);
 						}
 					},
 				).open();
@@ -417,9 +424,15 @@ export class QuartzSettingsPage extends SettingPageBase {
 		this.repoPathStatusEl.setText(result.message);
 	}
 
-	private validateQuartzRepoPath(path: string): { ok: boolean; message: string } {
+	private validateQuartzRepoPath(path: string): {
+		ok: boolean;
+		message: string;
+	} {
 		if (!path.trim()) {
-			return { ok: false, message: "Set a local Quartz repository path." };
+			return {
+				ok: false,
+				message: "Set a local Quartz repository path.",
+			};
 		}
 
 		const requireFn = (
