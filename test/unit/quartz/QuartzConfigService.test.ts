@@ -1,0 +1,577 @@
+import assert from "node:assert";
+import { QuartzConfigService } from "src/quartz/QuartzConfigService";
+import type { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import { Buffer } from "buffer";
+
+function createMockRepo(files: Record<string, string>): RepositoryConnection {
+	return {
+		getRawFile: async (path: string) => {
+			const content = files[path];
+
+			if (content === undefined) {
+				throw new Error(`File not found: ${path}`);
+			}
+
+			return {
+				content: Buffer.from(content).toString("base64"),
+				sha: "mock-sha",
+				path,
+				type: "file" as const,
+			};
+		},
+	} as unknown as RepositoryConnection;
+}
+
+function requireValue<T>(
+	value: T | undefined | null,
+	message: string,
+): T {
+	if (value === undefined || value === null) {
+		throw new Error(message);
+	}
+	return value;
+}
+
+const SAMPLE_YAML = `# yaml-language-server: $schema=./quartz/plugins/quartz-plugins.schema.json
+configuration:
+  pageTitle: My Quartz Site
+  enableSPA: true
+  locale: en-US
+  theme:
+    fontOrigin: googleFonts
+    cdnCaching: true
+    typography:
+      header: Schibsted Grotesk
+      body: Source Sans Pro
+      code: IBM Plex Mono
+    colors:
+      lightMode:
+        light: "#faf8f8"
+        lightgray: "#e5e5e5"
+        gray: "#b8b8b8"
+        darkgray: "#4e4e4e"
+        dark: "#2b2b2b"
+        secondary: "#284b63"
+        tertiary: "#84a59d"
+        highlight: "rgba(143, 159, 169, 0.15)"
+        textHighlight: "#fff23688"
+      darkMode:
+        light: "#161618"
+        lightgray: "#393639"
+        gray: "#646464"
+        darkgray: "#d4d4d4"
+        dark: "#ebebec"
+        secondary: "#7b97aa"
+        tertiary: "#84a59d"
+        highlight: "rgba(143, 159, 169, 0.15)"
+        textHighlight: "#fff23688"
+
+# User plugins
+plugins:
+  - source: "github:quartz-community/explorer"
+    enabled: true
+    options: {}
+    order: 50
+  - source: "github:quartz-community/search"
+    enabled: false
+    options: {}
+`;
+
+const SAMPLE_JSON = JSON.stringify(
+	{
+		configuration: {
+			pageTitle: "JSON Site",
+			enableSPA: false,
+			locale: "en-US",
+			theme: {
+				fontOrigin: "googleFonts",
+				cdnCaching: true,
+				typography: { header: "Arial", body: "Arial", code: "Mono" },
+				colors: {
+					lightMode: {
+						light: "#fff",
+						lightgray: "#eee",
+						gray: "#999",
+						darkgray: "#333",
+						dark: "#000",
+						secondary: "#284b63",
+						tertiary: "#84a59d",
+						highlight: "rgba(0,0,0,0.1)",
+						textHighlight: "#ff0",
+					},
+					darkMode: {
+						light: "#000",
+						lightgray: "#111",
+						gray: "#666",
+						darkgray: "#ccc",
+						dark: "#fff",
+						secondary: "#7b97aa",
+						tertiary: "#84a59d",
+						highlight: "rgba(0,0,0,0.1)",
+						textHighlight: "#ff0",
+					},
+				},
+			},
+		},
+		plugins: [
+			{
+				source: "github:quartz-community/explorer",
+				enabled: true,
+			},
+		],
+	},
+	null,
+	2,
+);
+
+const SAMPLE_LOCK = JSON.stringify({
+	version: "1.0.0",
+	plugins: {
+		explorer: {
+			source: "github:quartz-community/explorer",
+			resolved: "https://github.com/quartz-community/explorer.git",
+			commit: "abc123",
+			installedAt: "2026-03-22T21:03:34.275Z",
+		},
+	},
+});
+
+describe("QuartzConfigService", () => {
+	describe("readConfig (YAML)", () => {
+		it("parses YAML config into typed object", async () => {
+			const repo = createMockRepo({
+				"quartz.config.yaml": SAMPLE_YAML,
+			});
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			assert.strictEqual(
+				config.configuration.pageTitle,
+				"My Quartz Site",
+			);
+			assert.strictEqual(config.configuration.enableSPA, true);
+			assert.strictEqual(config.configuration.locale, "en-US");
+			assert.strictEqual(config.plugins.length, 2);
+
+			const first = requireValue(
+				config.plugins[0],
+				"Expected first plugin",
+			);
+			const second = requireValue(
+				config.plugins[1],
+				"Expected second plugin",
+			);
+
+			assert.strictEqual(
+				first.source,
+				"github:quartz-community/explorer",
+			);
+			assert.strictEqual(first.enabled, true);
+			assert.strictEqual(second.enabled, false);
+		});
+
+		it("sets config format to yaml", async () => {
+			const repo = createMockRepo({
+				"quartz.config.yaml": SAMPLE_YAML,
+			});
+			const service = new QuartzConfigService(repo);
+			await service.readConfig();
+
+			assert.strictEqual(service.getConfigFormat(), "yaml");
+		});
+
+		it("stores YAML Document for roundtrip", async () => {
+			const repo = createMockRepo({
+				"quartz.config.yaml": SAMPLE_YAML,
+			});
+			const service = new QuartzConfigService(repo);
+			await service.readConfig();
+
+			assert.notStrictEqual(service.getRawYamlDocument(), null);
+		});
+	});
+
+	describe("readConfig (JSON fallback)", () => {
+		it("falls back to JSON when YAML is missing", async () => {
+			const repo = createMockRepo({
+				"quartz.plugins.json": SAMPLE_JSON,
+			});
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			assert.strictEqual(config.configuration.pageTitle, "JSON Site");
+			assert.strictEqual(config.configuration.enableSPA, false);
+			assert.strictEqual(service.getConfigFormat(), "json");
+		});
+
+		it("does not create YAML Document for JSON config", async () => {
+			const repo = createMockRepo({
+				"quartz.plugins.json": SAMPLE_JSON,
+			});
+			const service = new QuartzConfigService(repo);
+			await service.readConfig();
+
+			assert.strictEqual(service.getRawYamlDocument(), null);
+		});
+	});
+
+	describe("readConfig (no config)", () => {
+		it("throws when no config file exists", async () => {
+			const repo = createMockRepo({});
+			const service = new QuartzConfigService(repo);
+
+			await assert.rejects(() => service.readConfig(), {
+				message:
+					"No Quartz v5 configuration file found. Expected quartz.config.yaml or quartz.plugins.json.",
+			});
+		});
+	});
+
+	describe("serializeConfig", () => {
+		it("preserves YAML comments on roundtrip", async () => {
+			const repo = createMockRepo({
+				"quartz.config.yaml": SAMPLE_YAML,
+			});
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			const serialized = service.serializeConfig(config);
+
+			assert.ok(
+				serialized.includes("# User plugins"),
+				"User comment should be preserved",
+			);
+
+			assert.ok(
+				serialized.includes("yaml-language-server"),
+				"Schema comment should be preserved",
+			);
+		});
+
+		it("does not duplicate schema comment across repeated serializations", async () => {
+			const repo = createMockRepo({
+				"quartz.config.yaml": SAMPLE_YAML,
+			});
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			const first = service.serializeConfig(config);
+			const second = service.serializeConfig(config);
+			const third = service.serializeConfig(config);
+
+			const countOccurrences = (haystack: string): number =>
+				(haystack.match(/yaml-language-server/g) || []).length;
+
+			assert.strictEqual(
+				countOccurrences(first),
+				1,
+				"First serialization should contain exactly one schema comment",
+			);
+
+			assert.strictEqual(
+				countOccurrences(second),
+				1,
+				"Second serialization should still contain exactly one schema comment",
+			);
+
+			assert.strictEqual(
+				countOccurrences(third),
+				1,
+				"Third serialization should still contain exactly one schema comment",
+			);
+		});
+
+		it("does not duplicate schema comment across repeated writes", async () => {
+			const writtenFiles = new Map<string, string>();
+
+			const repo = {
+				getRawFile: async (path: string) => {
+					if (path === "quartz.config.yaml") {
+						return {
+							content:
+								Buffer.from(SAMPLE_YAML).toString("base64"),
+							sha: "mock-sha",
+							path,
+							type: "file" as const,
+						};
+					}
+					throw new Error(`File not found: ${path}`);
+				},
+				writeRawFiles: async (files: Map<string, string>) => {
+					for (const [k, v] of files) writtenFiles.set(k, v);
+				},
+			} as unknown as RepositoryConnection;
+
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			await service.writeConfig(config);
+			await service.writeConfig(config);
+			await service.writeConfig(config);
+
+			const written = requireValue(
+				writtenFiles.get("quartz.config.yaml"),
+				"Expected YAML config to be written",
+			);
+			const count = (written.match(/yaml-language-server/g) || []).length;
+
+			assert.strictEqual(
+				count,
+				1,
+				"Schema comment must appear exactly once after repeated writes",
+			);
+		});
+
+		it("adds schema comment when parsing a YAML file that lacks one", async () => {
+			const yamlWithoutSchema = `configuration:
+  pageTitle: Legacy Site
+plugins: []
+`;
+
+			const repo = createMockRepo({
+				"quartz.config.yaml": yamlWithoutSchema,
+			});
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			const serialized = service.serializeConfig(config);
+
+			const count = (serialized.match(/yaml-language-server/g) || [])
+				.length;
+
+			assert.strictEqual(
+				count,
+				1,
+				"Schema comment should be added exactly once to a legacy file",
+			);
+
+			const serializedAgain = service.serializeConfig(config);
+
+			const countAgain = (
+				serializedAgain.match(/yaml-language-server/g) || []
+			).length;
+
+			assert.strictEqual(
+				countAgain,
+				1,
+				"Schema comment should remain exactly once on re-serialization",
+			);
+		});
+
+		it("preserves schema comment when creating new document", () => {
+			const service = new QuartzConfigService(createMockRepo({}));
+
+			const config = {
+				configuration: {
+					pageTitle: "Test",
+					enableSPA: true,
+					locale: "en-US",
+					theme: {
+						fontOrigin: "googleFonts" as const,
+						cdnCaching: true,
+						typography: {
+							header: "Arial",
+							body: "Arial",
+							code: "Mono",
+						},
+						colors: {
+							lightMode: {
+								light: "#fff",
+								lightgray: "#eee",
+								gray: "#999",
+								darkgray: "#333",
+								dark: "#000",
+								secondary: "#284b63",
+								tertiary: "#84a59d",
+								highlight: "rgba(0,0,0,0.1)",
+								textHighlight: "#ff0",
+							},
+							darkMode: {
+								light: "#000",
+								lightgray: "#111",
+								gray: "#666",
+								darkgray: "#ccc",
+								dark: "#fff",
+								secondary: "#7b97aa",
+								tertiary: "#84a59d",
+								highlight: "rgba(0,0,0,0.1)",
+								textHighlight: "#ff0",
+							},
+						},
+					},
+				},
+				plugins: [],
+			};
+
+			const serialized = service.serializeConfig(config);
+
+			assert.ok(
+				serialized.includes("yaml-language-server"),
+				"Schema comment should be added to new documents",
+			);
+		});
+
+		it("serializes JSON config as formatted JSON", async () => {
+			const repo = createMockRepo({
+				"quartz.plugins.json": SAMPLE_JSON,
+			});
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			const serialized = service.serializeConfig(config);
+			const parsed = JSON.parse(serialized);
+
+			assert.strictEqual(parsed.configuration.pageTitle, "JSON Site");
+			assert.ok(serialized.endsWith("\n"), "Should end with newline");
+		});
+	});
+
+	describe("writeConfig", () => {
+		it("writes YAML config to the correct path", async () => {
+			const writtenFiles = new Map<string, string>();
+			let writtenMessage = "";
+
+			const repo = {
+				getRawFile: async (path: string) => {
+					if (path === "quartz.config.yaml") {
+						return {
+							content:
+								Buffer.from(SAMPLE_YAML).toString("base64"),
+							sha: "mock-sha",
+							path,
+							type: "file" as const,
+						};
+					}
+					throw new Error(`File not found: ${path}`);
+				},
+				writeRawFiles: async (
+					files: Map<string, string>,
+					message: string,
+				) => {
+					for (const [k, v] of files) writtenFiles.set(k, v);
+					writtenMessage = message;
+				},
+			} as unknown as RepositoryConnection;
+
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+			config.configuration.pageTitle = "Updated Title";
+
+			await service.writeConfig(config);
+
+			const written = requireValue(
+				writtenFiles.get("quartz.config.yaml"),
+				"Expected YAML config to be written",
+			);
+
+			assert.ok(written.includes("Updated Title"));
+			assert.ok(writtenMessage.includes("Update Quartz configuration"));
+		});
+
+		it("writes JSON config to the correct path", async () => {
+			const writtenFiles = new Map<string, string>();
+
+			const repo = {
+				getRawFile: async (path: string) => {
+					if (path === "quartz.plugins.json") {
+						return {
+							content:
+								Buffer.from(SAMPLE_JSON).toString("base64"),
+							sha: "mock-sha",
+							path,
+							type: "file" as const,
+						};
+					}
+					throw new Error(`File not found: ${path}`);
+				},
+				writeRawFiles: async (files: Map<string, string>) => {
+					for (const [k, v] of files) writtenFiles.set(k, v);
+				},
+			} as unknown as RepositoryConnection;
+
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+			config.configuration.pageTitle = "New JSON Title";
+
+			await service.writeConfig(config);
+
+			const written = requireValue(
+				writtenFiles.get("quartz.plugins.json"),
+				"Expected JSON config to be written",
+			);
+			const parsed = JSON.parse(written);
+
+			assert.strictEqual(
+				parsed.configuration.pageTitle,
+				"New JSON Title",
+			);
+		});
+
+		it("uses custom commit message when provided", async () => {
+			let writtenMessage = "";
+
+			const repo = {
+				getRawFile: async (path: string) => {
+					if (path === "quartz.config.yaml") {
+						return {
+							content:
+								Buffer.from(SAMPLE_YAML).toString("base64"),
+							sha: "mock-sha",
+							path,
+							type: "file" as const,
+						};
+					}
+					throw new Error(`File not found: ${path}`);
+				},
+				writeRawFiles: async (
+					_files: Map<string, string>,
+					message: string,
+				) => {
+					writtenMessage = message;
+				},
+			} as unknown as RepositoryConnection;
+
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			await service.writeConfig(config, "Custom commit message");
+
+			assert.strictEqual(writtenMessage, "Custom commit message");
+		});
+	});
+
+	describe("readLockFile", () => {
+		it("parses lock file into typed object", async () => {
+			const repo = createMockRepo({
+				"quartz.config.yaml": SAMPLE_YAML,
+				"quartz.lock.json": SAMPLE_LOCK,
+			});
+			const service = new QuartzConfigService(repo);
+			const lock = await service.readLockFile();
+
+			const lockValue = requireValue(lock, "Expected lock file");
+			const explorer = requireValue(
+				lockValue.plugins.explorer,
+				"Expected lock entry",
+			);
+
+			assert.strictEqual(lockValue.version, "1.0.0");
+			assert.strictEqual(explorer.commit, "abc123");
+
+			assert.strictEqual(
+				explorer.resolved,
+				"https://github.com/quartz-community/explorer.git",
+			);
+		});
+
+		it("returns null when lock file is missing", async () => {
+			const repo = createMockRepo({
+				"quartz.config.yaml": SAMPLE_YAML,
+			});
+			const service = new QuartzConfigService(repo);
+			const lock = await service.readLockFile();
+
+			assert.strictEqual(lock, null);
+		});
+	});
+});
