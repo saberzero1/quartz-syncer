@@ -4,18 +4,24 @@ Quartz Syncer is an [Obsidian](https://obsidian.md/) plugin for managing and pub
 
 ## Features
 
-- **Multi-provider support**: Works with GitHub, GitLab, Bitbucket, Codeberg, Gitea, and self-hosted Git instances.
-- **Plugin integrations**: Compiles [Dataview](https://blacksmithgu.github.io/obsidian-dataview/), [Datacore](https://blacksmithgu.github.io/datacore/), and [Fantasy Statblocks](https://plugins.javalent.com/statblocks) queries into static content.
-- **Smart caching**: Caches compiled files for faster subsequent publishes. Dynamic content (Dataview/Datacore queries) is automatically detected and recompiled when needed.
+- **Background processing**: Precompiles changes on vault updates so publishing is instant.
+- **Zero-config onboarding wizard**: Guided GitHub setup for first-time publishing.
+- **Auto-publish timer**: Schedule background publishing (desktop only).
+- **Secure tokens**: Encrypted storage via `electron.safeStorage` (desktop).
 - **Diff viewer**: Preview exact changes before publishing with split (side-by-side) or unified view.
-- **Selective publishing**: Choose exactly which notes to publish, update, or remove.
-- **CLI support**: Automate publishing workflows from the terminal via the [Obsidian CLI](https://obsidian.md/cli) (requires Obsidian v1.12+).
+- **CLI support**: Automate publishing workflows from the terminal with 12 commands.
+
+## Requirements
+
+- Obsidian v1.13.0 or later
 
 ## Installation
 
-Install the plugin by downloading it from the Obsidian Community plugins browser in Obsidian.
+Install the plugin from the Obsidian Community plugins browser.
 
-Alternatively, install the plugin by downloading it from the [Release Tab](https://github.com/saberzero1/quartz-syncer/releases), or through the [Obsidian42 Brat plugin](https://github.com/TfTHacker/obsidian42-brat).
+Manual install: download the latest release from the [Release Tab](https://github.com/saberzero1/quartz-syncer/releases) and copy it into your vault at `.obsidian/plugins/quartz-syncer`.
+
+Alternatively, install through the [Obsidian42 Brat plugin](https://github.com/TfTHacker/obsidian42-brat).
 
 ## Setup
 
@@ -36,7 +42,7 @@ For more advanced usages of Quartz Syncer, check the [guides section](https://sa
 
 ## CLI
 
-Quartz Syncer supports the [Obsidian CLI](https://obsidian.md/cli) (v1.12+) for automating publishing workflows from the terminal. Obsidian must be running for CLI commands to work.
+Quartz Syncer supports the [Obsidian CLI](https://obsidian.md/cli) (v1.13+) for automating publishing workflows from the terminal. Obsidian must be running for CLI commands to work.
 
 ### Commands
 
@@ -105,6 +111,7 @@ As per the [Obsidian developer policies](https://docs.obsidian.md/Developer+poli
 - **Account requirements**: Quartz Syncer needs to access your Quartz repository on a Git provider in order to publish your notes. An account on your chosen Git provider (GitHub, GitLab, Bitbucket, etc.) is required.
 - **Network use**: Quartz Syncer accesses the network to manage and publish your notes to your Quartz repository. Quartz Syncer uses Git over HTTPS to communicate with your repository.
 - **Accessing files outside of Obsidian vaults**: Quartz Syncer only manages explicitly marked *and* user-selected notes in your Quartz repository `content` folder. Quartz Syncer also fetches the current contents of this folder to compare changes against your notes. Quartz Syncer doesn't write any notes to your Obsidian vault, Quartz Syncer only writes to your Quartz repository (one-way only: from Obsidian vault to Quartz repository.)
+- **Secure storage**: On desktop, access tokens are stored using `electron.safeStorage` encryption.
 
 ## Acknowledgements
 
