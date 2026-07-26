@@ -142,6 +142,8 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	/** Developer settings */
 	autoPublishInterval: 0,
+	quartzRepoPath: "",
+	enableSystemCommands: true,
 
 	ENABLE_DEVELOPER_TOOLS: false,
 };

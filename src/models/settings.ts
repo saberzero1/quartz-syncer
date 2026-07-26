@@ -202,6 +202,10 @@ export default interface QuartzSyncerSettings {
 
 	/** Auto-publish interval in minutes (0 = disabled, desktop only) */
 	autoPublishInterval: number;
+	/** Local Quartz repository path (desktop only) */
+	quartzRepoPath: string;
+	/** Enable system command execution (desktop only) */
+	enableSystemCommands: boolean;
 
 	/** Developer settings */
 	ENABLE_DEVELOPER_TOOLS?: boolean;
