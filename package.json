@@ -35,7 +35,7 @@
 		"@quartz-community/remark-obsidian": "^0.1.0",
 		"buffer": "^6.0.3",
 		"diff": "^9.0.0",
-		"isomorphic-git": "file:../isomorphic-git",
+		"isomorphic-git": "https://github.com/saberzero1/isomorphic-git.git",
 		"localspace": "^2.1.0",
 		"remark-frontmatter": "^5.0.0",
 		"remark-parse": "^11.0.0",
