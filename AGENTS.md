@@ -11,6 +11,8 @@
 - Unit testing: Vitest
 - E2E testing: WebdriverIO
 - Quartz integration testing: Playwright
+- **isomorphic-git fork**: The plugin uses a fork of `isomorphic-git` at `~/Repos/isomorphic-git` (`saberzero1/isomorphic-git`) as the primary git transport. The fork strips unused commands, adds GC/pack repacking, and uses Obsidian's `requestUrl()` as HTTP transport. The fork maintains a `DIFFERENCES.md` documenting all changes from upstream.
+    - **IMPORTANT: dependency URL in `package.json`**: The `isomorphic-git` dependency MUST point to `https://github.com/saberzero1/isomorphic-git.git` (the remote URL) before committing. During local development, use `npm install ~/Repos/isomorphic-git` for fast iteration, but **always switch back to the HTTPS URL before committing** — `file:../isomorphic-git` breaks CI and anyone cloning the repo. Check `git diff package.json package-lock.json` before every commit to verify no local path leaked.
 
 ## File conventions
 - Keep feature code in `src/` with feature-per-directory structure.

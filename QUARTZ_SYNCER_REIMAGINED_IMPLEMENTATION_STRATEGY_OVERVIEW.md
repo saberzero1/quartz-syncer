@@ -101,56 +101,51 @@ Plugin settings interface with Obsidian 1.13 declarative API.
 
 **Workstreams**:
 
-#### 1.1 — Git Backend Interface
+#### 1.1 — Git Backend Interface + HttpClient
 
-The abstraction layer that makes everything else platform-agnostic. Three layers of backends, automatically selected.
+The abstraction layer and shared HTTP infrastructure. Git-first architecture: bundled fork is the primary publishing path.
 
 - `GitBackend` interface: `clone()`, `fetch()`, `push()`, `commit()`, `readTree()`, `readBlob()`, `writeFiles()`, `deleteFiles()`, `getRemoteInfo()`, `listBranches()`, `testWriteAccess()`, `merge()`
-- `GitBackendFactory`: selects backend via three-layer priority: (1) Provider API if available, (2) system git if installed (desktop), (3) bundled git (forked isomorphic-git)
+- `GitBackendFactory`: selects backend — bundled git (default, all providers) or system git (desktop, if detected and preferred)
+- `HttpClient`: wraps Obsidian's `requestUrl()` with retry, rate-limit tracking, error normalization. Used by bundled git fork as HTTP transport AND by provider API helpers
 - Error types: structured errors (not null returns) for auth failure, network error, conflict, rate limit
 - Progress reporting: callback-based progress for all long-running operations
-- Retry logic: exponential backoff (carry forward), cancellation support
-- Provider detection: auto-detect from remote URL pattern (github.com → GitHub API, gitlab.com → GitLab API, codeberg.org → Gitea API, etc.)
+- `PathMapper`: vault path ↔ repo path conversion. `contentFolder` prefix handling. Backends receive repo-relative paths only
 
-#### 1.2 — Provider API Backends (Layer 1)
+#### 1.2 — Bundled Git Backend (Layer 1 — Primary)
 
-REST API backends for providers with sufficient APIs. No git binary or bundled implementation needed. This is the preferred path for 5 of 7 supported providers.
+Forked isomorphic-git as the primary publishing path for ALL providers. Works on all platforms via git smart HTTP protocol.
 
-- **GitHub + Gitea/Forgejo (shared implementation)**: identical Git Data API surface. Parameterize by base URL (`api.github.com` vs `codeberg.org/api/v1` vs custom Gitea instance). Pattern A: `createBlob → createTree → createCommit → updateRef`
-- **GitLab**: Commits API with batch `actions[]` array. Pattern B: single request creates multi-file commit
-- **Bitbucket Cloud**: Source API with multipart file upload. Pattern C: single request creates commit
-- **Azure DevOps**: Pushes API with `changes[]` array. Pattern B: single request creates multi-file commit
-- Authentication: Bearer token via `SecretStorageService` (all providers)
-- Rate limit awareness: track provider-specific headers, surface to user
-- Batch operations: parallel blob creation (Pattern A), or single-request commit (Patterns B/C)
-- Tests: mock HTTP layer for unit tests, real provider API for integration tests (test repos per provider)
-
-#### 1.3 — Bundled Git (Layer 2)
-
-Forked isomorphic-git for providers without REST APIs (Gogs, Bitbucket Server, self-hosted generic git). Works on all platforms — no system git required.
-
-- Fork of isomorphic-git (MIT license, well-structured ~509-file codebase)
-- Strip unused commands: keep ~20 of 48 (remove annotatedTag, cherryPick, stash, listNotes, etc.)
+- Fork of isomorphic-git (MIT license, ~70 commands, pure JS)
+- **HTTP transport**: use `HttpClient` (wrapping `requestUrl()`) instead of isomorphic-git's built-in HTTP — solves CORS
+- **Filesystem adapter**: bridge to Obsidian's Vault API (reference: obsidian-git's `MyAdapter` pattern)
+- Strip unused commands: keep ~20 of ~70 (clone, fetch, push, commit, add, remove, status, readTree, readBlob, writeBlob, writeTree, resolveRef, merge, walk, listRemotes, getRemoteInfo, listServerRefs)
 - **GC/pack repacking**: implement pack consolidation to prevent repo bloat (reference: Shakespeare project's ~500 line implementation)
 - **Memory management**: fix cache handling, chunked pack processing
-- **Merge conflict support**: improve 3-way merge and conflict detection
-- Custom filesystem adapter: bridge to Obsidian's Vault API (reference: obsidian-git's `MyAdapter` pattern)
-- TypeScript migration: optional but recommended for maintainability
-- Tests: unit tests for git operations, E2E tests against test repos
-- Effort: 2-4 weeks for minimal viable fork; ongoing maintenance as the upstream for fixes
+- Atomic multi-file commits on every provider — no per-file commit pollution
+- Tests: unit tests for git operations with mock HTTP transport, E2E tests against test repos
+
+#### 1.3 — Provider API Helpers (Layer 2 — Non-Publishing)
+
+Provider REST APIs for specific operations where APIs are faster or more capable than git protocol. NOT used for publishing.
+
+- **GitHub API**: zero-config onboarding (repo creation via template, Pages setup, token validation), fast tree reading (skip fetch for status checks), connection testing
+- **Other providers**: connection testing, fast tree reading (where available). Added incrementally based on demand
+- Authentication: Bearer token via `SecretStorageService`
+- Rate limit awareness: track provider-specific headers
+- These are helpers — the Publisher always uses the bundled git backend for actual commits and pushes
 
 #### 1.4 — System Git (Layer 3, Desktop Bonus)
 
-Optional desktop upgrade for users who have git installed. Adds capabilities that neither APIs nor bundled git can provide.
+Optional desktop upgrade for users who have git installed. Adds capabilities that bundled git cannot provide.
 
 - `child_process.spawn('git', ...)` via `window.require('child_process')`
 - Git binary detection: check PATH, configurable path in settings
 - Operations: clone, fetch, push, commit, status, diff, log, rebase, sparse checkout
 - SSH support: detect SSH URLs, use system SSH agent
 - GPG signing: use system GPG for signed commits
-- Sparse checkout: only check out `content/` directory for large repos
 - Auto-detected: if git binary exists, offer as upgrade; never required
-- Fallback: if git binary not found, fall back to Layer 1 (API) or Layer 2 (bundled git)
+- Fallback: if git binary not found, fall back to Layer 1 (bundled git)
 - Tests: E2E tests against real git binary with test repo
 
 #### 1.5 — Compilation Pipeline
@@ -549,13 +544,13 @@ Phase 0 (Foundation)
   0.4 Settings & Configuration ─ depends on 0.1 ────────────┘
 
 Phase 1 (Core Engine) ─── all depend on Phase 0
-  1.1 Git Backend Interface ─────────────────────────────────┐
-  1.2 Provider API Backends ─── depends on 1.1 ──────────────┤
-  1.3 Bundled Git (fork) ────── depends on 1.1 (parallel w/1.2)
-  1.4 System Git Backend ───── depends on 1.1 (parallel w/1.2, 1.3)
-  1.5 Compilation Pipeline ──── independent of 1.1-1.4 ──────┤
-  1.6 Caching System ────────── depends on 1.5 ──────────────┤
-  1.7 Publisher ─────────────── depends on 1.1, 1.5, 1.6 ────┘
+  1.1 Git Backend Interface + HttpClient ────────────────────┐
+  1.2 Bundled Git Backend (fork) ── depends on 1.1 ──────────┤
+  1.3 Provider API Helpers ──────── depends on 1.1 (parallel w/1.2)
+  1.4 System Git Backend ────────── depends on 1.1 (deferred to Phase 3)
+  1.5 Compilation Pipeline ──────── independent of 1.1-1.4 ──┤
+  1.6 Caching System ────────────── depends on 1.5 ──────────┤
+  1.7 Publisher ─────────────────── depends on 1.2, 1.5, 1.6 ┘
 
 Phase 2 (User Experience) ─── all depend on Phase 1
   2.1 Publication Center ────── depends on 1.7 ──────────────┐
@@ -565,9 +560,9 @@ Phase 2 (User Experience) ─── all depend on Phase 1
   2.5 CLI System ──────────────── depends on 1.7, 2.4 ───────┘
 
 Phase 3 (Power Features) ─── depends on Phase 2
-  3.1 Zero-Config Onboarding ── depends on 1.2 ─────────────┐
-  3.2 Additional Provider Backends ── depends on 1.1 ────────┤
-  3.3 Advanced Desktop Features ── depends on 1.4, 2.3 ──────┘
+  3.1 Zero-Config Onboarding ── depends on 1.3 (GitHub API helpers) ┐
+  3.2 Bundled Git Fork Enhancements ── depends on 1.2 ──────────────┤
+  3.3 Advanced Desktop Features ── depends on 1.4, 2.3 ────────────┘
 
 Phase 4 (Polish & Ship)
   4.1 Migration Path ────────── depends on Phase 2 complete
@@ -585,7 +580,7 @@ Phase 4 (Polish & Ship)
 
 **Critical path**: 0.1 → 0.2 → 1.1 → 1.2 → 1.7 → 2.1 → 2.3 → 4.1 → 4.3
 
-**Recommended build order for git backends**: Start with 1.2 (provider APIs — covers most users with least effort), then 1.3 (bundled git fork — universal fallback), then 1.4 (system git — desktop bonus). This gets the majority of users unblocked fastest.
+**Git-first build order**: Start with 1.2 (bundled git fork — works with ALL providers, one codepath). Provider API helpers (1.3) and system git (1.4) are incremental additions that don't block core publishing.
 
 ---
 
@@ -631,8 +626,10 @@ Before shipping the rebuilt version, verify parity with current v1.18.0:
 ### What's Intentionally Dropped
 
 - Svelte runtime and build dependency
-- Upstream `isomorphic-git` as a direct dependency (replaced by focused fork with GC, memory fixes, stripped to essential commands)
-- `@isomorphic-git/lightning-fs` virtual filesystem (replaced by custom Vault API adapter for the fork, not needed at all for API backends)
+- Upstream `isomorphic-git` as a direct dependency (replaced by `saberzero1/isomorphic-git` fork with GC, memory fixes, stripped to essential commands)
+- `@isomorphic-git/lightning-fs` virtual filesystem (replaced by custom Vault API adapter for the fork)
+- Provider REST APIs as the publishing transport (git push via bundled fork handles all providers universally. APIs demoted to helpers for onboarding and fast reads)
 - `jest` test runner (replaced by Vitest)
 - Regex-based link/embed discovery (replaced by `CachedMetadata` API)
 - System git as a hard requirement on any platform (always optional, never the only path)
+- Per-file commits via provider Contents APIs (bundled git fork produces clean atomic commits on every provider)

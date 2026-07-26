@@ -284,10 +284,13 @@ Not all providers have sufficient REST APIs. Research shows three architectural 
 
 | Pattern | Providers | How it works |
 |---------|-----------|-------------|
-| **A: Low-level Git Objects** | GitHub, Gitea/Forgejo (Codeberg) | `createBlob → createTree → createCommit → updateRef`. Explicit control over git objects. **GitHub and Gitea share identical API surface** — one implementation serves both |
+| **A: Low-level Git Objects** | GitHub | `createBlob → createTree → createCommit → updateRef`. Explicit control over git objects. GitHub also supports inline content in tree entries, reducing to 3 steps |
 | **B: File-Change Abstraction** | GitLab, Azure DevOps | Submit file changes in a single request, provider builds tree/commit internally. GitLab: `actions[]` array. Azure: `changes[]` array |
 | **C: File Upload** | Bitbucket Cloud | Multipart form upload, provider builds commit. Limited control (no custom parent SHA) |
-| **D: Insufficient API** | Gogs, Bitbucket Server | File-by-file only (1 commit per file), or no git plumbing endpoints at all |
+| **D: Contents API (per-file)** | Gitea/Forgejo (Codeberg) | `POST/PUT/DELETE /contents/{filepath}` — each call creates its own commit. No multi-file atomic commit via API. Read-only for git objects (GET blobs/trees/refs only, no POST/PATCH) |
+| **E: Insufficient API** | Gogs, Bitbucket Server | File-by-file only (1 commit per file), or no git plumbing endpoints at all |
+
+> **Correction (July 2026)**: Earlier analysis incorrectly stated Gitea/Forgejo has GitHub-compatible Git Database write endpoints. Verified against Gitea source code: `POST /git/blobs`, `POST /git/trees`, `POST /git/commits`, and `PATCH /git/refs` do **NOT exist**. Only GET endpoints exist for reading git objects. Write operations use the Contents API (one file per commit). Forgejo (Codeberg) inherits the same API as a Gitea fork.
 
 **Full capability matrix**:
 
@@ -297,11 +300,11 @@ Not all providers have sufficient REST APIs. Research shows three architectural 
 | GitLab | ✅ | ✅ | ✅ (batch actions) | ✅ |
 | Bitbucket Cloud | ✅ | ✅ | ✅ (multipart upload) | ✅ |
 | Bitbucket Server | ✅ | ✅ | ❌ (1 file = 1 commit) | ⚠️ |
-| Gitea/Forgejo | ✅ | ✅ | ✅ | ✅ |
+| Gitea/Forgejo | ✅ | ✅ | ❌ (1 file = 1 commit via Contents API) | ⚠️ |
 | Gogs | ✅ | ✅ | ❌ | ❌ |
 | Azure DevOps | ✅ | ✅ | ✅ (pushes API) | ✅ |
 
-**Key insight**: 5 of 7 providers support full API-based publishing. Only Gogs and Bitbucket Server lack sufficient APIs, and both are rare in the Quartz user base.
+**Key insight**: 4 of 7 providers support full API-based multi-file publishing (GitHub, GitLab, Bitbucket Cloud, Azure DevOps). Gitea/Forgejo's Contents API works but creates one commit per file — acceptable for small publishes, but the bundled git fork (Layer 2) is the better path for Gitea/Forgejo users who publish many files at once.
 
 #### Comparison Matrix
 
@@ -318,7 +321,9 @@ Not all providers have sufficient REST APIs. Research shows three architectural 
 | No system dependency | ✅ | ✅ | ❌ requires git | ✅ |
 | Feature completeness | ~85% (with fixes) | ~60% (publish only) | 100% | ~95% |
 
-#### Recommended: Three-Layer Architecture
+#### Recommended: Git-First Architecture
+
+> **Architecture revision (July 2026)**: The original strategy placed provider REST APIs as the primary publishing path. This was revised after discovering that Gitea/Forgejo's Contents API creates one commit per file — bloating repository history and degrading performance. Provider APIs also vary wildly across providers, requiring 5+ separate implementations. The git smart HTTP protocol is universal, stable, and produces clean atomic commits everywhere.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -327,41 +332,47 @@ Not all providers have sufficient REST APIs. Research shows three architectural 
 │   push() | fetch() | merge() | testConnection()          │
 ├────────────────────────────────────────────────────────────┤
 │                                                            │
-│   LAYER 1: Provider REST APIs (preferred, no git needed)   │
-│   ┌──────────────┬──────────┬────────────┬──────────────┐ │
-│   │ GitHub +     │ GitLab   │ Bitbucket  │ Azure DevOps │ │
-│   │ Gitea/Forgejo│ API      │ Cloud API  │ API          │ │
-│   │ (shared impl)│          │            │              │ │
-│   └──────────────┴──────────┴────────────┴──────────────┘ │
-│   Memory-safe, no CORS, no IndexedDB, works everywhere    │
+│   LAYER 1: Bundled Git (forked isomorphic-git) — PRIMARY   │
+│   Works with ALL git hosts via smart HTTP protocol.        │
+│   Atomic multi-file commits everywhere. No system git.     │
+│   Uses Obsidian's requestUrl() as HTTP transport (no CORS).│
+│   Custom Vault API filesystem adapter.                     │
+│   Fork fixes: GC/pack repacking, memory, merge conflicts.  │
 │                                                            │
 ├────────────────────────────────────────────────────────────┤
 │                                                            │
-│   LAYER 2: Bundled Git (forked isomorphic-git)             │
-│   For providers without REST APIs (Gogs, Bitbucket Server, │
-│   self-hosted, any generic git host). Works on all         │
-│   platforms. No system git required.                       │
-│   Fork fixes: GC/pack repacking, memory, merge conflicts   │
+│   LAYER 2: Provider APIs (helpers, not publishing)         │
+│   GitHub API: zero-config onboarding (repo creation,       │
+│     Pages setup, token validation)                         │
+│   Provider APIs: fast tree reading (skip fetch for         │
+│     read-only status checks), connection testing           │
+│   NOT used for publishing — git push handles that          │
 │                                                            │
 ├────────────────────────────────────────────────────────────┤
 │                                                            │
 │   LAYER 3: System Git (desktop bonus, optional)            │
 │   child_process.spawn('git', ...) when git binary exists.  │
 │   Adds: SSH, GPG signing, rebase, sparse checkout.         │
-│   Auto-detected. Falls back to Layer 1 or 2 if absent.     │
+│   Auto-detected. Falls back to Layer 1 if absent.          │
 │                                                            │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-**Strategy**: The `GitBackend` interface abstracts all three layers. Backend selection is automatic:
+**Strategy**: The forked isomorphic-git is the primary publishing path for ALL users on ALL platforms and ALL providers. One codepath, not five.
 
-1. **Provider API detected?** → Use Layer 1 (fastest, lightest, works everywhere)
-2. **No API but desktop with git installed?** → Use Layer 3 (full features)
-3. **No API, no system git?** → Use Layer 2 (forked isomorphic-git, bundled)
+**Why git-first wins over API-first:**
+- **Atomic commits everywhere** — No per-file commit pollution (Gitea, Gogs, Bitbucket Server all get clean history)
+- **One implementation** — git smart HTTP works with every provider. No 5-way API maintenance
+- **Protocol stability** — git smart HTTP hasn't changed meaningfully in years. Provider REST APIs are proprietary and can change
+- **Clean history** — Every publish is a single commit with all changes, regardless of provider
+- **Universal** — Works with self-hosted instances, private git servers, anything that speaks git over HTTPS
 
-This means **every user gets a working experience regardless of platform, provider, or installed tools**. GitHub/GitLab/Gitea/Bitbucket Cloud/Azure DevOps users never need git installed at all — not even on desktop. Gogs/Bitbucket Server/self-hosted users fall back to the bundled git implementation, with an optional upgrade path to system git on desktop for SSH and full features.
+**Why keep APIs as helpers:**
+- **Onboarding** — GitHub API can create repos, enable Pages, validate tokens. Git protocol can't do this
+- **Fast reads** — For status checks ("what changed since last publish?"), an API tree read can be faster than a git fetch
+- **Connection testing** — API calls are simpler for testing auth without a full clone
 
-**The fork question**: isomorphic-git is MIT-licensed, well-structured, and forkable. A focused fork that strips unused commands (28 of 48), adds GC/pack repacking (reference: Shakespeare project's ~500 line implementation), and fixes memory management would serve as a reliable Layer 2 fallback. This is the same "fork and fix" approach that made the codemirror-vim fork successful — own the dependency, fix what upstream won't.
+**The fork**: `saberzero1/isomorphic-git` (local: `~/Repos/isomorphic-git`). MIT-licensed, pure JS, ~70 commands. Fork strips to ~20 essential commands, adds GC/pack repacking (~500 lines, reference: Shakespeare project), uses `requestUrl()` as HTTP transport (solves CORS), and bridges to Obsidian's Vault API for filesystem operations (reference: obsidian-git's `MyAdapter`). The fork maintains a `DIFFERENCES.md` documenting all changes from upstream — same convention as motions' codemirror-vim, fengari, and autocomplete forks. Same "fork and fix" approach that made codemirror-vim successful.
 
 ### Quartz v5 Plugin Architecture
 
@@ -617,12 +628,12 @@ Plugin: If no repo → create via API. If exists → connect via API.
 
 | Aspect | Current | Recommendation | Rationale |
 |--------|---------|----------------|-----------|
-| Primary transport | isomorphic-git | **Three-layer: provider APIs → bundled git fork → system git** | Provider APIs (Layer 1) cover 5 of 7 providers with zero git dependency. Forked isomorphic-git (Layer 2) covers the rest on all platforms. System git (Layer 3) is an optional desktop upgrade |
-| Bundled git | Upstream isomorphic-git (unfixed) | **Fork isomorphic-git**: strip to ~20 commands, add GC/pack repacking, fix memory | Same "fork and fix" approach as codemirror-vim. Own the dependency, fix what upstream won't |
-| Filesystem | lightning-fs (IndexedDB) | **Custom Vault API adapter for fork** (like obsidian-git's `MyAdapter`). **None for API backends** | API backends don't need a virtual filesystem. Fork bridges to Vault API directly |
+| Primary transport | isomorphic-git | **Git-first: bundled git fork (primary) → provider APIs (helpers) → system git (bonus)** | Forked isomorphic-git is the primary publishing path for all providers. Provider APIs assist with onboarding and fast reads. System git adds SSH/GPG on desktop |
+| Bundled git | Upstream isomorphic-git (unfixed) | **Fork isomorphic-git**: strip to ~20 commands, add GC/pack repacking, fix memory, use `requestUrl()` as HTTP transport | Same "fork and fix" approach as codemirror-vim. Own the dependency, fix what upstream won't. One publishing codepath for all providers |
+| Filesystem | lightning-fs (IndexedDB) | **Custom Vault API adapter for fork** (like obsidian-git's `MyAdapter`) | Fork bridges to Vault API directly. No separate IndexedDB filesystem needed |
 | Authentication | Custom HTTP client + SecretStorage | **Keep SecretStorage + add electron.safeStorage on desktop** | SecretStorage is cross-platform. safeStorage adds encryption |
 | Merge handling | Custom merge driver + file ownership | **Carry forward** — this is battle-tested domain logic | 300 lines of carefully engineered conflict resolution. Provider-agnostic |
-| Multi-provider | All HTTPS git hosts | **Full coverage**: GitHub+Gitea (shared API impl), GitLab, Bitbucket Cloud, Azure DevOps via REST APIs. Gogs/Bitbucket Server/self-hosted via bundled git fork | No user is left without a working backend, regardless of platform or provider |
+| Multi-provider | All HTTPS git hosts | **Full coverage via git protocol**: bundled fork works with every git host over HTTPS. Provider APIs used only for onboarding helpers and fast reads | One publishing codepath for all providers. No per-provider maintenance for core publishing |
 | System git dependency | Not used | **Optional Layer 3 on desktop**: auto-detect git binary, offer SSH/GPG/rebase if present. Never required | Bonus features for power users. No user blocked if git isn't installed |
 
 ### 2. Compilation Pipeline
@@ -764,11 +775,12 @@ This eliminates race conditions with vault sync services and ensures background 
 |------------|---------|---------------|
 | Time to first publish | 5-10 minutes (manual setup) | 60 seconds (one-click setup) |
 | Publish latency | 5-30 seconds (compile + push) | 2-5 seconds (precompiled, just push) |
-| Mobile publishing | Works but fragile (memory) | Reliable: API backends for major providers, bundled git fork (with fixes) for the rest |
+| Mobile publishing | Works but fragile (memory) | Reliable: bundled git fork with memory fixes, `requestUrl()` HTTP transport. One codepath for all providers |
 | Desktop git features | HTTPS only, no SSH, no rebase | System git (optional): SSH, GPG, rebase, sparse checkout. Works without git installed too |
-| System git dependency | N/A (isomorphic-git only) | Never required. Provider APIs or bundled fork handle all platforms. System git is a bonus |
+| System git dependency | N/A (isomorphic-git only) | Never required. Bundled fork handles all platforms and providers. System git is a bonus |
+| Commit cleanliness | Single commit per publish | Single atomic commit per publish on every provider (no per-file commit pollution) |
 | Offline awareness | Fails silently | Graceful degradation with status indicator |
 | Quartz plugin management | Git-based only | Git + npm specifier support |
 | Background processing | None | Continuous precompilation + remote hash prefetch |
 | Build complexity | esbuild + Svelte + svelte-preprocess | esbuild only |
-| Bundle size | ~500KB (isomorphic-git) + Svelte runtime | ~10-50KB (API clients) + ~2-4MB (stripped git fork, loaded on demand) + 0 framework |
+| Bundle size | ~500KB (isomorphic-git) + Svelte runtime | ~2-4MB (stripped git fork) + 0 framework. Current main.js is 877KB with full isomorphic-git — well within 5MB Obsidian Sync limit |
