@@ -74,6 +74,7 @@ export class Vault {
 	cachedRead = vi.fn().mockResolvedValue("");
 	read = vi.fn().mockResolvedValue("");
 	readBinary = vi.fn().mockResolvedValue(new ArrayBuffer(0));
+	getFileByPath = vi.fn().mockReturnValue(null);
 	getMarkdownFiles = vi.fn().mockReturnValue([]);
 	getName = vi.fn().mockReturnValue("test-vault");
 }

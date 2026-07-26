@@ -2,6 +2,8 @@ import { Plugin } from "obsidian";
 import QuartzSyncerSettings, {
 	type GitRemoteSettings,
 } from "src/models/settings";
+import { registerBundledGitBackend } from "src/git/GitBackendFactory";
+import { BundledGitBackend } from "src/git/backends/BundledGitBackend";
 import { SecretStorageService } from "src/utils/SecretStorageService";
 import { QuartzSyncerSettingTab } from "src/views/QuartzSyncerSettingTab";
 
@@ -140,6 +142,7 @@ export default class QuartzSyncer extends Plugin {
 		this.appVersion = this.manifest.version;
 
 		await this.loadSettings();
+		registerBundledGitBackend(BundledGitBackend);
 
 		console.debug("Initializing QuartzSyncer plugin v" + this.appVersion);
 		this.addSettingTab(new QuartzSyncerSettingTab(this.app, this));
@@ -301,5 +304,16 @@ export default class QuartzSyncer extends Plugin {
 		};
 	}
 
-	private addCommands(): void {}
+	private addCommands(): void {
+		this.addCommand({
+			id: "publish-status",
+			name: "Show publish status",
+			callback: async () => {
+				// Log status to console (dev aid — Phase 2 adds UI)
+				console.debug(
+					"Publish status: use Publication Center (coming in Phase 2)",
+				);
+			},
+		});
+	}
 }
