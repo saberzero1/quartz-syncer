@@ -12,23 +12,46 @@ export type GitStatusEntry = {
 	raw: string;
 };
 
+export type GitRunnerOptions = {
+	cwd?: string;
+	signal?: AbortSignal;
+	onStdout?: (line: string) => void;
+	onStderr?: (line: string) => void;
+};
+
 export class GitRunner {
 	private runner: ProcessRunner;
-	private cwd: string;
+	private cwd?: string;
 
-	constructor(runner: ProcessRunner, cwd: string) {
+	constructor(runner: ProcessRunner, cwd?: string) {
 		this.runner = runner;
 		this.cwd = cwd;
 	}
 
-	async version(): Promise<GitRunnerResult<{ version: string | null }>> {
+	private resolveCwd(cwd?: string): string | null {
+		return cwd ?? this.cwd ?? null;
+	}
+
+	async version(
+		options?: GitRunnerOptions,
+	): Promise<GitRunnerResult<{ version: string | null }>> {
 		if (!Platform.isDesktopApp) {
 			return { ok: false, error: "Desktop only" };
 		}
-		const result = await this.runner.run({
-			binary: "git",
+		const cwd = this.resolveCwd(options?.cwd);
+		if (!cwd) {
+			return { ok: false, error: "Working directory not set" };
+		}
+		const config = {
+			binary: "git" as const,
 			args: ["--version"],
-			cwd: this.cwd,
+			cwd,
+		};
+		const result = await this.runner.run({
+			...config,
+			...(options?.signal ? { signal: options.signal } : {}),
+			...(options?.onStdout ? { onStdout: options.onStdout } : {}),
+			...(options?.onStderr ? { onStderr: options.onStderr } : {}),
 		});
 		if (result.exitCode !== 0) {
 			return {
@@ -48,14 +71,31 @@ export class GitRunner {
 	async clone(
 		url: string,
 		dest: string,
+		options?: GitRunnerOptions | string,
 	): Promise<GitRunnerResult<Record<string, never>>> {
 		if (!Platform.isDesktopApp) {
 			return { ok: false, error: "Desktop only" };
 		}
-		const result = await this.runner.run({
-			binary: "git",
+		const resolvedOptions =
+			typeof options === "string" ? { cwd: options } : options;
+		const cwd = this.resolveCwd(resolvedOptions?.cwd);
+		if (!cwd) {
+			return { ok: false, error: "Working directory not set" };
+		}
+		const config = {
+			binary: "git" as const,
 			args: ["clone", url, dest],
-			cwd: this.cwd,
+			cwd,
+		};
+		const result = await this.runner.run({
+			...config,
+			...(resolvedOptions?.signal ? { signal: resolvedOptions.signal } : {}),
+			...(resolvedOptions?.onStdout
+				? { onStdout: resolvedOptions.onStdout }
+				: {}),
+			...(resolvedOptions?.onStderr
+				? { onStderr: resolvedOptions.onStderr }
+				: {}),
 		});
 		if (result.exitCode !== 0) {
 			return {
@@ -67,14 +107,32 @@ export class GitRunner {
 		return { ok: true, data: {}, processResult: result };
 	}
 
-	async pull(): Promise<GitRunnerResult<Record<string, never>>> {
+	async pull(
+		options?: GitRunnerOptions | string,
+	): Promise<GitRunnerResult<Record<string, never>>> {
 		if (!Platform.isDesktopApp) {
 			return { ok: false, error: "Desktop only" };
 		}
-		const result = await this.runner.run({
-			binary: "git",
+		const resolvedOptions =
+			typeof options === "string" ? { cwd: options } : options;
+		const cwd = this.resolveCwd(resolvedOptions?.cwd);
+		if (!cwd) {
+			return { ok: false, error: "Working directory not set" };
+		}
+		const config = {
+			binary: "git" as const,
 			args: ["pull"],
-			cwd: this.cwd,
+			cwd,
+		};
+		const result = await this.runner.run({
+			...config,
+			...(resolvedOptions?.signal ? { signal: resolvedOptions.signal } : {}),
+			...(resolvedOptions?.onStdout
+				? { onStdout: resolvedOptions.onStdout }
+				: {}),
+			...(resolvedOptions?.onStderr
+				? { onStderr: resolvedOptions.onStderr }
+				: {}),
 		});
 		if (result.exitCode !== 0) {
 			return {
@@ -86,14 +144,32 @@ export class GitRunner {
 		return { ok: true, data: {}, processResult: result };
 	}
 
-	async push(): Promise<GitRunnerResult<Record<string, never>>> {
+	async push(
+		options?: GitRunnerOptions | string,
+	): Promise<GitRunnerResult<Record<string, never>>> {
 		if (!Platform.isDesktopApp) {
 			return { ok: false, error: "Desktop only" };
 		}
-		const result = await this.runner.run({
-			binary: "git",
+		const resolvedOptions =
+			typeof options === "string" ? { cwd: options } : options;
+		const cwd = this.resolveCwd(resolvedOptions?.cwd);
+		if (!cwd) {
+			return { ok: false, error: "Working directory not set" };
+		}
+		const config = {
+			binary: "git" as const,
 			args: ["push"],
-			cwd: this.cwd,
+			cwd,
+		};
+		const result = await this.runner.run({
+			...config,
+			...(resolvedOptions?.signal ? { signal: resolvedOptions.signal } : {}),
+			...(resolvedOptions?.onStdout
+				? { onStdout: resolvedOptions.onStdout }
+				: {}),
+			...(resolvedOptions?.onStderr
+				? { onStderr: resolvedOptions.onStderr }
+				: {}),
 		});
 		if (result.exitCode !== 0) {
 			return {
@@ -105,14 +181,32 @@ export class GitRunner {
 		return { ok: true, data: {}, processResult: result };
 	}
 
-	async status(): Promise<GitRunnerResult<{ entries: GitStatusEntry[] }>> {
+	async status(
+		options?: GitRunnerOptions | string,
+	): Promise<GitRunnerResult<{ entries: GitStatusEntry[] }>> {
 		if (!Platform.isDesktopApp) {
 			return { ok: false, error: "Desktop only" };
 		}
-		const result = await this.runner.run({
-			binary: "git",
+		const resolvedOptions =
+			typeof options === "string" ? { cwd: options } : options;
+		const cwd = this.resolveCwd(resolvedOptions?.cwd);
+		if (!cwd) {
+			return { ok: false, error: "Working directory not set" };
+		}
+		const config = {
+			binary: "git" as const,
 			args: ["status", "--porcelain"],
-			cwd: this.cwd,
+			cwd,
+		};
+		const result = await this.runner.run({
+			...config,
+			...(resolvedOptions?.signal ? { signal: resolvedOptions.signal } : {}),
+			...(resolvedOptions?.onStdout
+				? { onStdout: resolvedOptions.onStdout }
+				: {}),
+			...(resolvedOptions?.onStderr
+				? { onStderr: resolvedOptions.onStderr }
+				: {}),
 		});
 		if (result.exitCode !== 0) {
 			return {

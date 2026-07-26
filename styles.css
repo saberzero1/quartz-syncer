@@ -180,3 +180,16 @@
 .qs-diff-view .diff-removed {
 	background: var(--background-modifier-error);
 }
+
+/* Terminal Output */
+.qs-terminal-output pre {
+	background: var(--background-secondary);
+	padding: 12px;
+	border-radius: 4px;
+	overflow-y: auto;
+	max-height: 400px;
+	font-family: var(--font-monospace);
+	font-size: 0.85em;
+	white-space: pre-wrap;
+	word-break: break-all;
+}

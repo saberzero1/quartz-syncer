@@ -20,6 +20,11 @@ import { DataStore } from "src/cache/DataStore";
 import { Publisher } from "src/publisher/Publisher";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { BackgroundEngine } from "src/services/BackgroundEngine";
+import { ProcessRunner } from "src/process/ProcessRunner";
+import { BinaryDetector } from "src/process/BinaryDetector";
+import { GitRunner } from "src/process/runners/GitRunner";
+import { NpmRunner } from "src/process/runners/NpmRunner";
+import { QuartzRunner } from "src/process/runners/QuartzRunner";
 
 /**
  * QuartzSyncer plugin settings.
@@ -159,6 +164,11 @@ export default class QuartzSyncer extends Plugin {
 	private publisher: Publisher | null = null;
 	private backgroundEngine: BackgroundEngine | null = null;
 	private statusBar: HTMLElement | null = null;
+	processRunner: ProcessRunner | null = null;
+	binaryDetector: BinaryDetector | null = null;
+	gitRunner: GitRunner | null = null;
+	npmRunner: NpmRunner | null = null;
+	quartzRunner: QuartzRunner | null = null;
 
 	async onload() {
 		this.appVersion = this.manifest.version;
@@ -203,6 +213,14 @@ export default class QuartzSyncer extends Plugin {
 		);
 		this.backgroundEngine.start();
 
+		if (Platform.isDesktopApp) {
+			this.processRunner = new ProcessRunner();
+			this.binaryDetector = new BinaryDetector(this.processRunner);
+			this.gitRunner = new GitRunner(this.processRunner);
+			this.npmRunner = new NpmRunner(this.processRunner);
+			this.quartzRunner = new QuartzRunner(this.processRunner);
+		}
+
 		if (Platform.isDesktopApp && this.settings.autoPublishInterval > 0) {
 			this.backgroundEngine.startAutoPublish(
 				this.settings.autoPublishInterval,
@@ -214,6 +232,12 @@ export default class QuartzSyncer extends Plugin {
 		this.backgroundEngine?.stopAutoPublish();
 		this.backgroundEngine?.stop();
 		this.backgroundEngine = null;
+		this.processRunner = null;
+		this.binaryDetector = null;
+		this.gitRunner = null;
+		this.npmRunner = null;
+		this.quartzRunner = null;
+		ProcessRunner.resetChildProcessCache();
 		super.onunload();
 	}
 

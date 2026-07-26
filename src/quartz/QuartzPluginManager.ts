@@ -3,11 +3,60 @@ import type {
 	QuartzPluginEntry,
 	QuartzPluginSource,
 } from "./QuartzConfigTypes";
-import { getPluginSourceKey } from "./QuartzPluginUtils";
+import { getPluginName, getPluginSourceKey, isObjectSource } from "./QuartzPluginUtils";
+import type { QuartzRunner } from "src/process/runners/QuartzRunner";
 
 export const DEFAULT_ORDER = 50;
 
 export class QuartzPluginManager {
+	async installPlugin(
+		config: QuartzV5Config,
+		source: QuartzPluginSource,
+		options?: {
+			runner?: QuartzRunner | null;
+			cwd?: string;
+			entryOptions?: Partial<
+				Pick<QuartzPluginEntry, "enabled" | "order" | "options">
+			>;
+		},
+	): Promise<QuartzPluginEntry> {
+		if (options?.runner && options.cwd && !isObjectSource(source)) {
+			const result = await options.runner.pluginAdd(source, {
+				cwd: options.cwd,
+			});
+			if (!result.ok) {
+				throw new Error(result.error);
+			}
+		}
+
+		return this.addPlugin(config, source, options?.entryOptions);
+	}
+
+	async uninstallPlugin(
+		config: QuartzV5Config,
+		sourceKey: string,
+		options?: {
+			runner?: QuartzRunner | null;
+			cwd?: string;
+		},
+	): Promise<QuartzPluginEntry> {
+		if (options?.runner && options.cwd) {
+			const entry = this.findPlugin(config, sourceKey);
+			if (!entry) {
+				throw new Error(`Plugin "${sourceKey}" not found.`);
+			}
+			const name = getPluginName(entry.source);
+			const result = await options.runner.pluginRemove(name, {
+				cwd: options.cwd,
+			});
+			if (!result.ok) {
+				throw new Error(result.error);
+			}
+		}
+
+		return this.removePlugin(config, sourceKey);
+	}
+
 	addPlugin(
 		config: QuartzV5Config,
 		source: QuartzPluginSource,

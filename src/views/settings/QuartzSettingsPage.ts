@@ -1,4 +1,4 @@
-import { App, Notice, Setting } from "obsidian";
+import { App, Notice, Platform, Setting } from "obsidian";
 import { SettingPageBase } from "./SettingPageBase";
 import type QuartzSyncer from "src/main";
 import { createGitBackend } from "src/git/GitBackendFactory";
@@ -12,6 +12,9 @@ import type {
 	QuartzV5Config,
 } from "src/quartz/QuartzConfigTypes";
 import { PluginBrowserModal } from "src/views/PluginBrowser/PluginBrowserModal";
+import { TerminalOutputModal } from "src/views/TerminalOutput/TerminalOutputModal";
+import { QuartzPreviewModal } from "src/views/QuartzPreview/QuartzPreviewModal";
+import type { BinaryInfo } from "src/process/types";
 import type {
 	RepositoryConnection,
 	RepositoryDirectoryEntry,
@@ -98,6 +101,9 @@ export class QuartzSettingsPage extends SettingPageBase {
 	private app: App;
 	private plugin: QuartzSyncer;
 	private versionStatusEl: HTMLElement | null = null;
+	private binaryStatusEl: HTMLElement | null = null;
+	private repoPathStatusEl: HTMLElement | null = null;
+	private binaryInfo: BinaryInfo[] | null = null;
 
 	constructor(app: App, plugin: QuartzSyncer) {
 		super();
@@ -117,6 +123,10 @@ export class QuartzSettingsPage extends SettingPageBase {
 		this.renderVersionDetection();
 		this.renderContentFolder();
 		this.renderPluginBrowser();
+
+		if (Platform.isDesktopApp) {
+			this.renderDesktopSettings();
+		}
 	}
 
 	private renderVersionDetection(): void {
@@ -195,6 +205,269 @@ export class QuartzSettingsPage extends SettingPageBase {
 			});
 	}
 
+	private renderDesktopSettings(): void {
+		new Setting(this.containerEl)
+			.setName("Desktop commands")
+			.setDesc("Configure local Quartz tools and system command access.")
+			.setHeading();
+
+		this.renderBinaryDetection();
+		this.renderQuartzRepoPath();
+		this.renderSystemCommandsToggle();
+		this.renderQuartzActions();
+	}
+
+	private renderBinaryDetection(): void {
+		const setting = new Setting(this.containerEl)
+			.setName("Binary detection")
+			.setDesc("Detect git, npm, npx, and node availability on this device.");
+
+		this.binaryStatusEl = setting.controlEl.createDiv({
+			cls: "qs-binary-status",
+		});
+
+		setting.addButton((button) => {
+			button
+				.setButtonText("Refresh detection")
+				.onClick(() => {
+					void this.refreshBinaryDetection(true);
+				});
+		});
+
+		void this.refreshBinaryDetection(false);
+	}
+
+	private async refreshBinaryDetection(forceRefresh: boolean): Promise<void> {
+		if (!this.binaryStatusEl) return;
+		this.binaryStatusEl.empty();
+		this.binaryStatusEl.setText("Detecting...");
+
+		if (!this.plugin.binaryDetector) {
+			this.binaryStatusEl.setText("Binary detection is unavailable.");
+			return;
+		}
+
+		if (forceRefresh) {
+			this.plugin.binaryDetector.clearCache();
+		}
+
+		try {
+			this.binaryInfo = await this.plugin.binaryDetector.detectAll();
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			this.binaryStatusEl.setText(`Detection failed: ${message}`);
+			return;
+		}
+
+		this.renderBinaryInfo();
+	}
+
+	private renderBinaryInfo(): void {
+		if (!this.binaryStatusEl || !this.binaryInfo) return;
+		this.binaryStatusEl.empty();
+
+		for (const info of this.binaryInfo) {
+			const status = info.available ? "✓" : "✗";
+			const version = info.version ? ` (${info.version})` : "";
+			this.binaryStatusEl.createDiv({
+				text: `${info.name}: ${status}${version}`,
+			});
+		}
+	}
+
+	private renderQuartzRepoPath(): void {
+		const desc = createFragment();
+		desc.createSpan({
+			text: "Path to your local Quartz repository for system commands.",
+		});
+		desc.createEl("br");
+		this.repoPathStatusEl = desc.createSpan({ text: "" });
+
+		new Setting(this.containerEl)
+			.setName("Local Quartz repo path")
+			.setDesc(desc)
+			.addText((text) =>
+				text
+					.setPlaceholder("/path/to/Quartz")
+					.setValue(this.plugin.settings.quartzRepoPath)
+					.onChange(async (value) => {
+						this.plugin.settings.quartzRepoPath = value.trim();
+						await this.plugin.saveSettings();
+						this.updateRepoPathStatus();
+					}),
+			);
+
+		this.updateRepoPathStatus();
+	}
+
+	private renderSystemCommandsToggle(): void {
+		new Setting(this.containerEl)
+			.setName("Enable system commands")
+			.setDesc(
+				"Allow Quartz Syncer to run local git/npm/npx commands.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.enableSystemCommands)
+					.onChange(async (value) => {
+						this.plugin.settings.enableSystemCommands = value;
+						await this.plugin.saveSettings();
+						this.display();
+					}),
+			);
+	}
+
+	private renderQuartzActions(): void {
+		if (!this.plugin.settings.enableSystemCommands) return;
+
+		const setting = new Setting(this.containerEl)
+			.setName("Quartz actions")
+			.setDesc("Run Quartz CLI commands locally.");
+
+		setting.addButton((button) => {
+			button.setButtonText("Update Quartz").setCta().onClick(() => {
+				const repoPath = this.getRepoPathOrNotice();
+				if (!repoPath) return;
+				if (!this.plugin.quartzRunner) {
+					new Notice("Quartz runner is unavailable.");
+					return;
+				}
+				new TerminalOutputModal(
+					this.app,
+					"Update Quartz",
+					async ({ onStdout, onStderr, signal }) => {
+						const result = await this.plugin.quartzRunner?.update({
+							cwd: repoPath,
+							signal,
+							onStdout,
+							onStderr,
+						});
+						if (!result?.ok) {
+							throw new Error(result?.error ?? "Quartz update failed");
+						}
+					},
+				).open();
+			});
+		});
+
+		setting.addButton((button) => {
+			button.setButtonText("Install dependencies").onClick(() => {
+				const repoPath = this.getRepoPathOrNotice();
+				if (!repoPath) return;
+				if (!this.plugin.npmRunner) {
+					new Notice("Npm runner is unavailable.");
+					return;
+				}
+				new TerminalOutputModal(
+					this.app,
+					"Install dependencies",
+					async ({ onStdout, onStderr, signal }) => {
+						const result = await this.plugin.npmRunner?.install({
+							cwd: repoPath,
+							signal,
+							onStdout,
+							onStderr,
+						});
+						if (!result?.ok) {
+							throw new Error(result?.error ?? "npm install failed");
+						}
+					},
+				).open();
+			});
+		});
+
+		setting.addButton((button) => {
+			button.setButtonText("Build preview").onClick(() => {
+				const repoPath = this.getRepoPathOrNotice();
+				if (!repoPath) return;
+				if (!this.plugin.quartzRunner) {
+					new Notice("Quartz runner is unavailable.");
+					return;
+				}
+				new QuartzPreviewModal(
+					this.app,
+					this.plugin.quartzRunner,
+					repoPath,
+				).open();
+			});
+		});
+	}
+
+	private getRepoPathOrNotice(): string | null {
+		const repoPath = this.plugin.settings.quartzRepoPath.trim();
+		if (!repoPath) {
+			new Notice("Set a local Quartz repo path first.");
+			return null;
+		}
+		const validation = this.validateQuartzRepoPath(repoPath);
+		if (!validation.ok) {
+			new Notice(validation.message);
+			return null;
+		}
+		return repoPath;
+	}
+
+	private updateRepoPathStatus(): void {
+		if (!this.repoPathStatusEl) return;
+		const result = this.validateQuartzRepoPath(
+			this.plugin.settings.quartzRepoPath,
+		);
+		this.repoPathStatusEl.setText(result.message);
+	}
+
+	private validateQuartzRepoPath(path: string): { ok: boolean; message: string } {
+		if (!path.trim()) {
+			return { ok: false, message: "Set a local Quartz repository path." };
+		}
+
+		const requireFn = (
+			window as Window & { require?: (module: string) => unknown }
+		).require;
+		if (!requireFn) {
+			return {
+				ok: false,
+				message: "Filesystem access unavailable in this environment.",
+			};
+		}
+
+		const fs = requireFn("fs") as typeof import("fs");
+		const pathModule = requireFn("path") as typeof import("path");
+
+		try {
+			if (!fs.existsSync(path)) {
+				return { ok: false, message: "Path does not exist." };
+			}
+			const stat = fs.statSync(path);
+			if (!stat.isDirectory()) {
+				return { ok: false, message: "Path is not a directory." };
+			}
+			const candidates = [
+				"quartz.config.ts",
+				"quartz.config.js",
+				"quartz.config.mjs",
+				"quartz.config.json",
+				"quartz.config.yaml",
+				"quartz.config.yml",
+			];
+			const hasConfig = candidates.some((candidate) =>
+				fs.existsSync(pathModule.join(path, candidate)),
+			);
+
+			if (!hasConfig) {
+				return {
+					ok: false,
+					message: "Quartz config not found in this directory.",
+				};
+			}
+			return { ok: true, message: "Quartz repo detected." };
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			return { ok: false, message: `Validation failed: ${message}` };
+		}
+	}
+
 	private createBackend(): GitBackend {
 		const gitSettings = this.plugin.getGitSettingsWithSecret();
 		return createGitBackend(
@@ -251,8 +524,19 @@ export class QuartzSettingsPage extends SettingPageBase {
 		const manager = new QuartzPluginManager();
 
 		const onInstall = async (source: QuartzPluginSource) => {
-			manager.addPlugin(config, source);
-			await configService.writeConfig(config);
+			try {
+				await manager.installPlugin(config, source, {
+					runner: this.plugin.settings.enableSystemCommands
+						? this.plugin.quartzRunner
+						: null,
+					cwd: this.plugin.settings.quartzRepoPath,
+				});
+				await configService.writeConfig(config);
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : String(error);
+				new Notice(`Failed to install plugin: ${message}`);
+			}
 		};
 
 		new PluginBrowserModal(this.app, registry, config, onInstall).open();

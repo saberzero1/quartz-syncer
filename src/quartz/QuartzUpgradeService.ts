@@ -2,6 +2,7 @@ import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnect
 import { QuartzVersionDetector } from "./QuartzVersionDetector";
 import type { GitAuth } from "src/models/settings";
 import { requestUrl } from "obsidian";
+import type { QuartzRunner } from "src/process/runners/QuartzRunner";
 
 const UPSTREAM_PACKAGE_JSON_URL =
 	"https://raw.githubusercontent.com/jackyzha0/quartz/v5/package.json";
@@ -19,11 +20,19 @@ export interface QuartzUpgradeStatus {
 	error?: string;
 }
 
+type QuartzUpgradeRuntime = {
+	enableSystemCommands: boolean;
+	quartzRepoPath: string;
+	quartzRunner: QuartzRunner | null;
+};
+
 export class QuartzUpgradeService {
 	private userRepo: RepositoryConnection;
+	private runtime?: QuartzUpgradeRuntime;
 
-	constructor(userRepo: RepositoryConnection) {
+	constructor(userRepo: RepositoryConnection, runtime?: QuartzUpgradeRuntime) {
 		this.userRepo = userRepo;
+		this.runtime = runtime;
 	}
 
 	async checkForUpgrade(): Promise<QuartzUpgradeStatus> {
@@ -128,6 +137,20 @@ export class QuartzUpgradeService {
 		alreadyMerged?: boolean;
 		error?: string;
 	}> {
+		if (
+			this.runtime?.enableSystemCommands &&
+			this.runtime.quartzRepoPath &&
+			this.runtime.quartzRunner
+		) {
+			const result = await this.runtime.quartzRunner.update({
+				cwd: this.runtime.quartzRepoPath,
+			});
+			if (!result.ok) {
+				return { success: false, error: result.error };
+			}
+			return { success: true };
+		}
+
 		try {
 			console.debug("Starting Quartz upgrade from upstream");
 
