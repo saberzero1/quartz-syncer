@@ -4,6 +4,8 @@ import { frontmatterSettingDefinitions } from "src/views/settings/FrontmatterSet
 import { integrationSettingDefinitions } from "src/views/settings/IntegrationSettings";
 import { performanceSettingDefinitions } from "src/views/settings/PerformanceSettings";
 import { uiSettingDefinitions } from "src/views/settings/UISettings";
+import { GitSettingsPage } from "src/views/settings/GitSettingsPage";
+import { QuartzSettingsPage } from "src/views/settings/QuartzSettingsPage";
 
 /**
  * Quartz Syncer settings tab.
@@ -28,23 +30,13 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 				type: "page",
 				name: "Git",
 				desc: "Configure your Git remote, authentication, and branch.",
-				items: [
-					{
-						name: "Coming soon",
-						desc: "Git provider settings will be available after connecting a repository.",
-					},
-				],
+				page: () => new GitSettingsPage(this.app, this.plugin),
 			},
 			{
 				type: "page",
 				name: "Quartz",
 				desc: "Quartz site configuration, plugins, and templates.",
-				items: [
-					{
-						name: "Coming soon",
-						desc: "Quartz site management will be available after connecting a repository.",
-					},
-				],
+				page: () => new QuartzSettingsPage(this.app, this.plugin),
 			},
 			{
 				type: "page",

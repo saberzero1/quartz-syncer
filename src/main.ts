@@ -6,6 +6,8 @@ import { registerBundledGitBackend } from "src/git/GitBackendFactory";
 import { BundledGitBackend } from "src/git/backends/BundledGitBackend";
 import { SecretStorageService } from "src/utils/SecretStorageService";
 import { QuartzSyncerSettingTab } from "src/views/QuartzSyncerSettingTab";
+import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
+import { registerCliHandlers } from "src/cli/registerCliHandlers";
 
 /**
  * QuartzSyncer plugin settings.
@@ -148,7 +150,17 @@ export default class QuartzSyncer extends Plugin {
 		this.addSettingTab(new QuartzSyncerSettingTab(this.app, this));
 
 		this.addCommands();
-		this.addRibbonIcon("leaf", "Quartz Syncer", () => {});
+		registerCliHandlers(this);
+		this.addRibbonIcon(
+			"leaf",
+			"Quartz Syncer publication center",
+			() => {
+				new PublicationCenter(this.app, this).open();
+			},
+		);
+
+		const statusBar = this.addStatusBarItem();
+		statusBar.setText("Quartz Syncer: ready");
 	}
 
 	onunload() {
@@ -305,6 +317,14 @@ export default class QuartzSyncer extends Plugin {
 	}
 
 	private addCommands(): void {
+		this.addCommand({
+			id: "open-publish-modal",
+			name: "Open publication center",
+			callback: () => {
+				new PublicationCenter(this.app, this).open();
+			},
+		});
+
 		this.addCommand({
 			id: "publish-status",
 			name: "Show publish status",
