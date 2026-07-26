@@ -499,10 +499,7 @@ export class QuartzSettingsPage extends SettingPageBase {
 		const backend = this.createBackend();
 		const branch = this.plugin.settings.gitBranch || "v4";
 
-		return new GitBackendRepositoryAdapter(
-			backend,
-			branch,
-		) as unknown as RepositoryConnection;
+		return new GitBackendRepositoryAdapter(backend, branch);
 	}
 
 	private async openPluginBrowser(): Promise<void> {
