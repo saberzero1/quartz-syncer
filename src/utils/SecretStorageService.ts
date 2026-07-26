@@ -1,19 +1,59 @@
-import { App, SecretStorage } from "obsidian";
+import { App, Platform, SecretStorage } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
 
 const GIT_AUTH_SECRET_ID = "quartz-syncer-git-token";
+const SAFE_STORAGE_KEY = "quartz-syncer-encrypted-token";
+
+interface SafeStorage {
+	isEncryptionAvailable(): boolean;
+	encryptString(plainText: string): Buffer;
+	decryptString(encrypted: Buffer): string;
+}
+
+function getSafeStorage(): SafeStorage | null {
+	if (!Platform.isDesktopApp) return null;
+	try {
+		const electron = (
+			window as unknown as { require: (id: string) => { safeStorage: SafeStorage } }
+		).require("electron");
+		const ss = electron.safeStorage;
+		if (ss && typeof ss.isEncryptionAvailable === "function" && ss.isEncryptionAvailable()) {
+			return ss;
+		}
+	} catch {
+		// electron not available or safeStorage not supported
+	}
+	return null;
+}
 
 export class SecretStorageService {
 	private secretStorage: SecretStorage;
+	private safeStorage: SafeStorage | null;
 	private cachedToken: string | null = null;
+	readonly isEncrypted: boolean;
 
 	constructor(app: App) {
 		this.secretStorage = app.secretStorage;
+		this.safeStorage = getSafeStorage();
+		this.isEncrypted = this.safeStorage !== null;
 	}
 
 	getToken(): string | null {
 		if (this.cachedToken !== null) {
 			return this.cachedToken;
+		}
+
+		if (this.safeStorage) {
+			const encrypted = this.secretStorage.getSecret(SAFE_STORAGE_KEY);
+			if (encrypted) {
+				try {
+					const buf = Buffer.from(encrypted, "base64");
+					this.cachedToken = this.safeStorage.decryptString(buf);
+					return this.cachedToken;
+				} catch {
+					// decryption failed — fall through to plaintext
+				}
+			}
 		}
 
 		const token = this.secretStorage.getSecret(GIT_AUTH_SECRET_ID);
@@ -25,19 +65,27 @@ export class SecretStorageService {
 	setToken(token: string): void {
 		if (!token) {
 			console.debug("Attempted to store empty token");
-
 			return;
 		}
 
-		this.secretStorage.setSecret(GIT_AUTH_SECRET_ID, token);
+		if (this.safeStorage) {
+			const encrypted = this.safeStorage.encryptString(token);
+			this.secretStorage.setSecret(SAFE_STORAGE_KEY, encrypted.toString("base64"));
+			this.secretStorage.setSecret(GIT_AUTH_SECRET_ID, "");
+			console.debug("Git authentication token stored with encryption");
+		} else {
+			this.secretStorage.setSecret(GIT_AUTH_SECRET_ID, token);
+			console.debug("Git authentication token stored in secure storage");
+		}
+
 		this.cachedToken = token;
-		console.debug("Git authentication token stored in secure storage");
 	}
 
 	clearToken(): void {
 		this.secretStorage.setSecret(GIT_AUTH_SECRET_ID, "");
+		this.secretStorage.setSecret(SAFE_STORAGE_KEY, "");
 		this.cachedToken = null;
-		console.debug("Git authentication token cleared from secure storage");
+		console.debug("Git authentication token cleared");
 	}
 
 	hasToken(): boolean {
