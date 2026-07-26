@@ -47,13 +47,14 @@ export class MigrationNotice extends Modal {
 			const cleanupBtn = contentEl.createEl("button", {
 				text: "Clean up old cache data",
 			});
-			cleanupBtn.addEventListener("click", async () => {
-				const count = await cleanupOldDatabases();
-				new Notice(
-					`Quartz Syncer: Cleaned up ${count} old database(s).`,
-				);
-				cleanupBtn.setText("Done");
-				cleanupBtn.disabled = true;
+			cleanupBtn.addEventListener("click", () => {
+				void cleanupOldDatabases().then((count) => {
+					new Notice(
+						`Quartz Syncer: Cleaned up ${count} old database(s).`,
+					);
+					cleanupBtn.setText("Done");
+					cleanupBtn.disabled = true;
+				});
 			});
 		}
 
@@ -63,8 +64,10 @@ export class MigrationNotice extends Modal {
 			href: "https://github.com/saberzero1/quartz-syncer/releases",
 		});
 
-		const closeBtn = contentEl.createEl("button", { text: "Close" });
-		closeBtn.style.marginTop = "1em";
+		const closeBtn = contentEl.createEl("button", {
+			text: "Close",
+			cls: "qs-migration-close-btn",
+		});
 		closeBtn.addEventListener("click", () => this.close());
 	}
 

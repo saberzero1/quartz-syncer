@@ -1,5 +1,10 @@
 /* Quartz Syncer styles */
 
+/* Migration Notice */
+.qs-migration-close-btn {
+	margin-top: 1em;
+}
+
 /* Publication Center */
 .qs-pub-center .pub-center-header {
 	margin-bottom: 12px;
