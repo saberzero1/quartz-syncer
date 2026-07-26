@@ -11,6 +11,10 @@ import { SecretStorageService } from "src/utils/SecretStorageService";
 import { QuartzSyncerSettingTab } from "src/views/QuartzSyncerSettingTab";
 import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
 import { OnboardingWizard } from "src/views/OnboardingWizard/OnboardingWizard";
+import {
+	MigrationNotice,
+	shouldShowMigrationNotice,
+} from "src/views/MigrationNotice";
 import { registerCliHandlers } from "src/cli/registerCliHandlers";
 import { DataStore } from "src/cache/DataStore";
 import { Publisher } from "src/publisher/Publisher";
@@ -157,7 +161,17 @@ export default class QuartzSyncer extends Plugin {
 	async onload() {
 		this.appVersion = this.manifest.version;
 
+		const rawData = (await this.loadData()) as Record<string, unknown> | null;
+		const previousVersion =
+			typeof rawData?.pluginVersion === "string"
+				? rawData.pluginVersion
+				: "";
 		await this.loadSettings();
+
+		if (shouldShowMigrationNotice(previousVersion, this.appVersion)) {
+			new MigrationNotice(this.app, this).open();
+		}
+
 		this.dataStore = new DataStore(
 			this.app.vault.getName(),
 			this.manifest.id,
