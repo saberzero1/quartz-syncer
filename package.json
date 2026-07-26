@@ -9,7 +9,8 @@
 		"build:dev": "node esbuild.config.mjs development",
 		"lint": "eslint .",
 		"test:unit": "vitest run",
-		"check-formatting": "prettier . --check"
+		"check-formatting": "prettier . --check",
+		"postinstall": "node scripts/patch-remark-obsidian.cjs"
 	},
 	"devDependencies": {
 		"@types/node": "^20",
@@ -28,5 +29,15 @@
 		"vitest": "latest",
 		"wdio-obsidian-reporter": "^3.1.1",
 		"wdio-obsidian-service": "^3.1.1"
+	},
+	"dependencies": {
+		"@quartz-community/remark-obsidian": "^0.1.0",
+		"isomorphic-git": "file:../isomorphic-git",
+		"remark-frontmatter": "^5.0.0",
+		"remark-parse": "^11.0.0",
+		"remark-stringify": "^11.0.0",
+		"unified": "^11.0.5",
+		"unist-util-visit": "^5.1.0",
+		"yaml": "^2.9.0"
 	}
 }

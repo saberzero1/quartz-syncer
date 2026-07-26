@@ -12,6 +12,7 @@ export default defineConfig(
 		"esbuild.config.mjs",
 		"version-bump.mjs",
 		"versions.json",
+		"scripts",
 		"main.js",
 		"package.json",
 		"package-lock.json",
@@ -44,6 +45,7 @@ export default defineConfig(
 			reportUnusedDisableDirectives: "off",
 		},
 		rules: {
+			"eslint-comments/no-restricted-disable": "off",
 			"import/no-nodejs-modules": "error",
 			"import/no-extraneous-dependencies": [
 				"error",
@@ -88,6 +90,21 @@ export default defineConfig(
 					],
 				},
 			],
+		},
+	},
+	{
+		files: [
+			"src/compiler/integrations/**/*.ts",
+			"src/utils/utils.ts",
+		],
+		rules: {
+			"@typescript-eslint/no-unsafe-assignment": "off",
+			"@typescript-eslint/no-unsafe-call": "off",
+			"@typescript-eslint/no-unsafe-member-access": "off",
+			"@typescript-eslint/no-unsafe-argument": "off",
+			"@typescript-eslint/no-unsafe-return": "off",
+			"obsidianmd/prefer-create-el": "off",
+			"obsidianmd/prefer-active-doc": "off",
 		},
 	},
 );
