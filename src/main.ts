@@ -2,12 +2,19 @@ import { Plugin } from "obsidian";
 import QuartzSyncerSettings, {
 	type GitRemoteSettings,
 } from "src/models/settings";
-import { registerBundledGitBackend } from "src/git/GitBackendFactory";
+import {
+	createGitBackend,
+	registerBundledGitBackend,
+} from "src/git/GitBackendFactory";
 import { BundledGitBackend } from "src/git/backends/BundledGitBackend";
 import { SecretStorageService } from "src/utils/SecretStorageService";
 import { QuartzSyncerSettingTab } from "src/views/QuartzSyncerSettingTab";
 import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
 import { registerCliHandlers } from "src/cli/registerCliHandlers";
+import { DataStore } from "src/cache/DataStore";
+import { Publisher } from "src/publisher/Publisher";
+import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
+import { BackgroundEngine } from "src/services/BackgroundEngine";
 
 /**
  * QuartzSyncer plugin settings.
@@ -139,11 +146,20 @@ export default class QuartzSyncer extends Plugin {
 	declare settings: QuartzSyncerSettings;
 	appVersion!: string;
 	secretStorageService!: SecretStorageService;
+	dataStore!: DataStore;
+	private publisher: Publisher | null = null;
+	private backgroundEngine: BackgroundEngine | null = null;
+	private statusBar: HTMLElement | null = null;
 
 	async onload() {
 		this.appVersion = this.manifest.version;
 
 		await this.loadSettings();
+		this.dataStore = new DataStore(
+			this.app.vault.getName(),
+			this.manifest.id,
+			this.appVersion,
+		);
 		registerBundledGitBackend(BundledGitBackend);
 
 		console.debug("Initializing QuartzSyncer plugin v" + this.appVersion);
@@ -159,11 +175,19 @@ export default class QuartzSyncer extends Plugin {
 			},
 		);
 
-		const statusBar = this.addStatusBarItem();
-		statusBar.setText("Quartz Syncer: ready");
+		this.statusBar = this.addStatusBarItem();
+		this.statusBar.setText("Quartz Syncer: ready");
+		this.backgroundEngine = new BackgroundEngine(
+			this.app,
+			this,
+			this.statusBar,
+		);
+		this.backgroundEngine.start();
 	}
 
 	onunload() {
+		this.backgroundEngine?.stop();
+		this.backgroundEngine = null;
 		super.onunload();
 	}
 
@@ -314,6 +338,43 @@ export default class QuartzSyncer extends Plugin {
 			},
 			providerHint: this.settings.gitProviderHint || undefined,
 		};
+	}
+
+	getPublisher(): Publisher | null {
+		if (!this.settings.gitRemoteUrl) return null;
+		if (!this.publisher) {
+			const gitBackend = createGitBackend(
+				{
+					remoteUrl: this.settings.gitRemoteUrl,
+					branch: this.settings.gitBranch,
+					corsProxyUrl: this.settings.gitCorsProxyUrl || undefined,
+					auth: {
+						type: this.settings.gitAuthType,
+						username: this.settings.gitAuthUsername || undefined,
+						secret:
+							this.secretStorageService.getToken() || undefined,
+					},
+				},
+				this.app,
+			);
+
+			const compiler = new SyncerPageCompiler(
+				this.app,
+				this.app.vault,
+				this.settings,
+				this.app.metadataCache,
+				this.dataStore,
+			);
+
+			this.publisher = new Publisher(
+				this.app,
+				this,
+				gitBackend,
+				compiler,
+				this.dataStore,
+			);
+		}
+		return this.publisher;
 	}
 
 	private addCommands(): void {

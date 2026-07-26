@@ -1,12 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { App } from "obsidian";
 import { BackgroundEngine } from "src/services/BackgroundEngine";
+import type QuartzSyncer from "src/main";
+
+const createPluginStub = (): QuartzSyncer => {
+	return {
+		getPublisher: () => ({}),
+		dataStore: {
+			dropFile: vi.fn().mockResolvedValue(undefined),
+		},
+	} as unknown as QuartzSyncer;
+};
 
 describe("BackgroundEngine", () => {
 	it("starts and stops", () => {
 		vi.useFakeTimers();
 		const app = new App();
-		const engine = new BackgroundEngine(app);
+		const engine = new BackgroundEngine(app, createPluginStub());
 
 		expect(engine.isRunning).toBe(false);
 		engine.start();
@@ -20,7 +30,7 @@ describe("BackgroundEngine", () => {
 
 	it("enqueue adds to queue", () => {
 		const app = new App();
-		const engine = new BackgroundEngine(app);
+		const engine = new BackgroundEngine(app, createPluginStub());
 		const spy = vi
 			.spyOn(engine as unknown as { processQueue: () => Promise<void> }, "processQueue")
 			.mockResolvedValue();
@@ -35,7 +45,7 @@ describe("BackgroundEngine", () => {
 
 	it("processQueue drains queue", async () => {
 		const app = new App();
-		const engine = new BackgroundEngine(app);
+		const engine = new BackgroundEngine(app, createPluginStub());
 		const state = engine as unknown as {
 			queue: Set<string>;
 			running: boolean;
@@ -52,7 +62,7 @@ describe("BackgroundEngine", () => {
 
 	it("stop clears queue and aborts", () => {
 		const app = new App();
-		const engine = new BackgroundEngine(app);
+		const engine = new BackgroundEngine(app, createPluginStub());
 		const state = engine as unknown as {
 			queue: Set<string>;
 			abortController: AbortController | null;

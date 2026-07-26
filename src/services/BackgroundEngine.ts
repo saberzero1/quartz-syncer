@@ -1,4 +1,5 @@
 import { debounce, type App, type EventRef, TFile } from "obsidian";
+import type QuartzSyncer from "src/main";
 
 export class BackgroundEngine {
 	private running = false;
@@ -7,7 +8,11 @@ export class BackgroundEngine {
 	private abortController: AbortController | null = null;
 	private eventRefs: EventRef[] = [];
 
-	constructor(private app: App) {}
+	constructor(
+		private app: App,
+		private plugin: QuartzSyncer,
+		private statusBar?: HTMLElement,
+	) {}
 
 	start(): void {
 		if (this.running) return;
@@ -24,6 +29,7 @@ export class BackgroundEngine {
 		this.running = false;
 		this.abortController?.abort();
 		this.queue.clear();
+		this.updateStatusBar();
 		this.cleanupListeners();
 	}
 
@@ -76,6 +82,7 @@ export class BackgroundEngine {
 
 	private enqueue(path: string): void {
 		this.queue.add(path);
+		this.updateStatusBar();
 		void this.processQueue();
 	}
 
@@ -83,17 +90,29 @@ export class BackgroundEngine {
 		if (this.processing || this.queue.size === 0) return;
 		this.processing = true;
 		this.abortController = new AbortController();
+		this.updateStatusBar();
+
+		const publisher = this.plugin.getPublisher();
+		if (!publisher) {
+			this.processing = false;
+			this.abortController = null;
+			this.updateStatusBar();
+			return;
+		}
 
 		try {
 			while (this.queue.size > 0 && this.running) {
 				const path = this.queue.values().next().value;
 				if (!path) break;
 				this.queue.delete(path);
-				// Compilation would happen here when wired to the compiler.
+				// Cache invalidation for next publish status refresh.
+				await this.plugin.dataStore.dropFile(path);
+				this.updateStatusBar();
 			}
 		} finally {
 			this.processing = false;
 			this.abortController = null;
+			this.updateStatusBar();
 		}
 	}
 
@@ -103,5 +122,10 @@ export class BackgroundEngine {
 
 	get isRunning(): boolean {
 		return this.running;
+	}
+
+	private updateStatusBar(): void {
+		if (!this.statusBar) return;
+		this.statusBar.setText(`Quartz Syncer: ${this.queue.size} pending`);
 	}
 }

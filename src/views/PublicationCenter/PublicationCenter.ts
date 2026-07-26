@@ -2,7 +2,6 @@ import { Modal, Notice } from "obsidian";
 import type { App } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { PublishStatus } from "src/publisher/types";
-import type { PublishFile } from "src/publishFile/PublishFile";
 import { DiffModal } from "src/views/DiffView/DiffModal";
 import {
 	renderCategoryControls,
@@ -62,7 +61,22 @@ export class PublicationCenter extends Modal {
 	}
 
 	private async loadStatus(): Promise<void> {
-		this.status = await this.getMockPublishStatus();
+		const publisher = this._plugin.getPublisher();
+		if (!publisher) {
+			this.status = null;
+			this.progressState = { current: 0, total: 0 };
+			this.render();
+			return;
+		}
+
+		try {
+			this.status = await publisher.getPublishStatus();
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			new Notice(`Failed to load publish status: ${message}`);
+			this.status = null;
+		}
 		this.progressState = { current: 0, total: 0 };
 		this.render();
 	}
@@ -99,7 +113,7 @@ export class PublicationCenter extends Modal {
 			});
 		} else {
 			treeContainer.createSpan({
-				text: "No publish status available yet.",
+				text: "Configure your git repository in settings to get started.",
 			});
 		}
 
@@ -116,7 +130,7 @@ export class PublicationCenter extends Modal {
 			text: "Publish",
 		});
 		publishButton.addEventListener("click", () => {
-			this.handlePublish();
+			void this.handlePublish();
 		});
 
 		const deleteButton = actions.createEl("button", {
@@ -124,7 +138,7 @@ export class PublicationCenter extends Modal {
 			text: "Delete",
 		});
 		deleteButton.addEventListener("click", () => {
-			this.handleDelete();
+			void this.handleDelete();
 		});
 	}
 
@@ -138,7 +152,15 @@ export class PublicationCenter extends Modal {
 		}).open();
 	}
 
-	private handlePublish(): void {
+	private async handlePublish(): Promise<void> {
+		const publisher = this._plugin.getPublisher();
+		if (!publisher || !this.status) {
+			new Notice(
+				"Configure your git repository in settings to get started.",
+			);
+			return;
+		}
+
 		const selected = this.treeState.getSelectedFiles();
 		const publishable = selected.filter((path) => {
 			const category = this.treeState.getCategory(path);
@@ -150,12 +172,45 @@ export class PublicationCenter extends Modal {
 			return;
 		}
 
-		this.progressState = { current: publishable.length, total: publishable.length };
+		this.progressState = {
+			current: publishable.length,
+			total: publishable.length,
+		};
 		this.updateProgress();
-		console.debug("Publish selection", publishable);
+
+		const publishPaths = new Set(publishable);
+		const publishFiles = [
+			...this.status.unpublished,
+			...this.status.changed,
+		].filter((file) => publishPaths.has(file.getVaultPath()));
+
+		try {
+			const result = await publisher.publishBatch(
+				publishFiles,
+				"Published via Quartz Syncer",
+			);
+			if (!result.success) {
+				new Notice(`Publish failed: ${result.error ?? "Unknown error"}`);
+				return;
+			}
+			new Notice(`Published ${result.filesPublished} file(s).`);
+			await this.loadStatus();
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			new Notice(`Publish failed: ${message}`);
+		}
 	}
 
-	private handleDelete(): void {
+	private async handleDelete(): Promise<void> {
+		const publisher = this._plugin.getPublisher();
+		if (!publisher || !this.status) {
+			new Notice(
+				"Configure your git repository in settings to get started.",
+			);
+			return;
+		}
+
 		const selected = this.treeState.getSelectedFiles();
 		const deletable = selected.filter(
 			(path) => this.treeState.getCategory(path) === "deleted",
@@ -166,9 +221,28 @@ export class PublicationCenter extends Modal {
 			return;
 		}
 
-		this.progressState = { current: deletable.length, total: deletable.length };
+		this.progressState = {
+			current: deletable.length,
+			total: deletable.length,
+		};
 		this.updateProgress();
-		console.debug("Delete selection", deletable);
+
+		try {
+			const result = await publisher.deleteBatch(
+				deletable,
+				"Deleted via Quartz Syncer",
+			);
+			if (!result.success) {
+				new Notice(`Delete failed: ${result.error ?? "Unknown error"}`);
+				return;
+			}
+			new Notice(`Deleted ${result.filesDeleted} file(s).`);
+			await this.loadStatus();
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			new Notice(`Delete failed: ${message}`);
+		}
 	}
 
 	private updateProgress(): void {
@@ -178,33 +252,4 @@ export class PublicationCenter extends Modal {
 		this.progressIndicatorEl.style.width = `${percent}%`;
 	}
 
-	private async getMockPublishStatus(): Promise<PublishStatus> {
-		const unpublished = [
-			this.createMockPublishFile("notes/Welcome.md"),
-			this.createMockPublishFile("notes/projects/Quartz Syncer.md"),
-		];
-		const changed = [
-			this.createMockPublishFile("notes/updates/Release Notes.md"),
-		];
-		const published = [
-			this.createMockPublishFile("notes/archive/Old Post.md"),
-		];
-		const deleted = ["notes/trash/Removed Note.md"];
-
-		return {
-			unpublished,
-			changed,
-			published,
-			deleted,
-		};
-	}
-
-	private createMockPublishFile(path: string): PublishFile {
-		const mock = {
-			getPath: () => path,
-			getVaultPath: () => path,
-		} satisfies Pick<PublishFile, "getPath" | "getVaultPath">;
-
-		return mock as PublishFile;
-	}
 }
