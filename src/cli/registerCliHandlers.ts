@@ -7,6 +7,12 @@ import { createPublishHandler } from "src/cli/handlers/publishHandler";
 import { createDeleteHandler } from "src/cli/handlers/deleteHandler";
 import { createMarkHandler } from "src/cli/handlers/markHandler";
 import { createTestHandler } from "src/cli/handlers/testHandler";
+import { createCacheHandler } from "src/cli/handlers/cacheHandler";
+import { createConfigHandler } from "src/cli/handlers/configHandler";
+import { createUpgradeHandler } from "src/cli/handlers/upgradeHandler";
+import { createVersionHandler } from "src/cli/handlers/versionHandler";
+import { createPluginHandler } from "src/cli/handlers/pluginHandler";
+import { createQuartzConfigHandler } from "src/cli/handlers/quartzConfigHandler";
 
 type ProtocolHandler = (params: Record<string, string>) => void | string;
 
@@ -24,6 +30,12 @@ const COMMANDS = [
 	"quartz-syncer:delete",
 	"quartz-syncer:mark",
 	"quartz-syncer:test",
+	"quartz-syncer:cache",
+	"quartz-syncer:config",
+	"quartz-syncer:upgrade",
+	"quartz-syncer:version",
+	"quartz-syncer:plugin",
+	"quartz-syncer:quartz-config",
 ] as const;
 
 const COMMAND_LABELS: Record<(typeof COMMANDS)[number], string> = {
@@ -33,6 +45,12 @@ const COMMAND_LABELS: Record<(typeof COMMANDS)[number], string> = {
 	"quartz-syncer:delete": "Quartz Syncer: delete",
 	"quartz-syncer:mark": "Quartz Syncer: mark",
 	"quartz-syncer:test": "Quartz Syncer: test",
+	"quartz-syncer:cache": "Quartz Syncer: cache",
+	"quartz-syncer:config": "Quartz Syncer: config",
+	"quartz-syncer:upgrade": "Quartz Syncer: upgrade",
+	"quartz-syncer:version": "Quartz Syncer: version",
+	"quartz-syncer:plugin": "Quartz Syncer: plugin",
+	"quartz-syncer:quartz-config": "Quartz Syncer: quartz-config",
 };
 
 export function registerCliHandlers(plugin: QuartzSyncer): void {
@@ -43,6 +61,12 @@ export function registerCliHandlers(plugin: QuartzSyncer): void {
 		"quartz-syncer:delete": createDeleteHandler(plugin),
 		"quartz-syncer:mark": createMarkHandler(plugin),
 		"quartz-syncer:test": createTestHandler(plugin),
+		"quartz-syncer:cache": createCacheHandler(plugin),
+		"quartz-syncer:config": createConfigHandler(plugin),
+		"quartz-syncer:upgrade": createUpgradeHandler(plugin),
+		"quartz-syncer:version": createVersionHandler(plugin),
+		"quartz-syncer:plugin": createPluginHandler(plugin),
+		"quartz-syncer:quartz-config": createQuartzConfigHandler(plugin),
 	};
 
 	const registrar = plugin as QuartzSyncer & CliRegistrar;
