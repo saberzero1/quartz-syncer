@@ -1,1 +1,177 @@
 /* Quartz Syncer styles */
+
+/* Publication Center */
+.qs-pub-center .pub-center-header {
+	margin-bottom: 12px;
+}
+
+.qs-pub-center .pub-center-controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.qs-pub-center .category-controls {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+}
+
+.qs-pub-center .category-action {
+	font-size: var(--font-ui-smaller);
+}
+
+.qs-pub-center .pub-center-tree {
+	max-height: 50vh;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: 6px 0;
+}
+
+.qs-pub-center .tree-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px;
+}
+
+.qs-pub-center .tree-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.qs-pub-center .tree-toggle {
+	background: transparent;
+	border: none;
+	padding: 0;
+	color: var(--text-muted);
+}
+
+.qs-pub-center .tree-checkbox {
+	margin: 0;
+}
+
+.qs-pub-center .tree-label {
+	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.qs-pub-center .category-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 6px;
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-border);
+	font-size: var(--font-ui-smaller);
+}
+
+.qs-pub-center .category-unpublished {
+	background: var(--background-modifier-success-hover);
+}
+
+.qs-pub-center .category-changed {
+	background: var(--background-modifier-warning-hover);
+}
+
+.qs-pub-center .category-deleted {
+	background: var(--background-modifier-error-hover);
+}
+
+.qs-pub-center .pub-center-footer {
+	margin-top: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.qs-pub-center .pub-center-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+.qs-pub-center .progress-bar {
+	height: 6px;
+	background: var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	overflow: hidden;
+}
+
+.qs-pub-center .progress-bar-indicator {
+	height: 100%;
+	width: 0;
+	background: var(--interactive-accent);
+	transition: width 120ms ease;
+}
+
+/* Diff Viewer */
+.qs-diff-view .diff-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 12px;
+}
+
+.qs-diff-view .diff-controls {
+	display: flex;
+	gap: 6px;
+}
+
+.qs-diff-view .diff-split-container {
+	display: flex;
+	gap: 8px;
+}
+
+.qs-diff-view .diff-pane {
+	flex: 1;
+	overflow-y: auto;
+	max-height: 60vh;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+}
+
+.qs-diff-view .diff-unified {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	max-height: 60vh;
+	overflow-y: auto;
+}
+
+.qs-diff-view .diff-line {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	padding: 2px 8px;
+	font-family: var(--font-monospace);
+	white-space: pre;
+}
+
+.qs-diff-view .diff-line-number {
+	min-width: 32px;
+	text-align: right;
+	color: var(--text-muted);
+}
+
+.qs-diff-view .diff-line-prefix {
+	color: var(--text-muted);
+}
+
+.qs-diff-view .diff-line-text {
+	flex: 1;
+}
+
+.qs-diff-view .diff-added {
+	background: var(--background-modifier-success);
+}
+
+.qs-diff-view .diff-removed {
+	background: var(--background-modifier-error);
+}
