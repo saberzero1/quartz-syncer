@@ -200,6 +200,9 @@ export default interface QuartzSyncerSettings {
 	/** UI settings */
 	diffViewStyle: DiffViewStyle;
 
+	/** Auto-publish interval in minutes (0 = disabled, desktop only) */
+	autoPublishInterval: number;
+
 	/** Developer settings */
 	ENABLE_DEVELOPER_TOOLS?: boolean;
 	devPluginPath?: string;

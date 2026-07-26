@@ -116,12 +116,68 @@ export class BackgroundEngine {
 		}
 	}
 
+	private autoPublishTimer: number | null = null;
+	private autoPublishing = false;
+
+	startAutoPublish(intervalMinutes: number): void {
+		this.stopAutoPublish();
+		if (intervalMinutes < 1) return;
+
+		const intervalMs = intervalMinutes * 60 * 1000;
+		this.autoPublishTimer = window.setInterval(() => {
+			void this.runAutoPublish();
+		}, intervalMs);
+	}
+
+	stopAutoPublish(): void {
+		if (this.autoPublishTimer !== null) {
+			window.clearInterval(this.autoPublishTimer);
+			this.autoPublishTimer = null;
+		}
+	}
+
+	private async runAutoPublish(): Promise<void> {
+		if (this.autoPublishing) return;
+		if (this.processing) return;
+
+		const publisher = this.plugin.getPublisher();
+		if (!publisher) return;
+
+		this.autoPublishing = true;
+		try {
+			const status = await publisher.getPublishStatus();
+			const pending = [...status.unpublished, ...status.changed];
+			const deleted = status.deleted;
+
+			if (pending.length === 0 && deleted.length === 0) return;
+
+			if (pending.length > 0) {
+				await publisher.publishBatch(pending, "Auto-published via Quartz Syncer");
+			}
+			if (deleted.length > 0) {
+				await publisher.deleteBatch(deleted, "Auto-deleted via Quartz Syncer");
+			}
+
+			console.debug(
+				`Auto-publish: ${pending.length} published, ${deleted.length} deleted`,
+			);
+		} catch (e) {
+			console.debug("Auto-publish failed:", e);
+		} finally {
+			this.autoPublishing = false;
+		}
+	}
+
 	get pendingCount(): number {
 		return this.queue.size;
 	}
 
 	get isRunning(): boolean {
 		return this.running;
+	}
+
+	get isAutoPublishActive(): boolean {
+		return this.autoPublishTimer !== null;
 	}
 
 	private updateStatusBar(): void {

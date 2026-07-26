@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import { Platform, Plugin } from "obsidian";
 import QuartzSyncerSettings, {
 	type GitRemoteSettings,
 } from "src/models/settings";
@@ -10,6 +10,7 @@ import { BundledGitBackend } from "src/git/backends/BundledGitBackend";
 import { SecretStorageService } from "src/utils/SecretStorageService";
 import { QuartzSyncerSettingTab } from "src/views/QuartzSyncerSettingTab";
 import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
+import { OnboardingWizard } from "src/views/OnboardingWizard/OnboardingWizard";
 import { registerCliHandlers } from "src/cli/registerCliHandlers";
 import { DataStore } from "src/cache/DataStore";
 import { Publisher } from "src/publisher/Publisher";
@@ -136,6 +137,8 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	diffViewStyle: "auto",
 
 	/** Developer settings */
+	autoPublishInterval: 0,
+
 	ENABLE_DEVELOPER_TOOLS: false,
 };
 
@@ -183,9 +186,16 @@ export default class QuartzSyncer extends Plugin {
 			this.statusBar,
 		);
 		this.backgroundEngine.start();
+
+		if (Platform.isDesktopApp && this.settings.autoPublishInterval > 0) {
+			this.backgroundEngine.startAutoPublish(
+				this.settings.autoPublishInterval,
+			);
+		}
 	}
 
 	onunload() {
+		this.backgroundEngine?.stopAutoPublish();
 		this.backgroundEngine?.stop();
 		this.backgroundEngine = null;
 		super.onunload();
@@ -383,6 +393,14 @@ export default class QuartzSyncer extends Plugin {
 			name: "Open publication center",
 			callback: () => {
 				new PublicationCenter(this.app, this).open();
+			},
+		});
+
+		this.addCommand({
+			id: "setup-wizard",
+			name: "Setup wizard",
+			callback: () => {
+				new OnboardingWizard(this.app, this).open();
 			},
 		});
 

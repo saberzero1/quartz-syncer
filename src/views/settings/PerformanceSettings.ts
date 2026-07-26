@@ -1,4 +1,4 @@
-import type { SettingDefinitionItem } from "obsidian";
+import { Platform, type SettingDefinitionItem } from "obsidian";
 import type QuartzSyncer from "src/main";
 
 export function performanceSettingDefinitions(
@@ -40,6 +40,26 @@ export function performanceSettingDefinitions(
 						type: "toggle",
 						key: "persistCache",
 						defaultValue: false,
+					},
+				},
+			],
+		},
+		{
+			type: "group",
+			heading: "Auto-publish",
+			visible: () => Platform.isDesktopApp,
+			items: [
+				{
+					name: "Auto-publish interval (minutes)",
+					desc: "Automatically publish pending changes on a timer. Set to 0 to disable. Desktop only.",
+					aliases: ["timer", "automatic", "schedule"],
+					control: {
+						type: "slider",
+						key: "autoPublishInterval",
+						defaultValue: 0,
+						min: 0,
+						max: 120,
+						step: 5,
 					},
 				},
 			],
