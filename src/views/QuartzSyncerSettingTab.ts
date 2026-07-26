@@ -23,6 +23,14 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
+		containerEl.createEl("p", {
+			text: "Quartz Syncer requires Obsidian 1.13 or later for the full settings experience. Please update Obsidian.",
+		});
+	}
+
 	getSettingDefinitions(): SettingDefinitionItem[] {
 		return [
 			...this.buildOverviewItems(),

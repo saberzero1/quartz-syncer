@@ -10,6 +10,7 @@ export default defineConfig(
 		"__mocks__",
 		".obsidian-cache",
 		"esbuild.config.mjs",
+		"esbuild-buffer-shim.js",
 		"version-bump.mjs",
 		"versions.json",
 		"scripts",
