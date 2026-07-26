@@ -30,13 +30,15 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 				type: "page",
 				name: "Git",
 				desc: "Configure your Git remote, authentication, and branch.",
-				page: () => new GitSettingsPage(this.app, this.plugin),
+				page: () =>
+					new GitSettingsPage(this.app, this.plugin) as unknown as import("obsidian").SettingPage,
 			},
 			{
 				type: "page",
 				name: "Quartz",
 				desc: "Quartz site configuration, plugins, and templates.",
-				page: () => new QuartzSettingsPage(this.app, this.plugin),
+				page: () =>
+					new QuartzSettingsPage(this.app, this.plugin) as unknown as import("obsidian").SettingPage,
 			},
 			{
 				type: "page",

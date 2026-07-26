@@ -1,9 +1,10 @@
-import { App, Setting, SettingPage } from "obsidian";
+import { App, Setting } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { GitAuthType, GitProviderHint } from "src/models/settings";
 import { createGitBackend } from "src/git/GitBackendFactory";
+import { SettingPageBase } from "./SettingPageBase";
 
-export class GitSettingsPage extends SettingPage {
+export class GitSettingsPage extends SettingPageBase {
 	private app: App;
 	private plugin: QuartzSyncer;
 	private statusEl: HTMLElement | null = null;

@@ -16,10 +16,19 @@ const buildOptions = {
 	format: "cjs",
 	target: "es2024",
 	outfile: "main.js",
-	external: ["obsidian", "electron", ...builtinModules],
+	external: [
+		"obsidian",
+		"electron",
+		...builtinModules.filter((m) => m !== "buffer"),
+	],
 	treeShaking: true,
 	minify: isProduction,
 	sourcemap: isProduction ? false : "inline",
+	platform: "browser",
+	inject: ["./esbuild-buffer-shim.js"],
+	define: {
+		global: "globalThis",
+	},
 	banner: {
 		js: banner,
 	},

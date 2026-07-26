@@ -33,6 +33,7 @@
 	},
 	"dependencies": {
 		"@quartz-community/remark-obsidian": "^0.1.0",
+		"buffer": "^6.0.3",
 		"diff": "^9.0.0",
 		"isomorphic-git": "file:../isomorphic-git",
 		"localspace": "^2.1.0",
