@@ -13,6 +13,7 @@
 		"postinstall": "node scripts/patch-remark-obsidian.cjs"
 	},
 	"devDependencies": {
+		"@types/diff": "^7.0.2",
 		"@types/node": "^20",
 		"@wdio/cli": "^9.30.0",
 		"@wdio/globals": "^9.29.1",
@@ -32,7 +33,9 @@
 	},
 	"dependencies": {
 		"@quartz-community/remark-obsidian": "^0.1.0",
+		"diff": "^9.0.0",
 		"isomorphic-git": "file:../isomorphic-git",
+		"localspace": "^2.1.0",
 		"remark-frontmatter": "^5.0.0",
 		"remark-parse": "^11.0.0",
 		"remark-stringify": "^11.0.0",
