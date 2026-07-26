@@ -212,6 +212,7 @@ export default class QuartzSyncer extends Plugin {
 		this.migrateNestedGitSettings();
 		this.migrateRemovedThemesTab();
 		this.migrateTimestampKeyDefaults();
+		this.settings.pluginVersion = this.appVersion;
 		await this.saveSettings();
 
 		this.secretStorageService = new SecretStorageService(this.app);

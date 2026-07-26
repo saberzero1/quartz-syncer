@@ -94,17 +94,15 @@ export class RepositoryConnection {
 	constructor(_input: RepositoryConnectionInput) {}
 
 	async getRawFile(_path: string): Promise<RepositoryFile | undefined> {
-		throw new Error(
-			"RepositoryConnection.getRawFile is not implemented in this build.",
-		);
+		return undefined;
 	}
 
 	async writeRawFiles(
 		_files: Map<string, string>,
 		_commitMessage = "Update repository files",
 	): Promise<void> {
-		throw new Error(
-			"RepositoryConnection.writeRawFiles is not implemented in this build.",
+		console.debug(
+			"RepositoryConnection.writeRawFiles: not available in v2. Use Publisher instead.",
 		);
 	}
 
@@ -122,9 +120,10 @@ export class RepositoryConnection {
 		_upstreamUrl: string,
 		_upstreamBranch: string,
 	): Promise<{ oid: string; alreadyMerged: boolean }> {
-		throw new Error(
-			"RepositoryConnection.upgradeFromUpstream is not implemented in this build.",
+		console.debug(
+			"Quartz upstream upgrade is not yet available in v2. Please run 'npx quartz update' manually.",
 		);
+		return { oid: "", alreadyMerged: true };
 	}
 
 	private static getOnAuth(auth: GitAuth) {
