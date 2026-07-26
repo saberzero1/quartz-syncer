@@ -187,7 +187,7 @@ function sanitizePermalink(permalink: string): string {
  * @returns True if the plugin is enabled, false otherwise.
  */
 function isPluginEnabled(pluginId: string): boolean {
-	const plugins = (globalThis as {
+	const plugins = (window as {
 		app?: { plugins?: { enabledPlugins?: Set<string> } };
 	}).app?.plugins?.enabledPlugins;
 

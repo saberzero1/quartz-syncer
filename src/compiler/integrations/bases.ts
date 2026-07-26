@@ -1,7 +1,7 @@
 import { PluginIntegration, PatternDescriptor, PatternMatch } from "./types";
 
 function isBasesPluginEnabled(): boolean {
-	const internalPlugins = (globalThis as {
+	const internalPlugins = (window as {
 		app?: {
 			internalPlugins?: { getPluginById: (id: string) => { enabled?: boolean } | null };
 		};

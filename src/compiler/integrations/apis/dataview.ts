@@ -25,7 +25,7 @@ interface DataviewApi {
 }
 
 function getDataviewApi(): DataviewApi | undefined {
-	const globalApp = (globalThis as {
+	const globalApp = (window as {
 		app?: { plugins?: { plugins?: Record<string, { api?: DataviewApi }> } };
 	}).app;
 	const plugin = globalApp?.plugins?.plugins?.[DATAVIEW_PLUGIN_ID];

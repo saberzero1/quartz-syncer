@@ -85,6 +85,7 @@ export class VaultFsAdapter implements FsClient {
 		const encoding = options?.encoding;
 		if (typeof data === "string") {
 			if (encoding === "base64") {
+                // eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 				const bytes = Buffer.from(data, "base64");
 				await this.adapter.writeBinary(
 					resolvedPath,
