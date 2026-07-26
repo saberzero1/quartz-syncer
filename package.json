@@ -9,8 +9,7 @@
 		"build:dev": "node esbuild.config.mjs development",
 		"lint": "eslint .",
 		"test:unit": "vitest run",
-		"check-formatting": "prettier . --check",
-		"postinstall": "node scripts/patch-remark-obsidian.cjs"
+		"check-formatting": "prettier . --check"
 	},
 	"devDependencies": {
 		"@types/diff": "^7.0.2",
@@ -32,7 +31,7 @@
 		"wdio-obsidian-service": "^3.1.1"
 	},
 	"dependencies": {
-		"@quartz-community/remark-obsidian": "^0.1.0",
+		"@quartz-community/remark-obsidian": "^0.2.2",
 		"buffer": "^6.0.3",
 		"diff": "^9.0.0",
 		"isomorphic-git": "https://github.com/saberzero1/isomorphic-git.git",
