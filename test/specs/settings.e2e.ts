@@ -31,4 +31,32 @@ describe("Settings", function () {
 			app.setting.close();
 		});
 	});
+
+	it("integration page has items defined", async function () {
+		const hasItems = await browser.executeObsidian(({ app }) => {
+			const tab = app.setting.pluginTabs.find(
+				(t: { plugin?: { manifest?: { id?: string } } }) =>
+					t.plugin?.manifest?.id === "quartz-syncer",
+			);
+			if (!tab || !("getSettingDefinitions" in tab)) return false;
+			const defs = (
+				tab as {
+					getSettingDefinitions: () => {
+						type?: string;
+						name?: string;
+						items?: unknown[];
+					}[];
+				}
+			).getSettingDefinitions();
+			const integrationPage = defs.find(
+				(d) => d.type === "page" && d.name === "Integration",
+			);
+			return (
+				integrationPage !== undefined &&
+				Array.isArray(integrationPage.items) &&
+				integrationPage.items.length > 0
+			);
+		});
+		expect(hasItems).toBe(true);
+	});
 });
