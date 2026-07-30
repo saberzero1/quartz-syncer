@@ -15,14 +15,37 @@ export function createStore(name: string): IndexedDBStore {
 	function open(): Promise<IDBDatabase> {
 		if (dbPromise) return dbPromise;
 		dbPromise = new Promise((resolve, reject) => {
-			const request = indexedDB.open(name, 1);
+			const request = indexedDB.open(name);
 			request.onupgradeneeded = () => {
 				const db = request.result;
 				if (!db.objectStoreNames.contains(STORE_NAME)) {
 					db.createObjectStore(STORE_NAME);
 				}
 			};
-			request.onsuccess = () => resolve(request.result);
+			request.onsuccess = () => {
+				const db = request.result;
+				if (!db.objectStoreNames.contains(STORE_NAME)) {
+					db.close();
+					const upgradeRequest = indexedDB.open(
+						name,
+						db.version + 1,
+					);
+					upgradeRequest.onupgradeneeded = () => {
+						const upgradedDb = upgradeRequest.result;
+						if (
+							!upgradedDb.objectStoreNames.contains(STORE_NAME)
+						) {
+							upgradedDb.createObjectStore(STORE_NAME);
+						}
+					};
+					upgradeRequest.onsuccess = () =>
+						resolve(upgradeRequest.result);
+					upgradeRequest.onerror = () =>
+						reject(upgradeRequest.error);
+					return;
+				}
+				resolve(db);
+			};
 			request.onerror = () => reject(request.error);
 		});
 		return dbPromise;
