@@ -256,6 +256,7 @@ export class BundledGitBackend implements GitBackend {
 		await git.fetch({
 			fs: this.fs,
 			dir: this.dir,
+			url: this.config.remoteUrl,
 			ref: branch,
 			singleBranch: true,
 			depth: 1,
