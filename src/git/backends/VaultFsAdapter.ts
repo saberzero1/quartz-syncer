@@ -12,7 +12,7 @@ type FsPromises = {
 	readFile: (
 		path: string,
 		options?: { encoding?: string },
-	) => Promise<string | Uint8Array>;
+	) => Promise<string | Buffer>;
 	writeFile: (
 		path: string,
 		data: string | Uint8Array | ArrayBuffer,
@@ -74,13 +74,13 @@ export class VaultFsAdapter implements FsClient {
 	private async readFile(
 		path: string,
 		options?: { encoding?: string },
-	): Promise<string | Uint8Array> {
+	): Promise<string | Buffer> {
 		await this.ensureExists(path);
 		if (options?.encoding === "utf8" || options?.encoding === "utf-8") {
 			return this.adapter.read(this.resolvePath(path));
 		}
 		const data = await this.adapter.readBinary(this.resolvePath(path));
-		return new Uint8Array(data);
+		return Buffer.from(data);
 	}
 
 	private async writeFile(
