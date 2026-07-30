@@ -17,7 +17,7 @@ type AuthCredentials = { username: string; password: string };
 
 const COMMIT_AUTHOR = {
 	name: "Quartz Syncer",
-	email: "quartz-syncer@users.noreply.github.com",
+	email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
 };
 
 export class BundledGitBackend implements GitBackend {
