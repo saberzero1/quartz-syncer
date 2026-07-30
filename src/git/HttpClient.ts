@@ -132,6 +132,14 @@ export class HttpClient {
 		return this.jsonRequest<T>("POST", url, headers, body);
 	}
 
+	async put<T>(
+		url: string,
+		headers: Record<string, string> = {},
+		body?: unknown,
+	): Promise<HttpResponse<T>> {
+		return this.jsonRequest<T>("PUT", url, headers, body);
+	}
+
 	async patch<T>(
 		url: string,
 		headers: Record<string, string> = {},
@@ -143,8 +151,9 @@ export class HttpClient {
 	async delete<T>(
 		url: string,
 		headers: Record<string, string> = {},
+		body?: unknown,
 	): Promise<HttpResponse<T>> {
-		return this.jsonRequest<T>("DELETE", url, headers);
+		return this.jsonRequest<T>("DELETE", url, headers, body);
 	}
 
 	private async jsonRequest<T>(
