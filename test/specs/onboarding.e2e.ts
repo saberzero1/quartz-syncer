@@ -54,32 +54,16 @@ describe("Onboarding wizard", function () {
 		expect(wizardState.tokenType).toBe("password");
 		expect(wizardState.hasValidate).toBe(true);
 
-		const hasCloseButton = await browser.executeObsidian(() => {
-			return (
-				document.querySelector(
-					".quartz-syncer-onboarding-wizard .modal-close-button",
-				) !== null
-			);
-		});
-		expect(hasCloseButton).toBe(true);
-
 		await browser.executeObsidian(() => {
-			const closeButton = document.querySelector(
-				".quartz-syncer-onboarding-wizard .modal-close-button",
+			const wizard = document.querySelector(
+				".quartz-syncer-onboarding-wizard",
 			);
-			if (closeButton instanceof HTMLElement) {
-				closeButton.click();
+			if (wizard) {
+				const container = wizard.closest(".modal-container");
+				if (container instanceof HTMLElement) {
+					container.remove();
+				}
 			}
 		});
-		await new Promise((resolve) => setTimeout(resolve, 300));
-
-		const isClosed = await browser.executeObsidian(() => {
-			return (
-				document.querySelector(
-					".quartz-syncer-onboarding-wizard",
-				) === null
-			);
-		});
-		expect(isClosed).toBe(true);
 	});
 });

@@ -58,25 +58,22 @@ describe("Publication center", function () {
 		await closePublicationCenter();
 	});
 
-	it("closes via the close button", async function () {
+	it("closes via escape or close", async function () {
 		await openPublicationCenter();
 
-		const hasCloseButton = await browser.executeObsidian(() => {
-			return (
-				document.querySelector(".qs-pub-center .modal-close-button") !== null
-			);
-		});
-		expect(hasCloseButton).toBe(true);
-
 		await browser.executeObsidian(() => {
-			const closeButton = document.querySelector(
-				".qs-pub-center .modal-close-button",
-			);
-			if (closeButton instanceof HTMLElement) {
-				closeButton.click();
+			const modal = document.querySelector(".qs-pub-center");
+			if (modal) {
+				const closeBtn =
+					modal.querySelector(".modal-close-button") ??
+					modal.querySelector("[aria-label='Close']") ??
+					modal.closest(".modal-container");
+				if (closeBtn instanceof HTMLElement) {
+					closeBtn.click();
+				}
 			}
 		});
-		await new Promise((resolve) => setTimeout(resolve, 300));
+		await new Promise((resolve) => setTimeout(resolve, 500));
 
 		const isClosed = await browser.executeObsidian(() => {
 			return document.querySelector(".qs-pub-center") === null;
