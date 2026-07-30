@@ -172,9 +172,10 @@ export class BundledGitBackend implements GitBackend {
 			url: this.config.remoteUrl,
 			...this.networkOptions(),
 		});
+		const refs = info.refs as { heads?: Record<string, string> } | undefined;
 		return {
 			capabilities: info.capabilities ? [...info.capabilities] : [],
-			refs: info.refs?.heads,
+			refs: refs?.heads,
 		};
 	}
 

@@ -27,13 +27,15 @@ export default defineConfig(
 		languageOptions: {
 			globals: {
 				...globals.browser,
+				Buffer: "readonly",
 			},
 			parserOptions: {
 				projectService: {
-					allowDefaultProject: [
-						"eslint.config.mts",
-						"vitest.config.ts",
-					],
+				allowDefaultProject: [
+					"eslint.config.mts",
+					"vitest.config.ts",
+					"vitest.integration.config.ts",
+				],
 				},
 				tsconfigRootDir: import.meta.dirname,
 			},

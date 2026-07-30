@@ -40,13 +40,13 @@ export function createStore(name: string): IndexedDBStore {
 					};
 					upgradeRequest.onsuccess = () =>
 						resolve(upgradeRequest.result);
-					upgradeRequest.onerror = () =>
-						reject(upgradeRequest.error);
+				upgradeRequest.onerror = () =>
+					reject(upgradeRequest.error ?? new Error("IndexedDB upgrade failed"));
 					return;
 				}
 				resolve(db);
 			};
-			request.onerror = () => reject(request.error);
+			request.onerror = () => reject(request.error ?? new Error("IndexedDB open failed"));
 		});
 		return dbPromise;
 	}
@@ -61,14 +61,14 @@ export function createStore(name: string): IndexedDBStore {
 	function wrap<T>(request: IDBRequest<T>): Promise<T> {
 		return new Promise((resolve, reject) => {
 			request.onsuccess = () => resolve(request.result);
-			request.onerror = () => reject(request.error);
+			request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
 		});
 	}
 
 	return {
 		async getItem<T>(key: string): Promise<T | null> {
 			const store = await tx("readonly");
-			const result = await wrap(store.get(key));
+			const result: unknown = await wrap(store.get(key));
 			return (result as T) ?? null;
 		},
 		async setItem<T>(key: string, value: T): Promise<void> {
@@ -93,13 +93,14 @@ export function createStore(name: string): IndexedDBStore {
 				request.onsuccess = () => {
 					const cursor = request.result;
 					if (cursor) {
-						callback(cursor.value as T, String(cursor.key));
+						const key = typeof cursor.key === "string" ? cursor.key : JSON.stringify(cursor.key);
+					callback(cursor.value as T, key);
 						cursor.continue();
 					} else {
 						resolve();
 					}
 				};
-				request.onerror = () => reject(request.error);
+				request.onerror = () => reject(request.error ?? new Error("IndexedDB cursor failed"));
 			});
 		},
 	};
