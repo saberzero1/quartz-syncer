@@ -24,6 +24,8 @@ type FsPromises = {
 	rmdir: (path: string) => Promise<void>;
 	stat: (path: string) => Promise<FsStat>;
 	lstat: (path: string) => Promise<FsStat>;
+	readlink: (path: string) => Promise<string>;
+	symlink: (target: string, path: string) => Promise<void>;
 };
 
 type FsClient = {
@@ -50,6 +52,8 @@ export class VaultFsAdapter implements FsClient {
 			rmdir: (path: string) => this.rmdir(path),
 			stat: (path: string) => this.stat(path),
 			lstat: (path: string) => this.lstat(path),
+			readlink: (path: string) => Promise.resolve(path),
+			symlink: (_target: string, _path: string) => Promise.resolve(),
 		};
 	}
 
