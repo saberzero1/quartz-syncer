@@ -1,4 +1,5 @@
 import git from "isomorphic-git";
+import LightningFS from "@isomorphic-git/lightning-fs";
 import type { App } from "obsidian";
 import { HttpClient } from "src/git/HttpClient";
 import type {
@@ -11,7 +12,6 @@ import type {
 	RemoteInfo,
 	TreeEntry,
 } from "src/git/types";
-import { VaultFsAdapter } from "src/git/backends/VaultFsAdapter";
 
 type AuthCredentials = { username: string; password: string };
 
@@ -22,15 +22,16 @@ const COMMIT_AUTHOR = {
 
 export class BundledGitBackend implements GitBackend {
 	private config: GitBackendConfig;
-	private fs: VaultFsAdapter;
+	private fs: LightningFS;
 	private http: HttpClient;
 	private cache: Record<string, unknown>;
 	private dir: string;
+	private initialized = false;
 
-	constructor(config: GitBackendConfig, app: App) {
+	constructor(config: GitBackendConfig, _app: App) {
 		this.config = config;
-		this.dir = buildRepoPath(config.remoteUrl);
-		this.fs = new VaultFsAdapter(app, this.dir);
+		this.dir = "/repo";
+		this.fs = new LightningFS(buildFsName(config.remoteUrl, config.branch));
 		this.http = new HttpClient();
 		this.cache = {};
 	}
@@ -47,19 +48,14 @@ export class BundledGitBackend implements GitBackend {
 			dir: this.dir,
 			oid: commitOid,
 		});
-		const treeOid = commit.tree;
+
 		const entries: TreeEntry[] = [];
 		await git.walk({
 			fs: this.fs,
 			dir: this.dir,
-			trees: [git.TREE({ ref: treeOid })],
+			trees: [git.TREE({ ref: commit.tree })],
 			map: async (filepath, [entry]) => {
-				if (!entry) {
-					return undefined;
-				}
-				if (!filepath || filepath === ".") {
-					return undefined;
-				}
+				if (!entry || !filepath || filepath === ".") return undefined;
 				const type = await entry.type();
 				if (type === "tree" || type === "blob") {
 					entries.push({
@@ -90,34 +86,43 @@ export class BundledGitBackend implements GitBackend {
 		files: FileChange[],
 	): Promise<CommitResult> {
 		await this.ensureRepoReady(branch);
+
+		const remoteCommit = await git.resolveRef({
+			fs: this.fs,
+			dir: this.dir,
+			ref: `origin/${branch}`,
+		});
+		await this.resetToCommit(remoteCommit, branch);
+
+		const cache = {};
 		for (const file of files) {
 			await this.ensureParentDir(file.path);
+			const data = this.toWriteData(file);
+			const encoding = typeof data === "string" ? "utf8" : undefined;
 			await this.fs.promises.writeFile(
-				file.path,
-				this.toWriteData(file),
-				this.toWriteOptions(file),
+				`${this.dir}/${file.path}`,
+				data,
+				encoding,
 			);
-			await git.add({
-				fs: this.fs,
-				dir: this.dir,
-				filepath: file.path,
-				cache: this.cache,
-			});
 		}
+
+		const filepaths = files.map((f) => f.path);
+		await git.add({
+			fs: this.fs,
+			dir: this.dir,
+			filepath: filepaths,
+			cache,
+		});
+
 		const sha = await git.commit({
 			fs: this.fs,
 			dir: this.dir,
 			message,
 			author: COMMIT_AUTHOR,
-			cache: this.cache,
+			cache,
 		});
-		await git.push({
-			fs: this.fs,
-			dir: this.dir,
-			remote: "origin",
-			ref: branch,
-			...this.networkOptions(),
-		});
+
+		await this.pushWithRetry(branch);
 		return { sha };
 	}
 
@@ -126,37 +131,51 @@ export class BundledGitBackend implements GitBackend {
 		message: string,
 		paths: string[],
 	): Promise<CommitResult> {
+		if (paths.length === 0) return { sha: "" };
 		await this.ensureRepoReady(branch);
+
+		const remoteCommit = await git.resolveRef({
+			fs: this.fs,
+			dir: this.dir,
+			ref: `origin/${branch}`,
+		});
+		await this.resetToCommit(remoteCommit, branch);
+
+		const cache = {};
 		for (const path of paths) {
-			await git.remove({
-				fs: this.fs,
-				dir: this.dir,
-				filepath: path,
-				cache: this.cache,
-			});
+			try {
+				await git.remove({
+					fs: this.fs,
+					dir: this.dir,
+					filepath: path,
+					cache,
+				});
+			} catch {
+				// file may not exist in index
+			}
 		}
+
 		const sha = await git.commit({
 			fs: this.fs,
 			dir: this.dir,
 			message,
 			author: COMMIT_AUTHOR,
-			cache: this.cache,
+			cache,
 		});
-		await git.push({
-			fs: this.fs,
-			dir: this.dir,
-			remote: "origin",
-			ref: branch,
-			...this.networkOptions(),
-		});
+
+		await this.pushWithRetry(branch);
 		return { sha };
 	}
 
 	async getRemoteInfo(): Promise<RemoteInfo> {
-		return git.getRemoteInfo({
+		const info = await git.getRemoteInfo({
 			url: this.config.remoteUrl,
 			...this.networkOptions(),
 		});
+		return {
+			capabilities: info.capabilities ? [...info.capabilities] : [],
+			refs: info.refs?.heads,
+		};
 	}
 
 	async testConnection(): Promise<ConnectionTestResult> {
@@ -165,6 +184,18 @@ export class BundledGitBackend implements GitBackend {
 				url: this.config.remoteUrl,
 				...this.networkOptions(),
 			});
+			let writeAccess = false;
+			try {
+				await git.listServerRefs({
+					url: this.config.remoteUrl,
+					forPush: true,
+					...this.networkOptions(),
+				});
+				writeAccess = true;
+			} catch {
+				writeAccess = false;
+			}
+			return { ok: true, readAccess: true, writeAccess };
 		} catch (error) {
 			return {
 				ok: false,
@@ -173,24 +204,6 @@ export class BundledGitBackend implements GitBackend {
 				error: formatError(error),
 			};
 		}
-
-		let writeAccess = false;
-		try {
-			await git.listServerRefs({
-				url: this.config.remoteUrl,
-				forPush: true,
-				...this.networkOptions(),
-			});
-			writeAccess = true;
-		} catch {
-			writeAccess = false;
-		}
-
-		return {
-			ok: true,
-			readAccess: true,
-			writeAccess,
-		};
 	}
 
 	async listBranches(): Promise<BranchInfo[]> {
@@ -199,7 +212,10 @@ export class BundledGitBackend implements GitBackend {
 			...this.networkOptions(),
 		});
 		return refs
-			.filter((ref) => ref.ref.startsWith("refs/heads/"))
+			.filter(
+				(ref) =>
+					ref.ref.startsWith("refs/heads/") && !ref.ref.endsWith("^{}"),
+			)
 			.map((ref) => {
 				const name = ref.ref.replace("refs/heads/", "");
 				return {
@@ -239,24 +255,23 @@ export class BundledGitBackend implements GitBackend {
 		return undefined;
 	}
 
-	private initialized = false;
-
 	private async ensureRepoReady(branch: string): Promise<void> {
-		const hasRepo = await this.pathExists(".git");
-		if (!hasRepo) {
-			await this.fs.promises.mkdir(this.dir, { recursive: true });
-			await git.clone({
-				fs: this.fs,
-				dir: this.dir,
-				url: this.config.remoteUrl,
-				ref: branch,
-				singleBranch: true,
-				depth: 1,
-				noCheckout: false,
-				...this.networkOptions(),
-			});
-			this.initialized = true;
-			return;
+		if (!this.initialized) {
+			const hasRepo = await this.pathExists(`${this.dir}/.git`);
+			if (!hasRepo) {
+				await git.clone({
+					fs: this.fs,
+					dir: this.dir,
+					url: this.config.remoteUrl,
+					ref: branch,
+					singleBranch: true,
+					depth: 1,
+					noCheckout: false,
+					...this.networkOptions(),
+				});
+				this.initialized = true;
+				return;
+			}
 		}
 
 		await git.fetch({
@@ -270,58 +285,104 @@ export class BundledGitBackend implements GitBackend {
 		this.initialized = true;
 	}
 
+	private async resetToCommit(
+		commitOid: string,
+		branch: string,
+	): Promise<void> {
+		await git.checkout({
+			fs: this.fs,
+			dir: this.dir,
+			ref: commitOid,
+			force: true,
+		});
+		await git.branch({
+			fs: this.fs,
+			dir: this.dir,
+			ref: branch,
+			object: commitOid,
+			force: true,
+		});
+		await git.checkout({
+			fs: this.fs,
+			dir: this.dir,
+			ref: branch,
+		});
+	}
+
+	private async pushWithRetry(branch: string): Promise<void> {
+		const delays = [1000, 2000, 4000];
+		let lastError: unknown;
+
+		for (let attempt = 0; attempt <= delays.length; attempt++) {
+			try {
+				await git.push({
+					fs: this.fs,
+					dir: this.dir,
+					remote: "origin",
+					ref: branch,
+					...this.networkOptions(),
+				});
+				return;
+			} catch (error) {
+				lastError = error;
+				if (attempt < delays.length) {
+					await sleep(delays[attempt]!);
+				}
+			}
+		}
+		throw lastError;
+	}
+
 	private async pathExists(path: string): Promise<boolean> {
 		try {
 			await this.fs.promises.stat(path);
 			return true;
-		} catch (error) {
-			if ((error as { code?: string }).code === "ENOENT") {
-				return false;
-			}
-			throw error;
+		} catch {
+			return false;
 		}
 	}
 
 	private async ensureParentDir(path: string): Promise<void> {
-		const lastSlash = path.lastIndexOf("/");
-		if (lastSlash <= 0) {
-			return;
+		const parts = path.split("/");
+		if (parts.length <= 1) return;
+		let current = this.dir;
+		for (let i = 0; i < parts.length - 1; i++) {
+			current = `${current}/${parts[i]}`;
+			try {
+				await this.fs.promises.mkdir(current);
+			} catch {
+				// directory may already exist
+			}
 		}
-		const dir = path.slice(0, lastSlash);
-		if (!dir) {
-			return;
-		}
-		await this.fs.promises.mkdir(dir, { recursive: true });
 	}
 
 	private toWriteData(file: FileChange): string | Uint8Array {
 		if (file.encoding === "base64" && typeof file.content === "string") {
-			// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
-			return new Uint8Array(Buffer.from(file.content, "base64"));
+			return Buffer.from(file.content, "base64");
+		}
+		if (typeof file.content === "string") {
+			return file.content;
 		}
 		return file.content;
 	}
-
-	private toWriteOptions(
-		file: FileChange,
-	): { encoding?: string } | undefined {
-		if (file.encoding === "base64") {
-			return { encoding: "base64" };
-		}
-		if (file.encoding === "utf-8") {
-			return { encoding: "utf8" };
-		}
-		return undefined;
-	}
 }
 
-function buildRepoPath(remoteUrl: string): string {
-	return `.quartz-syncer/repos/${encodeURIComponent(remoteUrl)}`;
+function buildFsName(remoteUrl: string, branch: string): string {
+	let hash = 0;
+	const str = remoteUrl + branch;
+	for (let i = 0; i < str.length; i++) {
+		const char = str.charCodeAt(i);
+		hash = (hash << 5) - hash + char;
+		hash = hash & hash;
+	}
+	return `quartz-syncer-${Math.abs(hash).toString(36)}`;
 }
 
 function formatError(error: unknown): string {
-	if (error instanceof Error) {
-		return error.message;
-	}
+	if (error instanceof Error) return error.message;
 	return String(error);
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }

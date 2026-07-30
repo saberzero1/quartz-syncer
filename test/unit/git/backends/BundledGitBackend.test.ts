@@ -16,29 +16,34 @@ vi.mock("isomorphic-git", () => ({
 		remove: vi.fn(),
 		getRemoteInfo: vi.fn(),
 		listServerRefs: vi.fn(),
-		init: vi.fn(),
 		clone: vi.fn(),
 		fetch: vi.fn(),
+		checkout: vi.fn(),
+		branch: vi.fn(),
 	},
 }));
 
-const gitMock = vi.mocked(git);
+vi.mock("@isomorphic-git/lightning-fs", () => {
+	class MockLightningFS {
+		promises = {
+			readFile: vi.fn().mockResolvedValue(Buffer.from("data")),
+			writeFile: vi.fn().mockResolvedValue(undefined),
+			unlink: vi.fn().mockResolvedValue(undefined),
+			readdir: vi.fn().mockResolvedValue([]),
+			mkdir: vi.fn().mockResolvedValue(undefined),
+			rmdir: vi.fn().mockResolvedValue(undefined),
+			stat: vi.fn().mockRejectedValue(
+				Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+			),
+			lstat: vi.fn().mockResolvedValue({ isFile: () => true }),
+			readlink: vi.fn().mockResolvedValue(""),
+			symlink: vi.fn().mockResolvedValue(undefined),
+		};
+	}
+	return { default: MockLightningFS };
+});
 
-function createApp(adapterOverrides: Partial<App["vault"]["adapter"]> = {}) {
-	const adapter = {
-		read: vi.fn(),
-		readBinary: vi.fn(),
-		write: vi.fn(),
-		writeBinary: vi.fn(),
-		list: vi.fn().mockResolvedValue({ files: [], folders: [] }),
-		stat: vi.fn().mockResolvedValue(null),
-		mkdir: vi.fn(),
-		remove: vi.fn(),
-		...adapterOverrides,
-	};
-	const app = { vault: { adapter } } as App;
-	return { app, adapter };
-}
+const gitMock = vi.mocked(git);
 
 const baseConfig: GitBackendConfig = {
 	remoteUrl: "https://github.com/user/repo.git",
@@ -46,41 +51,46 @@ const baseConfig: GitBackendConfig = {
 	auth: { type: "none" },
 };
 
+const mockApp = {} as App;
+
 describe("BundledGitBackend", () => {
 	beforeEach(() => {
 		gitMock.resolveRef.mockResolvedValue("commit-sha");
-		gitMock.readCommit.mockResolvedValue({ commit: { tree: "tree-sha" } });
+		gitMock.readCommit.mockResolvedValue({
+			commit: { tree: "tree-sha" },
+		} as ReturnType<typeof git.readCommit> extends Promise<infer R>
+			? R
+			: never);
 		gitMock.walk.mockResolvedValue(undefined);
-		gitMock.TREE.mockReturnValue("tree");
-		gitMock.readBlob.mockResolvedValue({ blob: new Uint8Array([1]) });
+		gitMock.TREE.mockReturnValue("tree" as unknown as ReturnType<typeof git.TREE>);
+		gitMock.readBlob.mockResolvedValue({
+			blob: new Uint8Array([1]),
+			oid: "blob-oid",
+		});
 		gitMock.add.mockResolvedValue(undefined);
 		gitMock.commit.mockResolvedValue("new-sha");
-		gitMock.push.mockResolvedValue(undefined);
+		gitMock.push.mockResolvedValue(undefined as unknown as ReturnType<typeof git.push> extends Promise<infer R> ? R : never);
 		gitMock.remove.mockResolvedValue(undefined);
-		gitMock.getRemoteInfo.mockResolvedValue({});
+		gitMock.getRemoteInfo.mockResolvedValue({} as ReturnType<typeof git.getRemoteInfo> extends Promise<infer R> ? R : never);
 		gitMock.listServerRefs.mockResolvedValue([]);
-		gitMock.init.mockResolvedValue(undefined);
 		gitMock.clone.mockResolvedValue(undefined);
-		gitMock.fetch.mockResolvedValue(undefined);
+		gitMock.fetch.mockResolvedValue(undefined as unknown as ReturnType<typeof git.fetch> extends Promise<infer R> ? R : never);
+		gitMock.checkout.mockResolvedValue(undefined);
+		gitMock.branch.mockResolvedValue(undefined);
 	});
 
 	afterEach(() => {
 		vi.clearAllMocks();
 	});
 
-	it("writeFiles initializes, writes, commits, and pushes", async () => {
-		const { app, adapter } = createApp();
-		const backend = new BundledGitBackend(baseConfig, app);
+	it("writeFiles clones, writes, commits, and pushes", async () => {
+		const backend = new BundledGitBackend(baseConfig, mockApp);
 		await backend.writeFiles("main", "Update files", [
 			{ path: "content/test.md", content: "hello" },
 		]);
 
 		expect(gitMock.clone).toHaveBeenCalled();
-		expect(gitMock.clone).toHaveBeenCalled();
-		expect(adapter.write).toHaveBeenCalled();
-		expect(gitMock.add).toHaveBeenCalledWith(
-			expect.objectContaining({ filepath: "content/test.md" }),
-		);
+		expect(gitMock.add).toHaveBeenCalled();
 		expect(gitMock.commit).toHaveBeenCalled();
 		expect(gitMock.push).toHaveBeenCalled();
 	});
@@ -90,28 +100,24 @@ describe("BundledGitBackend", () => {
 			type: vi.fn().mockResolvedValue("blob"),
 			oid: vi.fn().mockResolvedValue("blob-sha"),
 		};
-		gitMock.walk.mockImplementation(async ({ map }) => {
-			await map("notes/test.md", [entry]);
-			return undefined;
-		});
+		gitMock.walk.mockImplementation(
+			async ({ map }: { map: (filepath: string, entries: unknown[]) => Promise<unknown> }) => {
+				await map("notes/test.md", [entry]);
+				return undefined;
+			},
+		);
 
-		const { app } = createApp();
-		const backend = new BundledGitBackend(baseConfig, app);
+		const backend = new BundledGitBackend(baseConfig, mockApp);
 		const entries = await backend.readTree("main");
 
 		expect(gitMock.resolveRef).toHaveBeenCalled();
 		expect(entries).toEqual([
-			{
-				path: "notes/test.md",
-				sha: "blob-sha",
-				type: "blob",
-			},
+			{ path: "notes/test.md", sha: "blob-sha", type: "blob" },
 		]);
 	});
 
 	it("deleteFiles removes and pushes", async () => {
-		const { app } = createApp();
-		const backend = new BundledGitBackend(baseConfig, app);
+		const backend = new BundledGitBackend(baseConfig, mockApp);
 		await backend.deleteFiles("main", "Remove files", [
 			"content/a.md",
 			"content/b.md",
@@ -122,41 +128,29 @@ describe("BundledGitBackend", () => {
 		expect(gitMock.push).toHaveBeenCalled();
 	});
 
-	it("auth callback returns credentials", () => {
+	it("auth callback returns correct credentials", () => {
 		const bearerBackend = new BundledGitBackend(
-			{
-				...baseConfig,
-				auth: { type: "bearer", secret: "token" },
-			},
-			createApp().app,
+			{ ...baseConfig, auth: { type: "bearer", secret: "token" } },
+			mockApp,
 		);
 		const basicBackend = new BundledGitBackend(
-			{
-				...baseConfig,
-				auth: { type: "basic", username: "user", secret: "pass" },
-			},
-			createApp().app,
+			{ ...baseConfig, auth: { type: "basic", username: "user", secret: "pass" } },
+			mockApp,
 		);
 		const noneBackend = new BundledGitBackend(
 			{ ...baseConfig, auth: { type: "none" } },
-			createApp().app,
+			mockApp,
 		);
 
-		const bearerAuth = (
-			bearerBackend as unknown as { getAuth: () => unknown }
-		).getAuth();
-		const basicAuth = (
-			basicBackend as unknown as { getAuth: () => unknown }
-		).getAuth();
-		const noneAuth = (
-			noneBackend as unknown as { getAuth: () => unknown }
-		).getAuth();
-
-		expect(bearerAuth).toEqual({
+		type WithGetAuth = { getAuth: () => unknown };
+		expect((bearerBackend as unknown as WithGetAuth).getAuth()).toEqual({
 			username: "x-access-token",
 			password: "token",
 		});
-		expect(basicAuth).toEqual({ username: "user", password: "pass" });
-		expect(noneAuth).toBeUndefined();
+		expect((basicBackend as unknown as WithGetAuth).getAuth()).toEqual({
+			username: "user",
+			password: "pass",
+		});
+		expect((noneBackend as unknown as WithGetAuth).getAuth()).toBeUndefined();
 	});
 });

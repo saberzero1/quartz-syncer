@@ -33,6 +33,7 @@
 		"wdio-obsidian-service": "^3.1.1"
 	},
 	"dependencies": {
+		"@isomorphic-git/lightning-fs": "^4.7.0",
 		"@quartz-community/remark-obsidian": "^0.2.2",
 		"buffer": "^6.0.3",
 		"diff": "^9.0.0",
