@@ -15,6 +15,11 @@ import { VaultFsAdapter } from "src/git/backends/VaultFsAdapter";
 
 type AuthCredentials = { username: string; password: string };
 
+const COMMIT_AUTHOR = {
+	name: "Quartz Syncer",
+	email: "quartz-syncer@users.noreply.github.com",
+};
+
 export class BundledGitBackend implements GitBackend {
 	private config: GitBackendConfig;
 	private fs: VaultFsAdapter;
@@ -35,7 +40,7 @@ export class BundledGitBackend implements GitBackend {
 		const commitOid = await git.resolveRef({
 			fs: this.fs,
 			dir: this.dir,
-			ref,
+			ref: `origin/${ref}`,
 		});
 		const { commit } = await git.readCommit({
 			fs: this.fs,
@@ -103,6 +108,7 @@ export class BundledGitBackend implements GitBackend {
 			fs: this.fs,
 			dir: this.dir,
 			message,
+			author: COMMIT_AUTHOR,
 			cache: this.cache,
 		});
 		await git.push({
@@ -133,6 +139,7 @@ export class BundledGitBackend implements GitBackend {
 			fs: this.fs,
 			dir: this.dir,
 			message,
+			author: COMMIT_AUTHOR,
 			cache: this.cache,
 		});
 		await git.push({
@@ -232,15 +239,12 @@ export class BundledGitBackend implements GitBackend {
 		return undefined;
 	}
 
+	private initialized = false;
+
 	private async ensureRepoReady(branch: string): Promise<void> {
 		const hasRepo = await this.pathExists(".git");
 		if (!hasRepo) {
 			await this.fs.promises.mkdir(this.dir, { recursive: true });
-			await git.init({
-				fs: this.fs,
-				dir: this.dir,
-				defaultBranch: branch,
-			});
 			await git.clone({
 				fs: this.fs,
 				dir: this.dir,
@@ -248,8 +252,10 @@ export class BundledGitBackend implements GitBackend {
 				ref: branch,
 				singleBranch: true,
 				depth: 1,
+				noCheckout: false,
 				...this.networkOptions(),
 			});
+			this.initialized = true;
 			return;
 		}
 
@@ -259,9 +265,9 @@ export class BundledGitBackend implements GitBackend {
 			url: this.config.remoteUrl,
 			ref: branch,
 			singleBranch: true,
-			depth: 1,
 			...this.networkOptions(),
 		});
+		this.initialized = true;
 	}
 
 	private async pathExists(path: string): Promise<boolean> {

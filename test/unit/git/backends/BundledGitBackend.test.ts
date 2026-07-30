@@ -75,7 +75,7 @@ describe("BundledGitBackend", () => {
 			{ path: "content/test.md", content: "hello" },
 		]);
 
-		expect(gitMock.init).toHaveBeenCalled();
+		expect(gitMock.clone).toHaveBeenCalled();
 		expect(gitMock.clone).toHaveBeenCalled();
 		expect(adapter.write).toHaveBeenCalled();
 		expect(gitMock.add).toHaveBeenCalledWith(
