@@ -1,4 +1,8 @@
-import localspace, { type LocalSpaceInstance } from "localspace";
+import {
+	createStore,
+	dropStore,
+	type IndexedDBStore,
+} from "src/cache/IndexedDBStore";
 import type QuartzSyncer from "src/main";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import { generateBlobHash } from "src/utils/utils";
@@ -30,7 +34,7 @@ export type QuartzSyncerCache = {
  * in the Quartz Syncer index.
  */
 export class DataStore {
-	public persister: LocalSpaceInstance;
+	public persister: IndexedDBStore;
 
 	/**
 	 * In-memory cache for bulk-preloaded entries.
@@ -59,10 +63,9 @@ export class DataStore {
 		public appId: string,
 		public version: string,
 	) {
-		this.persister = localspace.createInstance({
-			name: `quartz-syncer/cache/${vaultName}/${appId}/${version}`,
-			driver: [localspace.INDEXEDDB],
-		});
+		this.persister = createStore(
+			`quartz-syncer/cache/${vaultName}/${appId}/${version}`,
+		);
 	}
 
 	/**
@@ -74,7 +77,7 @@ export class DataStore {
 	public async preloadCache(): Promise<void> {
 		const cache = new Map<string, QuartzSyncerCache>();
 
-		await this.persister.iterate<QuartzSyncerCache, void>(
+		await this.persister.iterate<QuartzSyncerCache>(
 			(value: QuartzSyncerCache, key: string) => {
 				if (key.startsWith("file:")) {
 					cache.set(key, value);
@@ -188,16 +191,10 @@ export class DataStore {
 	 * @returns A promise that resolves when the cache is recreated.
 	 */
 	public async recreate() {
-		await localspace.dropInstance({
-			name: `quartz-syncer/cache/${this.vaultName}/${this.appId}/${this.version}`,
-		});
-
+		const storeName = `quartz-syncer/cache/${this.vaultName}/${this.appId}/${this.version}`;
+		dropStore(storeName);
 		await this.dropOutdatedCache();
-
-		this.persister = localspace.createInstance({
-			name: `quartz-syncer/cache/${this.vaultName}/${this.appId}/${this.version}`,
-			driver: [localspace.INDEXEDDB],
-		});
+		this.persister = createStore(storeName);
 	}
 
 	/**

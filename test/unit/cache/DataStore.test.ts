@@ -31,15 +31,9 @@ const { createInstance, dropInstance, setStore } = vi.hoisted(() => {
 	};
 });
 
-vi.mock("localspace", () => ({
-	default: {
-		createInstance,
-		dropInstance,
-		INDEXEDDB: "indexeddb",
-	},
-	createInstance,
-	dropInstance,
-	INDEXEDDB: "indexeddb",
+vi.mock("src/cache/IndexedDBStore", () => ({
+	createStore: createInstance,
+	dropStore: dropInstance,
 }));
 
 describe("DataStore", () => {
