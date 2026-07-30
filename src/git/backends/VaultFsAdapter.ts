@@ -39,14 +39,17 @@ export class VaultFsAdapter implements FsClient {
 		this.adapter = app.vault.adapter;
 		this.basePath = normalizePath(basePath);
 		this.promises = {
-			readFile: this.readFile.bind(this),
-			writeFile: this.writeFile.bind(this),
-			unlink: this.unlink.bind(this),
-			readdir: this.readdir.bind(this),
-			mkdir: this.mkdir.bind(this),
-			rmdir: this.rmdir.bind(this),
-			stat: this.stat.bind(this),
-			lstat: this.lstat.bind(this),
+			readFile: (...args: Parameters<FsPromises["readFile"]>) =>
+				this.readFile(...args),
+			writeFile: (...args: Parameters<FsPromises["writeFile"]>) =>
+				this.writeFile(...args),
+			unlink: (path: string) => this.unlink(path),
+			readdir: (path: string) => this.readdir(path),
+			mkdir: (path: string, options?: { recursive?: boolean }) =>
+				this.mkdir(path, options),
+			rmdir: (path: string) => this.rmdir(path),
+			stat: (path: string) => this.stat(path),
+			lstat: (path: string) => this.lstat(path),
 		};
 	}
 
