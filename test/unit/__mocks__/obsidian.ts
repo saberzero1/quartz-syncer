@@ -234,6 +234,10 @@ export class Workspace {
 	onLayoutReady = vi.fn((callback: () => void) => {
 		callback();
 	});
+	on = vi.fn().mockReturnValue({ id: "mock-event-ref" });
+	off = vi.fn();
+	offref = vi.fn();
+	getActiveFile = vi.fn().mockReturnValue(null);
 }
 
 export class App {

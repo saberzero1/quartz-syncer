@@ -7,9 +7,12 @@ import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { DataStore } from "src/cache/DataStore";
 import type { PublishResult, PublishStatus } from "src/publisher/types";
 import { categorizeFiles } from "src/publisher/PublishStatusManager";
+import type { CompilationQueue } from "src/services/CompilationQueue";
+import { RemoteTreeCache } from "src/git/RemoteTreeCache";
 
 export class Publisher {
 	private pathMapper: PathMapper;
+	readonly remoteTreeCache: RemoteTreeCache;
 
 	constructor(
 		private app: App,
@@ -17,8 +20,13 @@ export class Publisher {
 		private gitBackend: GitBackend,
 		private compiler: SyncerPageCompiler,
 		private dataStore: DataStore,
+		private compilationQueue?: CompilationQueue,
 	) {
 		this.pathMapper = new PathMapper(plugin.settings.contentFolder);
+		this.remoteTreeCache = new RemoteTreeCache(
+			gitBackend,
+			plugin.settings.gitBranch,
+		);
 	}
 
 	async getPublishStatus(): Promise<PublishStatus> {
@@ -44,33 +52,71 @@ export class Publisher {
 			}
 		}
 
+		this.compilationQueue?.pause();
+
 		if (settings.useCache) {
 			await this.dataStore.preloadCache();
 		}
 
 		try {
 			const compiledFiles: PublishFile[] = [];
+			const trustDynamic = this.compilationQueue !== undefined;
+
+			const compileStart = performance.now();
 
 			for (const file of publishFiles) {
-				const compiled = await file.compile();
+				const compiled = await file.compile(trustDynamic);
 				compiledFiles.push(compiled);
 			}
 
-			const remoteTree = await this.gitBackend.readTree(
-				settings.gitBranch,
-			);
+			const compileEnd = performance.now();
 
-			return await categorizeFiles(
+			const treeStart = performance.now();
+
+			const remoteTree = await this.remoteTreeCache.get();
+
+			const treeEnd = performance.now();
+
+			const categorizeStart = performance.now();
+
+			const result = await categorizeFiles(
 				compiledFiles,
 				remoteTree,
 				this.dataStore,
 				this.pathMapper,
 			);
+
+			const categorizeEnd = performance.now();
+
+			let cacheHits = 0;
+			let cacheMisses = 0;
+
+			for (const file of publishFiles) {
+				const entry = await this.dataStore.loadFile(file.file.path);
+
+				if (entry?.localData && !entry.hasDynamicContent) {
+					cacheHits++;
+				} else {
+					cacheMisses++;
+				}
+			}
+
+			console.debug(
+				`[Quartz Syncer] getPublishStatus timing: ` +
+					`compile=${Math.round(compileEnd - compileStart)}ms (${publishFiles.length} files, ` +
+					`${cacheHits} cache hits, ${cacheMisses} misses/dynamic), ` +
+					`readTree=${Math.round(treeEnd - treeStart)}ms, ` +
+					`categorize=${Math.round(categorizeEnd - categorizeStart)}ms`,
+			);
+
+			return result;
 		} finally {
 			if (settings.useCache) {
 				await this.dataStore.flushCache();
 				this.dataStore.clearMemoryCache();
 			}
+
+			this.compilationQueue?.resume();
 		}
 	}
 
@@ -139,6 +185,8 @@ export class Publisher {
 				changes,
 			);
 
+			this.remoteTreeCache.invalidate();
+
 			return {
 				success: true,
 				commitSha: result.sha,
@@ -175,6 +223,8 @@ export class Publisher {
 			for (const path of paths) {
 				await this.dataStore.dropFile(path);
 			}
+
+			this.remoteTreeCache.invalidate();
 
 			return {
 				success: true,

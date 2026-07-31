@@ -202,6 +202,8 @@ export default interface QuartzSyncerSettings {
 
 	/** Auto-publish interval in minutes (0 = disabled, desktop only) */
 	autoPublishInterval: number;
+	/** Remote tree fetch interval in seconds (0 = fetch on demand) */
+	remoteFetchInterval: number;
 	/** Local Quartz repository path (desktop only) */
 	quartzRepoPath: string;
 	/** Enable system command execution (desktop only) */

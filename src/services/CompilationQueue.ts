@@ -7,6 +7,7 @@ type QueueItem = {
 type CompilationQueueOptions = {
 	concurrency?: number;
 	processor?: (path: string, signal: AbortSignal) => Promise<void>;
+	onStatusChange?: () => void;
 };
 
 export class CompilationQueue {
@@ -15,6 +16,7 @@ export class CompilationQueue {
 	private sequence = 0;
 	private processing = false;
 	private scheduled = false;
+	private paused = false;
 	private abortController: AbortController | null = null;
 	private idleResolvers: Array<() => void> = [];
 
@@ -23,18 +25,47 @@ export class CompilationQueue {
 	failedCount = 0;
 
 	private processor: (path: string, signal: AbortSignal) => Promise<void>;
+	private onStatusChange: (() => void) | undefined;
 
 	constructor(options: CompilationQueueOptions = {}) {
 		this.concurrency = options.concurrency ?? 3;
 		this.processor = options.processor ?? (async () => {});
+		this.onStatusChange = options.onStatusChange;
 	}
 
 	enqueue(path: string, priority = 0): void {
+		const existing = this.queue.find((item) => item.path === path);
+
+		if (existing) {
+			existing.priority = Math.max(existing.priority, priority);
+			this.queue.sort(
+				(a, b) => b.priority - a.priority || a.sequence - b.sequence,
+			);
+			return;
+		}
+
 		this.queue.push({ path, priority, sequence: this.sequence++ });
 		this.queue.sort(
 			(a, b) => b.priority - a.priority || a.sequence - b.sequence,
 		);
 		this.schedule();
+	}
+
+	has(path: string): boolean {
+		return this.queue.some((item) => item.path === path);
+	}
+
+	pause(): void {
+		this.paused = true;
+	}
+
+	resume(): void {
+		this.paused = false;
+		this.pump();
+	}
+
+	get isPaused(): boolean {
+		return this.paused;
 	}
 
 	processQueue(): void {
@@ -48,10 +79,10 @@ export class CompilationQueue {
 	private schedule(): void {
 		if (this.scheduled) return;
 		this.scheduled = true;
-		queueMicrotask(() => {
+		window.setTimeout(() => {
 			this.scheduled = false;
 			this.processQueue();
-		});
+		}, 0);
 	}
 
 	cancel(): void {
@@ -89,6 +120,8 @@ export class CompilationQueue {
 	}
 
 	private pump(): void {
+		if (this.paused) return;
+
 		while (this.inFlight < this.concurrency && this.queue.length > 0) {
 			const item = this.queue.shift();
 			if (!item) break;
@@ -114,11 +147,14 @@ export class CompilationQueue {
 			this.failedCount += 1;
 		} finally {
 			this.inFlight -= 1;
-			this.pump();
+			this.onStatusChange?.();
+			this.schedule();
 		}
 	}
 
 	private resolveIdle(): void {
+		this.onStatusChange?.();
+
 		if (this.idleResolvers.length === 0) return;
 		for (const resolve of this.idleResolvers) {
 			resolve();

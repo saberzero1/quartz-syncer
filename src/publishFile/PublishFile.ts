@@ -97,7 +97,7 @@ export class PublishFile {
 	 *
 	 * @returns A promise that resolves to a CompiledPublishFile instance.
 	 */
-	async compile(): Promise<CompiledPublishFile> {
+	async compile(trustDynamicCache = false): Promise<CompiledPublishFile> {
 		let compiledFile: TCompiledFile;
 		const sourceMtime = this.file.stat.mtime;
 
@@ -105,12 +105,14 @@ export class PublishFile {
 			const cachedFile = await this.datastore.loadLocalFile(
 				this.file.path,
 				sourceMtime,
+				trustDynamicCache,
 			);
 
 			const outdated = cachedFile
 				? await this.datastore.isLocalFileOutdated(
 						this.file.path,
 						sourceMtime,
+						trustDynamicCache,
 					)
 				: true;
 

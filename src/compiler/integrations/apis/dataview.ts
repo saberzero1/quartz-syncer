@@ -6,8 +6,14 @@ interface DataviewSettings {
 	inlineJsQueryPrefix?: string;
 }
 
+interface DataviewIndex {
+	initialized?: boolean;
+	revision?: number;
+}
+
 interface DataviewApi {
 	settings: DataviewSettings;
+	index?: DataviewIndex;
 	page(path: string): unknown;
 	tryEvaluate(
 		query: string,

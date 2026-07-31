@@ -147,6 +147,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	/** Developer settings */
 	autoPublishInterval: 0,
+	remoteFetchInterval: 60,
 	quartzRepoPath: "",
 	enableSystemCommands: true,
 
@@ -228,9 +229,11 @@ export default class QuartzSyncer extends Plugin {
 	}
 
 	onunload() {
+		this.publisher?.remoteTreeCache.stopPeriodicFetch();
 		this.backgroundEngine?.stopAutoPublish();
 		this.backgroundEngine?.stop();
 		this.backgroundEngine = null;
+		this.publisher = null;
 		this.processRunner = null;
 		this.binaryDetector = null;
 		this.gitRunner = null;
@@ -422,7 +425,14 @@ export default class QuartzSyncer extends Plugin {
 				gitBackend,
 				compiler,
 				this.dataStore,
+				this.backgroundEngine?.compilationQueue,
 			);
+
+			if (this.settings.remoteFetchInterval > 0) {
+				this.publisher.remoteTreeCache.startPeriodicFetch(
+					this.settings.remoteFetchInterval,
+				);
+			}
 		}
 		return this.publisher;
 	}

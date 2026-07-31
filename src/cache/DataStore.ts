@@ -25,6 +25,10 @@ export type QuartzSyncerCache = {
 	remoteData?: TCompiledFile | null;
 	/** Whether the file contains dynamic content (Dataview, Datacore, etc.) that depends on other files. */
 	hasDynamicContent?: boolean;
+	/** Dataview index revision at the time this file was compiled. */
+	dataviewRevision?: number;
+	/** Datacore index revision at the time this file was compiled. */
+	datacoreRevision?: number;
 };
 
 /**
@@ -237,13 +241,12 @@ export class DataStore {
 	public async isLocalFileOutdated(
 		path: string,
 		currentMtime: number,
+		trustDynamicCache = false,
 	): Promise<boolean> {
 		const data = await this.getCacheEntry(path);
 
 		if (data && data.localData) {
-			// Files with dynamic content (Dataview, Datacore) must always recompile
-			// because their output depends on data from other files
-			if (data.hasDynamicContent) {
+			if (data.hasDynamicContent && !trustDynamicCache) {
 				return true;
 			}
 
@@ -253,7 +256,7 @@ export class DataStore {
 			);
 		}
 
-		return true; // No cached data found, consider it outdated
+		return true;
 	}
 
 	/**
@@ -313,6 +316,7 @@ export class DataStore {
 	public async loadLocalFile(
 		path: string,
 		currentMtime?: number,
+		trustDynamicCache = false,
 	): Promise<TCompiledFile | null | undefined> {
 		const data = await this.getCacheEntry(path);
 
@@ -320,7 +324,7 @@ export class DataStore {
 			return null;
 		}
 
-		if (data.hasDynamicContent) {
+		if (data.hasDynamicContent && !trustDynamicCache) {
 			return null;
 		}
 
@@ -482,6 +486,38 @@ export class DataStore {
 			},
 			timestamp,
 		);
+	}
+
+	public async storeCompilationRevisions(
+		path: string,
+		dataviewRevision?: number,
+		datacoreRevision?: number,
+	): Promise<void> {
+		const updates: Partial<QuartzSyncerCache> = {};
+
+		if (dataviewRevision !== undefined) {
+			updates.dataviewRevision = dataviewRevision;
+		}
+
+		if (datacoreRevision !== undefined) {
+			updates.datacoreRevision = datacoreRevision;
+		}
+
+		await this.mergeAndStore(path, updates);
+	}
+
+	public async loadCompilationRevisions(
+		path: string,
+	): Promise<{
+		dataviewRevision?: number;
+		datacoreRevision?: number;
+	}> {
+		const data = await this.getCacheEntry(path);
+
+		return {
+			dataviewRevision: data?.dataviewRevision,
+			datacoreRevision: data?.datacoreRevision,
+		};
 	}
 
 	/**

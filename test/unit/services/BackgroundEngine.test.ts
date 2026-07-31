@@ -5,9 +5,18 @@ import type QuartzSyncer from "src/main";
 
 const createPluginStub = (): QuartzSyncer => {
 	return {
-		getPublisher: () => ({}),
+		getPublisher: () => ({
+			remoteTreeCache: {
+				refresh: vi.fn().mockResolvedValue([]),
+			},
+		}),
+		settings: { useCache: true },
 		dataStore: {
 			dropFile: vi.fn().mockResolvedValue(undefined),
+			isLocalFileOutdated: vi.fn().mockResolvedValue(true),
+			hasDynamicContentFlag: vi.fn().mockResolvedValue(false),
+			loadCompilationRevisions: vi.fn().mockResolvedValue({}),
+			storeCompilationRevisions: vi.fn().mockResolvedValue(undefined),
 		},
 	} as unknown as QuartzSyncer;
 };
@@ -28,54 +37,36 @@ describe("BackgroundEngine", () => {
 		vi.useRealTimers();
 	});
 
-	it("enqueue adds to queue", () => {
+	it("exposes compilationQueue", () => {
 		const app = new App();
 		const engine = new BackgroundEngine(app, createPluginStub());
-		const spy = vi
-			.spyOn(
-				engine as unknown as { processQueue: () => Promise<void> },
-				"processQueue",
-			)
-			.mockResolvedValue();
 
-		(engine as unknown as { enqueue: (path: string) => void }).enqueue(
-			"notes/a.md",
-		);
-
-		expect(engine.pendingCount).toBe(1);
-		spy.mockRestore();
+		expect(engine.compilationQueue).toBeDefined();
+		expect(engine.compilationQueue.pendingCount).toBe(0);
 	});
 
-	it("processQueue drains queue", async () => {
+	it("stop cancels compilation queue", () => {
 		const app = new App();
 		const engine = new BackgroundEngine(app, createPluginStub());
-		const state = engine as unknown as {
-			queue: Set<string>;
-			running: boolean;
-			processQueue: () => Promise<void>;
-		};
 
-		state.running = true;
-		state.queue.add("notes/a.md");
-		state.queue.add("notes/b.md");
+		engine.compilationQueue.enqueue("notes/a.md");
+		expect(engine.pendingCount).toBeGreaterThan(0);
 
-		await state.processQueue();
-		expect(engine.pendingCount).toBe(0);
-	});
-
-	it("stop clears queue and aborts", () => {
-		const app = new App();
-		const engine = new BackgroundEngine(app, createPluginStub());
-		const state = engine as unknown as {
-			queue: Set<string>;
-			abortController: AbortController | null;
-		};
-
-		state.queue.add("notes/a.md");
-		state.abortController = new AbortController();
 		engine.stop();
+		expect(engine.compilationQueue.pendingCount).toBe(0);
+	});
 
-		expect(engine.pendingCount).toBe(0);
-		expect(state.abortController.signal.aborted).toBe(true);
+	it("pendingCount reflects compilation queue", () => {
+		const app = new App();
+		const plugin = createPluginStub();
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.compilationQueue.pause();
+		engine.compilationQueue.enqueue("notes/a.md");
+		engine.compilationQueue.enqueue("notes/b.md");
+
+		expect(engine.pendingCount).toBe(2);
+
+		engine.stop();
 	});
 });
