@@ -193,3 +193,72 @@
 	white-space: pre-wrap;
 	word-break: break-all;
 }
+
+/* Onboarding Wizard */
+.quartz-syncer-onboarding-wizard {
+	max-width: 480px;
+}
+
+.qs-onboarding-nav {
+	margin-bottom: 12px;
+}
+
+.qs-onboarding-token-input,
+.qs-onboarding-site-name {
+	width: 100%;
+	margin-bottom: 8px;
+}
+
+.qs-onboarding-repo-select {
+	width: 100%;
+	margin-bottom: 12px;
+}
+
+.qs-onboarding-create,
+.qs-onboarding-connect {
+	display: block;
+	width: 100%;
+	margin-bottom: 8px;
+	padding: 10px;
+	cursor: pointer;
+}
+
+.qs-onboarding-error {
+	color: var(--text-error);
+	margin-top: 8px;
+}
+
+.qs-onboarding-validation {
+	color: var(--text-error);
+	font-size: var(--font-smallest);
+	min-height: 1.2em;
+	margin-bottom: 4px;
+}
+
+.qs-onboarding-warning {
+	color: var(--text-warning);
+	margin-top: 8px;
+}
+
+.qs-onboarding-progress {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.qs-onboarding-helper {
+	color: var(--text-muted);
+	font-size: var(--font-smallest);
+	margin-top: 2px;
+	margin-bottom: 8px;
+}
+
+.qs-onboarding-toggle {
+	margin-bottom: 12px;
+}
+
+.qs-onboarding-toggle label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+}

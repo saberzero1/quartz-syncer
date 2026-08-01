@@ -28,8 +28,9 @@ describe("syncHandler", () => {
 			})),
 		} as unknown as Publisher;
 		const plugin = buildPlugin({
-			getPublisher: vi.fn(() => publisher) as unknown as
-				() => Publisher | null,
+			getPublisher: vi.fn(
+				() => publisher,
+			) as unknown as () => Publisher | null,
 		});
 		const handler = createSyncHandler(plugin);
 
@@ -71,8 +72,9 @@ describe("syncHandler", () => {
 			deleteBatch: vi.fn(),
 		} as unknown as Publisher;
 		const plugin = buildPlugin({
-			getPublisher: vi.fn(() => publisher) as unknown as
-				() => Publisher | null,
+			getPublisher: vi.fn(
+				() => publisher,
+			) as unknown as () => Publisher | null,
 		});
 		const handler = createSyncHandler(plugin);
 

@@ -37,10 +37,7 @@ describe("ObsidianFrontMatterEngine", () => {
 				_file: TFile,
 				callback: (frontMatter: Record<string, unknown>) => void,
 			) => {
-				const frontMatter = { title: "Old" } as Record<
-					string,
-					unknown
-				>;
+				const frontMatter = { title: "Old" } as Record<string, unknown>;
 				callback(frontMatter);
 				mutatedFrontMatter = frontMatter;
 				return frontMatter;

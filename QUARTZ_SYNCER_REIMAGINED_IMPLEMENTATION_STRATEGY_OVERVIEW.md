@@ -1,5 +1,7 @@
 # Quartz Syncer Reimagined — Implementation Strategy Overview
 
+> **Historical document** — This implementation roadmap was written during the v2.0 planning phase. The v2.0 implementation is complete. See `CHANGELOG.md` for what was shipped.
+
 High-level implementation roadmap for the ground-up rebuild. Each section describes a discrete workstream that will be planned in detail separately. This document establishes the order of operations, dependencies between workstreams, and the quality infrastructure that supports them.
 
 Companion document: [`QUARTZ_SYNCER_REIMAGINED.md`](./QUARTZ_SYNCER_REIMAGINED.md) (strategic analysis).

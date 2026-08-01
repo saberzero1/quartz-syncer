@@ -6,9 +6,7 @@ import type { PublishFile } from "src/publishFile/PublishFile";
 import type { DatacoreApi } from "src/compiler/integrations/apis/datacore";
 
 vi.mock("obsidian", async () => {
-	const actual = await vi.importActual<typeof import("obsidian")>(
-		"obsidian",
-	);
+	const actual = await vi.importActual<typeof import("obsidian")>("obsidian");
 	return {
 		...actual,
 		Component: class {
@@ -66,11 +64,15 @@ describe("DatacoreIntegration", () => {
 			}
 		};
 		(
-			globalThis as typeof globalThis & { XMLSerializer: typeof XMLSerializer }
+			globalThis as typeof globalThis & {
+				XMLSerializer: typeof XMLSerializer;
+			}
 		).XMLSerializer = xmlSerializer;
-		(globalThis as typeof globalThis & { createDiv: () => HTMLDivElement })
-			.createDiv = () =>
-			document.createElement("div") as HTMLDivElement;
+		(
+			globalThis as typeof globalThis & {
+				createDiv: () => HTMLDivElement;
+			}
+		).createDiv = () => document.createElement("div") as HTMLDivElement;
 	});
 
 	it("pattern matching detects ```datacorejs blocks", () => {
@@ -85,9 +87,7 @@ describe("DatacoreIntegration", () => {
 
 	it("compile renders with mock Datacore API", async () => {
 		const api = makeApi();
-		(
-			window as typeof window & { datacore?: DatacoreApi }
-		).datacore = api;
+		(window as typeof window & { datacore?: DatacoreApi }).datacore = api;
 
 		const descriptor = DatacoreIntegration.getPatterns().find(
 			(pattern) => pattern.id === "dc-js",

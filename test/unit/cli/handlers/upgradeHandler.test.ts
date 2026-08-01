@@ -23,7 +23,9 @@ describe("upgradeHandler", () => {
 		const handler = createUpgradeHandler(plugin);
 
 		const result = await handler(buildParams());
-		expect(quartzRunner.update).toHaveBeenCalledWith({ cwd: "/tmp/quartz" });
+		expect(quartzRunner.update).toHaveBeenCalledWith({
+			cwd: "/tmp/quartz",
+		});
 		expect(result).toEqual({
 			success: true,
 			data: { message: "Quartz updated via local CLI." },

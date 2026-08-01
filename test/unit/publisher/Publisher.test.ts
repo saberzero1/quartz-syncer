@@ -61,9 +61,7 @@ const makePlugin = (settings: QuartzSyncerSettings): QuartzSyncer =>
 		saveSettings: vi.fn(),
 	}) as unknown as QuartzSyncer;
 
-const makeGitBackend = (
-	overrides: Partial<GitBackend> = {},
-): GitBackend =>
+const makeGitBackend = (overrides: Partial<GitBackend> = {}): GitBackend =>
 	({
 		writeFiles: vi.fn().mockResolvedValue({ sha: "abc" }),
 		deleteFiles: vi.fn().mockResolvedValue({ sha: "abc" }),

@@ -35,7 +35,8 @@ describe("Publication center", function () {
 
 		const modalState = await browser.executeObsidian(() => {
 			const modal = document.querySelector(".qs-pub-center");
-			const title = modal?.querySelector(".modal-title")?.textContent ?? "";
+			const title =
+				modal?.querySelector(".modal-title")?.textContent ?? "";
 			const header = modal?.querySelector(".pub-center-header");
 			const tree = modal?.querySelector(".pub-center-tree");
 			const message = tree?.textContent ?? "";
@@ -51,7 +52,7 @@ describe("Publication center", function () {
 		expect(modalState.title).toBe("Publication center");
 		expect(modalState.hasHeader).toBe(true);
 		expect(modalState.hasTree).toBe(true);
-			expect(modalState.message).toContain(
+		expect(modalState.message).toContain(
 			"Configure your git repository in settings to get started.",
 		);
 

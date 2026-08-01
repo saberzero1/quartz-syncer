@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { hasPublishFlag, isPublishFrontmatterValid } from "src/publishFile/Validator";
+import {
+	hasPublishFlag,
+	isPublishFrontmatterValid,
+} from "src/publishFile/Validator";
 import { Notice } from "obsidian";
 
 vi.mock("obsidian", async () => {
@@ -28,7 +31,11 @@ describe("Validator", () => {
 	});
 
 	it("returns true when publish frontmatter is present", () => {
-		const result = isPublishFrontmatterValid("publish", { publish: true }, false);
+		const result = isPublishFrontmatterValid(
+			"publish",
+			{ publish: true },
+			false,
+		);
 		expect(result).toBe(true);
 	});
 });

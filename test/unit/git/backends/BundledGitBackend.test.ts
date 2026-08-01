@@ -32,9 +32,11 @@ vi.mock("@isomorphic-git/lightning-fs", () => {
 			readdir: vi.fn().mockResolvedValue([]),
 			mkdir: vi.fn().mockResolvedValue(undefined),
 			rmdir: vi.fn().mockResolvedValue(undefined),
-			stat: vi.fn().mockRejectedValue(
-				Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
-			),
+			stat: vi
+				.fn()
+				.mockRejectedValue(
+					Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+				),
 			lstat: vi.fn().mockResolvedValue({ isFile: () => true }),
 			readlink: vi.fn().mockResolvedValue(""),
 			symlink: vi.fn().mockResolvedValue(undefined),
@@ -62,19 +64,37 @@ describe("BundledGitBackend", () => {
 			? R
 			: never);
 		gitMock.walk.mockResolvedValue(undefined);
-		gitMock.TREE.mockReturnValue("tree" as unknown as ReturnType<typeof git.TREE>);
+		gitMock.TREE.mockReturnValue(
+			"tree" as unknown as ReturnType<typeof git.TREE>,
+		);
 		gitMock.readBlob.mockResolvedValue({
 			blob: new Uint8Array([1]),
 			oid: "blob-oid",
 		});
 		gitMock.add.mockResolvedValue(undefined);
 		gitMock.commit.mockResolvedValue("new-sha");
-		gitMock.push.mockResolvedValue(undefined as unknown as ReturnType<typeof git.push> extends Promise<infer R> ? R : never);
+		gitMock.push.mockResolvedValue(
+			undefined as unknown as ReturnType<typeof git.push> extends Promise<
+				infer R
+			>
+				? R
+				: never,
+		);
 		gitMock.remove.mockResolvedValue(undefined);
-		gitMock.getRemoteInfo.mockResolvedValue({} as ReturnType<typeof git.getRemoteInfo> extends Promise<infer R> ? R : never);
+		gitMock.getRemoteInfo.mockResolvedValue(
+			{} as ReturnType<typeof git.getRemoteInfo> extends Promise<infer R>
+				? R
+				: never,
+		);
 		gitMock.listServerRefs.mockResolvedValue([]);
 		gitMock.clone.mockResolvedValue(undefined);
-		gitMock.fetch.mockResolvedValue(undefined as unknown as ReturnType<typeof git.fetch> extends Promise<infer R> ? R : never);
+		gitMock.fetch.mockResolvedValue(
+			undefined as unknown as ReturnType<
+				typeof git.fetch
+			> extends Promise<infer R>
+				? R
+				: never,
+		);
 		gitMock.checkout.mockResolvedValue(undefined);
 		gitMock.branch.mockResolvedValue(undefined);
 	});
@@ -101,7 +121,11 @@ describe("BundledGitBackend", () => {
 			oid: vi.fn().mockResolvedValue("blob-sha"),
 		};
 		gitMock.walk.mockImplementation(
-			async ({ map }: { map: (filepath: string, entries: unknown[]) => Promise<unknown> }) => {
+			async ({
+				map,
+			}: {
+				map: (filepath: string, entries: unknown[]) => Promise<unknown>;
+			}) => {
 				await map("notes/test.md", [entry]);
 				return undefined;
 			},
@@ -134,7 +158,10 @@ describe("BundledGitBackend", () => {
 			mockApp,
 		);
 		const basicBackend = new BundledGitBackend(
-			{ ...baseConfig, auth: { type: "basic", username: "user", secret: "pass" } },
+			{
+				...baseConfig,
+				auth: { type: "basic", username: "user", secret: "pass" },
+			},
 			mockApp,
 		);
 		const noneBackend = new BundledGitBackend(
@@ -151,6 +178,8 @@ describe("BundledGitBackend", () => {
 			username: "user",
 			password: "pass",
 		});
-		expect((noneBackend as unknown as WithGetAuth).getAuth()).toBeUndefined();
+		expect(
+			(noneBackend as unknown as WithGetAuth).getAuth(),
+		).toBeUndefined();
 	});
 });

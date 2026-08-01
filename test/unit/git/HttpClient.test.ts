@@ -33,13 +33,13 @@ describe("HttpClient", () => {
 		client = new HttpClient({ maxRetries: 2 });
 	});
 
-		describe("JSON convenience methods", () => {
-			it("makes GET requests", async () => {
-				mockRequestUrl.mockResolvedValue(mockResponse(200, { id: 1 }));
-				const result = await client.get<{ id: number }>(
-					"https://api.example.com/test",
-					{ Authorization: "Bearer token" },
-				);
+	describe("JSON convenience methods", () => {
+		it("makes GET requests", async () => {
+			mockRequestUrl.mockResolvedValue(mockResponse(200, { id: 1 }));
+			const result = await client.get<{ id: number }>(
+				"https://api.example.com/test",
+				{ Authorization: "Bearer token" },
+			);
 			expect(result.status).toBe(200);
 			expect(result.data.id).toBe(1);
 			expect(mockRequestUrl).toHaveBeenCalledWith(
@@ -50,57 +50,57 @@ describe("HttpClient", () => {
 			);
 		});
 
-			it("makes POST requests with body", async () => {
-				mockRequestUrl.mockResolvedValue(mockResponse(201, { sha: "abc" }));
-				const result = await client.post<{ sha: string }>(
-					"https://api.example.com/test",
-					{},
-					{ content: "hello" },
-				);
-				expect(result.status).toBe(201);
-				expect(result.data.sha).toBe("abc");
-				expect(mockRequestUrl).toHaveBeenCalledWith(
-					expect.objectContaining({
-						method: "POST",
-						body: '{"content":"hello"}',
-					}),
-				);
-			});
-
-			it("makes PUT requests with body", async () => {
-				mockRequestUrl.mockResolvedValue(mockResponse(200, { ok: true }));
-				const result = await client.put<{ ok: boolean }>(
-					"https://api.example.com/test",
-					{},
-					{ content: "update" },
-				);
-				expect(result.status).toBe(200);
-				expect(result.data.ok).toBe(true);
-				expect(mockRequestUrl).toHaveBeenCalledWith(
-					expect.objectContaining({
-						method: "PUT",
-						body: '{"content":"update"}',
-					}),
-				);
-			});
-
-			it("makes DELETE requests with body", async () => {
-				mockRequestUrl.mockResolvedValue(mockResponse(200, { ok: true }));
-				const result = await client.delete<{ ok: boolean }>(
-					"https://api.example.com/test",
-					{},
-					{ sha: "abc" },
-				);
-				expect(result.status).toBe(200);
-				expect(result.data.ok).toBe(true);
-				expect(mockRequestUrl).toHaveBeenCalledWith(
-					expect.objectContaining({
-						method: "DELETE",
-						body: '{"sha":"abc"}',
-					}),
-				);
-			});
+		it("makes POST requests with body", async () => {
+			mockRequestUrl.mockResolvedValue(mockResponse(201, { sha: "abc" }));
+			const result = await client.post<{ sha: string }>(
+				"https://api.example.com/test",
+				{},
+				{ content: "hello" },
+			);
+			expect(result.status).toBe(201);
+			expect(result.data.sha).toBe("abc");
+			expect(mockRequestUrl).toHaveBeenCalledWith(
+				expect.objectContaining({
+					method: "POST",
+					body: '{"content":"hello"}',
+				}),
+			);
 		});
+
+		it("makes PUT requests with body", async () => {
+			mockRequestUrl.mockResolvedValue(mockResponse(200, { ok: true }));
+			const result = await client.put<{ ok: boolean }>(
+				"https://api.example.com/test",
+				{},
+				{ content: "update" },
+			);
+			expect(result.status).toBe(200);
+			expect(result.data.ok).toBe(true);
+			expect(mockRequestUrl).toHaveBeenCalledWith(
+				expect.objectContaining({
+					method: "PUT",
+					body: '{"content":"update"}',
+				}),
+			);
+		});
+
+		it("makes DELETE requests with body", async () => {
+			mockRequestUrl.mockResolvedValue(mockResponse(200, { ok: true }));
+			const result = await client.delete<{ ok: boolean }>(
+				"https://api.example.com/test",
+				{},
+				{ sha: "abc" },
+			);
+			expect(result.status).toBe(200);
+			expect(result.data.ok).toBe(true);
+			expect(mockRequestUrl).toHaveBeenCalledWith(
+				expect.objectContaining({
+					method: "DELETE",
+					body: '{"sha":"abc"}',
+				}),
+			);
+		});
+	});
 
 	describe("error mapping", () => {
 		it("throws AuthError on 401", async () => {

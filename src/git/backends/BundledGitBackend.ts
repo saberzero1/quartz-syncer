@@ -172,7 +172,9 @@ export class BundledGitBackend implements GitBackend {
 			url: this.config.remoteUrl,
 			...this.networkOptions(),
 		});
-		const refs = info.refs as { heads?: Record<string, string> } | undefined;
+		const refs = info.refs as
+			| { heads?: Record<string, string> }
+			| undefined;
 		return {
 			capabilities: info.capabilities ? [...info.capabilities] : [],
 			refs: refs?.heads,
@@ -215,7 +217,8 @@ export class BundledGitBackend implements GitBackend {
 		return refs
 			.filter(
 				(ref) =>
-					ref.ref.startsWith("refs/heads/") && !ref.ref.endsWith("^{}"),
+					ref.ref.startsWith("refs/heads/") &&
+					!ref.ref.endsWith("^{}"),
 			)
 			.map((ref) => {
 				const name = ref.ref.replace("refs/heads/", "");

@@ -90,7 +90,10 @@ export class BackgroundEngine {
 		return this.compiler;
 	}
 
-	private async compileFile(path: string, signal: AbortSignal): Promise<void> {
+	private async compileFile(
+		path: string,
+		signal: AbortSignal,
+	): Promise<void> {
 		if (signal.aborted) return;
 
 		if (!this.plugin.settings.useCache) {
@@ -122,7 +125,10 @@ export class BackgroundEngine {
 		const mtime = file.stat.mtime;
 		const cached = await this.plugin.dataStore.loadFile(path);
 
-		if (cached?.localData && cached.version === this.plugin.dataStore.version) {
+		if (
+			cached?.localData &&
+			cached.version === this.plugin.dataStore.version
+		) {
 			const mtimeMatch = cached.sourceMtime === mtime;
 
 			if (!cached.hasDynamicContent && mtimeMatch) return;
@@ -263,13 +269,17 @@ export class BackgroundEngine {
 			);
 		};
 
-		const metadataCacheExt = this.app.metadataCache as typeof this.app.metadataCache & {
+		const metadataCacheExt = this.app
+			.metadataCache as typeof this.app.metadataCache & {
 			on(name: string, callback: (...args: unknown[]) => void): EventRef;
 		};
 
 		const initHandler = () => {
 			this.metadataCacheEventRefs.push(
-				metadataCacheExt.on("dataview:metadata-change", onMetadataChange),
+				metadataCacheExt.on(
+					"dataview:metadata-change",
+					onMetadataChange,
+				),
 			);
 		};
 
@@ -303,7 +313,9 @@ export class BackgroundEngine {
 		}
 	}
 
-	private getDatacoreApi(): import("src/compiler/integrations/apis/datacore").DatacoreApi | undefined {
+	private getDatacoreApi():
+		| import("src/compiler/integrations/apis/datacore").DatacoreApi
+		| undefined {
 		const dc = (
 			window as unknown as {
 				datacore?: import("src/compiler/integrations/apis/datacore").DatacoreApi;

@@ -8,8 +8,10 @@
 		"build": "node esbuild.config.mjs production",
 		"build:dev": "node esbuild.config.mjs development",
 		"lint": "eslint .",
+        "test": "npm run test:unit && npm run test:integration",
 		"test:unit": "vitest run",
 		"test:integration": "vitest run --config vitest.integration.config.ts",
+        "typecheck": "tsc --noEmit",
 		"check-formatting": "prettier . --check"
 	},
 	"devDependencies": {

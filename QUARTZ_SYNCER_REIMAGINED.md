@@ -1,5 +1,7 @@
 # Quartz Syncer Reimagined
 
+> **Historical document** — This strategic analysis was written during the v2.0 planning phase and served as the foundation for the rebuild. The v2.0 implementation is complete. See `CHANGELOG.md` for what was shipped.
+
 A strategic analysis for rebuilding Quartz Syncer from the ground up, targeting Obsidian 1.13 and Quartz v5's npm-based plugin architecture.
 
 ---

@@ -6,6 +6,76 @@ import type {
 	GitHubRepo,
 	GitHubUser,
 } from "src/github/types";
+import {
+	AuthError,
+	ConflictError,
+	NetworkError,
+	NotFoundError,
+	RateLimitError,
+} from "src/git/errors";
+
+const DEPLOY_WORKFLOW = `name: Deploy Quartz site to GitHub Pages
+
+on:
+  push:
+    branches:
+      - v5
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Cache dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.npm
+          key: \${{ runner.os }}-node-\${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            \${{ runner.os }}-node-
+      - name: Cache Quartz plugins
+        uses: actions/cache@v5
+        with:
+          path: .quartz/plugins
+          key: \${{ runner.os }}-plugins-\${{ hashFiles('quartz.lock.json') }}
+          restore-keys: |
+            \${{ runner.os }}-plugins-
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Quartz plugins
+        run: npx quartz plugin install
+      - name: Build Quartz
+        run: npx quartz build
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: \${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+`;
 
 type WizardStep =
 	| "token"
@@ -14,6 +84,64 @@ type WizardStep =
 	| "connect"
 	| "configure"
 	| "success";
+
+const REPO_NAME_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,98}[a-zA-Z0-9])?$/;
+const REPO_NAME_CHARS = /^[a-zA-Z0-9._-]+$/;
+const REPO_NAME_MAX = 100;
+
+export function isValidRepoName(name: string): boolean {
+	if (!name || name.length > REPO_NAME_MAX) return false;
+
+	return REPO_NAME_REGEX.test(name);
+}
+
+export function formatWizardError(error: unknown): string {
+	if (error instanceof ConflictError) {
+		return "A repository with this name already exists on your account.";
+	}
+
+	if (error instanceof AuthError) {
+		return "Your token doesn't have permission for this action. Check your token's scopes.";
+	}
+
+	if (error instanceof NotFoundError) {
+		return "The Quartz template repository is not available.";
+	}
+
+	if (error instanceof NetworkError) {
+		return "Unable to connect to GitHub. Check your internet connection.";
+	}
+
+	if (error instanceof RateLimitError) {
+		return "GitHub API rate limit reached. Please wait a moment and try again.";
+	}
+
+	if (error instanceof Error) return error.message;
+
+	return String(error);
+}
+
+export function getRepoNameError(name: string): string | null {
+	if (!name) return "Repository name is required";
+
+	if (name.length > REPO_NAME_MAX) {
+		return `Repository name must be ${REPO_NAME_MAX} characters or fewer`;
+	}
+
+	if (!REPO_NAME_CHARS.test(name)) {
+		return "Repository name can only contain letters, numbers, hyphens, periods, and underscores";
+	}
+
+	if (name.startsWith(".") || name.startsWith("-")) {
+		return "Repository name cannot start with a period or hyphen";
+	}
+
+	if (name.endsWith(".") || name.endsWith("-")) {
+		return "Repository name cannot end with a period or hyphen";
+	}
+
+	return null;
+}
 
 export class OnboardingWizard extends Modal {
 	private plugin: QuartzSyncer;
@@ -24,10 +152,12 @@ export class OnboardingWizard extends Modal {
 	private selectedRepo: GitHubRepo | null = null;
 	private createdRepo: GitHubRepo | null = null;
 	private pagesConfig: GitHubPagesConfig | null = null;
+	private pagesWarning = "";
 	private errorMessage = "";
 	private isBusy = false;
 	private apiService: GitHubApiService | null = null;
 	private newSiteName = "";
+	private isPrivate = false;
 
 	constructor(app: App, plugin: QuartzSyncer) {
 		super(app);
@@ -83,8 +213,18 @@ export class OnboardingWizard extends Modal {
 
 	private renderTokenStep(): void {
 		this.contentEl.createEl("p", {
-			text: "Enter your GitHub token to continue.",
+			text: "Enter your GitHub personal access token to continue.",
 		});
+
+		const linkContainer = this.contentEl.createDiv("qs-onboarding-helper");
+		const linkEl = linkContainer.createEl("a", {
+			text: "Generate a fine-grained token",
+			href: "https://github.com/settings/personal-access-tokens/new",
+		});
+		linkEl.setAttr("target", "_blank");
+		linkContainer.appendText(
+			" with Contents and Workflows permissions (read and write).",
+		);
 
 		const inputEl = this.contentEl.createEl("input", {
 			type: "password",
@@ -147,15 +287,58 @@ export class OnboardingWizard extends Modal {
 			cls: "qs-onboarding-site-name",
 		});
 		inputEl.value = this.newSiteName;
+
+		const validationEl = this.contentEl.createDiv(
+			"qs-onboarding-validation",
+		);
+
+		const nameError = getRepoNameError(this.newSiteName);
+
+		if (this.newSiteName && nameError) {
+			validationEl.setText(nameError);
+		}
+
 		inputEl.addEventListener("input", () => {
 			this.newSiteName = inputEl.value.trim();
+			const error = getRepoNameError(this.newSiteName);
+
+			if (this.newSiteName && error) {
+				validationEl.setText(error);
+				validationEl.show();
+			} else {
+				validationEl.setText("");
+				validationEl.hide();
+			}
+
+			createBtn.disabled =
+				this.isBusy ||
+				!this.newSiteName ||
+				!isValidRepoName(this.newSiteName);
+		});
+
+		const toggleContainer = this.contentEl.createDiv(
+			"qs-onboarding-toggle",
+		);
+		const toggleLabel = toggleContainer.createEl("label");
+		const checkboxEl = toggleLabel.createEl("input", { type: "checkbox" });
+		checkboxEl.checked = this.isPrivate;
+		toggleLabel.appendText(" Make repository private");
+		checkboxEl.addEventListener("change", () => {
+			this.isPrivate = checkboxEl.checked;
+		});
+		toggleContainer.createEl("p", {
+			text: "Private repositories require GitHub Pro for GitHub Pages",
+			cls: "qs-onboarding-helper",
 		});
 
 		const createBtn = this.contentEl.createEl("button", {
 			text: this.isBusy ? "Creating..." : "Create site",
 			cls: "qs-onboarding-create-confirm",
 		});
-		createBtn.disabled = this.isBusy;
+		createBtn.disabled =
+			this.isBusy ||
+			!this.newSiteName ||
+			!isValidRepoName(this.newSiteName);
 		createBtn.addEventListener("click", () => {
 			void this.handleCreateSite();
 		});
@@ -237,7 +420,7 @@ export class OnboardingWizard extends Modal {
 			text: `Repository: ${repo.full_name}`,
 		});
 		this.contentEl.createEl("p", {
-			text: `Branch: ${repo.default_branch || "v4"}`,
+			text: `Branch: ${repo.default_branch || "v5"}`,
 		});
 
 		const configureBtn = this.contentEl.createEl("button", {
@@ -260,6 +443,13 @@ export class OnboardingWizard extends Modal {
 		if (this.pagesConfig?.url) {
 			this.contentEl.createEl("p", {
 				text: `Site URL: ${this.pagesConfig.url}`,
+			});
+		}
+
+		if (this.pagesWarning) {
+			this.contentEl.createEl("p", {
+				text: this.pagesWarning,
+				cls: "qs-onboarding-warning",
 			});
 		}
 	}
@@ -335,8 +525,9 @@ export class OnboardingWizard extends Modal {
 	}
 
 	private async handleCreateSite(): Promise<void> {
-		if (!this.newSiteName) {
-			this.errorMessage = "Site name is required.";
+		if (!this.newSiteName || !isValidRepoName(this.newSiteName)) {
+			this.errorMessage =
+				getRepoNameError(this.newSiteName) ?? "Site name is required.";
 			this.render();
 			return;
 		}
@@ -345,13 +536,57 @@ export class OnboardingWizard extends Modal {
 		this.render();
 		try {
 			const service = this.getService();
-			const repo = await service.createFromTemplate(this.newSiteName);
+
+			const user = await service.getUser();
+
+			try {
+				await service.getRepo(user.login, this.newSiteName);
+				this.errorMessage =
+					"A repository with this name already exists on your account.";
+				this.isBusy = false;
+				this.render();
+				return;
+			} catch (e) {
+				if (!(e instanceof NotFoundError)) {
+					// Non-404 error during check — proceed with creation anyway
+				}
+			}
+
+			const repo = await service.createFromTemplate(
+				this.newSiteName,
+				this.isPrivate,
+			);
 			this.createdRepo = repo;
 			const [owner, name] = repo.full_name.split("/");
 			if (!owner || !name) {
 				throw new Error("Unable to determine repository owner");
 			}
-			this.pagesConfig = await service.enablePages(owner, name);
+
+			const branch = repo.default_branch || "v5";
+
+			try {
+				await service.createFile(
+					owner,
+					name,
+					".github/workflows/deploy.yml",
+					DEPLOY_WORKFLOW,
+					"Add GitHub Pages deploy workflow",
+					branch,
+				);
+			} catch {
+				this.pagesWarning =
+					"Repository created successfully. The deploy workflow could not be added automatically \u2014 see the Quartz documentation for manual setup.";
+			}
+
+			try {
+				this.pagesConfig = await service.enablePages(owner, name);
+			} catch {
+				if (!this.pagesWarning) {
+					this.pagesWarning =
+						"Repository created successfully. GitHub Pages could not be enabled automatically \u2014 you can enable it manually in your repository settings.";
+				}
+			}
+
 			this.step = "configure";
 		} catch (error) {
 			this.errorMessage = this.formatError(error);
@@ -367,7 +602,7 @@ export class OnboardingWizard extends Modal {
 		this.render();
 		try {
 			this.plugin.settings.gitRemoteUrl = repo.clone_url;
-			this.plugin.settings.gitBranch = repo.default_branch || "v4";
+			this.plugin.settings.gitBranch = repo.default_branch || "v5";
 			this.plugin.settings.gitAuthType = "bearer";
 			this.plugin.settings.gitProviderHint = "github";
 			this.plugin.secretStorageService.setToken(this.token);
@@ -389,7 +624,6 @@ export class OnboardingWizard extends Modal {
 	}
 
 	private formatError(error: unknown): string {
-		if (error instanceof Error) return error.message;
-		return String(error);
+		return formatWizardError(error);
 	}
 }

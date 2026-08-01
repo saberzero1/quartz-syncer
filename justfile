@@ -29,7 +29,6 @@ test-full:
 
 check:
 	npm run lint
-	tsc --noEmit
 	npm run test
 	npm run check-formatting
 	npm run typecheck

@@ -90,7 +90,7 @@ describe("GitHubApiService", () => {
 		expect(client.post).toHaveBeenCalledWith(
 			"https://api.github.com/repos/octo/quartz/pages",
 			expect.objectContaining({ Authorization: "Bearer token" }),
-			{ source: { branch: "main", path: "/" } },
+			{ build_type: "workflow", source: { branch: "main", path: "/" } },
 		);
 	});
 });

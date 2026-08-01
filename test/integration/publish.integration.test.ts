@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { HttpClient } from "src/git/HttpClient";
+import { GitHubApiService } from "src/github/GitHubApiService";
 import { NotFoundError } from "src/git/errors";
 import { TEST_BRANCH, TEST_TOKEN } from "./setup";
 
@@ -134,6 +135,49 @@ describe.skipIf(!shouldRun)("Real-world publish", () => {
 		);
 		expect(response.status).toBe(200);
 		expect(response.data.path).toBe(testFilePath);
+	});
+
+	it("creates a file via GitHubApiService.createFile", async () => {
+		const service = new GitHubApiService(TEST_TOKEN ?? "", http);
+		const filePath = `content/test-createFile-${Date.now()}.md`;
+		const fileContent =
+			"---\ntitle: createFile test\npublish: true\n---\n\nCreated via GitHubApiService.createFile integration test.\n";
+
+		await service.createFile(
+			owner,
+			repo,
+			filePath,
+			fileContent,
+			"test: integration test createFile",
+			TEST_BRANCH,
+		);
+
+		const verifyResponse = await http.get<{
+			path: string;
+			content: string;
+		}>(
+			`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${TEST_BRANCH}`,
+			authHeaders,
+		);
+		expect(verifyResponse.status).toBe(200);
+		expect(verifyResponse.data.path).toBe(filePath);
+
+		const decoded = atob(verifyResponse.data.content.replace(/\n/g, ""));
+		expect(decoded).toContain("title: createFile test");
+
+		const fileResp = await http.get<{ sha: string }>(
+			`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}?ref=${TEST_BRANCH}`,
+			authHeaders,
+		);
+		await http.delete(
+			`https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`,
+			authHeaders,
+			{
+				message: "test: cleanup createFile integration test",
+				sha: fileResp.data.sha,
+				branch: TEST_BRANCH,
+			},
+		);
 	});
 
 	afterAll(async () => {

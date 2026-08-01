@@ -24,8 +24,9 @@ describe("publishHandler", () => {
 			publishBatch,
 		} as unknown as Publisher;
 		const plugin = buildPlugin({
-			getPublisher: vi.fn(() => publisher) as unknown as
-				() => Publisher | null,
+			getPublisher: vi.fn(
+				() => publisher,
+			) as unknown as () => Publisher | null,
 		});
 		const handler = createPublishHandler(plugin);
 
@@ -69,8 +70,9 @@ describe("publishHandler", () => {
 			})),
 		} as unknown as Publisher;
 		const plugin = buildPlugin({
-			getPublisher: vi.fn(() => publisher) as unknown as
-				() => Publisher | null,
+			getPublisher: vi.fn(
+				() => publisher,
+			) as unknown as () => Publisher | null,
 		});
 		const handler = createPublishHandler(plugin);
 

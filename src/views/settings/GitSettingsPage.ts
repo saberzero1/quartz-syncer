@@ -162,7 +162,7 @@ export class GitSettingsPage extends SettingPageBase {
 
 		if (providerHint === "github") {
 			description =
-				"A GitHub Personal Access Token (classic or fine-grained) with 'Contents' permission";
+				"A GitHub Personal Access Token (classic or fine-grained) with 'Contents' and 'Workflows' permissions";
 		} else if (providerHint === "gitlab") {
 			description =
 				"A GitLab Personal Access Token with 'read_repository' and 'write_repository' scopes";

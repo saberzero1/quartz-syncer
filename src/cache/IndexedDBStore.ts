@@ -3,9 +3,7 @@ export interface IndexedDBStore {
 	setItem<T>(key: string, value: T): Promise<void>;
 	removeItem(key: string): Promise<void>;
 	keys(): Promise<string[]>;
-	iterate<T>(
-		callback: (value: T, key: string) => void,
-	): Promise<void>;
+	iterate<T>(callback: (value: T, key: string) => void): Promise<void>;
 }
 
 export function createStore(name: string): IndexedDBStore {
@@ -26,34 +24,31 @@ export function createStore(name: string): IndexedDBStore {
 				const db = request.result;
 				if (!db.objectStoreNames.contains(STORE_NAME)) {
 					db.close();
-					const upgradeRequest = indexedDB.open(
-						name,
-						db.version + 1,
-					);
+					const upgradeRequest = indexedDB.open(name, db.version + 1);
 					upgradeRequest.onupgradeneeded = () => {
 						const upgradedDb = upgradeRequest.result;
-						if (
-							!upgradedDb.objectStoreNames.contains(STORE_NAME)
-						) {
+						if (!upgradedDb.objectStoreNames.contains(STORE_NAME)) {
 							upgradedDb.createObjectStore(STORE_NAME);
 						}
 					};
 					upgradeRequest.onsuccess = () =>
 						resolve(upgradeRequest.result);
-				upgradeRequest.onerror = () =>
-					reject(upgradeRequest.error ?? new Error("IndexedDB upgrade failed"));
+					upgradeRequest.onerror = () =>
+						reject(
+							upgradeRequest.error ??
+								new Error("IndexedDB upgrade failed"),
+						);
 					return;
 				}
 				resolve(db);
 			};
-			request.onerror = () => reject(request.error ?? new Error("IndexedDB open failed"));
+			request.onerror = () =>
+				reject(request.error ?? new Error("IndexedDB open failed"));
 		});
 		return dbPromise;
 	}
 
-	async function tx(
-		mode: IDBTransactionMode,
-	): Promise<IDBObjectStore> {
+	async function tx(mode: IDBTransactionMode): Promise<IDBObjectStore> {
 		const db = await open();
 		return db.transaction(STORE_NAME, mode).objectStore(STORE_NAME);
 	}
@@ -61,7 +56,8 @@ export function createStore(name: string): IndexedDBStore {
 	function wrap<T>(request: IDBRequest<T>): Promise<T> {
 		return new Promise((resolve, reject) => {
 			request.onsuccess = () => resolve(request.result);
-			request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
+			request.onerror = () =>
+				reject(request.error ?? new Error("IndexedDB request failed"));
 		});
 	}
 
@@ -93,14 +89,20 @@ export function createStore(name: string): IndexedDBStore {
 				request.onsuccess = () => {
 					const cursor = request.result;
 					if (cursor) {
-						const key = typeof cursor.key === "string" ? cursor.key : JSON.stringify(cursor.key);
-					callback(cursor.value as T, key);
+						const key =
+							typeof cursor.key === "string"
+								? cursor.key
+								: JSON.stringify(cursor.key);
+						callback(cursor.value as T, key);
 						cursor.continue();
 					} else {
 						resolve();
 					}
 				};
-				request.onerror = () => reject(request.error ?? new Error("IndexedDB cursor failed"));
+				request.onerror = () =>
+					reject(
+						request.error ?? new Error("IndexedDB cursor failed"),
+					);
 			});
 		},
 	};

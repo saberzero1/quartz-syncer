@@ -506,9 +506,7 @@ export class DataStore {
 		await this.mergeAndStore(path, updates);
 	}
 
-	public async loadCompilationRevisions(
-		path: string,
-	): Promise<{
+	public async loadCompilationRevisions(path: string): Promise<{
 		dataviewRevision?: number;
 		datacoreRevision?: number;
 	}> {

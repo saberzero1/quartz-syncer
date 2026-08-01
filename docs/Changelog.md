@@ -2,13 +2,59 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-06-08T15:17:47Z+0200
+modified: 2026-07-31T03:11:14Z+0200
 publish: true
 ---
 
 ## Upcoming
 
 ## Releases
+
+### Version 2.0.0
+
+Quartz Syncer has been rebuilt from the ground up for performance, reliability, and modern Obsidian compatibility.
+
+#### Architecture
+
+- **Git-first system**: the primary publishing path now uses a forked `isomorphic-git` with GC/pack repacking and Obsidian's `requestUrl()` as HTTP transport. No external git binary required.
+- **Vanilla Obsidian UI**: removed Svelte dependency entirely. All UI uses Obsidian's native APIs.
+- **Declarative settings**: migrated to Obsidian 1.13's declarative settings API. Settings are searchable and validated automatically.
+- **Test infrastructure**: migrated from Jest to Vitest for unit tests. Added WebdriverIO for E2E tests and Playwright for Quartz integration tests.
+
+#### New features
+
+- **Background pre-compilation**: notes are compiled in the background as you edit. Opening the Publication Center is near-instant instead of waiting for all files to compile.
+- **Smart cache invalidation**: Dataview and Datacore query results are tracked via revision numbers. Dynamic content is only recompiled when the underlying data actually changes.
+- **Remote tree caching**: the remote repository state is fetched periodically in the background (configurable interval, default 60 seconds), so opening the Publication Center doesn't require a network round-trip.
+- **Zero-config onboarding wizard**: create a new Quartz site directly from within Obsidian. The wizard creates a GitHub repository from the Quartz template, enables GitHub Pages, and configures the plugin automatically.
+	- Repo name validation and availability checking before creation.
+	- Option to create private repositories.
+	- User-friendly error messages for common GitHub API errors.
+- **Auto-publish timer**: automatically publish pending changes on a configurable interval (desktop only).
+- **Encrypted token storage**: access tokens are encrypted via `electron.safeStorage` on desktop, with Obsidian's SecretStorage as fallback on mobile.
+- **Diff viewer**: preview exact changes before publishing with split (side-by-side) or unified view, with synchronized scrolling.
+- **CLI support**: 12 commands for automating publishing workflows from the terminal via the Obsidian CLI.
+- **Quartz v5 plugin management**: list, add, remove, and update Quartz plugins. Browse the community registry. Read and write Quartz site configuration with schema validation.
+
+#### Performance
+
+- Publication Center opens in under 10ms with a warm cache (previously 3-4 seconds).
+- Background compilation uses `setTimeout(0)` yielding and concurrency 1 to avoid blocking the Obsidian UI.
+- Pre-warm enqueues files in batches of 10 with 50ms gaps to prevent startup freezes.
+- Active file is skipped during background compilation to avoid race conditions.
+
+#### Breaking changes
+
+- Minimum Obsidian version is now 1.13.0.
+- Svelte is no longer used. Custom UI components have been replaced with native Obsidian APIs.
+- The `localspace` dependency has been replaced with a custom IndexedDB wrapper (saves 68KB).
+- LightningFS is now used for isomorphic-git's filesystem instead of the Vault adapter.
+
+#### Migration
+
+- Settings automatically migrate from v1. No manual action required.
+- Old LightningFS cache can be cleaned up via the migration notice on first v2 load.
+- Quartz upstream upgrade temporarily requires manual `npx quartz update`.
 
 ### Version 1.18.0
 

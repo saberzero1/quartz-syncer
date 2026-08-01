@@ -31,11 +31,11 @@ export default defineConfig(
 			},
 			parserOptions: {
 				projectService: {
-				allowDefaultProject: [
-					"eslint.config.mts",
-					"vitest.config.ts",
-					"vitest.integration.config.ts",
-				],
+					allowDefaultProject: [
+						"eslint.config.mts",
+						"vitest.config.ts",
+						"vitest.integration.config.ts",
+					],
 				},
 				tsconfigRootDir: import.meta.dirname,
 			},
@@ -84,6 +84,8 @@ export default defineConfig(
 						"Excalidraw",
 						"Fantasy Statblocks",
 						"GitHub",
+						"GitHub Pages",
+						"GitHub Pro",
 						"GitLab",
 						"Gitea",
 						"IndexedDB",

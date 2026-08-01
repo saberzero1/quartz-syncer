@@ -24,8 +24,9 @@ describe("deleteHandler", () => {
 			deleteBatch,
 		} as unknown as Publisher;
 		const plugin = buildPlugin({
-			getPublisher: vi.fn(() => publisher) as unknown as
-				() => Publisher | null,
+			getPublisher: vi.fn(
+				() => publisher,
+			) as unknown as () => Publisher | null,
 		});
 		const handler = createDeleteHandler(plugin);
 
@@ -69,8 +70,9 @@ describe("deleteHandler", () => {
 			})),
 		} as unknown as Publisher;
 		const plugin = buildPlugin({
-			getPublisher: vi.fn(() => publisher) as unknown as
-				() => Publisher | null,
+			getPublisher: vi.fn(
+				() => publisher,
+			) as unknown as () => Publisher | null,
 		});
 		const handler = createDeleteHandler(plugin);
 

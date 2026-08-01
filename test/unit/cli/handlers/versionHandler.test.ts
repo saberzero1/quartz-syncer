@@ -90,9 +90,10 @@ describe("versionHandler", () => {
 		const plugin = buildPlugin();
 		const handler = createVersionHandler(plugin);
 
-		vi.spyOn(QuartzVersionDetector, "detectQuartzVersion").mockRejectedValue(
-			new Error("Detection failed"),
-		);
+		vi.spyOn(
+			QuartzVersionDetector,
+			"detectQuartzVersion",
+		).mockRejectedValue(new Error("Detection failed"));
 
 		const result = await handler(buildParams());
 		expect(result).toEqual({

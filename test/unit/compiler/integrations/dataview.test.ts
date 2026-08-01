@@ -7,9 +7,10 @@ import type { DataviewApi } from "src/compiler/integrations/apis/dataview";
 import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
 
 vi.mock("src/utils/utils", async () => {
-	const actual = await vi.importActual<typeof import("src/utils/utils")>(
-		"src/utils/utils",
-	);
+	const actual =
+		await vi.importActual<typeof import("src/utils/utils")>(
+			"src/utils/utils",
+		);
 	return {
 		...actual,
 		cleanQueryResult: (value: string) => value,
@@ -49,7 +50,9 @@ describe("DataviewIntegration", () => {
 		mockedGetDataviewApi.mockReturnValue(makeApi());
 
 		const patterns = DataviewIntegration.getPatterns();
-		const blockPattern = patterns.find((pattern) => pattern.id === "dv-block");
+		const blockPattern = patterns.find(
+			(pattern) => pattern.id === "dv-block",
+		);
 
 		expect(blockPattern).toBeDefined();
 		expect(
@@ -61,11 +64,14 @@ describe("DataviewIntegration", () => {
 		mockedGetDataviewApi.mockReturnValue(makeApi());
 
 		const patterns = DataviewIntegration.getPatterns();
-		const inlinePattern = patterns.find((pattern) => pattern.id === "dv-inline");
+		const inlinePattern = patterns.find(
+			(pattern) => pattern.id === "dv-inline",
+		);
 
 		expect(inlinePattern).toBeDefined();
-		expect("Inline `= 1 + 1`".match(inlinePattern?.pattern ?? /$^/))
-			.not.toBeNull();
+		expect(
+			"Inline `= 1 + 1`".match(inlinePattern?.pattern ?? /$^/),
+		).not.toBeNull();
 	});
 
 	it("compile renders with mock Dataview API", async () => {
