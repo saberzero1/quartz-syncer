@@ -153,6 +153,40 @@ describe("CompilationQueue", () => {
 		expect(queue.isPaused).toBe(false);
 	});
 
+	it("calls onStatusChange when items complete", async () => {
+		const statusChanges: number[] = [];
+		const queue = new CompilationQueue({
+			concurrency: 1,
+			processor: async () => {},
+			onStatusChange: () => {
+				statusChanges.push(queue.pendingCount + queue.inFlightCount);
+			},
+		});
+
+		queue.enqueue("a.md");
+		queue.enqueue("b.md");
+		await vi.advanceTimersByTimeAsync(100);
+		await queue.onIdle();
+
+		expect(statusChanges.length).toBeGreaterThanOrEqual(2);
+		expect(statusChanges[statusChanges.length - 1]).toBe(0);
+	});
+
+	it("calls onStatusChange when queue goes idle", async () => {
+		const onStatusChange = vi.fn();
+		const queue = new CompilationQueue({
+			concurrency: 1,
+			processor: async () => {},
+			onStatusChange,
+		});
+
+		queue.enqueue("a.md");
+		await vi.advanceTimersByTimeAsync(100);
+		await queue.onIdle();
+
+		expect(onStatusChange).toHaveBeenCalled();
+	});
+
 	it("onIdle resolves after paused items are processed", async () => {
 		let completed = 0;
 		const queue = new CompilationQueue({

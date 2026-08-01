@@ -62,54 +62,19 @@ export class Publisher {
 			const compiledFiles: PublishFile[] = [];
 			const trustDynamic = this.compilationQueue !== undefined;
 
-			const compileStart = performance.now();
-
 			for (const file of publishFiles) {
 				const compiled = await file.compile(trustDynamic);
 				compiledFiles.push(compiled);
 			}
 
-			const compileEnd = performance.now();
-
-			const treeStart = performance.now();
-
 			const remoteTree = await this.remoteTreeCache.get();
 
-			const treeEnd = performance.now();
-
-			const categorizeStart = performance.now();
-
-			const result = await categorizeFiles(
+			return await categorizeFiles(
 				compiledFiles,
 				remoteTree,
 				this.dataStore,
 				this.pathMapper,
 			);
-
-			const categorizeEnd = performance.now();
-
-			let cacheHits = 0;
-			let cacheMisses = 0;
-
-			for (const file of publishFiles) {
-				const entry = await this.dataStore.loadFile(file.file.path);
-
-				if (entry?.localData && !entry.hasDynamicContent) {
-					cacheHits++;
-				} else {
-					cacheMisses++;
-				}
-			}
-
-			console.debug(
-				`[Quartz Syncer] getPublishStatus timing: ` +
-					`compile=${Math.round(compileEnd - compileStart)}ms (${publishFiles.length} files, ` +
-					`${cacheHits} cache hits, ${cacheMisses} misses/dynamic), ` +
-					`readTree=${Math.round(treeEnd - treeStart)}ms, ` +
-					`categorize=${Math.round(categorizeEnd - categorizeStart)}ms`,
-			);
-
-			return result;
 		} finally {
 			if (settings.useCache) {
 				await this.dataStore.flushCache();
@@ -186,6 +151,7 @@ export class Publisher {
 			);
 
 			this.remoteTreeCache.invalidate();
+			void this.remoteTreeCache.refresh();
 
 			return {
 				success: true,
@@ -225,6 +191,7 @@ export class Publisher {
 			}
 
 			this.remoteTreeCache.invalidate();
+			void this.remoteTreeCache.refresh();
 
 			return {
 				success: true,

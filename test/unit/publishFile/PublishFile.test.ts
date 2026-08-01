@@ -50,6 +50,7 @@ const baseSettings: QuartzSyncerSettings = {
 	upgradeCheckStrategy: "version",
 	diffViewStyle: "auto",
 	autoPublishInterval: 0,
+	remoteFetchInterval: 60,
 	quartzRepoPath: "",
 	enableSystemCommands: true,
 	ENABLE_DEVELOPER_TOOLS: false,

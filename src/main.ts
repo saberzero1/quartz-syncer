@@ -377,6 +377,14 @@ export default class QuartzSyncer extends Plugin {
 
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
+		this.invalidateCachedInstances();
+	}
+
+	private invalidateCachedInstances(): void {
+		if (this.publisher) {
+			this.publisher.remoteTreeCache.stopPeriodicFetch();
+			this.publisher = null;
+		}
 	}
 
 	getGitSettingsWithSecret(): GitRemoteSettings {

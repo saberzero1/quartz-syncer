@@ -51,6 +51,7 @@ const makeSettings = (
 	lastUpstreamCommitSha: "",
 	upgradeCheckStrategy: "version",
 	diffViewStyle: "auto",
+	remoteFetchInterval: 60,
 	...overrides,
 });
 
@@ -59,6 +60,20 @@ const makePlugin = (settings: QuartzSyncerSettings): QuartzSyncer =>
 		settings,
 		saveSettings: vi.fn(),
 	}) as unknown as QuartzSyncer;
+
+const makeGitBackend = (
+	overrides: Partial<GitBackend> = {},
+): GitBackend =>
+	({
+		writeFiles: vi.fn().mockResolvedValue({ sha: "abc" }),
+		deleteFiles: vi.fn().mockResolvedValue({ sha: "abc" }),
+		readTree: vi.fn().mockResolvedValue([]),
+		readBlob: vi.fn(),
+		getRemoteInfo: vi.fn(),
+		testConnection: vi.fn(),
+		listBranches: vi.fn(),
+		...overrides,
+	}) as unknown as GitBackend;
 
 const makePublishFile = (path: string): PublishFile =>
 	({
@@ -71,15 +86,7 @@ describe("Publisher", () => {
 		const app = new App();
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
-		const gitBackend = {
-			writeFiles: vi.fn().mockResolvedValue({ sha: "abc" }),
-			deleteFiles: vi.fn(),
-			readTree: vi.fn(),
-			readBlob: vi.fn(),
-			getRemoteInfo: vi.fn(),
-			testConnection: vi.fn(),
-			listBranches: vi.fn(),
-		} as unknown as GitBackend;
+		const gitBackend = makeGitBackend();
 		const compiler = {} as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
@@ -111,19 +118,36 @@ describe("Publisher", () => {
 		);
 	});
 
+	it("publishBatch refreshes remote tree cache", async () => {
+		const app = new App();
+		const settings = makeSettings();
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
+			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
+			storeRemoteHash: vi.fn(),
+		} as unknown as DataStore;
+
+		const publisher = new Publisher(
+			app,
+			plugin,
+			gitBackend,
+			compiler,
+			dataStore,
+		);
+
+		await publisher.publishBatch([makePublishFile("notes/a.md")]);
+
+		expect(gitBackend.readTree).toHaveBeenCalledWith("main");
+	});
+
 	it("deleteBatch calls deleteFiles with mapped paths", async () => {
 		const app = new App();
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
-		const gitBackend = {
-			writeFiles: vi.fn(),
-			deleteFiles: vi.fn().mockResolvedValue({ sha: "abc" }),
-			readTree: vi.fn(),
-			readBlob: vi.fn(),
-			getRemoteInfo: vi.fn(),
-			testConnection: vi.fn(),
-			listBranches: vi.fn(),
-		} as unknown as GitBackend;
+		const gitBackend = makeGitBackend();
 		const compiler = {} as SyncerPageCompiler;
 		const dataStore = {
 			dropFile: vi.fn(),
@@ -145,5 +169,110 @@ describe("Publisher", () => {
 			["content/notes/a.md"],
 		);
 		expect(dataStore.dropFile).toHaveBeenCalledWith("notes/a.md");
+	});
+
+	it("deleteBatch refreshes remote tree cache", async () => {
+		const app = new App();
+		const settings = makeSettings();
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			dropFile: vi.fn(),
+		} as unknown as DataStore;
+
+		const publisher = new Publisher(
+			app,
+			plugin,
+			gitBackend,
+			compiler,
+			dataStore,
+		);
+
+		await publisher.deleteBatch(["notes/a.md"]);
+
+		expect(gitBackend.readTree).toHaveBeenCalledWith("main");
+	});
+
+	it("pauses and resumes compilationQueue around getPublishStatus", async () => {
+		const app = new App();
+		const settings = makeSettings();
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			preloadCache: vi.fn().mockResolvedValue(undefined),
+			flushCache: vi.fn().mockResolvedValue(undefined),
+			clearMemoryCache: vi.fn(),
+		} as unknown as DataStore;
+
+		const mockQueue = {
+			pause: vi.fn(),
+			resume: vi.fn(),
+		};
+
+		const vaultStub = app.vault as typeof app.vault & {
+			getFiles?: () => never[];
+		};
+		vaultStub.getFiles = vi.fn().mockReturnValue([]);
+
+		const publisher = new Publisher(
+			app,
+			plugin,
+			gitBackend,
+			compiler,
+			dataStore,
+			mockQueue as never,
+		);
+
+		await publisher.getPublishStatus();
+
+		expect(mockQueue.pause).toHaveBeenCalled();
+		expect(mockQueue.resume).toHaveBeenCalled();
+
+		const pauseOrder = mockQueue.pause.mock.invocationCallOrder[0]!;
+		const resumeOrder = mockQueue.resume.mock.invocationCallOrder[0]!;
+
+		expect(pauseOrder).toBeLessThan(resumeOrder);
+	});
+
+	it("resumes compilationQueue even when getPublishStatus throws", async () => {
+		const app = new App();
+		const settings = makeSettings();
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend({
+			readTree: vi.fn().mockRejectedValue(new Error("network error")),
+		});
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			preloadCache: vi.fn().mockResolvedValue(undefined),
+			flushCache: vi.fn().mockResolvedValue(undefined),
+			clearMemoryCache: vi.fn(),
+		} as unknown as DataStore;
+
+		const mockQueue = {
+			pause: vi.fn(),
+			resume: vi.fn(),
+		};
+
+		const vaultStub = app.vault as typeof app.vault & {
+			getFiles?: () => never[];
+		};
+		vaultStub.getFiles = vi.fn().mockReturnValue([]);
+
+		const publisher = new Publisher(
+			app,
+			plugin,
+			gitBackend,
+			compiler,
+			dataStore,
+			mockQueue as never,
+		);
+
+		await expect(publisher.getPublishStatus()).rejects.toThrow(
+			"network error",
+		);
+
+		expect(mockQueue.resume).toHaveBeenCalled();
 	});
 });

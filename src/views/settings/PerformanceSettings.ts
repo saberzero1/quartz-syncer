@@ -46,6 +46,26 @@ export function performanceSettingDefinitions(
 		},
 		{
 			type: "group",
+			heading: "Background sync",
+			items: [
+				{
+					name: "Remote fetch interval (seconds)",
+					desc: "How often to fetch the remote repository state in the background. Lower values make the publication center open faster. Set to 0 to fetch on demand only.",
+					aliases: ["fetch", "refresh", "remote", "git"],
+					visible: () => settings.useCache,
+					control: {
+						type: "slider",
+						key: "remoteFetchInterval",
+						defaultValue: 60,
+						min: 0,
+						max: 300,
+						step: 10,
+					},
+				},
+			],
+		},
+		{
+			type: "group",
 			heading: "Auto-publish",
 			visible: () => Platform.isDesktopApp,
 			items: [
