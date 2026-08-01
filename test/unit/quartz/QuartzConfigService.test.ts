@@ -176,16 +176,6 @@ describe("QuartzConfigService", () => {
 
 			assert.strictEqual(service.getConfigFormat(), "yaml");
 		});
-
-		it("stores YAML Document for roundtrip", async () => {
-			const repo = createMockRepo({
-				"quartz.config.yaml": SAMPLE_YAML,
-			});
-			const service = new QuartzConfigService(repo);
-			await service.readConfig();
-
-			assert.notStrictEqual(service.getRawYamlDocument(), null);
-		});
 	});
 
 	describe("readConfig (JSON fallback)", () => {
@@ -199,16 +189,6 @@ describe("QuartzConfigService", () => {
 			assert.strictEqual(config.configuration.pageTitle, "JSON Site");
 			assert.strictEqual(config.configuration.enableSPA, false);
 			assert.strictEqual(service.getConfigFormat(), "json");
-		});
-
-		it("does not create YAML Document for JSON config", async () => {
-			const repo = createMockRepo({
-				"quartz.plugins.json": SAMPLE_JSON,
-			});
-			const service = new QuartzConfigService(repo);
-			await service.readConfig();
-
-			assert.strictEqual(service.getRawYamlDocument(), null);
 		});
 	});
 

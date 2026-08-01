@@ -121,10 +121,6 @@ export class QuartzConfigService {
 		return this.configFormat;
 	}
 
-	getRawYamlDocument(): Document<YAMLMap> | null {
-		return this.yamlDocument;
-	}
-
 	private async readRawConfig(): Promise<{
 		content: string;
 		format: ConfigFormat;
@@ -164,7 +160,7 @@ export class QuartzConfigService {
 		);
 	}
 
-	private ensureSchemaComment(doc: Document): void {
+	private ensureSchemaComment(doc: Document<YAMLMap> | Document): void {
 		// The `yaml` library attaches a leading `# yaml-language-server: ...`
 		// line from a parsed document to the first key node's `commentBefore`,
 		// not to `doc.commentBefore` (which stays null). Checking only
