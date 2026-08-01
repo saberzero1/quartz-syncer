@@ -1,4 +1,4 @@
-import type { App, TFile } from "obsidian";
+import type { App } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { GitBackend, FileChange } from "src/git/types";
 import { PathMapper } from "src/git/PathMapper";
@@ -31,10 +31,7 @@ export class Publisher {
 
 	async getPublishStatus(): Promise<PublishStatus> {
 		const settings = this.plugin.settings;
-		const vault = this.app.vault as typeof this.app.vault & {
-			getFiles?: () => TFile[];
-		};
-		const vaultFiles = vault.getFiles?.() ?? vault.getMarkdownFiles();
+		const vaultFiles = this.app.vault.getFiles();
 		const publishFiles: PublishFile[] = [];
 
 		for (const file of vaultFiles) {

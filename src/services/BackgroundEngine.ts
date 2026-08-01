@@ -1,4 +1,4 @@
-import { debounce, TFile, type App, type EventRef } from "obsidian";
+import { debounce, Events, TFile, type App, type EventRef } from "obsidian";
 import type QuartzSyncer from "src/main";
 import { CompilationQueue } from "src/services/CompilationQueue";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
@@ -269,17 +269,11 @@ export class BackgroundEngine {
 			);
 		};
 
-		const metadataCacheExt = this.app
-			.metadataCache as typeof this.app.metadataCache & {
-			on(name: string, callback: (...args: unknown[]) => void): EventRef;
-		};
+		const cacheEvents = this.app.metadataCache as Events;
 
 		const initHandler = () => {
 			this.metadataCacheEventRefs.push(
-				metadataCacheExt.on(
-					"dataview:metadata-change",
-					onMetadataChange,
-				),
+				cacheEvents.on("dataview:metadata-change", onMetadataChange),
 			);
 		};
 
@@ -287,7 +281,7 @@ export class BackgroundEngine {
 			initHandler();
 		} else {
 			this.metadataCacheEventRefs.push(
-				metadataCacheExt.on("dataview:index-ready", initHandler),
+				cacheEvents.on("dataview:index-ready", initHandler),
 			);
 		}
 	}

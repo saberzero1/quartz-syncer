@@ -1,4 +1,10 @@
 import { App, Notice, Platform, Setting } from "obsidian";
+import {
+	expandTilde,
+	externalFileExistsSync,
+	externalIsDirectorySync,
+	joinPath,
+} from "src/utils/external-fs";
 import { SettingPageBase } from "./SettingPageBase";
 import type QuartzSyncer from "src/main";
 import { createGitBackend } from "src/git/GitBackendFactory";
@@ -423,62 +429,53 @@ export class QuartzSettingsPage extends SettingPageBase {
 		this.repoPathStatusEl.setText(result.message);
 	}
 
-	private validateQuartzRepoPath(path: string): {
+	private validateQuartzRepoPath(repoPath: string): {
 		ok: boolean;
 		message: string;
 	} {
-		if (!path.trim()) {
+		if (!repoPath.trim()) {
 			return {
 				ok: false,
 				message: "Set a local Quartz repository path.",
 			};
 		}
 
-		const requireFn = (
-			window as Window & { require?: (module: string) => unknown }
-		).require;
-		if (!requireFn) {
+		if (!Platform.isDesktopApp) {
 			return {
 				ok: false,
-				message: "Filesystem access unavailable in this environment.",
+				message: "Local repo path is only available on desktop.",
 			};
 		}
 
-		const fs = requireFn("fs") as typeof import("fs");
-		const pathModule = requireFn("path") as typeof import("path");
+		const resolved = expandTilde(repoPath);
 
-		try {
-			if (!fs.existsSync(path)) {
-				return { ok: false, message: "Path does not exist." };
-			}
-			const stat = fs.statSync(path);
-			if (!stat.isDirectory()) {
-				return { ok: false, message: "Path is not a directory." };
-			}
-			const candidates = [
-				"quartz.config.ts",
-				"quartz.config.js",
-				"quartz.config.mjs",
-				"quartz.config.json",
-				"quartz.config.yaml",
-				"quartz.config.yml",
-			];
-			const hasConfig = candidates.some((candidate) =>
-				fs.existsSync(pathModule.join(path, candidate)),
-			);
-
-			if (!hasConfig) {
-				return {
-					ok: false,
-					message: "Quartz config not found in this directory.",
-				};
-			}
-			return { ok: true, message: "Quartz repo detected." };
-		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : String(error);
-			return { ok: false, message: `Validation failed: ${message}` };
+		if (!externalFileExistsSync(resolved)) {
+			return { ok: false, message: "Path does not exist." };
 		}
+		if (!externalIsDirectorySync(resolved)) {
+			return { ok: false, message: "Path is not a directory." };
+		}
+
+		const candidates = [
+			"quartz.config.ts",
+			"quartz.config.js",
+			"quartz.config.mjs",
+			"quartz.config.json",
+			"quartz.config.yaml",
+			"quartz.config.yml",
+		];
+		const hasConfig = candidates.some((candidate) =>
+			externalFileExistsSync(joinPath(resolved, candidate)),
+		);
+
+		if (!hasConfig) {
+			return {
+				ok: false,
+				message: "Quartz config not found in this directory.",
+			};
+		}
+
+		return { ok: true, message: "Quartz repo detected." };
 	}
 
 	private createBackend(): GitBackend {

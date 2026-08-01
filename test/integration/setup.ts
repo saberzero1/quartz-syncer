@@ -1,7 +1,10 @@
-import { config } from "dotenv";
 import { requestUrl } from "obsidian";
 
-config();
+try {
+	process.loadEnvFile();
+} catch {
+	// .env file may not exist in CI (uses GitHub Actions secrets)
+}
 
 if (typeof globalThis.window === "undefined") {
 	Object.defineProperty(globalThis, "window", {

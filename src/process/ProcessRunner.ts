@@ -1,4 +1,5 @@
 import { Platform } from "obsidian";
+import { getModule } from "src/utils/external-fs";
 import {
 	ALLOWED_BINARIES,
 	type ProcessConfig,
@@ -59,16 +60,6 @@ let errorTimestamps: number[] = [];
 
 const ERROR_WINDOW_MS = 60_000;
 const ERROR_THRESHOLD = 3;
-
-function getModule<T>(name: string): T {
-	const requireFn = (
-		window as Window & { require?: (module: string) => unknown }
-	).require;
-	if (!requireFn) {
-		throw new Error("Node modules unavailable");
-	}
-	return requireFn(name) as T;
-}
 
 function getChildProcess(): ChildProcessModule {
 	if (!childProcessCache) {
