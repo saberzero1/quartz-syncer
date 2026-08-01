@@ -1,4 +1,4 @@
-import { Document, parseDocument } from "yaml";
+import { Document, type YAMLMap, parseDocument } from "yaml";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import type { QuartzV5Config, QuartzLockFile } from "./QuartzConfigTypes";
 
@@ -13,7 +13,7 @@ type ConfigFormat = "yaml" | "json";
 
 export class QuartzConfigService {
 	private repo: RepositoryConnection;
-	private yamlDocument: Document | null = null;
+	private yamlDocument: Document<YAMLMap> | null = null;
 	private configFormat: ConfigFormat | null = null;
 
 	constructor(repo: RepositoryConnection) {
@@ -28,11 +28,13 @@ export class QuartzConfigService {
 			return JSON.parse(content) as QuartzV5Config;
 		}
 
-		this.yamlDocument = parseDocument(content, {
+		const parsed = parseDocument(content, {
 			keepSourceTokens: true,
 		});
 
-		return this.yamlDocument.toJSON() as QuartzV5Config;
+		this.yamlDocument = parsed as Document<YAMLMap>;
+
+		return parsed.toJSON() as QuartzV5Config;
 	}
 
 	/**
@@ -119,7 +121,7 @@ export class QuartzConfigService {
 		return this.configFormat;
 	}
 
-	getRawYamlDocument(): Document | null {
+	getRawYamlDocument(): Document<YAMLMap> | null {
 		return this.yamlDocument;
 	}
 
