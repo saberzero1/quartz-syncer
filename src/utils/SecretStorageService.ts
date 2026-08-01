@@ -6,9 +6,7 @@ const SAFE_STORAGE_KEY = "quartz-syncer-encrypted-token";
 
 interface SafeStorage {
 	isEncryptionAvailable(): boolean;
-	// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 	encryptString(plainText: string): Buffer;
-	// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 	decryptString(encrypted: Buffer): string;
 }
 
@@ -55,7 +53,6 @@ export class SecretStorageService {
 			const encrypted = this.secretStorage.getSecret(SAFE_STORAGE_KEY);
 			if (encrypted) {
 				try {
-					// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 					const buf = Buffer.from(encrypted, "base64");
 					this.cachedToken = this.safeStorage.decryptString(buf);
 					return this.cachedToken;

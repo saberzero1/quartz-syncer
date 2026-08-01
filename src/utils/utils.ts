@@ -252,8 +252,7 @@ function renderPromise(
 	interval: number = 500,
 ): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
-		/* eslint-disable-next-line no-undef -- NodeJS.Timeout type for timer reference */
-		let intervalTimer: NodeJS.Timeout;
+		let intervalTimer: ReturnType<typeof setTimeout>;
 
 		const clearIntervalTimer = () => {
 			window.clearTimeout(intervalTimer);
@@ -615,7 +614,6 @@ function svgToData(svgElement: SVGSVGElement): string {
 	const serializer = new XMLSerializer();
 	const svgString = serializer.serializeToString(svgElement);
 
-	/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
 	const encodedData = Buffer.from(svgString).toString("base64");
 
 	return `data:image/svg+xml;base64,${encodedData}`;

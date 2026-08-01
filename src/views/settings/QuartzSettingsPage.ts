@@ -39,7 +39,6 @@ class GitBackendRepositoryAdapter {
 		if (!match) return undefined;
 
 		const blob = await this.backend.readBlob(match.sha);
-		// eslint-disable-next-line no-undef -- Buffer is available in Node.js and Electron environments
 		const content = Buffer.from(blob).toString("base64");
 
 		return {

@@ -32,7 +32,6 @@ export class QuartzTemplateService {
 
 			const { parseDocument } = await import("yaml");
 
-			/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
 			const content = Buffer.from(file.content, "base64").toString(
 				"utf-8",
 			);

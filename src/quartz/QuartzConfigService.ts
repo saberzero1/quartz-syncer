@@ -91,7 +91,6 @@ export class QuartzConfigService {
 
 			if (!file) return null;
 
-			/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
 			const content = Buffer.from(file.content, "base64").toString(
 				"utf-8",
 			);
@@ -133,7 +132,6 @@ export class QuartzConfigService {
 
 			if (yamlFile) {
 				return {
-					/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
 					content: Buffer.from(yamlFile.content, "base64").toString(
 						"utf-8",
 					),
@@ -149,7 +147,6 @@ export class QuartzConfigService {
 
 			if (jsonFile) {
 				return {
-					/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
 					content: Buffer.from(jsonFile.content, "base64").toString(
 						"utf-8",
 					),

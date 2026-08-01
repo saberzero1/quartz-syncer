@@ -8,15 +8,15 @@
 		"build": "node esbuild.config.mjs production",
 		"build:dev": "node esbuild.config.mjs development",
 		"lint": "eslint .",
-        "test": "npm run test:unit && npm run test:integration",
+		"test": "npm run test:unit && npm run test:integration",
 		"test:unit": "vitest run",
 		"test:integration": "vitest run --config vitest.integration.config.ts",
-        "typecheck": "tsc --noEmit",
+		"typecheck": "tsc --noEmit",
 		"check-formatting": "prettier . --check"
 	},
 	"devDependencies": {
 		"@types/diff": "^7.0.2",
-		"@types/node": "^20",
+		"@types/node": "^20.19.43",
 		"@wdio/cli": "^9.30.0",
 		"@wdio/globals": "^9.29.1",
 		"@wdio/local-runner": "^9.30.0",

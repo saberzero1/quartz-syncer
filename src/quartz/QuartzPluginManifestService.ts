@@ -118,7 +118,6 @@ export class QuartzPluginManifestService {
 				return null;
 			}
 
-			/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
 			const content = Buffer.from(file.content, "base64").toString(
 				"utf-8",
 			);

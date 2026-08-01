@@ -327,8 +327,9 @@ export class SyncerPageCompiler {
 			const text = await file.cachedRead();
 
 			try {
-				/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- canvas JSON nodes are untyped */
-				const canvasData = JSON.parse(text);
+				const canvasData = JSON.parse(text) as {
+					nodes?: Array<{ type?: string; file?: string }>;
+				};
 
 				if (Array.isArray(canvasData?.nodes)) {
 					for (const node of canvasData.nodes) {
@@ -353,7 +354,6 @@ export class SyncerPageCompiler {
 						}
 					}
 				}
-				/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- end canvas JSON parsing block */
 			} catch {
 				console.debug(`Failed to parse canvas file: ${file.getPath()}`);
 			}
