@@ -10,7 +10,14 @@ const SCHEMA_COMMENT =
 	"yaml-language-server: $schema=./quartz/plugins/quartz-plugins.schema.json";
 
 type ConfigFormat = "yaml" | "json";
-type YamlDocument = InstanceType<typeof Document>;
+
+interface YamlDocument {
+	set(key: string, value: unknown): void;
+	delete(key: string): void;
+	toString(): string;
+	toJSON(): unknown;
+	commentBefore: string | null;
+}
 
 export class QuartzConfigService {
 	private repo: RepositoryConnection;
