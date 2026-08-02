@@ -66,7 +66,7 @@ export class QuartzConfigService {
 			return this.yamlDocument.toString();
 		}
 
-		const doc = new Document(config);
+		const doc = new Document<YAMLMap>(config);
 		this.ensureSchemaComment(doc);
 
 		return doc.toString();
@@ -160,7 +160,7 @@ export class QuartzConfigService {
 		);
 	}
 
-	private ensureSchemaComment(doc: Document<YAMLMap> | Document): void {
+	private ensureSchemaComment(doc: Document<YAMLMap>): void {
 		// The `yaml` library attaches a leading `# yaml-language-server: ...`
 		// line from a parsed document to the first key node's `commentBefore`,
 		// not to `doc.commentBefore` (which stays null). Checking only
