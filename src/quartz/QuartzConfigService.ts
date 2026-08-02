@@ -1,4 +1,4 @@
-import { Document, type YAMLMap, parseDocument } from "yaml";
+import { Document, parseDocument } from "yaml";
 import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import type { QuartzV5Config, QuartzLockFile } from "./QuartzConfigTypes";
 
@@ -10,10 +10,11 @@ const SCHEMA_COMMENT =
 	"yaml-language-server: $schema=./quartz/plugins/quartz-plugins.schema.json";
 
 type ConfigFormat = "yaml" | "json";
+type YamlDocument = InstanceType<typeof Document>;
 
 export class QuartzConfigService {
 	private repo: RepositoryConnection;
-	private yamlDocument: Document<YAMLMap> | null = null;
+	private yamlDocument: YamlDocument | null = null;
 	private configFormat: ConfigFormat | null = null;
 
 	constructor(repo: RepositoryConnection) {
@@ -32,7 +33,7 @@ export class QuartzConfigService {
 			keepSourceTokens: true,
 		});
 
-		this.yamlDocument = parsed as Document<YAMLMap>;
+		this.yamlDocument = parsed;
 
 		return parsed.toJSON() as QuartzV5Config;
 	}
@@ -66,7 +67,7 @@ export class QuartzConfigService {
 			return this.yamlDocument.toString();
 		}
 
-		const doc = new Document<YAMLMap>(config);
+		const doc = new Document(config);
 		this.ensureSchemaComment(doc);
 
 		return doc.toString();
@@ -160,7 +161,7 @@ export class QuartzConfigService {
 		);
 	}
 
-	private ensureSchemaComment(doc: Document<YAMLMap>): void {
+	private ensureSchemaComment(doc: YamlDocument): void {
 		// The `yaml` library attaches a leading `# yaml-language-server: ...`
 		// line from a parsed document to the first key node's `commentBefore`,
 		// not to `doc.commentBefore` (which stays null). Checking only
