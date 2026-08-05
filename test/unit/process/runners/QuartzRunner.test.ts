@@ -3,6 +3,27 @@ import { QuartzRunner } from "src/process/runners/QuartzRunner";
 import type { ProcessRunner } from "src/process/ProcessRunner";
 import type { ProcessResult } from "src/process/types";
 
+const { getModule, setChildProcess } = vi.hoisted(() => {
+	let childProcess: { execFile: ReturnType<typeof vi.fn> } | null = null;
+	return {
+		getModule: vi.fn(() => {
+			if (!childProcess) {
+				throw new Error("Missing child_process");
+			}
+			return childProcess;
+		}),
+		setChildProcess: (nextChildProcess: {
+			execFile: ReturnType<typeof vi.fn>;
+		}) => {
+			childProcess = nextChildProcess;
+		},
+	};
+});
+
+vi.mock("src/utils/external-fs", () => ({
+	getModule,
+}));
+
 const successResult: ProcessResult = {
 	stdout: "",
 	stderr: "",
@@ -46,20 +67,95 @@ describe("QuartzRunner", () => {
 	});
 
 	it("serve calls npx quartz build --serve --port", () => {
-		const start = vi.fn().mockReturnValue({
-			process: { kill: vi.fn() },
-			result: Promise.resolve(successResult),
-		});
+		const execFile = vi.fn(() => ({
+			kill: vi.fn(),
+			stdout: { on: vi.fn() },
+			stderr: { on: vi.fn() },
+		}));
+		setChildProcess({ execFile });
 		const runner = new QuartzRunner(
-			{ start } as unknown as ProcessRunner,
+			{ run: vi.fn() } as unknown as ProcessRunner,
 			"/repo",
 		);
 		runner.serve(8080);
 
-		expect(start).toHaveBeenCalledWith({
+		expect(execFile).toHaveBeenCalledWith(
+			"npx",
+			["quartz", "build", "--serve", "--port", "8080"],
+			{ cwd: "/repo", timeout: undefined },
+			expect.any(Function),
+		);
+	});
+
+	it("sync passes through flags and message", async () => {
+		const run = vi.fn().mockResolvedValue(successResult);
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
+		await runner.sync({
+			commit: false,
+			push: false,
+			pull: false,
+			message: "Sync notes",
+		});
+
+		expect(run).toHaveBeenCalledWith({
 			binary: "npx",
-			args: ["quartz", "build", "--serve", "--port", "8080"],
+			args: [
+				"quartz",
+				"sync",
+				"--no-commit",
+				"--no-push",
+				"--no-pull",
+				"--message",
+				"Sync notes",
+			],
 			cwd: "/repo",
+		});
+	});
+
+	it("restore runs npx quartz restore", async () => {
+		const run = vi.fn().mockResolvedValue(successResult);
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
+		await runner.restore();
+
+		expect(run).toHaveBeenCalledWith({
+			binary: "npx",
+			args: ["quartz", "restore"],
+			cwd: "/repo",
+		});
+	});
+
+	it("pluginInstall uses timeout and flags", async () => {
+		const run = vi.fn().mockResolvedValue(successResult);
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
+		await runner.pluginInstall({
+			fromConfig: true,
+			latest: true,
+			clean: true,
+			dryRun: true,
+		});
+
+		expect(run).toHaveBeenCalledWith({
+			binary: "npx",
+			args: [
+				"quartz",
+				"plugin",
+				"install",
+				"--from-config",
+				"--latest",
+				"--clean",
+				"--dry-run",
+			],
+			cwd: "/repo",
+			timeout: 120000,
 		});
 	});
 });

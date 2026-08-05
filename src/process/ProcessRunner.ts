@@ -57,9 +57,11 @@ let childProcessCache: ChildProcessModule | null = null;
 let pendingProcess: ChildProcessHandle | null = null;
 let disabled = false;
 let errorTimestamps: number[] = [];
+let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
 
 const ERROR_WINDOW_MS = 60_000;
 const ERROR_THRESHOLD = 3;
+const RECOVERY_COOLDOWN_MS = 5 * 60 * 1000;
 
 function getChildProcess(): ChildProcessModule {
 	if (!childProcessCache) {
@@ -82,7 +84,19 @@ function recordError(message: string, error?: ExecFileError): void {
 	if (errorTimestamps.length >= ERROR_THRESHOLD && !disabled) {
 		disabled = true;
 		console.warn("Process execution disabled after repeated errors");
+		scheduleRecovery();
 	}
+}
+
+function scheduleRecovery(): void {
+	if (recoveryTimer !== null) return;
+
+	recoveryTimer = setTimeout(() => {
+		disabled = false;
+		errorTimestamps = [];
+		recoveryTimer = null;
+		console.debug("Process circuit breaker auto-recovered");
+	}, RECOVERY_COOLDOWN_MS);
 }
 
 function recordSuccess(): void {
@@ -171,7 +185,11 @@ export class ProcessRunner {
 		}
 
 		const timeout =
-			config.timeout && config.timeout > 0 ? config.timeout : 30000;
+			config.timeout === -1
+				? 0
+				: config.timeout && config.timeout > 0
+					? config.timeout
+					: 30000;
 
 		terminatePendingProcess();
 
@@ -307,7 +325,11 @@ export class ProcessRunner {
 		}
 
 		const timeout =
-			config.timeout && config.timeout > 0 ? config.timeout : 30000;
+			config.timeout === -1
+				? 0
+				: config.timeout && config.timeout > 0
+					? config.timeout
+					: 30000;
 		terminatePendingProcess();
 
 		const result = new Promise<ProcessResult>((resolve) => {
@@ -415,5 +437,9 @@ export class ProcessRunner {
 	resetCircuitBreaker(): void {
 		disabled = false;
 		errorTimestamps = [];
+		if (recoveryTimer !== null) {
+			clearTimeout(recoveryTimer);
+			recoveryTimer = null;
+		}
 	}
 }
