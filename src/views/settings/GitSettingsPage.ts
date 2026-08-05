@@ -1,6 +1,7 @@
 import { App, Setting } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { GitAuthType, GitProviderHint } from "src/models/settings";
+import { detectGitProvider } from "src/utils/gitProviderDetection";
 import { createGitBackend } from "src/git/GitBackendFactory";
 import { SettingPageBase } from "./SettingPageBase";
 
@@ -343,30 +344,6 @@ export class GitSettingsPage extends SettingPageBase {
 	}
 
 	private autoDetectProvider(url: string): void {
-		let hint: GitProviderHint = "custom";
-
-		try {
-			const hostname = new URL(url).hostname.toLowerCase();
-
-			if (hostname === "github.com" || hostname.endsWith(".github.com")) {
-				hint = "github";
-			} else if (
-				hostname === "gitlab.com" ||
-				hostname.endsWith(".gitlab.com")
-			) {
-				hint = "gitlab";
-			} else if (
-				hostname === "bitbucket.org" ||
-				hostname.endsWith(".bitbucket.org")
-			) {
-				hint = "bitbucket";
-			} else if (hostname === "codeberg.org") {
-				hint = "gitea";
-			}
-		} catch {
-			hint = "custom";
-		}
-
-		this.settings.gitProviderHint = hint;
+		this.settings.gitProviderHint = detectGitProvider(url);
 	}
 }

@@ -29,11 +29,24 @@ export class GitHubApiService {
 
 	async listRepos(): Promise<GitHubRepo[]> {
 		this.assertToken();
-		const response = await this.client.get<GitHubRepo[]>(
-			`${BASE_URL}/user/repos?type=owner&sort=updated&per_page=100`,
-			this.getHeaders(),
-		);
-		return response.data;
+		const allRepos: GitHubRepo[] = [];
+		let page = 1;
+		const perPage = 100;
+
+		while (true) {
+			const response = await this.client.get<GitHubRepo[]>(
+				`${BASE_URL}/user/repos?type=owner&sort=updated&per_page=${perPage}&page=${page}`,
+				this.getHeaders(),
+			);
+
+			allRepos.push(...response.data);
+
+			if (response.data.length < perPage) break;
+
+			page += 1;
+		}
+
+		return allRepos;
 	}
 
 	async createFromTemplate(
@@ -75,6 +88,52 @@ export class GitHubApiService {
 			`${BASE_URL}/repos/${owner}/${repo}/contents/${path}`,
 			this.getHeaders(),
 			{ message, content: encoded, branch },
+		);
+	}
+
+	async getFileContent(
+		owner: string,
+		repo: string,
+		path: string,
+		branch: string,
+	): Promise<{ content: string; sha: string } | null> {
+		this.assertToken();
+		try {
+			const response = await this.client.get<{
+				content: string;
+				sha: string;
+				encoding: string;
+			}>(
+				`${BASE_URL}/repos/${owner}/${repo}/contents/${path}?ref=${branch}`,
+				this.getHeaders(),
+			);
+
+			const content =
+				response.data.encoding === "base64"
+					? atob(response.data.content.replace(/\n/g, ""))
+					: response.data.content;
+
+			return { content, sha: response.data.sha };
+		} catch {
+			return null;
+		}
+	}
+
+	async updateFile(
+		owner: string,
+		repo: string,
+		path: string,
+		content: string,
+		message: string,
+		branch: string,
+		sha: string,
+	): Promise<void> {
+		this.assertToken();
+		const encoded = btoa(content);
+		await this.client.put(
+			`${BASE_URL}/repos/${owner}/${repo}/contents/${path}`,
+			this.getHeaders(),
+			{ message, content: encoded, branch, sha },
 		);
 	}
 

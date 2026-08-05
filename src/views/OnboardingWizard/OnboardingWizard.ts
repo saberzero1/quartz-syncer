@@ -77,6 +77,16 @@ jobs:
         uses: actions/deploy-pages@v4
 `;
 
+const INDEX_CONTENT = `---
+title: Welcome
+publish: true
+---
+
+Welcome to your Quartz site! This is your home page.
+
+Edit this note in Obsidian, then publish it with Quartz Syncer.
+`;
+
 type WizardStep =
 	| "token"
 	| "flow"
@@ -218,12 +228,20 @@ export class OnboardingWizard extends Modal {
 
 		const linkContainer = this.contentEl.createDiv("qs-onboarding-helper");
 		const linkEl = linkContainer.createEl("a", {
-			text: "Generate a fine-grained token",
-			href: "https://github.com/settings/personal-access-tokens/new",
+			text: "Generate a classic token",
+			href: "https://github.com/settings/tokens/new?scopes=repo,workflow&description=Quartz+Syncer",
 		});
 		linkEl.setAttr("target", "_blank");
 		linkContainer.appendText(
-			" with Contents and Workflows permissions (read and write).",
+			" with repo and workflow scopes. Alternatively, use a ",
+		);
+		const fineGrainedLink = linkContainer.createEl("a", {
+			text: "fine-grained token",
+			href: "https://github.com/settings/personal-access-tokens/new",
+		});
+		fineGrainedLink.setAttr("target", "_blank");
+		linkContainer.appendText(
+			" with Contents, Workflows, and Administration permissions (read and write).",
 		);
 
 		const inputEl = this.contentEl.createEl("input", {
@@ -283,7 +301,7 @@ export class OnboardingWizard extends Modal {
 
 		const inputEl = this.contentEl.createEl("input", {
 			type: "text",
-			placeholder: "my-quartz-site",
+			placeholder: "quartz",
 			cls: "qs-onboarding-site-name",
 		});
 		inputEl.value = this.newSiteName;
@@ -366,23 +384,60 @@ export class OnboardingWizard extends Modal {
 			return;
 		}
 
+		const filterInput = this.contentEl.createEl("input", {
+			type: "text",
+			placeholder: "Filter repositories\u2026",
+			cls: "qs-onboarding-repo-filter",
+		});
+
 		const selectEl = this.contentEl.createEl("select", {
 			cls: "qs-onboarding-repo-select",
 		});
+		selectEl.size = 8;
 
-		for (const repo of this.repos) {
-			selectEl.createEl("option", {
-				text: repo.full_name,
-				value: repo.full_name,
-			});
+		const populateSelect = (filter: string): void => {
+			selectEl.empty();
+			const query = filter.toLowerCase();
+			const filtered = query
+				? this.repos.filter((repo) =>
+						repo.full_name.toLowerCase().includes(query),
+					)
+				: this.repos;
+
+			for (const repo of filtered) {
+				selectEl.createEl("option", {
+					text: repo.full_name,
+					value: repo.full_name,
+				});
+			}
+
+			if (filtered.length === 0) {
+				selectEl.createEl("option", {
+					text: "No repositories match your search.",
+					value: "",
+				});
+			}
+		};
+
+		populateSelect("");
+
+		filterInput.addEventListener("input", () => {
+			populateSelect(filterInput.value.trim());
+		});
+
+		if (this.selectedRepo) {
+			selectEl.value = this.selectedRepo.full_name;
 		}
 
-		selectEl.value = this.selectedRepo?.full_name ?? "";
 		selectEl.addEventListener("change", () => {
 			const selected = this.repos.find(
 				(repo) => repo.full_name === selectEl.value,
 			);
 			this.selectedRepo = selected ?? null;
+		});
+
+		this.contentEl.createDiv({ cls: "qs-onboarding-helper" }).createSpan({
+			text: `${this.repos.length} repositories loaded.`,
 		});
 
 		const connectBtn = this.contentEl.createEl("button", {
@@ -419,8 +474,11 @@ export class OnboardingWizard extends Modal {
 		this.contentEl.createEl("p", {
 			text: `Repository: ${repo.full_name}`,
 		});
+		const displayBranch = this.createdRepo
+			? "v5"
+			: repo.default_branch || "v5";
 		this.contentEl.createEl("p", {
-			text: `Branch: ${repo.default_branch || "v5"}`,
+			text: `Branch: ${displayBranch}`,
 		});
 
 		const configureBtn = this.contentEl.createEl("button", {
@@ -440,10 +498,18 @@ export class OnboardingWizard extends Modal {
 			text: "Your Quartz site is ready! Mark notes with 'publish: true' to get started.",
 		});
 
-		if (this.pagesConfig?.url) {
-			this.contentEl.createEl("p", {
-				text: `Site URL: ${this.pagesConfig.url}`,
+		const repo = this.createdRepo ?? this.selectedRepo;
+		if (repo) {
+			const [owner] = repo.full_name.split("/");
+			const repoName = repo.full_name.split("/")[1] ?? "";
+			const pagesUrl = `https://${owner}.github.io/${repoName}/`;
+			const urlContainer = this.contentEl.createEl("p");
+			urlContainer.createSpan({ text: "Site URL: " });
+			const urlLink = urlContainer.createEl("a", {
+				text: pagesUrl,
+				href: pagesUrl,
 			});
+			urlLink.setAttr("target", "_blank");
 		}
 
 		if (this.pagesWarning) {
@@ -452,6 +518,15 @@ export class OnboardingWizard extends Modal {
 				cls: "qs-onboarding-warning",
 			});
 		}
+
+		const doneButton = this.contentEl.createEl("button", {
+			cls: "mod-cta",
+			text: "Done",
+		});
+		doneButton.style.marginTop = "1em";
+		doneButton.addEventListener("click", () => {
+			this.close();
+		});
 	}
 
 	private renderError(): void {
@@ -562,7 +637,9 @@ export class OnboardingWizard extends Modal {
 				throw new Error("Unable to determine repository owner");
 			}
 
-			const branch = repo.default_branch || "v5";
+			const branch = "v5";
+
+			await this.waitForTemplateReady(service, owner, name, branch);
 
 			try {
 				await service.createFile(
@@ -576,6 +653,34 @@ export class OnboardingWizard extends Modal {
 			} catch {
 				this.pagesWarning =
 					"Repository created successfully. The deploy workflow could not be added automatically \u2014 see the Quartz documentation for manual setup.";
+			}
+
+			try {
+				await service.createFile(
+					owner,
+					name,
+					"content/index.md",
+					INDEX_CONTENT,
+					"Add initial index page",
+					branch,
+				);
+			} catch {
+				console.debug(
+					"Could not create content/index.md — may already exist",
+				);
+			}
+
+			try {
+				const baseUrl = `${owner}.github.io/${name}`;
+				await this.updateQuartzConfig(
+					service,
+					owner,
+					name,
+					branch,
+					baseUrl,
+				);
+			} catch {
+				console.debug("Could not update quartz.config.yaml");
 			}
 
 			try {
@@ -602,7 +707,9 @@ export class OnboardingWizard extends Modal {
 		this.render();
 		try {
 			this.plugin.settings.gitRemoteUrl = repo.clone_url;
-			this.plugin.settings.gitBranch = repo.default_branch || "v5";
+			this.plugin.settings.gitBranch = this.createdRepo
+				? "v5"
+				: repo.default_branch || "v5";
 			this.plugin.settings.gitAuthType = "bearer";
 			this.plugin.settings.gitProviderHint = "github";
 			this.plugin.secretStorageService.setToken(this.token);
@@ -614,6 +721,79 @@ export class OnboardingWizard extends Modal {
 			this.isBusy = false;
 			this.render();
 		}
+	}
+
+	private async waitForTemplateReady(
+		service: GitHubApiService,
+		owner: string,
+		repo: string,
+		branch: string,
+	): Promise<void> {
+		const maxAttempts = 15;
+		const delayMs = 2000;
+
+		for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+			await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+
+			const file = await service.getFileContent(
+				owner,
+				repo,
+				"package.json",
+				branch,
+			);
+
+			if (file) return;
+		}
+	}
+
+	private async updateQuartzConfig(
+		service: GitHubApiService,
+		owner: string,
+		repo: string,
+		branch: string,
+		baseUrl: string,
+	): Promise<void> {
+		const existing = await service.getFileContent(
+			owner,
+			repo,
+			"quartz.config.yaml",
+			branch,
+		);
+
+		if (existing) return;
+
+		const defaultConfig = await service.getFileContent(
+			owner,
+			repo,
+			"quartz.config.default.yaml",
+			branch,
+		);
+
+		if (!defaultConfig) return;
+
+		const content = this.applyBaseUrl(defaultConfig.content, baseUrl);
+
+		await service.createFile(
+			owner,
+			repo,
+			"quartz.config.yaml",
+			content,
+			"Configure site for GitHub Pages",
+			branch,
+		);
+	}
+
+	private applyBaseUrl(configContent: string, baseUrl: string): string {
+		let content = configContent;
+
+		content = content.replace(/baseUrl:\s*.*/, `baseUrl: ${baseUrl}`);
+
+		content = content.replace(
+			/markdownLinkResolution:\s*.*/,
+			"markdownLinkResolution: shortest",
+		);
+
+		return content;
 	}
 
 	private getService(): GitHubApiService {

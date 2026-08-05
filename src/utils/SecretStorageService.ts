@@ -90,6 +90,10 @@ export class SecretStorageService {
 		this.cachedToken = token;
 	}
 
+	storeToken(token: string): void {
+		this.setToken(token);
+	}
+
 	clearToken(): void {
 		this.secretStorage.setSecret(GIT_AUTH_SECRET_ID, "");
 		this.secretStorage.setSecret(SAFE_STORAGE_KEY, "");
