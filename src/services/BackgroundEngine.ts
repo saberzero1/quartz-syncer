@@ -414,6 +414,7 @@ export class BackgroundEngine {
 
 	private autoPublishTimer: number | null = null;
 	private autoPublishing = false;
+	private autoPublishPaused = false;
 
 	startAutoPublish(intervalMinutes: number): void {
 		this.stopAutoPublish();
@@ -432,8 +433,17 @@ export class BackgroundEngine {
 		}
 	}
 
+	pauseAutoPublish(): void {
+		this.autoPublishPaused = true;
+	}
+
+	resumeAutoPublish(): void {
+		this.autoPublishPaused = false;
+	}
+
 	private async runAutoPublish(): Promise<void> {
 		if (this.autoPublishing) return;
+		if (this.autoPublishPaused) return;
 		if (this.compilationQueue.isProcessing) return;
 
 		const publisher = this.plugin.getPublisher();
@@ -467,6 +477,16 @@ export class BackgroundEngine {
 					deleted,
 					"Auto-deleted via Quartz Syncer",
 				);
+			}
+
+			if (this.plugin.settings.autoCleanOrphanedMedia) {
+				const cleanResult = await publisher.cleanOrphanedMedia();
+				if (cleanResult && !cleanResult.success) {
+					console.debug(
+						"Auto-clean orphaned media failed:",
+						cleanResult.error ?? "Unknown error",
+					);
+				}
 			}
 
 			console.debug(
