@@ -143,8 +143,9 @@ export class CompilationQueue {
 				this.ensureAbortController().signal,
 			);
 			this.completedCount += 1;
-		} catch {
+		} catch (error) {
 			this.failedCount += 1;
+			console.debug("Compilation failed for", item.path, error);
 		} finally {
 			this.inFlight -= 1;
 			this.onStatusChange?.();

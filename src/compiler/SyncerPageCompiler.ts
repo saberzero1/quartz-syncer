@@ -7,6 +7,7 @@ import {
 } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
 import { escapeRegExp } from "src/utils/utils";
+import { ASSET_EXTENSIONS } from "src/utils/mediaTypes";
 import {
 	FRONTMATTER_REGEX,
 	DATAVIEW_LINK_TARGET_BLANK_REGEX,
@@ -198,7 +199,7 @@ export class SyncerPageCompiler {
 			text = text.replace(wikilinkRegex, "[[$1]]");
 			text = text.replace(markdownLinkRegex, "[$1]($2)");
 		} catch (e) {
-			console.error(
+			console.debug(
 				`Error while stripping vault path from text: ${String(e)}`,
 			);
 		}
@@ -294,21 +295,7 @@ export class SyncerPageCompiler {
 		return text.replace(DATAVIEW_LINK_TARGET_BLANK_REGEX, "");
 	};
 
-	private static readonly ASSET_EXTENSIONS = new Set([
-		"png",
-		"jpg",
-		"jpeg",
-		"gif",
-		"webp",
-		"mp4",
-		"mkv",
-		"mov",
-		"avi",
-		"mp3",
-		"wav",
-		"ogg",
-		"pdf",
-	]);
+	private static readonly ASSET_EXTENSIONS = ASSET_EXTENSIONS;
 
 	/**
 	 * Extracts blob links from the file using CachedMetadata.embeds.

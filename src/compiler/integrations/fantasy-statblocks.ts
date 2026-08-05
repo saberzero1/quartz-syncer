@@ -439,7 +439,7 @@ async function tryRenderStatblock(
 	try {
 		void api.renderMarkdown(query, div, filePath, component);
 	} catch (error) {
-		console.error(error);
+		console.debug(error);
 
 		new Notice(
 			`Quartz Syncer: Fantasy Statblocks execution error: ${String(
@@ -528,7 +528,7 @@ export const FantasyStatblocksIntegration: PluginIntegration = {
 				"",
 			);
 		} catch (error) {
-			console.error(error);
+			console.debug(error);
 
 			return match.fullMatch;
 		}

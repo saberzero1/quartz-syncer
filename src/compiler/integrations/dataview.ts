@@ -172,7 +172,7 @@ export const DataviewIntegration: PluginIntegration = {
 					return match.fullMatch;
 			}
 		} catch (e) {
-			console.error(e);
+			console.debug(e);
 
 			new Notice(
 				"Quartz Syncer: Unable to render Dataview query. Please update the Dataview plugin to the latest version.",

@@ -429,7 +429,7 @@ async function tryExecuteJs(
 	try {
 		dcApi.executeJs(query, div, component, filePath);
 	} catch (error) {
-		console.error(error);
+		console.debug(error);
 
 		new Notice(
 			`Quartz Syncer: DatacoreJS execution error: ${String(
@@ -461,7 +461,7 @@ async function tryExecuteJsx(
 	try {
 		dcApi.executeJsx(query, div, component, filePath);
 	} catch (error) {
-		console.error(error);
+		console.debug(error);
 
 		new Notice(
 			`Quartz Syncer: DatacoreJSX execution error: ${String(error)}`,
@@ -491,7 +491,7 @@ async function tryExecuteTs(
 	try {
 		dcApi.executeTs(query, div, component, filePath);
 	} catch (error) {
-		console.error(error);
+		console.debug(error);
 
 		new Notice(
 			`Quartz Syncer: DatacoreTS execution error: ${String(
@@ -523,7 +523,7 @@ async function tryExecuteTsx(
 	try {
 		dcApi.executeTsx(query, div, component, filePath);
 	} catch (error) {
-		console.error(error);
+		console.debug(error);
 
 		new Notice(
 			`Quartz Syncer: DatacoreTSX execution error: ${String(error)}`,
@@ -640,7 +640,7 @@ export const DatacoreIntegration: PluginIntegration = {
 
 			return result;
 		} catch (error) {
-			console.error(error);
+			console.debug(error);
 
 			new Notice(`Quartz Syncer: Datacore query error: ${String(error)}`);
 

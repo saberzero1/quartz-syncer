@@ -138,7 +138,7 @@ function parseLinkMetadataFromYaml(source: string): LinkMetadata {
 	try {
 		yaml = parseYaml(source) as Partial<LinkMetadata>;
 	} catch (error) {
-		console.error(error);
+		console.debug(error);
 		throw new YamlParseError(
 			"failed to parse yaml. Check debug console for more detail.",
 		);
@@ -289,9 +289,9 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 							"internal links must be surrounded by quotes.",
 						),
 					);
-					console.error(error);
+					console.debug(error);
 				} else {
-					console.error("Code Block: cardlink unknown error", error);
+					console.debug("Code Block: cardlink unknown error", error);
 				}
 
 				return sanitizeHTMLToString(div, serializer);
@@ -299,7 +299,7 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 
 			return sanitizeHTMLToString(div, serializer);
 		} catch (error) {
-			console.error(error);
+			console.debug(error);
 
 			new Notice(
 				"Quartz Syncer: Failed to render card link. Check console for details.",
