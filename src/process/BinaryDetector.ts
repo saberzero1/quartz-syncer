@@ -35,13 +35,15 @@ export class BinaryDetector {
 	}
 
 	async detectAll(): Promise<BinaryInfo[]> {
-		return Promise.all(
-			ALLOWED_BINARIES.map(async (name) => {
-				const path = await this.detect(name);
-				const version = path ? await this.getVersion(name) : null;
-				return { name, path, version, available: path !== null };
-			}),
-		);
+		const results: BinaryInfo[] = [];
+
+		for (const name of ALLOWED_BINARIES) {
+			const path = await this.detect(name);
+			const version = path ? await this.getVersion(name) : null;
+			results.push({ name, path, version, available: path !== null });
+		}
+
+		return results;
 	}
 
 	clearCache(): void {
