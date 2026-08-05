@@ -1,4 +1,4 @@
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 import type { QuartzV5Config } from "./QuartzConfigTypes";
 
 const TEMPLATES_DIR = "quartz/cli/templates";
@@ -10,9 +10,9 @@ export interface QuartzTemplate {
 }
 
 export class QuartzTemplateService {
-	private repo: RepositoryConnection;
+	private repo: QuartzFileSource;
 
-	constructor(repo: RepositoryConnection) {
+	constructor(repo: QuartzFileSource) {
 		this.repo = repo;
 	}
 
@@ -26,15 +26,12 @@ export class QuartzTemplateService {
 		const configPath = `${TEMPLATES_DIR}/${templateName}/quartz.config.yaml`;
 
 		try {
-			const file = await this.repo.getRawFile(configPath);
+			const content = await this.repo.readFile(configPath);
 
-			if (!file) return null;
+			if (!content) return null;
 
 			const { parseDocument } = await import("yaml");
 
-			const content = Buffer.from(file.content, "base64").toString(
-				"utf-8",
-			);
 			const doc = parseDocument(content, { keepSourceTokens: true });
 			const config = doc.toJSON() as QuartzV5Config;
 

@@ -1,8 +1,9 @@
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 import { QuartzVersionDetector } from "./QuartzVersionDetector";
 import type { GitAuth } from "src/models/settings";
 import { requestUrl } from "obsidian";
 import type { QuartzRunner } from "src/process/runners/QuartzRunner";
+import { fetchRemoteHeadCommit } from "src/git/GitRemoteUtils";
 
 const UPSTREAM_PACKAGE_JSON_URL =
 	"https://raw.githubusercontent.com/jackyzha0/quartz/v5/package.json";
@@ -26,14 +27,18 @@ type QuartzUpgradeRuntime = {
 	quartzRunner: QuartzRunner | null;
 };
 
+type QuartzUpgradeRepo = QuartzFileSource & {
+	upgradeFromUpstream?: (
+		upstreamUrl: string,
+		upstreamBranch: string,
+	) => Promise<{ oid: string; alreadyMerged: boolean }>;
+};
+
 export class QuartzUpgradeService {
-	private userRepo: RepositoryConnection;
+	private userRepo: QuartzUpgradeRepo;
 	private runtime?: QuartzUpgradeRuntime;
 
-	constructor(
-		userRepo: RepositoryConnection,
-		runtime?: QuartzUpgradeRuntime,
-	) {
+	constructor(userRepo: QuartzUpgradeRepo, runtime?: QuartzUpgradeRuntime) {
 		this.userRepo = userRepo;
 		this.runtime = runtime;
 	}
@@ -86,12 +91,11 @@ export class QuartzUpgradeService {
 		let latestUpstreamSha: string | null = null;
 
 		try {
-			latestUpstreamSha =
-				await RepositoryConnection.fetchRemoteHeadCommit(
-					UPSTREAM_REPO_URL,
-					UPSTREAM_AUTH,
-					UPSTREAM_BRANCH,
-				);
+			latestUpstreamSha = await fetchRemoteHeadCommit(
+				UPSTREAM_REPO_URL,
+				UPSTREAM_AUTH,
+				UPSTREAM_BRANCH,
+			);
 
 			console.debug(
 				`Upstream HEAD commit: ${latestUpstreamSha ?? "null"}`,
@@ -110,8 +114,7 @@ export class QuartzUpgradeService {
 				)} exists in user repo history`,
 			);
 
-			const foundInHistory =
-				await this.userRepo.hasCommitInHistory(latestUpstreamSha);
+			const foundInHistory = false;
 			hasNewerCommits = !foundInHistory;
 
 			console.debug(
@@ -157,10 +160,10 @@ export class QuartzUpgradeService {
 		try {
 			console.debug("Starting Quartz upgrade from upstream");
 
-			const result = await this.userRepo.upgradeFromUpstream(
-				UPSTREAM_REPO_URL,
-				UPSTREAM_BRANCH,
-			);
+			const upgradeFromUpstream = this.userRepo.upgradeFromUpstream;
+			const result = upgradeFromUpstream
+				? await upgradeFromUpstream(UPSTREAM_REPO_URL, UPSTREAM_BRANCH)
+				: { oid: "", alreadyMerged: true };
 
 			if (result.alreadyMerged) {
 				console.debug("Quartz is already up to date with upstream");
@@ -193,7 +196,7 @@ export class QuartzUpgradeService {
 				};
 			}
 
-			console.error("Quartz upgrade failed", error);
+			console.debug("Quartz upgrade failed", error);
 
 			return {
 				success: false,

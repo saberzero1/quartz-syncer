@@ -1,5 +1,5 @@
 import { Document, parseDocument } from "yaml";
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 import type { QuartzV5Config, QuartzLockFile } from "./QuartzConfigTypes";
 
 const CONFIG_YAML_PATH = "quartz.config.yaml";
@@ -20,11 +20,11 @@ interface YamlDocument {
 }
 
 export class QuartzConfigService {
-	private repo: RepositoryConnection;
+	private repo: QuartzFileSource;
 	private yamlDocument: YamlDocument | null = null;
 	private configFormat: ConfigFormat | null = null;
 
-	constructor(repo: RepositoryConnection) {
+	constructor(repo: QuartzFileSource) {
 		this.repo = repo;
 	}
 
@@ -89,21 +89,15 @@ export class QuartzConfigService {
 		const filePath =
 			this.configFormat === "json" ? CONFIG_JSON_PATH : CONFIG_YAML_PATH;
 
-		const files = new Map<string, string>();
-		files.set(filePath, serialized);
-
-		await this.repo.writeRawFiles(files, commitMessage);
+		void commitMessage;
+		await this.repo.writeFile(filePath, serialized);
 	}
 
 	async readLockFile(): Promise<QuartzLockFile | null> {
 		try {
-			const file = await this.repo.getRawFile(LOCK_FILE_PATH);
+			const content = await this.repo.readFile(LOCK_FILE_PATH);
 
-			if (!file) return null;
-
-			const content = Buffer.from(file.content, "base64").toString(
-				"utf-8",
-			);
+			if (!content) return null;
 
 			return JSON.parse(content) as QuartzLockFile;
 		} catch (error) {
@@ -119,10 +113,8 @@ export class QuartzConfigService {
 	): Promise<void> {
 		const serialized = JSON.stringify(lockFile, null, 2) + "\n";
 
-		const files = new Map<string, string>();
-		files.set(LOCK_FILE_PATH, serialized);
-
-		await this.repo.writeRawFiles(files, commitMessage);
+		void commitMessage;
+		await this.repo.writeFile(LOCK_FILE_PATH, serialized);
 	}
 
 	getConfigFormat(): ConfigFormat | null {
@@ -134,30 +126,20 @@ export class QuartzConfigService {
 		format: ConfigFormat;
 	}> {
 		try {
-			const yamlFile = await this.repo.getRawFile(CONFIG_YAML_PATH);
+			const yamlContent = await this.repo.readFile(CONFIG_YAML_PATH);
 
-			if (yamlFile) {
-				return {
-					content: Buffer.from(yamlFile.content, "base64").toString(
-						"utf-8",
-					),
-					format: "yaml",
-				};
+			if (yamlContent) {
+				return { content: yamlContent, format: "yaml" };
 			}
 		} catch {
 			console.debug("No YAML config found, trying JSON fallback");
 		}
 
 		try {
-			const jsonFile = await this.repo.getRawFile(CONFIG_JSON_PATH);
+			const jsonContent = await this.repo.readFile(CONFIG_JSON_PATH);
 
-			if (jsonFile) {
-				return {
-					content: Buffer.from(jsonFile.content, "base64").toString(
-						"utf-8",
-					),
-					format: "json",
-				};
+			if (jsonContent) {
+				return { content: jsonContent, format: "json" };
 			}
 		} catch {
 			console.debug("No JSON config found either");

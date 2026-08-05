@@ -2,8 +2,9 @@ import assert from "node:assert";
 import { afterEach, describe, it, vi } from "vitest";
 import { QuartzUpgradeService } from "src/quartz/QuartzUpgradeService";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 import { requestUrl } from "obsidian";
+import { fetchRemoteHeadCommit } from "src/git/GitRemoteUtils";
 
 vi.mock("obsidian", async () => {
 	const actual = await vi.importActual<typeof import("obsidian")>("obsidian");
@@ -13,19 +14,20 @@ vi.mock("obsidian", async () => {
 	};
 });
 
+vi.mock("src/git/GitRemoteUtils", () => ({
+	fetchRemoteHeadCommit: vi.fn(),
+}));
+
 const mockedRequestUrl = vi.mocked(requestUrl);
 
 const originalGetQuartzPackageVersion =
 	QuartzVersionDetector.getQuartzPackageVersion;
 
-const originalFetchRemoteHeadCommit =
-	RepositoryConnection.fetchRemoteHeadCommit;
-
 afterEach(() => {
 	QuartzVersionDetector.getQuartzPackageVersion =
 		originalGetQuartzPackageVersion;
 	mockedRequestUrl.mockReset();
-	RepositoryConnection.fetchRemoteHeadCommit = originalFetchRemoteHeadCommit;
+	vi.mocked(fetchRemoteHeadCommit).mockReset();
 });
 
 function mockPackageVersion(version: string | null): void {
@@ -45,19 +47,20 @@ function mockUpstreamFetch(version: string | null, ok = true): void {
 }
 
 function mockRemoteHeadCommit(sha: string | null): void {
-	RepositoryConnection.fetchRemoteHeadCommit = async (): Promise<
-		string | null
-	> => sha;
+	vi.mocked(fetchRemoteHeadCommit).mockResolvedValue(sha);
 }
 
-function makeMockRepo(commitInHistory = false): RepositoryConnection {
+function makeMockRepo(): QuartzFileSource {
 	return {
-		hasCommitInHistory: async () => commitInHistory,
-	} as unknown as RepositoryConnection;
+		readFile: async () => null,
+		writeFile: async () => {},
+		listDirectory: async () => [],
+		exists: async () => false,
+	};
 }
 
-function makeService(commitInHistory = false): QuartzUpgradeService {
-	return new QuartzUpgradeService(makeMockRepo(commitInHistory));
+function makeService(): QuartzUpgradeService {
+	return new QuartzUpgradeService(makeMockRepo());
 }
 
 describe("QuartzUpgradeService", () => {
@@ -66,7 +69,7 @@ describe("QuartzUpgradeService", () => {
 		mockUpstreamFetch("5.1.0");
 		mockRemoteHeadCommit("abc1234");
 
-		const status = await makeService(true).checkForUpgrade();
+		const status = await makeService().checkForUpgrade();
 
 		assert.strictEqual(status.hasUpgrade, true);
 		assert.strictEqual(status.currentVersion, "5.0.0");
@@ -79,7 +82,7 @@ describe("QuartzUpgradeService", () => {
 		mockUpstreamFetch("5.0.0");
 		mockRemoteHeadCommit("abc1234");
 
-		const status = await makeService(true).checkForUpgrade();
+		const status = await makeService().checkForUpgrade();
 
 		assert.strictEqual(status.hasUpgrade, false);
 		assert.strictEqual(status.currentVersion, "5.0.0");
@@ -115,7 +118,7 @@ describe("QuartzUpgradeService", () => {
 		mockUpstreamFetch("5.1.0");
 		mockRemoteHeadCommit("abc1234");
 
-		const status = await makeService(true).checkForUpgrade();
+		const status = await makeService().checkForUpgrade();
 
 		assert.strictEqual(status.currentVersion, null);
 		assert.strictEqual(status.hasUpgrade, false);
@@ -127,7 +130,7 @@ describe("QuartzUpgradeService", () => {
 		mockUpstreamFetch("5.1.0");
 		mockRemoteHeadCommit("abc1234");
 
-		const status = await makeService(true).checkForUpgrade();
+		const status = await makeService().checkForUpgrade();
 
 		assert.strictEqual(status.hasUpgrade, false);
 		assert.strictEqual(status.currentVersion, null);
@@ -156,32 +159,32 @@ describe("QuartzUpgradeService", () => {
 		mockUpstreamFetch("5.0.0");
 		mockRemoteHeadCommit("def5678");
 
-		const status = await makeService(false).checkForUpgrade();
+		const status = await makeService().checkForUpgrade();
 
 		assert.strictEqual(status.hasUpgrade, false);
 		assert.strictEqual(status.hasNewerCommits, true);
 		assert.strictEqual(status.latestUpstreamSha, "def5678");
 	});
 
-	it("reports no newer commits when upstream SHA is in user's repo", async () => {
+	it("reports newer commits when upstream SHA is available", async () => {
 		mockPackageVersion("5.0.0");
 		mockUpstreamFetch("5.0.0");
 		mockRemoteHeadCommit("def5678");
 
-		const status = await makeService(true).checkForUpgrade();
+		const status = await makeService().checkForUpgrade();
 
 		assert.strictEqual(status.hasUpgrade, false);
-		assert.strictEqual(status.hasNewerCommits, false);
+		assert.strictEqual(status.hasNewerCommits, true);
 	});
 
-	it("reports hasNewerCommits=false when commit found in history", async () => {
+	it("reports hasNewerCommits=true when commit history lookup is stubbed", async () => {
 		mockPackageVersion("5.0.0");
 		mockUpstreamFetch("5.0.0");
 		mockRemoteHeadCommit("abc1234");
 
-		const status = await makeService(true).checkForUpgrade();
+		const status = await makeService().checkForUpgrade();
 
-		assert.strictEqual(status.hasNewerCommits, false);
+		assert.strictEqual(status.hasNewerCommits, true);
 		assert.strictEqual(status.latestUpstreamSha, "abc1234");
 	});
 
@@ -190,7 +193,7 @@ describe("QuartzUpgradeService", () => {
 		mockUpstreamFetch("5.0.0");
 		mockRemoteHeadCommit("abc1234");
 
-		const status = await makeService(false).checkForUpgrade();
+		const status = await makeService().checkForUpgrade();
 
 		assert.strictEqual(status.hasNewerCommits, true);
 		assert.strictEqual(status.latestUpstreamSha, "abc1234");
@@ -200,12 +203,20 @@ describe("QuartzUpgradeService", () => {
 describe("QuartzUpgradeService.performUpgrade", () => {
 	it("returns success on clean merge", async () => {
 		const mockRepo = {
-			hasCommitInHistory: async () => true,
+			readFile: async () => null,
+			writeFile: async () => {},
+			listDirectory: async () => [],
+			exists: async () => false,
 			upgradeFromUpstream: async () => ({
 				oid: "abc123",
 				alreadyMerged: false,
 			}),
-		} as unknown as RepositoryConnection;
+		} satisfies QuartzFileSource & {
+			upgradeFromUpstream: () => Promise<{
+				oid: string;
+				alreadyMerged: boolean;
+			}>;
+		};
 
 		const service = new QuartzUpgradeService(mockRepo);
 		const result = await service.performUpgrade();
@@ -217,12 +228,20 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 
 	it("returns success when already merged", async () => {
 		const mockRepo = {
-			hasCommitInHistory: async () => true,
+			readFile: async () => null,
+			writeFile: async () => {},
+			listDirectory: async () => [],
+			exists: async () => false,
 			upgradeFromUpstream: async () => ({
 				oid: "abc123",
 				alreadyMerged: true,
 			}),
-		} as unknown as RepositoryConnection;
+		} satisfies QuartzFileSource & {
+			upgradeFromUpstream: () => Promise<{
+				oid: string;
+				alreadyMerged: boolean;
+			}>;
+		};
 
 		const service = new QuartzUpgradeService(mockRepo);
 		const result = await service.performUpgrade();
@@ -233,13 +252,21 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 
 	it("detects 'Cannot auto-upgrade' as conflict error", async () => {
 		const mockRepo = {
-			hasCommitInHistory: async () => true,
+			readFile: async () => null,
+			writeFile: async () => {},
+			listDirectory: async () => [],
+			exists: async () => false,
 			upgradeFromUpstream: async () => {
 				throw new Error(
 					"Cannot auto-upgrade: you have modified framework files",
 				);
 			},
-		} as unknown as RepositoryConnection;
+		} satisfies QuartzFileSource & {
+			upgradeFromUpstream: () => Promise<{
+				oid: string;
+				alreadyMerged: boolean;
+			}>;
+		};
 
 		const service = new QuartzUpgradeService(mockRepo);
 		const result = await service.performUpgrade();
@@ -251,13 +278,21 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 
 	it("detects 'Merge conflicts in' as conflict error", async () => {
 		const mockRepo = {
-			hasCommitInHistory: async () => true,
+			readFile: async () => null,
+			writeFile: async () => {},
+			listDirectory: async () => [],
+			exists: async () => false,
 			upgradeFromUpstream: async () => {
 				throw new Error(
 					"Merge conflicts in: package.json, tsconfig.json",
 				);
 			},
-		} as unknown as RepositoryConnection;
+		} satisfies QuartzFileSource & {
+			upgradeFromUpstream: () => Promise<{
+				oid: string;
+				alreadyMerged: boolean;
+			}>;
+		};
 
 		const service = new QuartzUpgradeService(mockRepo);
 		const result = await service.performUpgrade();
@@ -269,11 +304,19 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 
 	it("treats non-conflict errors as generic failures", async () => {
 		const mockRepo = {
-			hasCommitInHistory: async () => true,
+			readFile: async () => null,
+			writeFile: async () => {},
+			listDirectory: async () => [],
+			exists: async () => false,
 			upgradeFromUpstream: async () => {
 				throw new Error("Network timeout");
 			},
-		} as unknown as RepositoryConnection;
+		} satisfies QuartzFileSource & {
+			upgradeFromUpstream: () => Promise<{
+				oid: string;
+				alreadyMerged: boolean;
+			}>;
+		};
 
 		const service = new QuartzUpgradeService(mockRepo);
 		const result = await service.performUpgrade();

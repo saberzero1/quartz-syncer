@@ -9,7 +9,7 @@ import {
 	getPluginName,
 	getSourceRef,
 } from "./QuartzPluginUtils";
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import { fetchRemoteHeadCommit } from "src/git/GitRemoteUtils";
 
 export interface PluginUpdateStatus {
 	name: string;
@@ -64,13 +64,12 @@ export class QuartzPluginUpdateChecker {
 			const gitUrl = resolveSourceToGitUrl(plugin.source);
 			const ref = getSourceRef(plugin.source) ?? undefined;
 
-			const remoteCommit =
-				await RepositoryConnection.fetchRemoteHeadCommit(
-					gitUrl,
-					this.auth,
-					ref,
-					this.corsProxyUrl,
-				);
+			const remoteCommit = await fetchRemoteHeadCommit(
+				gitUrl,
+				this.auth,
+				ref,
+				this.corsProxyUrl,
+			);
 
 			if (!remoteCommit) {
 				return {

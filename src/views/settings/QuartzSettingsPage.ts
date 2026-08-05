@@ -8,7 +8,7 @@ import {
 import { SettingPageBase } from "./SettingPageBase";
 import type QuartzSyncer from "src/main";
 import { createGitBackend } from "src/git/GitBackendFactory";
-import type { GitBackend, FileChange } from "src/git/types";
+import type { GitBackend } from "src/git/types";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
@@ -21,87 +21,8 @@ import { PluginBrowserModal } from "src/views/PluginBrowser/PluginBrowserModal";
 import { TerminalOutputModal } from "src/views/TerminalOutput/TerminalOutputModal";
 import { QuartzPreviewModal } from "src/views/QuartzPreview/QuartzPreviewModal";
 import type { BinaryInfo } from "src/process/types";
-import type {
-	RepositoryConnection,
-	RepositoryDirectoryEntry,
-	RepositoryFile,
-} from "src/repositoryConnection/RepositoryConnection";
-
-class GitBackendRepositoryAdapter {
-	private backend: GitBackend;
-	private branch: string;
-
-	constructor(backend: GitBackend, branch: string) {
-		this.backend = backend;
-		this.branch = branch;
-	}
-
-	async getRawFile(path: string): Promise<RepositoryFile | undefined> {
-		const entries = await this.backend.readTree(this.branch);
-		const match = entries.find(
-			(entry) => entry.path === path && entry.type === "blob",
-		);
-
-		if (!match) return undefined;
-
-		const blob = await this.backend.readBlob(match.sha);
-		const content = Buffer.from(blob).toString("base64");
-
-		return {
-			content,
-			sha: match.sha,
-			path,
-			type: "file",
-		};
-	}
-
-	async writeRawFiles(
-		files: Map<string, string>,
-		commitMessage = "Update Quartz configuration via Syncer",
-	): Promise<void> {
-		const changes: FileChange[] = [];
-
-		for (const [path, content] of files.entries()) {
-			changes.push({ path, content, encoding: "utf-8" });
-		}
-
-		await this.backend.writeFiles(this.branch, commitMessage, changes);
-	}
-
-	async listDirectory(path: string): Promise<RepositoryDirectoryEntry[]> {
-		const entries = await this.backend.readTree(this.branch);
-		const prefix = path.endsWith("/") ? path : `${path}/`;
-		const results = new Map<string, "blob" | "tree">();
-
-		for (const entry of entries) {
-			if (!entry.path.startsWith(prefix)) continue;
-			const remainder = entry.path.slice(prefix.length);
-			if (!remainder) continue;
-			const parts = remainder.split("/");
-			const name = parts[0];
-			if (!name) continue;
-
-			if (parts.length === 1 && entry.type === "blob") {
-				results.set(name, "blob");
-			} else {
-				results.set(name, "tree");
-			}
-		}
-
-		return [...results.entries()].map(([name, type]) => ({ name, type }));
-	}
-
-	async hasCommitInHistory(_targetOid: string): Promise<boolean> {
-		return false;
-	}
-
-	async upgradeFromUpstream(
-		_upstreamUrl: string,
-		_upstreamBranch: string,
-	): Promise<{ oid: string; alreadyMerged: boolean }> {
-		throw new Error("Upgrade is not available in this build.");
-	}
-}
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
+import { RemoteFileSource } from "src/quartz/RemoteFileSource";
 
 export class QuartzSettingsPage extends SettingPageBase {
 	private app: App;
@@ -277,10 +198,34 @@ export class QuartzSettingsPage extends SettingPageBase {
 		for (const info of this.binaryInfo) {
 			const status = info.available ? "✓" : "✗";
 			const version = info.version ? ` (${info.version})` : "";
-			this.binaryStatusEl.createDiv({
+			const warning = this.getVersionWarning(info);
+			const row = this.binaryStatusEl.createDiv({
 				text: `${info.name}: ${status}${version}`,
 			});
+			if (warning) {
+				row.createSpan({
+					text: ` ⚠ ${warning}`,
+					cls: "qs-binary-version-warning",
+				});
+			}
 		}
+	}
+
+	private getVersionWarning(info: BinaryInfo): string | null {
+		if (!info.available || !info.version) return null;
+
+		const major = parseMajorVersion(info.version);
+		if (major === null) return null;
+
+		if (info.name === "node" && major < 18) {
+			return "Node.js ≥18 required for Quartz v5";
+		}
+
+		if (info.name === "npm" && major < 8) {
+			return "npm ≥8 required for modern lockfile support";
+		}
+
+		return null;
 	}
 
 	private renderQuartzRepoPath(): void {
@@ -491,11 +436,11 @@ export class QuartzSettingsPage extends SettingPageBase {
 		);
 	}
 
-	private createRepositoryAdapter(): RepositoryConnection {
+	private createRepositoryAdapter(): QuartzFileSource {
 		const backend = this.createBackend();
 		const branch = this.plugin.settings.gitBranch || "v4";
 
-		return new GitBackendRepositoryAdapter(backend, branch);
+		return new RemoteFileSource(backend, branch);
 	}
 
 	private async openPluginBrowser(): Promise<void> {
@@ -548,4 +493,11 @@ export class QuartzSettingsPage extends SettingPageBase {
 
 		new PluginBrowserModal(this.app, registry, config, onInstall).open();
 	}
+}
+
+function parseMajorVersion(versionString: string): number | null {
+	const cleaned = versionString.replace(/^v/i, "").trim();
+	const major = parseInt(cleaned.split(".")[0] ?? "", 10);
+
+	return Number.isNaN(major) ? null : major;
 }

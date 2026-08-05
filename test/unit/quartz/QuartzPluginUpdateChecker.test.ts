@@ -1,27 +1,28 @@
 import assert from "node:assert";
-import { afterEach, describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 import { QuartzPluginUpdateChecker } from "src/quartz/QuartzPluginUpdateChecker";
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import { fetchRemoteHeadCommit } from "src/git/GitRemoteUtils";
 import type {
 	QuartzPluginEntry,
 	QuartzLockFile,
 } from "src/quartz/QuartzConfigTypes";
 
-const originalFetchRemoteHeadCommit =
-	RepositoryConnection.fetchRemoteHeadCommit;
+vi.mock("src/git/GitRemoteUtils", () => ({
+	fetchRemoteHeadCommit: vi.fn(),
+}));
+
+const mockedFetchRemoteHeadCommit = vi.mocked(fetchRemoteHeadCommit);
 
 afterEach(() => {
-	RepositoryConnection.fetchRemoteHeadCommit = originalFetchRemoteHeadCommit;
+	mockedFetchRemoteHeadCommit.mockReset();
 });
 
 function mockFetchRemoteHeadCommit(
 	results: Record<string, string | null>,
 ): void {
-	RepositoryConnection.fetchRemoteHeadCommit = async (
-		url: string,
-	): Promise<string | null> => {
+	mockedFetchRemoteHeadCommit.mockImplementation(async (url: string) => {
 		return results[url] ?? null;
-	};
+	});
 }
 
 function requireValue<T>(value: T | undefined | null, message: string): T {
@@ -134,11 +135,9 @@ describe("QuartzPluginUpdateChecker", () => {
 	});
 
 	it("handles remote fetch failure gracefully", async () => {
-		RepositoryConnection.fetchRemoteHeadCommit = async (): Promise<
-			string | null
-		> => {
-			throw new Error("Network error");
-		};
+		mockedFetchRemoteHeadCommit.mockRejectedValue(
+			new Error("Network error"),
+		);
 
 		const checker = new QuartzPluginUpdateChecker({ type: "none" });
 
@@ -172,13 +171,11 @@ describe("QuartzPluginUpdateChecker", () => {
 	it("checks all plugins in parallel", async () => {
 		let callCount = 0;
 
-		RepositoryConnection.fetchRemoteHeadCommit = async (): Promise<
-			string | null
-		> => {
+		mockedFetchRemoteHeadCommit.mockImplementation(async () => {
 			callCount++;
 
 			return "newcommit000000000000000000000000000000000";
-		};
+		});
 
 		const checker = new QuartzPluginUpdateChecker({ type: "none" });
 

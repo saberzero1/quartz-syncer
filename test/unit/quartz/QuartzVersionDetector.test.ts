@@ -1,28 +1,23 @@
 import assert from "node:assert";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
-import type { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
-import { Buffer } from "buffer";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 
 function createMockRepo(
 	existingFiles: string[],
 	fileContents?: Record<string, string>,
-): RepositoryConnection {
+): QuartzFileSource {
 	return {
-		getRawFile: async (path: string) => {
+		readFile: async (path: string) => {
 			if (!existingFiles.includes(path)) {
-				throw new Error(`File not found: ${path}`);
+				return null;
 			}
 
-			const content = fileContents?.[path] ?? "";
-
-			return {
-				content: Buffer.from(content).toString("base64"),
-				sha: "mock-sha",
-				path,
-				type: "file" as const,
-			};
+			return fileContents?.[path] ?? "";
 		},
-	} as unknown as RepositoryConnection;
+		writeFile: async () => {},
+		listDirectory: async () => [],
+		exists: async (path: string) => existingFiles.includes(path),
+	};
 }
 
 describe("QuartzVersionDetector", () => {

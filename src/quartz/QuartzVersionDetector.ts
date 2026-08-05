@@ -1,4 +1,4 @@
-import type { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 import type { QuartzVersion } from "./QuartzConfigTypes";
 
 const QUARTZ_CONFIG_YAML = "quartz.config.yaml";
@@ -13,7 +13,7 @@ export class QuartzVersionDetector {
 	 * Priority: quartz.config.yaml (v5) → quartz.plugins.json (legacy v5) → quartz.config.ts (v4).
 	 */
 	static async detectQuartzVersion(
-		repo: RepositoryConnection,
+		repo: QuartzFileSource,
 	): Promise<QuartzVersion> {
 		if (await QuartzVersionDetector.fileExists(repo, QUARTZ_CONFIG_YAML)) {
 			console.debug("Detected Quartz v5 (YAML config)");
@@ -43,16 +43,12 @@ export class QuartzVersionDetector {
 	 * Returns `null` if `package.json` is missing or has no `version` field.
 	 */
 	static async getQuartzPackageVersion(
-		repo: RepositoryConnection,
+		repo: QuartzFileSource,
 	): Promise<string | null> {
 		try {
-			const file = await repo.getRawFile(PACKAGE_JSON);
+			const content = await repo.readFile(PACKAGE_JSON);
 
-			if (!file) return null;
-
-			const content = Buffer.from(file.content, "base64").toString(
-				"utf-8",
-			);
+			if (!content) return null;
 			const pkg = JSON.parse(content) as { version?: string };
 
 			return pkg.version ?? null;
@@ -64,13 +60,13 @@ export class QuartzVersionDetector {
 	}
 
 	private static async fileExists(
-		repo: RepositoryConnection,
+		repo: QuartzFileSource,
 		path: string,
 	): Promise<boolean> {
 		try {
-			const file = await repo.getRawFile(path);
+			const content = await repo.readFile(path);
 
-			return file !== undefined;
+			return content !== null;
 		} catch {
 			return false;
 		}

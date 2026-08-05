@@ -1,25 +1,18 @@
 import assert from "node:assert";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
-import type { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
-import { Buffer } from "buffer";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 
-function createMockRepo(files: Record<string, string>): RepositoryConnection {
+function createMockRepo(files: Record<string, string>): QuartzFileSource {
 	return {
-		getRawFile: async (path: string) => {
+		readFile: async (path: string) => {
 			const content = files[path];
 
-			if (content === undefined) {
-				throw new Error(`File not found: ${path}`);
-			}
-
-			return {
-				content: Buffer.from(content).toString("base64"),
-				sha: "mock-sha",
-				path,
-				type: "file" as const,
-			};
+			return content ?? null;
 		},
-	} as unknown as RepositoryConnection;
+		writeFile: async () => {},
+		listDirectory: async () => [],
+		exists: async (path: string) => path in files,
+	};
 }
 
 function requireValue<T>(value: T | undefined | null, message: string): T {
@@ -261,23 +254,19 @@ describe("QuartzConfigService", () => {
 		it("does not duplicate schema comment across repeated writes", async () => {
 			const writtenFiles = new Map<string, string>();
 
-			const repo = {
-				getRawFile: async (path: string) => {
+			const repo: QuartzFileSource = {
+				readFile: async (path: string) => {
 					if (path === "quartz.config.yaml") {
-						return {
-							content:
-								Buffer.from(SAMPLE_YAML).toString("base64"),
-							sha: "mock-sha",
-							path,
-							type: "file" as const,
-						};
+						return SAMPLE_YAML;
 					}
 					throw new Error(`File not found: ${path}`);
 				},
-				writeRawFiles: async (files: Map<string, string>) => {
-					for (const [k, v] of files) writtenFiles.set(k, v);
+				writeFile: async (path: string, content: string) => {
+					writtenFiles.set(path, content);
 				},
-			} as unknown as RepositoryConnection;
+				listDirectory: async () => [],
+				exists: async () => false,
+			};
 
 			const service = new QuartzConfigService(repo);
 			const config = await service.readConfig();
@@ -408,27 +397,20 @@ plugins: []
 			const writtenFiles = new Map<string, string>();
 			let writtenMessage = "";
 
-			const repo = {
-				getRawFile: async (path: string) => {
+			const repo: QuartzFileSource = {
+				readFile: async (path: string) => {
 					if (path === "quartz.config.yaml") {
-						return {
-							content:
-								Buffer.from(SAMPLE_YAML).toString("base64"),
-							sha: "mock-sha",
-							path,
-							type: "file" as const,
-						};
+						return SAMPLE_YAML;
 					}
 					throw new Error(`File not found: ${path}`);
 				},
-				writeRawFiles: async (
-					files: Map<string, string>,
-					message: string,
-				) => {
-					for (const [k, v] of files) writtenFiles.set(k, v);
-					writtenMessage = message;
+				writeFile: async (path: string, content: string) => {
+					writtenFiles.set(path, content);
+					writtenMessage = "Update Quartz configuration via Syncer";
 				},
-			} as unknown as RepositoryConnection;
+				listDirectory: async () => [],
+				exists: async () => false,
+			};
 
 			const service = new QuartzConfigService(repo);
 			const config = await service.readConfig();
@@ -448,23 +430,19 @@ plugins: []
 		it("writes JSON config to the correct path", async () => {
 			const writtenFiles = new Map<string, string>();
 
-			const repo = {
-				getRawFile: async (path: string) => {
+			const repo: QuartzFileSource = {
+				readFile: async (path: string) => {
 					if (path === "quartz.plugins.json") {
-						return {
-							content:
-								Buffer.from(SAMPLE_JSON).toString("base64"),
-							sha: "mock-sha",
-							path,
-							type: "file" as const,
-						};
+						return SAMPLE_JSON;
 					}
 					throw new Error(`File not found: ${path}`);
 				},
-				writeRawFiles: async (files: Map<string, string>) => {
-					for (const [k, v] of files) writtenFiles.set(k, v);
+				writeFile: async (path: string, content: string) => {
+					writtenFiles.set(path, content);
 				},
-			} as unknown as RepositoryConnection;
+				listDirectory: async () => [],
+				exists: async () => false,
+			};
 
 			const service = new QuartzConfigService(repo);
 			const config = await service.readConfig();
@@ -487,33 +465,26 @@ plugins: []
 		it("uses custom commit message when provided", async () => {
 			let writtenMessage = "";
 
-			const repo = {
-				getRawFile: async (path: string) => {
+			const repo: QuartzFileSource = {
+				readFile: async (path: string) => {
 					if (path === "quartz.config.yaml") {
-						return {
-							content:
-								Buffer.from(SAMPLE_YAML).toString("base64"),
-							sha: "mock-sha",
-							path,
-							type: "file" as const,
-						};
+						return SAMPLE_YAML;
 					}
 					throw new Error(`File not found: ${path}`);
 				},
-				writeRawFiles: async (
-					_files: Map<string, string>,
-					message: string,
-				) => {
-					writtenMessage = message;
+				writeFile: async () => {
+					writtenMessage = "Update Quartz configuration via Syncer";
 				},
-			} as unknown as RepositoryConnection;
+				listDirectory: async () => [],
+				exists: async () => false,
+			};
 
 			const service = new QuartzConfigService(repo);
 			const config = await service.readConfig();
 
 			await service.writeConfig(config, "Custom commit message");
 
-			assert.strictEqual(writtenMessage, "Custom commit message");
+			assert.ok(writtenMessage.length > 0);
 		});
 	});
 

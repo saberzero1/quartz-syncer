@@ -1,6 +1,5 @@
 import { beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert";
-import { Buffer } from "buffer";
 import { QuartzTemplateService } from "src/quartz/QuartzTemplateService";
 import type { QuartzV5Config } from "src/quartz/QuartzConfigTypes";
 
@@ -65,14 +64,18 @@ function requireValue<T>(value: T | undefined | null, message: string): T {
 describe("QuartzTemplateService", () => {
 	let mockRepo: {
 		listDirectory: ReturnType<typeof vi.fn>;
-		getRawFile: ReturnType<typeof vi.fn>;
+		readFile: ReturnType<typeof vi.fn>;
+		writeFile: ReturnType<typeof vi.fn>;
+		exists: ReturnType<typeof vi.fn>;
 	};
 	let service: QuartzTemplateService;
 
 	beforeEach(() => {
 		mockRepo = {
 			listDirectory: vi.fn(),
-			getRawFile: vi.fn(),
+			readFile: vi.fn(),
+			writeFile: vi.fn(),
+			exists: vi.fn(),
 		};
 		service = new QuartzTemplateService(mockRepo as never);
 	});
@@ -146,14 +149,7 @@ describe("QuartzTemplateService", () => {
 				"    order: 10",
 			].join("\n");
 
-			const encoded = Buffer.from(yamlContent).toString("base64");
-
-			mockRepo.getRawFile.mockResolvedValue({
-				content: encoded,
-				sha: "abc123",
-				path: "quartz/cli/templates/blog/quartz.config.yaml",
-				type: "file",
-			});
+			mockRepo.readFile.mockResolvedValue(yamlContent);
 
 			const template = await service.readTemplate("blog");
 			const result = requireValue(template, "Expected template");
@@ -172,7 +168,7 @@ describe("QuartzTemplateService", () => {
 		});
 
 		it("returns null when template config file not found", async () => {
-			mockRepo.getRawFile.mockRejectedValue(new Error("Not found"));
+			mockRepo.readFile.mockResolvedValue(null);
 
 			const template = await service.readTemplate("nonexistent");
 

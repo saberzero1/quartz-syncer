@@ -1,57 +1,18 @@
 import { beforeEach, describe, it, vi } from "vitest";
 import assert from "node:assert";
-import { Buffer } from "buffer";
 import { QuartzPluginManifestService } from "src/quartz/QuartzPluginManifestService";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
+import { fetchRemoteBranches } from "src/git/GitRemoteUtils";
+import type { GitAuth } from "src/models/settings";
 
-vi.mock("src/repositoryConnection/RepositoryConnection", () => {
-	let mockGetRawFile: (...args: unknown[]) => unknown = vi.fn();
+vi.mock("src/git/GitRemoteUtils", () => ({
+	fetchRemoteBranches: vi.fn(),
+}));
 
-	const MockRepositoryConnection = vi.fn(
-		class MockRepositoryConnection {
-			getRawFile: (...args: unknown[]) => unknown;
-
-			constructor() {
-				this.getRawFile = (...args: unknown[]) =>
-					mockGetRawFile(...args);
-			}
-		},
-	);
-
-	(
-		MockRepositoryConnection as unknown as {
-			fetchRemoteBranches: ReturnType<typeof vi.fn>;
-		}
-	).fetchRemoteBranches = vi.fn().mockResolvedValue({
-		branches: ["main"],
-		defaultBranch: "main",
-	});
-
-	return {
-		RepositoryConnection: MockRepositoryConnection,
-		_setMockGetRawFile: (fn: (...args: unknown[]) => unknown) => {
-			mockGetRawFile = fn;
-		},
-		_getMockGetRawFile: () => mockGetRawFile,
-	};
-});
-
-import * as RepoModule from "src/repositoryConnection/RepositoryConnection";
-
-type RepoMockModule = typeof RepoModule & {
-	_setMockGetRawFile: (fn: ReturnType<typeof vi.fn>) => void;
-	RepositoryConnection: ReturnType<typeof vi.fn>;
-};
-
-function setMockGetRawFile(fn: ReturnType<typeof vi.fn>): void {
-	(RepoModule as RepoMockModule)._setMockGetRawFile(fn);
-}
-
-function getRepoConstructor(): ReturnType<typeof vi.fn> {
-	return (RepoModule as RepoMockModule).RepositoryConnection;
-}
+const mockedFetchRemoteBranches = vi.mocked(fetchRemoteBranches);
 
 function encodeJson(obj: unknown): string {
-	return Buffer.from(JSON.stringify(obj)).toString("base64");
+	return JSON.stringify(obj);
 }
 
 function requireValue<T>(value: T | undefined | null, message: string): T {
@@ -63,16 +24,34 @@ function requireValue<T>(value: T | undefined | null, message: string): T {
 
 describe("QuartzPluginManifestService", () => {
 	let service: QuartzPluginManifestService;
-	let mockGetRawFile: ReturnType<typeof vi.fn>;
+	let mockReadFile: ReturnType<typeof vi.fn>;
+	let createRemoteFileSource: ReturnType<typeof vi.fn>;
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mockGetRawFile = vi.fn();
-		setMockGetRawFile(mockGetRawFile);
+		mockReadFile = vi.fn();
+		createRemoteFileSource = vi.fn(
+			(): QuartzFileSource => ({
+				readFile: mockReadFile as QuartzFileSource["readFile"],
+				writeFile: vi.fn(),
+				listDirectory: vi.fn().mockResolvedValue([]),
+				exists: vi.fn().mockResolvedValue(false),
+			}),
+		);
+		mockedFetchRemoteBranches.mockResolvedValue({
+			branches: ["main"],
+			defaultBranch: "main",
+		});
 
 		service = new QuartzPluginManifestService(
 			{ type: "bearer", secret: "test-token" },
 			"https://cors.proxy",
+			createRemoteFileSource as unknown as (options: {
+				remoteUrl: string;
+				branch: string;
+				auth: GitAuth;
+				corsProxyUrl?: string;
+			}) => QuartzFileSource,
 		);
 	});
 
@@ -87,12 +66,7 @@ describe("QuartzPluginManifestService", () => {
 			},
 		};
 
-		mockGetRawFile.mockResolvedValue({
-			content: encodeJson(packageJson),
-			sha: "abc",
-			path: "package.json",
-			type: "file",
-		});
+		mockReadFile.mockResolvedValue(encodeJson(packageJson));
 
 		const manifest = await service.fetchManifest(
 			"github:quartz-community/explorer",
@@ -102,17 +76,11 @@ describe("QuartzPluginManifestService", () => {
 		assert.strictEqual(entry.name, "explorer");
 		assert.strictEqual(entry.displayName, "Explorer");
 
-		const ctor = getRepoConstructor();
-
 		const ctorCall = requireValue(
-			ctor.mock.calls[0],
-			"Expected RepositoryConnection constructor call",
+			createRemoteFileSource.mock.calls[0],
+			"Expected remote file source factory call",
 		);
-		assert.ok(
-			ctorCall[0].gitSettings.remoteUrl.includes(
-				"quartz-community/explorer",
-			),
-		);
+		assert.ok(ctorCall[0].remoteUrl.includes("quartz-community/explorer"));
 	});
 
 	it("fetches manifest from object source with subdir", async () => {
@@ -123,12 +91,7 @@ describe("QuartzPluginManifestService", () => {
 			},
 		};
 
-		mockGetRawFile.mockResolvedValue({
-			content: encodeJson(packageJson),
-			sha: "def",
-			path: "plugin/package.json",
-			type: "file",
-		});
+		mockReadFile.mockResolvedValue(encodeJson(packageJson));
 
 		const manifest = await service.fetchManifest({
 			name: "quartz-themes",
@@ -140,8 +103,8 @@ describe("QuartzPluginManifestService", () => {
 		assert.strictEqual(entry.name, "quartz-themes");
 
 		const call = requireValue(
-			mockGetRawFile.mock.calls[0],
-			"Expected getRawFile call",
+			mockReadFile.mock.calls[0],
+			"Expected readFile call",
 		);
 		assert.strictEqual(call[0], "plugin/package.json");
 	});
@@ -153,7 +116,7 @@ describe("QuartzPluginManifestService", () => {
 	});
 
 	it("returns null when getRawFile throws", async () => {
-		mockGetRawFile.mockRejectedValue(new Error("Not found"));
+		mockReadFile.mockRejectedValue(new Error("Not found"));
 
 		const manifest = await service.fetchManifest(
 			"github:quartz-community/nonexistent",
@@ -163,12 +126,7 @@ describe("QuartzPluginManifestService", () => {
 	});
 
 	it("returns null when package.json has no quartz field", async () => {
-		mockGetRawFile.mockResolvedValue({
-			content: encodeJson({ name: "some-package" }),
-			sha: "abc",
-			path: "package.json",
-			type: "file",
-		});
+		mockReadFile.mockResolvedValue(encodeJson({ name: "some-package" }));
 
 		const manifest = await service.fetchManifest(
 			"github:quartz-community/no-manifest",
@@ -182,12 +140,7 @@ describe("QuartzPluginManifestService", () => {
 			quartz: { name: "cached-plugin", category: "transformer" },
 		};
 
-		mockGetRawFile.mockResolvedValue({
-			content: encodeJson(packageJson),
-			sha: "abc",
-			path: "package.json",
-			type: "file",
-		});
+		mockReadFile.mockResolvedValue(encodeJson(packageJson));
 
 		const first = await service.fetchManifest(
 			"github:quartz-community/cached",
@@ -198,44 +151,37 @@ describe("QuartzPluginManifestService", () => {
 		);
 
 		assert.deepStrictEqual(first, second);
-		assert.strictEqual(mockGetRawFile.mock.calls.length, 1);
+		assert.strictEqual(mockReadFile.mock.calls.length, 1);
 	});
 
 	it("resolves ref from hash in string source", async () => {
-		mockGetRawFile.mockResolvedValue({
-			content: encodeJson({
+		mockReadFile.mockResolvedValue(
+			encodeJson({
 				quartz: { name: "pinned", category: "filter" },
 			}),
-			sha: "abc",
-			path: "package.json",
-			type: "file",
-		});
+		);
 
 		await service.fetchManifest("github:quartz-community/pinned#v2.0.0");
 
-		const ctor = getRepoConstructor();
 		const ctorCall = requireValue(
-			ctor.mock.calls[0],
-			"Expected RepositoryConnection constructor call",
+			createRemoteFileSource.mock.calls[0],
+			"Expected remote file source factory call",
 		);
 
-		assert.strictEqual(ctorCall[0].gitSettings.branch, "v2.0.0");
+		assert.strictEqual(ctorCall[0].branch, "v2.0.0");
 	});
 
 	it("clearCache allows re-fetching", async () => {
-		mockGetRawFile.mockResolvedValue({
-			content: encodeJson({
+		mockReadFile.mockResolvedValue(
+			encodeJson({
 				quartz: { name: "refresh", category: "emitter" },
 			}),
-			sha: "abc",
-			path: "package.json",
-			type: "file",
-		});
+		);
 
 		await service.fetchManifest("github:quartz-community/refresh");
 		service.clearCache();
 		await service.fetchManifest("github:quartz-community/refresh");
 
-		assert.strictEqual(mockGetRawFile.mock.calls.length, 2);
+		assert.strictEqual(mockReadFile.mock.calls.length, 2);
 	});
 });

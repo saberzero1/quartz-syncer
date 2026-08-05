@@ -1,91 +1,11 @@
 import type QuartzSyncer from "src/main";
 import { createGitBackend } from "src/git/GitBackendFactory";
-import type { FileChange, GitBackend } from "src/git/types";
-import type {
-	RepositoryConnection,
-	RepositoryDirectoryEntry,
-	RepositoryFile,
-} from "src/repositoryConnection/RepositoryConnection";
-
-class GitBackendRepositoryAdapter {
-	private backend: GitBackend;
-	private branch: string;
-
-	constructor(backend: GitBackend, branch: string) {
-		this.backend = backend;
-		this.branch = branch;
-	}
-
-	async getRawFile(path: string): Promise<RepositoryFile | undefined> {
-		const entries = await this.backend.readTree(this.branch);
-		const match = entries.find(
-			(entry) => entry.path === path && entry.type === "blob",
-		);
-
-		if (!match) return undefined;
-
-		const blob = await this.backend.readBlob(match.sha);
-		const content = Buffer.from(blob).toString("base64");
-
-		return {
-			content,
-			sha: match.sha,
-			path,
-			type: "file",
-		};
-	}
-
-	async writeRawFiles(
-		files: Map<string, string>,
-		commitMessage = "Update Quartz configuration via Syncer",
-	): Promise<void> {
-		const changes: FileChange[] = [];
-
-		for (const [path, content] of files.entries()) {
-			changes.push({ path, content, encoding: "utf-8" });
-		}
-
-		await this.backend.writeFiles(this.branch, commitMessage, changes);
-	}
-
-	async listDirectory(path: string): Promise<RepositoryDirectoryEntry[]> {
-		const entries = await this.backend.readTree(this.branch);
-		const prefix = path.endsWith("/") ? path : `${path}/`;
-		const results = new Map<string, "blob" | "tree">();
-
-		for (const entry of entries) {
-			if (!entry.path.startsWith(prefix)) continue;
-			const remainder = entry.path.slice(prefix.length);
-			if (!remainder) continue;
-			const parts = remainder.split("/");
-			const name = parts[0];
-			if (!name) continue;
-
-			if (parts.length === 1 && entry.type === "blob") {
-				results.set(name, "blob");
-			} else {
-				results.set(name, "tree");
-			}
-		}
-
-		return [...results.entries()].map(([name, type]) => ({ name, type }));
-	}
-
-	async hasCommitInHistory(_targetOid: string): Promise<boolean> {
-		return false;
-	}
-
-	async upgradeFromUpstream(
-		_upstreamUrl: string,
-		_upstreamBranch: string,
-	): Promise<{ oid: string; alreadyMerged: boolean }> {
-		throw new Error("Upgrade is not available in this build.");
-	}
-}
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
+import { RemoteFileSource } from "src/quartz/RemoteFileSource";
 
 export function createRepositoryAdapter(
 	plugin: QuartzSyncer,
-): RepositoryConnection | null {
+): QuartzFileSource | null {
 	if (!plugin.settings.gitRemoteUrl) {
 		return null;
 	}
@@ -102,7 +22,7 @@ export function createRepositoryAdapter(
 	);
 	const branch = plugin.settings.gitBranch || "v4";
 
-	return new GitBackendRepositoryAdapter(backend, branch);
+	return new RemoteFileSource(backend, branch);
 }
 
 export function getValueByPath(
