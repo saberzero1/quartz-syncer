@@ -29,6 +29,7 @@ export class ScrollSync {
 		this.isSyncing = true;
 		this.rafId = window.requestAnimationFrame(() => {
 			target.scrollTop = source.scrollTop;
+			target.scrollLeft = source.scrollLeft;
 			this.isSyncing = false;
 		});
 	}

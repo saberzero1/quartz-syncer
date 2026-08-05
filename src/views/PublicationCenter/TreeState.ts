@@ -2,9 +2,12 @@ export type PublishCategory =
 	| "unpublished"
 	| "changed"
 	| "deleted"
-	| "published";
+	| "published"
+	| "media-linked"
+	| "media-unlinked"
+	| "arbitrary";
 
-export type SelectableCategory = Exclude<PublishCategory, "published">;
+export type SelectableCategory = PublishCategory;
 
 export type TreeEntry = {
 	path: string;
@@ -14,6 +17,7 @@ export type TreeEntry = {
 export class TreeState {
 	selectedFiles = new Set<string>();
 	expandedFolders = new Set<string>();
+	filterText = "";
 	private categoryFiles = new Map<SelectableCategory, Set<string>>();
 	private folderFiles = new Map<string, Set<string>>();
 	private fileCategories = new Map<string, PublishCategory>();
@@ -23,16 +27,17 @@ export class TreeState {
 			["unpublished", new Set<string>()],
 			["changed", new Set<string>()],
 			["deleted", new Set<string>()],
+			["published", new Set<string>()],
+			["media-linked", new Set<string>()],
+			["media-unlinked", new Set<string>()],
+			["arbitrary", new Set<string>()],
 		]);
 		this.folderFiles = new Map<string, Set<string>>();
 		this.fileCategories = new Map<string, PublishCategory>();
 
 		for (const entry of entries) {
 			this.fileCategories.set(entry.path, entry.category);
-
-			if (entry.category !== "published") {
-				this.categoryFiles.get(entry.category)?.add(entry.path);
-			}
+			this.categoryFiles.get(entry.category)?.add(entry.path);
 
 			const segments = entry.path.split("/");
 			let currentPath = "";
@@ -126,6 +131,7 @@ export class TreeState {
 		}
 
 		let selectedCount = 0;
+
 		for (const filePath of files) {
 			if (this.selectedFiles.has(filePath)) {
 				selectedCount += 1;
@@ -141,6 +147,16 @@ export class TreeState {
 		}
 
 		return { checked: false, indeterminate: true };
+	}
+
+	matchesFilter(path: string): boolean {
+		if (!this.filterText) return true;
+
+		return path.toLowerCase().includes(this.filterText.toLowerCase());
+	}
+
+	getCategoryCount(category: SelectableCategory): number {
+		return this.categoryFiles.get(category)?.size ?? 0;
 	}
 
 	isFolderExpanded(path: string): boolean {

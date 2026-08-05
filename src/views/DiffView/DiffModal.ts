@@ -7,6 +7,7 @@ type DiffModalProps = {
 	localContent: string;
 	remoteContent: string;
 	filePath: string;
+	diffViewStyle?: "split" | "unified" | "auto";
 };
 
 type DiffViewMode = "split" | "unified";
@@ -30,18 +31,66 @@ type UnifiedRow = {
 export class DiffModal extends Modal {
 	private mode: DiffViewMode;
 	private scrollSync: ScrollSync | null = null;
+	private splitButtonEl: HTMLButtonElement | null = null;
+	private unifiedButtonEl: HTMLButtonElement | null = null;
+	private contentRegionEl: HTMLDivElement | null = null;
 
 	constructor(
 		app: App,
 		private props: DiffModalProps,
 	) {
 		super(app);
-		this.mode = Platform.isDesktopApp ? "split" : "unified";
+		const style = this.props.diffViewStyle ?? "auto";
+		this.mode =
+			style === "auto"
+				? Platform.isDesktopApp
+					? "split"
+					: "unified"
+				: style;
 	}
 
 	onOpen(): void {
 		this.modalEl.addClass("qs-diff-view");
-		this.render();
+		this.contentEl.empty();
+
+		const header = this.contentEl.createDiv({ cls: "diff-header" });
+		header.createSpan({ text: this.props.filePath });
+
+		const stats = this.computeDiffStats();
+		if (stats.added > 0 || stats.removed > 0) {
+			const statsEl = header.createSpan({ cls: "diff-stats" });
+			statsEl.createSpan({
+				cls: "diff-stat-added",
+				text: `+${stats.added}`,
+			});
+			statsEl.createSpan({ text: " / " });
+			statsEl.createSpan({
+				cls: "diff-stat-removed",
+				text: `-${stats.removed}`,
+			});
+		}
+
+		const controls = header.createDiv({ cls: "diff-controls" });
+		this.splitButtonEl = controls.createEl("button", {
+			text: "Split",
+		});
+		this.splitButtonEl.addEventListener("click", () => {
+			this.mode = "split";
+			this.updateModeButtons();
+			this.renderContent();
+		});
+
+		this.unifiedButtonEl = controls.createEl("button", {
+			text: "Unified",
+		});
+		this.unifiedButtonEl.addEventListener("click", () => {
+			this.mode = "unified";
+			this.updateModeButtons();
+			this.renderContent();
+		});
+
+		this.updateModeButtons();
+		this.renderContent();
 
 		this.scope.register([], "Escape", () => {
 			this.close();
@@ -53,45 +102,40 @@ export class DiffModal extends Modal {
 		this.scrollSync?.destroy();
 		this.scrollSync = null;
 		this.contentEl.empty();
+		this.splitButtonEl = null;
+		this.unifiedButtonEl = null;
+		this.contentRegionEl = null;
 	}
 
-	private render(): void {
+	private updateModeButtons(): void {
+		this.splitButtonEl?.classList.toggle(
+			"is-active",
+			this.mode === "split",
+		);
+		this.unifiedButtonEl?.classList.toggle(
+			"is-active",
+			this.mode === "unified",
+		);
+	}
+
+	private renderContent(): void {
 		this.scrollSync?.destroy();
 		this.scrollSync = null;
-		this.contentEl.empty();
-
-		const header = this.contentEl.createDiv({ cls: "diff-header" });
-		header.createSpan({ text: this.props.filePath });
-
-		const controls = header.createDiv({ cls: "diff-controls" });
-		const splitButton = controls.createEl("button", {
-			text: "Split",
-			cls: this.mode === "split" ? "is-active" : "",
-		});
-		splitButton.addEventListener("click", () => {
-			this.mode = "split";
-			this.render();
-		});
-
-		const unifiedButton = controls.createEl("button", {
-			text: "Unified",
-			cls: this.mode === "unified" ? "is-active" : "",
-		});
-		unifiedButton.addEventListener("click", () => {
-			this.mode = "unified";
-			this.render();
+		this.contentRegionEl?.remove();
+		this.contentRegionEl = this.contentEl.createDiv({
+			cls: "diff-content",
 		});
 
 		if (this.mode === "split") {
-			this.renderSplitView();
+			this.renderSplitView(this.contentRegionEl);
 			return;
 		}
 
-		this.renderUnifiedView();
+		this.renderUnifiedView(this.contentRegionEl);
 	}
 
-	private renderSplitView(): void {
-		const container = this.contentEl.createDiv({
+	private renderSplitView(targetEl: HTMLElement): void {
+		const container = targetEl.createDiv({
 			cls: "diff-split-container",
 		});
 		const leftPane = container.createDiv({
@@ -120,8 +164,8 @@ export class DiffModal extends Modal {
 		this.scrollSync = new ScrollSync(leftPane, rightPane);
 	}
 
-	private renderUnifiedView(): void {
-		const container = this.contentEl.createDiv({ cls: "diff-unified" });
+	private renderUnifiedView(targetEl: HTMLElement): void {
+		const container = targetEl.createDiv({ cls: "diff-unified" });
 		const rows = this.buildUnifiedRows();
 
 		for (const row of rows) {
@@ -152,6 +196,27 @@ export class DiffModal extends Modal {
 		line.createSpan({ cls: "diff-line-text", text });
 	}
 
+	private computeDiffStats(): { added: number; removed: number } {
+		const changes = diffLines(
+			this.props.remoteContent,
+			this.props.localContent,
+		);
+		let added = 0;
+		let removed = 0;
+
+		for (const change of changes) {
+			const lineCount = splitLines(change.value).length;
+
+			if (change.added) {
+				added += lineCount;
+			} else if (change.removed) {
+				removed += lineCount;
+			}
+		}
+
+		return { added, removed };
+	}
+
 	private buildSplitRows(): DiffRow[] {
 		const rows: DiffRow[] = [];
 		const changes = diffLines(
@@ -170,6 +235,7 @@ export class DiffModal extends Modal {
 						rightNumber,
 						leftText: "",
 						rightText: line,
+						leftClass: "diff-filler",
 						rightClass: "diff-added",
 					});
 					rightNumber += 1;
@@ -183,6 +249,7 @@ export class DiffModal extends Modal {
 						leftText: line,
 						rightText: "",
 						leftClass: "diff-removed",
+						rightClass: "diff-filler",
 					});
 					leftNumber += 1;
 					continue;
