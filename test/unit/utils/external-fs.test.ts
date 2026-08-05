@@ -38,7 +38,7 @@ describe("isAbsolutePath", () => {
 
 describe("expandTilde", () => {
 	beforeEach(() => {
-		Platform.isDesktop = true;
+		Platform.isDesktopApp = true;
 		(window as Window & { require?: (module: string) => unknown }).require =
 			vi.fn((module: string) => {
 				if (module === "os") {
@@ -49,7 +49,7 @@ describe("expandTilde", () => {
 	});
 
 	afterEach(() => {
-		Platform.isDesktop = true;
+		Platform.isDesktopApp = true;
 		vi.clearAllMocks();
 	});
 
@@ -67,29 +67,29 @@ describe("expandTilde", () => {
 	});
 
 	it("returns unchanged on mobile", () => {
-		Platform.isDesktop = false;
+		Platform.isDesktopApp = false;
 		expect(expandTilde("~/Documents")).toBe("~/Documents");
 	});
 });
 
 describe("desktop-gated functions", () => {
 	it("readExternalFile returns null on mobile", async () => {
-		Platform.isDesktop = false;
+		Platform.isDesktopApp = false;
 		expect(await readExternalFile("/some/path")).toBeNull();
 	});
 
 	it("externalFileExists returns false on mobile", async () => {
-		Platform.isDesktop = false;
+		Platform.isDesktopApp = false;
 		expect(await externalFileExists("/some/path")).toBe(false);
 	});
 
 	it("externalFileExistsSync returns false on mobile", () => {
-		Platform.isDesktop = false;
+		Platform.isDesktopApp = false;
 		expect(externalFileExistsSync("/some/path")).toBe(false);
 	});
 
 	it("externalIsDirectorySync returns false on mobile", () => {
-		Platform.isDesktop = false;
+		Platform.isDesktopApp = false;
 		expect(externalIsDirectorySync("/some/path")).toBe(false);
 	});
 });

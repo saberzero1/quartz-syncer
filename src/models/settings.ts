@@ -1,6 +1,6 @@
 /**
  * Git authentication configuration.
- * Used as a data transfer type for RepositoryConnection and related services.
+ * Used as a data transfer type for git services.
  * Not stored directly in settings — constructed from flat keys via getGitSettingsWithSecret().
  */
 export type GitAuthType = "none" | "basic" | "bearer";
@@ -26,13 +26,13 @@ export type GitProviderHint =
 
 export type DiffViewStyle = "split" | "unified" | "auto";
 
-export type UpgradeCheckStrategy = "version" | "commit";
+type UpgradeCheckStrategy = "version" | "commit";
 
 export type FrontmatterFormat = "yaml" | "json";
 
 /**
  * Git remote settings as a data transfer type.
- * Used by RepositoryConnection, SiteManager, and related services.
+ * Used by SiteManager and related services.
  * Constructed from flat settings keys via getGitSettingsWithSecret().
  */
 export interface GitRemoteSettings {
@@ -125,7 +125,15 @@ export default interface QuartzSyncerSettings {
 
 	/** Performance settings */
 	useCache: boolean;
+	/** Automatically remove orphaned media after publishing */
+	autoCleanOrphanedMedia: boolean;
+	/**
+	 * @deprecated Deprecated in 2.0. Removed in 2.1.
+	 */
 	syncCache: boolean;
+	/**
+	 * @deprecated Deprecated in 2.0. Removed in 2.1.
+	 */
 	persistCache: boolean;
 	cacheTimestamp: number;
 	cache: string;
@@ -187,18 +195,29 @@ export default interface QuartzSyncerSettings {
 	manageSyncerStyles: boolean;
 
 	/** Plugin state variables */
+	/**
+	 * @deprecated Deprecated in 2.0. Removed in 2.1.
+	 */
 	noteSettingsIsInitialized: boolean;
 	lastUsedSettingsTab: string;
 	pluginVersion: string;
 
-	/** Last known upstream Quartz commit SHA (per-device, for commit-based update checks) */
+	/**
+	 * @deprecated Deprecated in 2.0. Removed in 2.1.
+	 */
 	lastUpstreamCommitSha: string;
 
-	/** Strategy for checking Quartz updates: "version" compares package versions, "commit" compares upstream commit SHAs */
+	/**
+	 * @deprecated Deprecated in 2.0. Removed in 2.1.
+	 */
 	upgradeCheckStrategy: UpgradeCheckStrategy;
 
 	/** UI settings */
 	diffViewStyle: DiffViewStyle;
+	/** Allow publishing arbitrary files outside the content folder */
+	allowArbitraryFilePublishing: boolean;
+	/** Vault paths to publish as custom files */
+	arbitraryPublishPaths: string[];
 
 	/** Auto-publish interval in minutes (0 = disabled, desktop only) */
 	autoPublishInterval: number;

@@ -82,7 +82,7 @@ export function isAbsolutePath(p: string): boolean {
 
 export function expandTilde(p: string): string {
 	if (!p.startsWith("~")) return p;
-	if (!Platform.isDesktop) return p;
+	if (!Platform.isDesktopApp) return p;
 	const os = getOs();
 	const home = os.homedir();
 	if (p === "~") return home;
@@ -99,7 +99,7 @@ export function joinPath(...segments: string[]): string {
 export async function readExternalFile(
 	filePath: string,
 ): Promise<string | null> {
-	if (!Platform.isDesktop) return null;
+	if (!Platform.isDesktopApp) return null;
 
 	const resolved = expandTilde(filePath);
 	try {
@@ -114,7 +114,7 @@ export async function writeExternalFile(
 	filePath: string,
 	content: string,
 ): Promise<boolean> {
-	if (!Platform.isDesktop) return false;
+	if (!Platform.isDesktopApp) return false;
 
 	const resolved = expandTilde(filePath);
 	try {
@@ -129,7 +129,7 @@ export async function writeExternalFile(
 export async function readExternalDir(
 	dirPath: string,
 ): Promise<string[] | null> {
-	if (!Platform.isDesktop) return null;
+	if (!Platform.isDesktopApp) return null;
 
 	const resolved = expandTilde(dirPath);
 	try {
@@ -141,7 +141,7 @@ export async function readExternalDir(
 }
 
 export async function externalFileExists(filePath: string): Promise<boolean> {
-	if (!Platform.isDesktop) return false;
+	if (!Platform.isDesktopApp) return false;
 
 	const resolved = expandTilde(filePath);
 	try {
@@ -154,7 +154,7 @@ export async function externalFileExists(filePath: string): Promise<boolean> {
 }
 
 export function externalFileExistsSync(filePath: string): boolean {
-	if (!Platform.isDesktop) return false;
+	if (!Platform.isDesktopApp) return false;
 
 	const resolved = expandTilde(filePath);
 	try {
@@ -166,7 +166,7 @@ export function externalFileExistsSync(filePath: string): boolean {
 }
 
 export function externalIsDirectorySync(dirPath: string): boolean {
-	if (!Platform.isDesktop) return false;
+	if (!Platform.isDesktopApp) return false;
 
 	const resolved = expandTilde(dirPath);
 	try {

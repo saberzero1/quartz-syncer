@@ -23,5 +23,21 @@ export function uiSettingDefinitions(): SettingDefinitionItem[] {
 				},
 			],
 		},
+		{
+			type: "group",
+			heading: "Publication center",
+			items: [
+				{
+					name: "Allow custom file publishing",
+					desc: "Enable selection of arbitrary vault files in the publication center.",
+					aliases: ["arbitrary", "custom files"],
+					control: {
+						type: "toggle",
+						key: "allowArbitraryFilePublishing",
+						defaultValue: false,
+					},
+				},
+			],
+		},
 	];
 }

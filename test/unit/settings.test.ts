@@ -1,8 +1,8 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
+import type { App, PluginManifest } from "obsidian";
 import QuartzSyncer from "src/main";
 import { SecretStorageService } from "src/utils/SecretStorageService";
-import type QuartzSyncerSettings from "src/models/settings";
 
 function loadFixture(name: string): Record<string, unknown> {
 	const raw = readFileSync(
@@ -13,7 +13,10 @@ function loadFixture(name: string): Record<string, unknown> {
 }
 
 function createPlugin(savedData: Record<string, unknown>): QuartzSyncer {
-	const plugin = new QuartzSyncer() as QuartzSyncer;
+	const plugin = new QuartzSyncer(
+		{} as App,
+		{} as PluginManifest,
+	) as QuartzSyncer;
 	plugin.loadData = vi.fn().mockResolvedValue(savedData);
 	plugin.saveData = vi.fn().mockResolvedValue(undefined);
 	return plugin;
@@ -51,9 +54,10 @@ describe("settings migration", () => {
 		expect(plugin.settings.gitAuthUsername).toBe("testuser");
 		expect(plugin.settings.gitBranch).toBe("v4");
 		expect(plugin.settings.gitProviderHint).toBe("github");
-		expect(plugin.settings.githubRepo).toBeUndefined();
-		expect(plugin.settings.githubUserName).toBeUndefined();
-		expect(plugin.settings.githubToken).toBeUndefined();
+		const legacy = plugin.settings as unknown as Record<string, unknown>;
+		expect(legacy["githubRepo"]).toBeUndefined();
+		expect(legacy["githubUserName"]).toBeUndefined();
+		expect(legacy["githubToken"]).toBeUndefined();
 	});
 
 	it("migrates schema v1 (nested git object) to flat keys", async () => {
@@ -67,7 +71,7 @@ describe("settings migration", () => {
 		expect(plugin.settings.gitBranch).toBe("v4");
 		expect(plugin.settings.gitAuthType).toBe("basic");
 		expect(plugin.settings.gitAuthUsername).toBe("testuser");
-		expect(plugin.settings.settingsSchemaVersion).toBe(2);
+		expect(plugin.settings.settingsSchemaVersion).toBe(4);
 		expect(
 			(plugin.settings as unknown as Record<string, unknown>)["git"],
 		).toBeUndefined();
@@ -82,7 +86,7 @@ describe("settings migration", () => {
 			"https://github.com/testuser/quartz.git",
 		);
 		expect(plugin.settings.gitBranch).toBe("v4");
-		expect(plugin.settings.settingsSchemaVersion).toBe(2);
+		expect(plugin.settings.settingsSchemaVersion).toBe(4);
 	});
 
 	it("migrates empty timestamp keys to defaults", async () => {
@@ -130,9 +134,7 @@ describe("SecretStorageService", () => {
 
 		const service = new SecretStorageService({
 			secretStorage: mockStorage,
-		} as unknown as Parameters<
-			(typeof SecretStorageService)["prototype"]["constructor"]
-		>[0]);
+		} as unknown as App);
 
 		expect(service.hasToken()).toBe(false);
 

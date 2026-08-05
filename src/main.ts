@@ -1,4 +1,4 @@
-import { Platform, Plugin } from "obsidian";
+import { Notice, Platform, Plugin } from "obsidian";
 import QuartzSyncerSettings, {
 	type GitRemoteSettings,
 } from "src/models/settings";
@@ -10,6 +10,7 @@ import { BundledGitBackend } from "src/git/backends/BundledGitBackend";
 import { SecretStorageService } from "src/utils/SecretStorageService";
 import { QuartzSyncerSettingTab } from "src/views/QuartzSyncerSettingTab";
 import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
+import { ManualSetupModal } from "src/views/ManualSetupModal";
 import { OnboardingWizard } from "src/views/OnboardingWizard/OnboardingWizard";
 import {
 	MigrationNotice,
@@ -32,7 +33,7 @@ import { QuartzRunner } from "src/process/runners/QuartzRunner";
  * This interface defines the default settings for the QuartzSyncer plugin.
  */
 const DEFAULT_SETTINGS: QuartzSyncerSettings = {
-	settingsSchemaVersion: 2,
+	settingsSchemaVersion: 4,
 
 	gitRemoteUrl: "",
 	gitBranch: "v4",
@@ -75,6 +76,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	/** Performance settings */
 	useCache: true,
+	autoCleanOrphanedMedia: false,
 	syncCache: true,
 	persistCache: false,
 	cacheTimestamp: 0,
@@ -144,6 +146,8 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	/** UI settings */
 	diffViewStyle: "auto",
+	allowArbitraryFilePublishing: false,
+	arbitraryPublishPaths: [],
 
 	/** Developer settings */
 	autoPublishInterval: 0,
@@ -204,6 +208,28 @@ export default class QuartzSyncer extends Plugin {
 			new PublicationCenter(this.app, this).open();
 		});
 
+		if (!this.settings.gitRemoteUrl) {
+			const notice = new Notice("", 0);
+			const fragment = notice.noticeEl.createDiv();
+			fragment.createSpan({
+				text: "Quartz Syncer: no repository configured. ",
+			});
+			const setupLink = fragment.createEl("a", {
+				text: "Open setup wizard",
+				href: "#",
+			});
+			setupLink.addEventListener("click", (e) => {
+				e.preventDefault();
+				notice.hide();
+				if (Platform.isDesktopApp) {
+					new OnboardingWizard(this.app, this).open();
+				} else {
+					new ManualSetupModal(this.app, this).open();
+				}
+			});
+			fragment.createSpan({ text: " to get started." });
+		}
+
 		this.statusBar = this.addStatusBarItem();
 		this.statusBar.setText("Quartz Syncer: ready");
 		this.backgroundEngine = new BackgroundEngine(
@@ -233,6 +259,7 @@ export default class QuartzSyncer extends Plugin {
 		this.backgroundEngine?.stopAutoPublish();
 		this.backgroundEngine?.stop();
 		this.backgroundEngine = null;
+		this.quartzRunner?.stopServe();
 		this.publisher = null;
 		this.processRunner = null;
 		this.binaryDetector = null;
@@ -254,6 +281,8 @@ export default class QuartzSyncer extends Plugin {
 		this.migrateNestedGitSettings();
 		this.migrateRemovedThemesTab();
 		this.migrateTimestampKeyDefaults();
+		this.migrateDeprecatedSettingsV3();
+		this.migrateDeprecatedSettingsV4();
 		this.settings.pluginVersion = this.appVersion;
 		await this.saveSettings();
 
@@ -375,9 +404,53 @@ export default class QuartzSyncer extends Plugin {
 		}
 	}
 
+	private migrateDeprecatedSettingsV3(): void {
+		if (this.settings.settingsSchemaVersion >= 3) return;
+
+		const raw = this.settings as unknown as Record<string, unknown>;
+
+		delete raw["syncCache"];
+		delete raw["persistCache"];
+		delete raw["noteSettingsIsInitialized"];
+		delete raw["lastUpstreamCommitSha"];
+		delete raw["upgradeCheckStrategy"];
+
+		this.settings.settingsSchemaVersion = 3;
+	}
+
+	private migrateDeprecatedSettingsV4(): void {
+		if (this.settings.settingsSchemaVersion >= 4) return;
+
+		const raw = this.settings as unknown as Record<string, unknown>;
+
+		if (typeof raw["autoCleanOrphanedMedia"] !== "boolean") {
+			this.settings.autoCleanOrphanedMedia = false;
+		}
+		if (typeof raw["allowArbitraryFilePublishing"] !== "boolean") {
+			this.settings.allowArbitraryFilePublishing = false;
+		}
+		if (!Array.isArray(raw["arbitraryPublishPaths"])) {
+			this.settings.arbitraryPublishPaths = [];
+		}
+
+		this.settings.settingsSchemaVersion = 4;
+	}
+
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 		this.invalidateCachedInstances();
+	}
+
+	getSecretStorageService(): SecretStorageService {
+		return this.secretStorageService;
+	}
+
+	pauseAutoPublish(): void {
+		this.backgroundEngine?.pauseAutoPublish();
+	}
+
+	resumeAutoPublish(): void {
+		this.backgroundEngine?.resumeAutoPublish();
 	}
 
 	private invalidateCachedInstances(): void {
@@ -454,22 +527,29 @@ export default class QuartzSyncer extends Plugin {
 			},
 		});
 
+		if (Platform.isDesktopApp) {
+			this.addCommand({
+				id: "setup-wizard",
+				name: "Setup wizard",
+				callback: () => {
+					new OnboardingWizard(this.app, this).open();
+				},
+			});
+		}
+
 		this.addCommand({
-			id: "setup-wizard",
-			name: "Setup wizard",
+			id: "manual-setup",
+			name: "Manual setup",
 			callback: () => {
-				new OnboardingWizard(this.app, this).open();
+				new ManualSetupModal(this.app, this).open();
 			},
 		});
 
 		this.addCommand({
 			id: "publish-status",
 			name: "Show publish status",
-			callback: async () => {
-				// Log status to console (dev aid — Phase 2 adds UI)
-				console.debug(
-					"Publish status: use Publication Center (coming in Phase 2)",
-				);
+			callback: () => {
+				new PublicationCenter(this.app, this).open();
 			},
 		});
 	}

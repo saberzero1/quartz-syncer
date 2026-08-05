@@ -1,10 +1,17 @@
-import { PluginSettingTab, App, type SettingDefinitionItem } from "obsidian";
+import {
+	Platform,
+	PluginSettingTab,
+	App,
+	type SettingDefinitionItem,
+} from "obsidian";
 import type QuartzSyncer from "src/main";
 import { frontmatterSettingDefinitions } from "src/views/settings/FrontmatterSettings";
 import { integrationSettingDefinitions } from "src/views/settings/IntegrationSettings";
 import { performanceSettingDefinitions } from "src/views/settings/PerformanceSettings";
 import { uiSettingDefinitions } from "src/views/settings/UISettings";
 import { GitSettingsPage } from "src/views/settings/GitSettingsPage";
+import { ManualSetupModal } from "src/views/ManualSetupModal";
+import { OnboardingWizard } from "src/views/OnboardingWizard/OnboardingWizard";
 import { QuartzSettingsPage } from "src/views/settings/QuartzSettingsPage";
 
 /**
@@ -32,12 +39,17 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 				desc: "Configure your Git remote, authentication, and branch.",
 				page: () => new GitSettingsPage(this.app, this.plugin),
 			},
-			{
-				type: "page",
-				name: "Quartz",
-				desc: "Quartz site configuration, plugins, and templates.",
-				page: () => new QuartzSettingsPage(this.app, this.plugin),
-			},
+			...(Platform.isDesktopApp
+				? [
+						{
+							type: "page" as const,
+							name: "Quartz",
+							desc: "Quartz site configuration, plugins, and templates.",
+							page: () =>
+								new QuartzSettingsPage(this.app, this.plugin),
+						},
+					]
+				: []),
 			{
 				type: "page",
 				name: "Frontmatter",
@@ -67,13 +79,30 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 
 	private buildOverviewItems(): SettingDefinitionItem[] {
 		const version = this.plugin.manifest.version;
-
-		return [
+		const items: SettingDefinitionItem[] = [
 			{
 				name: `Quartz Syncer v${version}`,
 				desc: this.buildLinksFragment(),
 			},
 		];
+
+		if (!this.plugin.settings.gitRemoteUrl) {
+			items.push({
+				name: Platform.isDesktopApp
+					? "Run setup wizard"
+					: "Run manual setup",
+				desc: "No repository configured. Set up your Quartz site connection to get started.",
+				action: () => {
+					if (Platform.isDesktopApp) {
+						new OnboardingWizard(this.app, this.plugin).open();
+					} else {
+						new ManualSetupModal(this.app, this.plugin).open();
+					}
+				},
+			});
+		}
+
+		return items;
 	}
 
 	private buildLinksFragment(): DocumentFragment {

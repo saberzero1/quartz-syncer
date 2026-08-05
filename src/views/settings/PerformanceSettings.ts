@@ -46,6 +46,22 @@ export function performanceSettingDefinitions(
 		},
 		{
 			type: "group",
+			heading: "Publishing",
+			items: [
+				{
+					name: "Automatically clean orphaned media",
+					desc: "When enabled, media files no longer linked by any published note are automatically deleted from the remote repository after publishing.",
+					aliases: ["cleanup", "media", "orphaned"],
+					control: {
+						type: "toggle",
+						key: "autoCleanOrphanedMedia",
+						defaultValue: false,
+					},
+				},
+			],
+		},
+		{
+			type: "group",
 			heading: "Background sync",
 			items: [
 				{
