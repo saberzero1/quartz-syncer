@@ -2,7 +2,7 @@ import type QuartzSyncer from "src/main";
 import type { CliHandler } from "src/cli/types";
 
 export function createPublishHandler(_plugin: QuartzSyncer): CliHandler {
-	return async () => {
+	return async (params) => {
 		const publisher = _plugin.getPublisher();
 		if (!publisher) {
 			return { success: false, error: "Repository not configured" };
@@ -10,6 +10,16 @@ export function createPublishHandler(_plugin: QuartzSyncer): CliHandler {
 
 		const status = await publisher.getPublishStatus();
 		const files = [...status.unpublished, ...status.changed];
+		const publishPaths = files.map((file) => file.getVaultPath());
+
+		if (params.flags.has("dry-run")) {
+			return {
+				success: true,
+				data: {
+					files: publishPaths,
+				},
+			};
+		}
 		const result = await publisher.publishBatch(
 			files,
 			"Published via Quartz Syncer CLI",
@@ -22,6 +32,12 @@ export function createPublishHandler(_plugin: QuartzSyncer): CliHandler {
 			};
 		}
 
-		return { success: true, data: result };
+		return {
+			success: true,
+			data: {
+				...result,
+				...(params.verbose ? { files: publishPaths } : {}),
+			},
+		};
 	};
 }

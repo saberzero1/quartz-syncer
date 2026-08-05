@@ -52,6 +52,7 @@ const makeBackend = (files: Record<string, string>): GitBackend => {
 const buildParams = (args: Record<string, string> = {}): CliParams => ({
 	args,
 	flags: new Set(),
+	verbose: false,
 });
 
 const buildPlugin = (overrides: Partial<QuartzSyncer> = {}): QuartzSyncer => {
@@ -88,7 +89,7 @@ describe("CLI handlers", () => {
 		const persister = {
 			iterate: vi.fn(
 				async (callback: (value: unknown, key: string) => void) => {
-					await callback({ foo: "bar" }, "file:notes/test.md");
+					callback({ foo: "bar" }, "file:notes/test.md");
 				},
 			),
 		};
@@ -134,16 +135,15 @@ describe("CLI handlers", () => {
 		expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
 	});
 
-	it("upgradeHandler returns stub message", async () => {
+	it("upgradeHandler returns error when repo path not configured", async () => {
 		const plugin = buildPlugin();
 		const handler = createUpgradeHandler(plugin);
 
 		const result = await handler(buildParams());
-		expect(result.success).toBe(true);
-		expect(result.data).toEqual({
-			message:
-				"Quartz upgrade via CLI is coming soon. QuartzUpgradeService wiring is pending.",
-		});
+		expect(result.success).toBe(false);
+		expect(result.error).toContain(
+			"No local Quartz repository path configured",
+		);
 	});
 
 	it("versionHandler returns version info", async () => {

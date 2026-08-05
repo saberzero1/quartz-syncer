@@ -2,15 +2,32 @@ import type QuartzSyncer from "src/main";
 import type { CliHandler } from "src/cli/types";
 
 export function createDeleteHandler(_plugin: QuartzSyncer): CliHandler {
-	return async () => {
+	return async (params) => {
 		const publisher = _plugin.getPublisher();
 		if (!publisher) {
 			return { success: false, error: "Repository not configured" };
 		}
 
+		if (!params.flags.has("force")) {
+			return {
+				success: false,
+				error: "Destructive operation requires the 'force' flag.",
+			};
+		}
+
 		const status = await publisher.getPublishStatus();
+		const deletePaths = status.deleted;
+
+		if (params.flags.has("dry-run")) {
+			return {
+				success: true,
+				data: {
+					files: deletePaths,
+				},
+			};
+		}
 		const result = await publisher.deleteBatch(
-			status.deleted,
+			deletePaths,
 			"Deleted via Quartz Syncer CLI",
 		);
 
@@ -21,6 +38,12 @@ export function createDeleteHandler(_plugin: QuartzSyncer): CliHandler {
 			};
 		}
 
-		return { success: true, data: result };
+		return {
+			success: true,
+			data: {
+				...result,
+				...(params.verbose ? { files: deletePaths } : {}),
+			},
+		};
 	};
 }

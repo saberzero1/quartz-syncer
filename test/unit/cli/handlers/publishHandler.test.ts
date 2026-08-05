@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPublishHandler } from "src/cli/handlers/publishHandler";
 import type { Publisher } from "src/publisher/Publisher";
+import type { PublishFile } from "src/publishFile/PublishFile";
 import { buildParams, buildPlugin } from "./helpers";
 
 describe("publishHandler", () => {
@@ -9,6 +10,8 @@ describe("publishHandler", () => {
 	});
 
 	it("publishes unpublished and changed files", async () => {
+		const fileA = { getVaultPath: () => "a.md" } as PublishFile;
+		const fileB = { getVaultPath: () => "b.md" } as PublishFile;
 		const publishBatch = vi.fn(async () => ({
 			success: true,
 			filesPublished: 2,
@@ -16,8 +19,8 @@ describe("publishHandler", () => {
 		}));
 		const publisher = {
 			getPublishStatus: vi.fn(async () => ({
-				unpublished: ["a.md"],
-				changed: ["b.md"],
+				unpublished: [fileA],
+				changed: [fileB],
 				published: [],
 				deleted: [],
 			})),
@@ -32,7 +35,7 @@ describe("publishHandler", () => {
 
 		const result = await handler(buildParams());
 		expect(publishBatch).toHaveBeenCalledWith(
-			["a.md", "b.md"],
+			[fileA, fileB],
 			"Published via Quartz Syncer CLI",
 		);
 		expect(result).toEqual({
@@ -57,9 +60,10 @@ describe("publishHandler", () => {
 	});
 
 	it("returns publish errors from the publisher", async () => {
+		const fileA = { getVaultPath: () => "a.md" } as PublishFile;
 		const publisher = {
 			getPublishStatus: vi.fn(async () => ({
-				unpublished: ["a.md"],
+				unpublished: [fileA],
 				changed: [],
 				published: [],
 				deleted: [],

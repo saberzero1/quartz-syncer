@@ -3,7 +3,7 @@ import type { CliHandler } from "src/cli/types";
 import { createGitBackend } from "src/git/GitBackendFactory";
 
 export function createTestHandler(_plugin: QuartzSyncer): CliHandler {
-	return async () => {
+	return async (params) => {
 		if (!_plugin.settings.gitRemoteUrl) {
 			return { success: false, error: "Repository not configured" };
 		}
@@ -27,6 +27,19 @@ export function createTestHandler(_plugin: QuartzSyncer): CliHandler {
 			};
 		}
 
-		return { success: true, data: result };
+		return {
+			success: true,
+			data: {
+				...result,
+				...(params.verbose
+					? {
+							url: gitSettings.remoteUrl,
+							branch: gitSettings.branch,
+							authType: gitSettings.auth.type,
+							provider: gitSettings.providerHint ?? "unknown",
+						}
+					: {}),
+			},
+		};
 	};
 }

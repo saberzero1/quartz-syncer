@@ -1,5 +1,10 @@
 import type QuartzSyncer from "src/main";
-import type { CliHandler, CliParams, CliResult } from "src/cli/types";
+import type {
+	CliHandler,
+	CliParams,
+	CliResult,
+	CommandMeta,
+} from "src/cli/types";
 import { formatCliOutput } from "src/cli/formatOutput";
 import { createStatusHandler } from "src/cli/handlers/statusHandler";
 import { createSyncHandler } from "src/cli/handlers/syncHandler";
@@ -13,48 +18,278 @@ import { createUpgradeHandler } from "src/cli/handlers/upgradeHandler";
 import { createVersionHandler } from "src/cli/handlers/versionHandler";
 import { createPluginHandler } from "src/cli/handlers/pluginHandler";
 import { createQuartzConfigHandler } from "src/cli/handlers/quartzConfigHandler";
+import { createQuartzBuildHandler } from "src/cli/handlers/quartzBuildHandler";
+import { createQuartzServeHandler } from "src/cli/handlers/quartzServeHandler";
+import { createQuartzSyncHandler } from "src/cli/handlers/quartzSyncHandler";
+import { createQuartzRestoreHandler } from "src/cli/handlers/quartzRestoreHandler";
 
-type ProtocolHandler = (params: Record<string, string>) => void | string;
+import type {
+	CliData as ObsidianCliData,
+	CliFlags as ObsidianCliFlags,
+	CliHandler as ObsidianCliHandler,
+} from "obsidian";
 
-type CliRegistrar = {
-	registerObsidianProtocolHandler?: (
-		command: string,
-		handler: ProtocolHandler,
-	) => void;
-};
-
-const COMMANDS = [
-	"quartz-syncer:status",
-	"quartz-syncer:sync",
-	"quartz-syncer:publish",
-	"quartz-syncer:delete",
-	"quartz-syncer:mark",
-	"quartz-syncer:test",
-	"quartz-syncer:cache",
-	"quartz-syncer:config",
-	"quartz-syncer:upgrade",
-	"quartz-syncer:version",
-	"quartz-syncer:plugin",
-	"quartz-syncer:quartz-config",
-] as const;
-
-const COMMAND_LABELS: Record<(typeof COMMANDS)[number], string> = {
-	"quartz-syncer:status": "Quartz Syncer: status",
-	"quartz-syncer:sync": "Quartz Syncer: sync",
-	"quartz-syncer:publish": "Quartz Syncer: publish",
-	"quartz-syncer:delete": "Quartz Syncer: delete",
-	"quartz-syncer:mark": "Quartz Syncer: mark",
-	"quartz-syncer:test": "Quartz Syncer: test",
-	"quartz-syncer:cache": "Quartz Syncer: cache",
-	"quartz-syncer:config": "Quartz Syncer: config",
-	"quartz-syncer:upgrade": "Quartz Syncer: upgrade",
-	"quartz-syncer:version": "Quartz Syncer: version",
-	"quartz-syncer:plugin": "Quartz Syncer: plugin",
-	"quartz-syncer:quartz-config": "Quartz Syncer: quartz-config",
-};
+const COMMAND_REGISTRY: CommandMeta[] = [
+	{
+		name: "quartz-syncer",
+		description: "List available Quartz Syncer commands.",
+		args: [
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: ["obsidian quartz-syncer"],
+	},
+	{
+		name: "quartz-syncer:status",
+		description: "Show publish status of all marked notes.",
+		args: [
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [
+			{ name: "verbose", description: "Include file paths." },
+			{ name: "help", description: "Show help for this command." },
+		],
+		examples: [
+			"obsidian quartz-syncer:status",
+			"obsidian quartz-syncer:status format=json",
+		],
+	},
+	{
+		name: "quartz-syncer:sync",
+		description: "Publish pending notes and delete removed notes.",
+		args: [
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [
+			{ name: "force", description: "Include deletions." },
+			{
+				name: "dry-run",
+				description: "Preview changes without executing.",
+			},
+			{ name: "verbose", description: "Include file paths." },
+			{ name: "help", description: "Show help for this command." },
+		],
+		examples: [
+			"obsidian quartz-syncer:sync",
+			"obsidian quartz-syncer:sync force",
+		],
+	},
+	{
+		name: "quartz-syncer:publish",
+		description: "Publish pending notes only (no deletions).",
+		args: [
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [
+			{
+				name: "dry-run",
+				description: "Preview changes without executing.",
+			},
+			{ name: "verbose", description: "Include file paths." },
+			{ name: "help", description: "Show help for this command." },
+		],
+		examples: ["obsidian quartz-syncer:publish"],
+	},
+	{
+		name: "quartz-syncer:delete",
+		description: "Delete removed notes from remote.",
+		args: [
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [
+			{ name: "force", description: "Required for destructive deletes." },
+			{
+				name: "dry-run",
+				description: "Preview changes without executing.",
+			},
+			{ name: "verbose", description: "Include file paths." },
+			{ name: "help", description: "Show help for this command." },
+		],
+		examples: ["obsidian quartz-syncer:delete force"],
+	},
+	{
+		name: "quartz-syncer:mark",
+		description: "Set/unset/toggle publish flag on notes.",
+		args: [
+			{
+				name: "path",
+				description: "Path, glob, or fuzzy query (prefix with ~).",
+				required: true,
+			},
+			{
+				name: "state",
+				description: "publish, unpublish, toggle, or unset.",
+			},
+		],
+		flags: [
+			{ name: "toggle", description: "Toggle the publish state." },
+			{
+				name: "dry-run",
+				description: "Preview matches without writing.",
+			},
+			{ name: "help", description: "Show help for this command." },
+		],
+		examples: [
+			"obsidian quartz-syncer:mark path=notes/post.md",
+			"obsidian quartz-syncer:mark path=notes/**/*.md dry-run",
+			"obsidian quartz-syncer:mark path=~my-post state=publish",
+		],
+	},
+	{
+		name: "quartz-syncer:test",
+		description: "Test Git connection and credentials.",
+		args: [
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [
+			{ name: "verbose", description: "Include connection details." },
+			{ name: "help", description: "Show help for this command." },
+		],
+		examples: ["obsidian quartz-syncer:test"],
+	},
+	{
+		name: "quartz-syncer:cache",
+		description: "Manage the plugin cache.",
+		args: [
+			{ name: "action", description: "status, clear, or clear-file." },
+			{ name: "path", description: "File path for clear-file." },
+		],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: [
+			"obsidian quartz-syncer:cache action=status",
+			"obsidian quartz-syncer:cache action=clear",
+		],
+	},
+	{
+		name: "quartz-syncer:config",
+		description: "Read or write plugin settings.",
+		args: [
+			{ name: "action", description: "list, get, or set." },
+			{ name: "key", description: "Setting key path." },
+			{ name: "value", description: "Value for set action." },
+		],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: [
+			"obsidian quartz-syncer:config action=list",
+			"obsidian quartz-syncer:config action=get key=git.branch",
+		],
+	},
+	{
+		name: "quartz-syncer:upgrade",
+		description: "Pull upstream Quartz changes.",
+		args: [
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [
+			{
+				name: "dry-run",
+				description: "Preview the update without running.",
+			},
+			{ name: "help", description: "Show help for this command." },
+		],
+		examples: ["obsidian quartz-syncer:upgrade"],
+	},
+	{
+		name: "quartz-syncer:version",
+		description: "Show plugin, Obsidian, and Quartz versions.",
+		args: [
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: ["obsidian quartz-syncer:version"],
+	},
+	{
+		name: "quartz-syncer:plugin",
+		description: "Manage Quartz v5 plugins.",
+		args: [
+			{
+				name: "action",
+				description:
+					"list, add, remove, install, enable, disable, config, or prune.",
+			},
+			{
+				name: "source",
+				description: "Plugin source for add or install.",
+			},
+			{
+				name: "name",
+				description: "Plugin name for remove/config/enable/disable.",
+			},
+			{ name: "set", description: "key=value for config." },
+		],
+		flags: [
+			{
+				name: "dry-run",
+				description: "Preview changes without executing.",
+			},
+			{ name: "help", description: "Show help for this command." },
+		],
+		examples: [
+			"obsidian quartz-syncer:plugin action=list",
+			"obsidian quartz-syncer:plugin action=add source=@jackyzha0/quartz",
+		],
+	},
+	{
+		name: "quartz-syncer:quartz-config",
+		description: "Read or update Quartz site config.",
+		args: [
+			{ name: "action", description: "list, get, or set." },
+			{ name: "key", description: "Config key path." },
+			{ name: "value", description: "Value for set action." },
+		],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: [
+			"obsidian quartz-syncer:quartz-config action=list",
+			"obsidian quartz-syncer:quartz-config action=get key=pageTitle",
+		],
+	},
+	{
+		name: "quartz-syncer:quartz-build",
+		description: "Run Quartz build.",
+		args: [],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: ["obsidian quartz-syncer:quartz-build"],
+	},
+	{
+		name: "quartz-syncer:quartz-serve",
+		description: "Run Quartz dev server.",
+		args: [{ name: "port", description: "Port for the dev server." }],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: [
+			"obsidian quartz-syncer:quartz-serve",
+			"obsidian quartz-syncer:quartz-serve port=8081",
+		],
+	},
+	{
+		name: "quartz-syncer:quartz-sync",
+		description: "Run Quartz git sync (pull/push/commit).",
+		args: [
+			{ name: "commit", description: "Commit changes (true or false)." },
+			{ name: "push", description: "Push changes (true or false)." },
+			{ name: "pull", description: "Pull changes (true or false)." },
+			{ name: "message", description: "Commit message." },
+		],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: [
+			"obsidian quartz-syncer:quartz-sync",
+			"obsidian quartz-syncer:quartz-sync pull=false",
+		],
+	},
+	{
+		name: "quartz-syncer:quartz-restore",
+		description: "Restore Quartz content from cache.",
+		args: [],
+		flags: [
+			{ name: "force", description: "Required to restore from cache." },
+			{ name: "help", description: "Show help for this command." },
+		],
+		examples: ["obsidian quartz-syncer:quartz-restore force"],
+	},
+];
 
 export function registerCliHandlers(plugin: QuartzSyncer): void {
 	const handlers: Record<string, CliHandler> = {
+		"quartz-syncer": createBaseHandler(),
 		"quartz-syncer:status": createStatusHandler(plugin),
 		"quartz-syncer:sync": createSyncHandler(plugin),
 		"quartz-syncer:publish": createPublishHandler(plugin),
@@ -67,27 +302,10 @@ export function registerCliHandlers(plugin: QuartzSyncer): void {
 		"quartz-syncer:version": createVersionHandler(plugin),
 		"quartz-syncer:plugin": createPluginHandler(plugin),
 		"quartz-syncer:quartz-config": createQuartzConfigHandler(plugin),
-	};
-
-	const registrar = plugin as QuartzSyncer & CliRegistrar;
-
-	const registerProtocol = (command: string): void => {
-		if (typeof registrar.registerObsidianProtocolHandler === "function") {
-			registrar.registerObsidianProtocolHandler(command, (params) =>
-				handleCommand(command, params),
-			);
-			return;
-		}
-
-		plugin.addCommand({
-			id: command.replace(/[:/]/g, "-"),
-			name:
-				COMMAND_LABELS[command as (typeof COMMANDS)[number]] ??
-				`Quartz Syncer: ${command}`,
-			callback: () => {
-				void handleCommand(command, {});
-			},
-		});
+		"quartz-syncer:quartz-build": createQuartzBuildHandler(plugin),
+		"quartz-syncer:quartz-serve": createQuartzServeHandler(plugin),
+		"quartz-syncer:quartz-sync": createQuartzSyncHandler(plugin),
+		"quartz-syncer:quartz-restore": createQuartzRestoreHandler(plugin),
 	};
 
 	const handleCommand = async (
@@ -96,17 +314,41 @@ export function registerCliHandlers(plugin: QuartzSyncer): void {
 	): Promise<string> => {
 		const params = normalizeCliParams(rawParams);
 		const format = params.args.format === "json" ? "json" : "text";
+		if (params.flags.has("help")) {
+			const meta = COMMAND_REGISTRY.find(
+				(entry) => entry.name === command,
+			);
+			return formatCliOutput(
+				meta
+					? { success: true, data: meta }
+					: {
+							success: false,
+							error: `Unknown CLI command: ${command}`,
+						},
+				format,
+			);
+		}
 		const handler = handlers[command];
 		const result = handler
 			? await handler(params)
 			: missingCommand(command);
-		const output = formatCliOutput(result, format);
-		console.debug(output);
-		return output;
+		return formatCliOutput(result, format);
 	};
 
-	for (const command of COMMANDS) {
-		registerProtocol(command);
+	for (const entry of COMMAND_REGISTRY) {
+		const obsidianFlags = buildObsidianFlags(entry);
+
+		plugin.registerCliHandler(
+			entry.name,
+			entry.description,
+			obsidianFlags,
+			async (data: ObsidianCliData) => {
+				return handleCommand(
+					entry.name,
+					data as Record<string, string>,
+				);
+			},
+		);
 	}
 }
 
@@ -117,7 +359,7 @@ function normalizeCliParams(
 	const flags = new Set<string>();
 
 	if (!rawParams) {
-		return { args, flags };
+		return { args, flags, verbose: false };
 	}
 
 	for (const [key, value] of Object.entries(rawParams)) {
@@ -143,7 +385,7 @@ function normalizeCliParams(
 		args[trimmedKey] = trimmedValue;
 	}
 
-	return { args, flags };
+	return { args, flags, verbose: flags.has("verbose") };
 }
 
 function missingCommand(command: string): CliResult {
@@ -151,4 +393,39 @@ function missingCommand(command: string): CliResult {
 		success: false,
 		error: `Unknown CLI command: ${command}`,
 	};
+}
+
+function createBaseHandler(): CliHandler {
+	return async () => {
+		const lines = COMMAND_REGISTRY.map((command) => {
+			return `${command.name} - ${command.description}`;
+		});
+		return {
+			success: true,
+			data: lines.join("\n"),
+		};
+	};
+}
+
+function buildObsidianFlags(meta: CommandMeta): ObsidianCliFlags | null {
+	const flags: ObsidianCliFlags = {};
+	let hasFlags = false;
+
+	for (const arg of meta.args) {
+		flags[arg.name] = {
+			value: `<${arg.name}>`,
+			description: arg.description,
+			required: arg.required,
+		};
+		hasFlags = true;
+	}
+
+	for (const flag of meta.flags) {
+		flags[flag.name] = {
+			description: flag.description,
+		};
+		hasFlags = true;
+	}
+
+	return hasFlags ? flags : null;
 }

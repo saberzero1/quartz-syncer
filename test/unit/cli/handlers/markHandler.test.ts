@@ -46,6 +46,7 @@ describe("markHandler", () => {
 	it("toggles publish state when no state is provided", async () => {
 		const file = new TFile();
 		file.path = "notes/test.md";
+		file.extension = "md";
 		const vault = {
 			getFileByPath: vi.fn(() => file),
 		} as unknown as Vault;
@@ -70,8 +71,9 @@ describe("markHandler", () => {
 		expect(result).toEqual({
 			success: true,
 			data: {
-				path: "notes/test.md",
-				publish: true,
+				matched: ["notes/test.md"],
+				matchedCount: 1,
+				modified: ["notes/test.md"],
 			},
 		});
 		expect(setMock).toHaveBeenCalledWith("publish", true);
@@ -81,6 +83,7 @@ describe("markHandler", () => {
 	it("removes the publish flag when state=unset", async () => {
 		const file = new TFile();
 		file.path = "notes/test.md";
+		file.extension = "md";
 		currentValue = true;
 		const vault = {
 			getFileByPath: vi.fn(() => file),
@@ -104,8 +107,9 @@ describe("markHandler", () => {
 		expect(result).toEqual({
 			success: true,
 			data: {
-				path: "notes/test.md",
-				publish: "removed",
+				matched: ["notes/test.md"],
+				matchedCount: 1,
+				modified: ["notes/test.md"],
 			},
 		});
 		expect(removeMock).toHaveBeenCalledWith("publish");
@@ -148,6 +152,7 @@ describe("markHandler", () => {
 	it("returns an error when state is unknown", async () => {
 		const file = new TFile();
 		file.path = "notes/test.md";
+		file.extension = "md";
 		const vault = {
 			getFileByPath: vi.fn(() => file),
 		} as unknown as Vault;

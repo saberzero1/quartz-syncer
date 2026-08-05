@@ -73,8 +73,8 @@ describe("cliUtils", () => {
 		const repo = createRepositoryAdapter(plugin);
 		expect(repo).not.toBeNull();
 
-		const file = await repo?.getRawFile("quartz.plugins.json");
-		expect(file?.path).toBe("quartz.plugins.json");
+		const file = await repo?.readFile("quartz.plugins.json");
+		expect(file).toBe(files["quartz.plugins.json"]);
 	});
 
 	it("returns null when git settings are missing", () => {

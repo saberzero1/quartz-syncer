@@ -9,6 +9,7 @@ export const buildParams = (
 ): CliParams => ({
 	args,
 	flags: new Set(flags),
+	verbose: flags.includes("verbose"),
 });
 
 export const buildPlugin = (

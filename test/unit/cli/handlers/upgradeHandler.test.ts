@@ -28,7 +28,7 @@ describe("upgradeHandler", () => {
 		});
 		expect(result).toEqual({
 			success: true,
-			data: { message: "Quartz updated via local CLI." },
+			data: { message: "Quartz updated successfully." },
 		});
 	});
 
@@ -53,17 +53,14 @@ describe("upgradeHandler", () => {
 		});
 	});
 
-	it("returns a placeholder message when local updates are unavailable", async () => {
+	it("returns an error when local Quartz repo path is not configured", async () => {
 		const plugin = buildPlugin();
 		const handler = createUpgradeHandler(plugin);
 
 		const result = await handler(buildParams());
-		expect(result).toEqual({
-			success: true,
-			data: {
-				message:
-					"Quartz upgrade via CLI is coming soon. QuartzUpgradeService wiring is pending.",
-			},
-		});
+		expect(result.success).toBe(false);
+		expect(result.error).toContain(
+			"No local Quartz repository path configured",
+		);
 	});
 });

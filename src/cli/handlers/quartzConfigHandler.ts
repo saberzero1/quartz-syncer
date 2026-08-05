@@ -7,7 +7,6 @@ import {
 	setValueByPath,
 } from "src/cli/handlers/cliUtils";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
-
 const DEFAULT_ACTION = "list";
 
 export function createQuartzConfigHandler(plugin: QuartzSyncer): CliHandler {

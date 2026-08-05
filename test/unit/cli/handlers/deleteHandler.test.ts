@@ -30,7 +30,7 @@ describe("deleteHandler", () => {
 		});
 		const handler = createDeleteHandler(plugin);
 
-		const result = await handler(buildParams());
+		const result = await handler(buildParams({}, ["force"]));
 		expect(deleteBatch).toHaveBeenCalledWith(
 			["old.md"],
 			"Deleted via Quartz Syncer CLI",
@@ -56,6 +56,30 @@ describe("deleteHandler", () => {
 		});
 	});
 
+	it("requires force for deletions", async () => {
+		const publisher = {
+			getPublishStatus: vi.fn(async () => ({
+				unpublished: [],
+				changed: [],
+				published: [],
+				deleted: ["old.md"],
+			})),
+			deleteBatch: vi.fn(),
+		} as unknown as Publisher;
+		const plugin = buildPlugin({
+			getPublisher: vi.fn(
+				() => publisher,
+			) as unknown as () => Publisher | null,
+		});
+		const handler = createDeleteHandler(plugin);
+
+		const result = await handler(buildParams());
+		expect(result).toEqual({
+			success: false,
+			error: "Destructive operation requires the 'force' flag.",
+		});
+	});
+
 	it("returns delete errors from the publisher", async () => {
 		const publisher = {
 			getPublishStatus: vi.fn(async () => ({
@@ -76,7 +100,7 @@ describe("deleteHandler", () => {
 		});
 		const handler = createDeleteHandler(plugin);
 
-		const result = await handler(buildParams());
+		const result = await handler(buildParams({}, ["force"]));
 		expect(result).toEqual({
 			success: false,
 			error: "Delete failed",
