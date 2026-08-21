@@ -3,6 +3,9 @@
 	"version": "2.0.0",
 	"type": "module",
 	"main": "main.js",
+    "engines": {
+        "node": ">=22.0.0"
+    },
 	"scripts": {
 		"dev": "node esbuild.config.mjs watch",
 		"build": "node esbuild.config.mjs production",
@@ -30,7 +33,7 @@
 		"obsidian": "^1.13.0",
 		"prettier": "^3",
 		"typescript": "^5.2",
-		"vitest": "latest",
+		"vitest": "^2.1.9",
 		"wdio-obsidian-reporter": "^3.1.1",
 		"wdio-obsidian-service": "^3.1.1"
 	},
