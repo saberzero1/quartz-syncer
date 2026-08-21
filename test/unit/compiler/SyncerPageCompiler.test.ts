@@ -464,6 +464,48 @@ describe("SyncerPageCompiler", () => {
 		});
 	});
 
+	describe("convertFileLinks", () => {
+		it("passes source file path to fileToLinktext and getFirstLinkpathDest", async () => {
+			const mc = new MetadataCache();
+
+			(mc.getCache as Mock).mockReturnValue({
+				embeds: [{ link: "image.png", original: "![[image.png]]" }],
+			});
+
+			const linkedFile = {
+				path: "attachments/image.png",
+				extension: "png",
+			} as TFile;
+
+			(mc.getFirstLinkpathDest as Mock).mockReturnValue(linkedFile);
+			(mc.fileToLinktext as Mock).mockReturnValue(
+				"attachments/image.png",
+			);
+
+			const { compiler, vault } = makeCompiler({}, mc);
+			const file = makeMockPublishFile({ path: "folder/note.md" });
+
+			vi.spyOn(vault, "readBinary").mockResolvedValue(new ArrayBuffer(0));
+
+			await compiler.convertFileLinks(file)("![[image.png]]");
+
+			expect(mc.getFirstLinkpathDest).toHaveBeenNthCalledWith(
+				1,
+				"image.png",
+				"folder/note.md",
+			);
+			expect(mc.fileToLinktext).toHaveBeenCalledWith(
+				linkedFile,
+				"folder/note.md",
+			);
+			expect(mc.getFirstLinkpathDest).toHaveBeenNthCalledWith(
+				2,
+				"attachments/image.png",
+				"folder/note.md",
+			);
+		});
+	});
+
 	describe("extractBlobLinks", () => {
 		it("extracts transcluded image paths", async () => {
 			const mc = new MetadataCache();

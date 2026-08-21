@@ -196,7 +196,9 @@ export class BackgroundEngine {
 		this.vaultEventRefs.push(
 			this.app.vault.on("delete", (file) => {
 				if (file instanceof TFile && file.extension === "md") {
-					void this.plugin.dataStore.dropFile(file.path);
+					this.plugin.dataStore.dropFile(file.path).catch((error) => {
+						console.debug("Failed to drop cache entry:", error);
+					});
 				}
 			}),
 		);
@@ -204,7 +206,9 @@ export class BackgroundEngine {
 		this.vaultEventRefs.push(
 			this.app.vault.on("rename", (file, oldPath) => {
 				if (file instanceof TFile && file.path.endsWith(".md")) {
-					void this.plugin.dataStore.dropFile(oldPath);
+					this.plugin.dataStore.dropFile(oldPath).catch((error) => {
+						console.debug("Failed to drop cache entry:", error);
+					});
 					if (!this.isStartupNoise(file)) {
 						debouncedEnqueue(file.path);
 					}

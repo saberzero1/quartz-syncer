@@ -26,6 +26,9 @@ bun.lock
 .env
 .obsidian-cache
 .sisyphus/
+.opencode/
+test-vault/.obsidian/plugins/
+test-vault/.obsidian/workspace.json
 
 # Documentation
 docs/.obsidian

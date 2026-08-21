@@ -1,76 +1,8 @@
-import git, { type HttpClient } from "isomorphic-git";
-import { requestUrl } from "obsidian";
+import git from "isomorphic-git";
 import type { GitAuth } from "src/models/settings";
+import { HttpClient } from "src/git/HttpClient";
 
-async function collectBody(
-	body: AsyncIterableIterator<Uint8Array> | undefined,
-): Promise<Uint8Array | undefined> {
-	if (!body) return undefined;
-
-	const chunks: Uint8Array[] = [];
-
-	for await (const chunk of body) {
-		chunks.push(chunk);
-	}
-
-	const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-	const result = new Uint8Array(totalLength);
-	let offset = 0;
-
-	for (const chunk of chunks) {
-		result.set(chunk, offset);
-		offset += chunk.length;
-	}
-
-	return result;
-}
-
-const obsidianHttpClient: HttpClient = {
-	async request(config) {
-		const { url, method = "GET", headers = {}, body } = config;
-
-		try {
-			const bodyData = await collectBody(body);
-
-			const response = await requestUrl({
-				url,
-				method,
-				headers,
-				body: bodyData ? (bodyData.buffer as ArrayBuffer) : undefined,
-				throw: false,
-			});
-
-			const responseHeaders: Record<string, string> = {};
-
-			if (response.headers) {
-				for (const [key, value] of Object.entries(response.headers)) {
-					responseHeaders[key.toLowerCase()] = value;
-				}
-			}
-
-			const responseBody = new Uint8Array(response.arrayBuffer);
-
-			async function* bodyIterator(): AsyncIterableIterator<Uint8Array> {
-				yield responseBody;
-			}
-
-			return {
-				url,
-				method,
-				headers: responseHeaders,
-				body: bodyIterator(),
-				statusCode: response.status,
-				statusMessage:
-					response.status >= 200 && response.status < 300
-						? "OK"
-						: "Error",
-			};
-		} catch (error) {
-			console.debug("HTTP request failed", error);
-			throw error;
-		}
-	},
-};
+const httpClient = new HttpClient({ maxRetries: 0 });
 
 function getOnAuth(auth: GitAuth) {
 	if (auth.type === "none") {
@@ -100,7 +32,7 @@ export async function fetchRemoteHeadCommit(
 		const prefix = ref ? `refs/heads/${ref}` : "HEAD";
 
 		const refs = await git.listServerRefs({
-			http: obsidianHttpClient,
+			http: httpClient,
 			url: remoteUrl,
 			corsProxy: corsProxyUrl,
 			onAuth: getOnAuth(auth),
@@ -131,7 +63,7 @@ export async function fetchRemoteBranches(
 ): Promise<{ branches: string[]; defaultBranch: string | null }> {
 	try {
 		const refs = await git.listServerRefs({
-			http: obsidianHttpClient,
+			http: httpClient,
 			url: remoteUrl,
 			corsProxy: corsProxyUrl,
 			onAuth: getOnAuth(auth),
@@ -165,7 +97,7 @@ export async function checkWriteAccess(
 ): Promise<boolean> {
 	try {
 		await git.listServerRefs({
-			http: obsidianHttpClient,
+			http: httpClient,
 			url: remoteUrl,
 			corsProxy: corsProxyUrl,
 			onAuth: getOnAuth(auth),

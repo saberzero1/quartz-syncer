@@ -12,7 +12,8 @@
 		"test:unit": "vitest run",
 		"test:integration": "vitest run --config vitest.integration.config.ts",
 		"typecheck": "tsc --noEmit",
-		"check-formatting": "prettier . --check"
+		"check-formatting": "prettier . --check",
+        "format": "prettier . --write"
 	},
 	"devDependencies": {
 		"@types/diff": "^7.0.2",

@@ -20,6 +20,9 @@ prod:
 lint:
 	npm run format
 
+format:
+    npm run format
+
 test:
 	npm run test
 

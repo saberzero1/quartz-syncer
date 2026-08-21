@@ -438,7 +438,7 @@ export class QuartzSettingsPage extends SettingPageBase {
 
 	private createRepositoryAdapter(): QuartzFileSource {
 		const backend = this.createBackend();
-		const branch = this.plugin.settings.gitBranch || "v4";
+		const branch = this.plugin.settings.gitBranch || "v5";
 
 		return new RemoteFileSource(backend, branch);
 	}

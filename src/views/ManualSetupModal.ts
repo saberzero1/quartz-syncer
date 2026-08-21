@@ -7,7 +7,7 @@ import { detectGitProvider } from "src/utils/gitProviderDetection";
 
 export class ManualSetupModal extends Modal {
 	private remoteUrl = "";
-	private branch = "v4";
+	private branch = "v5";
 	private authType: GitAuthType = "basic";
 	private username = "";
 	private token = "";
@@ -25,7 +25,7 @@ export class ManualSetupModal extends Modal {
 
 	onOpen(): void {
 		this.remoteUrl = this.plugin.settings.gitRemoteUrl;
-		this.branch = this.plugin.settings.gitBranch || "v4";
+		this.branch = this.plugin.settings.gitBranch || "v5";
 		this.authType = this.plugin.settings.gitAuthType || "basic";
 		this.username = this.plugin.settings.gitAuthUsername || "";
 		this.corsProxyUrl = this.plugin.settings.gitCorsProxyUrl || "";
@@ -71,10 +71,10 @@ export class ManualSetupModal extends Modal {
 			.setName("Branch")
 			.setDesc("Git branch to sync with")
 			.addText((text) => {
-				text.setPlaceholder("v4")
+				text.setPlaceholder("v5")
 					.setValue(this.branch)
 					.onChange((value) => {
-						this.branch = value.trim() || "v4";
+						this.branch = value.trim() || "v5";
 					});
 			});
 
@@ -193,7 +193,7 @@ export class ManualSetupModal extends Modal {
 			const backend = createGitBackend(
 				{
 					remoteUrl: this.remoteUrl,
-					branch: this.branch || "v4",
+					branch: this.branch || "v5",
 					corsProxyUrl: this.corsProxyUrl || undefined,
 					auth: {
 						type: this.authType,

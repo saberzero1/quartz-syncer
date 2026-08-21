@@ -67,10 +67,10 @@ export class GitSettingsPage extends SettingPageBase {
 			.setDesc("The branch to sync with")
 			.addText((text) =>
 				text
-					.setPlaceholder("V4")
+					.setPlaceholder("v5")
 					.setValue(this.settings.gitBranch)
 					.onChange(async (value) => {
-						this.settings.gitBranch = value || "v4";
+						this.settings.gitBranch = value || "v5";
 						await this.saveSettings();
 					}),
 			);
@@ -307,7 +307,7 @@ export class GitSettingsPage extends SettingPageBase {
 			const backend = createGitBackend(
 				{
 					remoteUrl: this.settings.gitRemoteUrl,
-					branch: this.settings.gitBranch || "v4",
+					branch: this.settings.gitBranch || "v5",
 					corsProxyUrl: this.settings.gitCorsProxyUrl || undefined,
 					auth: {
 						type: this.settings.gitAuthType,

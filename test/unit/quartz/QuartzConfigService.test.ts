@@ -67,6 +67,11 @@ plugins:
     options: {}
 `;
 
+const OVERRIDE_YAML = SAMPLE_YAML.replace(
+	"My Quartz Site",
+	"Override Quartz Site",
+);
+
 const SAMPLE_JSON = JSON.stringify(
 	{
 		configuration: {
@@ -168,6 +173,34 @@ describe("QuartzConfigService", () => {
 			await service.readConfig();
 
 			assert.strictEqual(service.getConfigFormat(), "yaml");
+		});
+
+		it("succeeds when only quartz.config.default.yaml exists", async () => {
+			const repo = createMockRepo({
+				"quartz.config.default.yaml": SAMPLE_YAML,
+			});
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			assert.strictEqual(
+				config.configuration.pageTitle,
+				"My Quartz Site",
+			);
+			assert.strictEqual(service.getConfigFormat(), "yaml");
+		});
+
+		it("prefers quartz.config.yaml over quartz.config.default.yaml", async () => {
+			const repo = createMockRepo({
+				"quartz.config.default.yaml": SAMPLE_YAML,
+				"quartz.config.yaml": OVERRIDE_YAML,
+			});
+			const service = new QuartzConfigService(repo);
+			const config = await service.readConfig();
+
+			assert.strictEqual(
+				config.configuration.pageTitle,
+				"Override Quartz Site",
+			);
 		});
 	});
 
@@ -462,8 +495,8 @@ plugins: []
 			);
 		});
 
-		it("uses custom commit message when provided", async () => {
-			let writtenMessage = "";
+		it("writeConfig calls repo.writeFile", async () => {
+			let written = false;
 
 			const repo: QuartzFileSource = {
 				readFile: async (path: string) => {
@@ -473,7 +506,7 @@ plugins: []
 					throw new Error(`File not found: ${path}`);
 				},
 				writeFile: async () => {
-					writtenMessage = "Update Quartz configuration via Syncer";
+					written = true;
 				},
 				listDirectory: async () => [],
 				exists: async () => false,
@@ -482,9 +515,9 @@ plugins: []
 			const service = new QuartzConfigService(repo);
 			const config = await service.readConfig();
 
-			await service.writeConfig(config, "Custom commit message");
+			await service.writeConfig(config);
 
-			assert.ok(writtenMessage.length > 0);
+			assert.ok(written);
 		});
 	});
 

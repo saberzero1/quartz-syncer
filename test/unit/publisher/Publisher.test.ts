@@ -33,6 +33,7 @@ const makeSettings = (
 	publishedTimestampKey: "published",
 	timestampFormat: "YYYY-MM-DD",
 	useCache: true,
+	autoCleanOrphanedMedia: false,
 	syncCache: false,
 	persistCache: false,
 	cacheTimestamp: 0,
@@ -51,7 +52,12 @@ const makeSettings = (
 	lastUpstreamCommitSha: "",
 	upgradeCheckStrategy: "version",
 	diffViewStyle: "auto",
+	allowArbitraryFilePublishing: false,
+	arbitraryPublishPaths: [],
+	autoPublishInterval: 0,
 	remoteFetchInterval: 60,
+	quartzRepoPath: "",
+	enableSystemCommands: false,
 	...overrides,
 });
 
@@ -114,6 +120,73 @@ describe("Publisher", () => {
 				},
 			],
 		);
+	});
+
+	it("publishBatch does not store remote hash when writeFiles rejects", async () => {
+		const app = new App();
+		const settings = makeSettings();
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend({
+			writeFiles: vi.fn().mockRejectedValue(new Error("push failed")),
+		});
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
+			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
+			storeRemoteHash: vi.fn(),
+		} as unknown as DataStore;
+
+		const publisher = new Publisher(
+			app,
+			plugin,
+			gitBackend,
+			compiler,
+			dataStore,
+		);
+
+		await publisher.publishBatch([makePublishFile("notes/a.md")]);
+
+		expect(dataStore.storeRemoteHash).not.toHaveBeenCalled();
+	});
+
+	it("publishBatch stores remote hash only after successful writeFiles", async () => {
+		const app = new App();
+		const settings = makeSettings();
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend({
+			writeFiles: vi.fn().mockResolvedValue({ sha: "abc" }),
+		});
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
+			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
+			storeRemoteHash: vi.fn(),
+		} as unknown as DataStore;
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1234);
+
+		const publisher = new Publisher(
+			app,
+			plugin,
+			gitBackend,
+			compiler,
+			dataStore,
+		);
+
+		await publisher.publishBatch([makePublishFile("notes/a.md")]);
+
+		expect(dataStore.storeRemoteHash).toHaveBeenCalledWith(
+			"notes/a.md",
+			1234,
+			"sha-1",
+		);
+
+		const writeOrder = vi.mocked(gitBackend.writeFiles).mock
+			.invocationCallOrder[0]!;
+		const storeOrder = vi.mocked(dataStore.storeRemoteHash).mock
+			.invocationCallOrder[0]!;
+		expect(writeOrder).toBeLessThan(storeOrder);
+
+		nowSpy.mockRestore();
 	});
 
 	it("publishBatch refreshes remote tree cache", async () => {
@@ -190,6 +263,33 @@ describe("Publisher", () => {
 		await publisher.deleteBatch(["notes/a.md"]);
 
 		expect(gitBackend.readTree).toHaveBeenCalledWith("main");
+	});
+
+	it("deleteByRepoPaths drops cache entries for deleted files", async () => {
+		const app = new App();
+		const settings = makeSettings({ contentFolder: "content" });
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			dropFile: vi.fn(),
+		} as unknown as DataStore;
+
+		const publisher = new Publisher(
+			app,
+			plugin,
+			gitBackend,
+			compiler,
+			dataStore,
+		);
+
+		await publisher.deleteByRepoPaths([
+			"content/images/photo.png",
+			"content/notes/old.md",
+		]);
+
+		expect(dataStore.dropFile).toHaveBeenCalledWith("images/photo.png");
+		expect(dataStore.dropFile).toHaveBeenCalledWith("notes/old.md");
 	});
 
 	it("pauses and resumes compilationQueue around getPublishStatus", async () => {

@@ -446,13 +446,13 @@ export class SyncerPageCompiler {
 
 					const blobLinkText = this.metadataCache.fileToLinktext(
 						linkedFile,
-						this.settings.vaultPath,
+						filePath,
 					);
 
 					const blobFullPath =
 						this.metadataCache.getFirstLinkpathDest(
 							linkedFile.path,
-							this.settings.vaultPath,
+							filePath,
 						)?.path ?? blobLinkText;
 
 					assets.push({
@@ -517,6 +517,10 @@ export class SyncerPageCompiler {
 						"$1\\|$2",
 					);
 
+					// Single .replace() is correct here — Obsidian's cache.embeds
+					// is position-unique (EmbedCache has position: Pos), so the
+					// loop iterates each occurrence individually. Each .replace()
+					// consumes the next remaining match in the string.
 					if (blobText.includes(embed.original)) {
 						blobText = blobText.replace(
 							embed.original,

@@ -135,6 +135,11 @@ export class Publisher {
 	): Promise<PublishResult> {
 		const settings = this.plugin.settings;
 		const changes: FileChange[] = [];
+		const remoteHashes: Array<{
+			path: string;
+			timestamp: number;
+			hash: string;
+		}> = [];
 		const now = Date.now();
 		const commitMessage = message ?? "Publish notes";
 		const total = files.length;
@@ -184,11 +189,11 @@ export class Publisher {
 				);
 
 				if (localHash) {
-					await this.dataStore.storeRemoteHash(
-						file.file.path,
-						now,
-						localHash,
-					);
+					remoteHashes.push({
+						path: file.file.path,
+						timestamp: now,
+						hash: localHash,
+					});
 				}
 
 				onProgress?.(index + 1, total);
@@ -200,8 +205,18 @@ export class Publisher {
 				changes,
 			);
 
+			for (const entry of remoteHashes) {
+				await this.dataStore.storeRemoteHash(
+					entry.path,
+					entry.timestamp,
+					entry.hash,
+				);
+			}
+
 			this.remoteTreeCache.invalidate();
-			void this.remoteTreeCache.refresh();
+			this.remoteTreeCache.refresh().catch((error) => {
+				console.debug("Remote tree cache refresh failed:", error);
+			});
 
 			const publishResult: PublishResult = {
 				success: true,
@@ -258,7 +273,9 @@ export class Publisher {
 			}
 
 			this.remoteTreeCache.invalidate();
-			void this.remoteTreeCache.refresh();
+			this.remoteTreeCache.refresh().catch((error) => {
+				console.debug("Remote tree cache refresh failed:", error);
+			});
 
 			const deleteResult: PublishResult = {
 				success: true,
@@ -312,12 +329,19 @@ export class Publisher {
 				repoPaths,
 			);
 
+			for (const repoPath of repoPaths) {
+				const vaultPath = this.pathMapper.toVaultPath(repoPath);
+				await this.dataStore.dropFile(vaultPath);
+			}
+
 			for (let index = 0; index < repoPaths.length; index += 1) {
 				onProgress?.(index + 1, total);
 			}
 
 			this.remoteTreeCache.invalidate();
-			void this.remoteTreeCache.refresh();
+			this.remoteTreeCache.refresh().catch((error) => {
+				console.debug("Remote tree cache refresh failed:", error);
+			});
 
 			return {
 				success: true,
@@ -359,7 +383,9 @@ export class Publisher {
 			);
 
 			this.remoteTreeCache.invalidate();
-			void this.remoteTreeCache.refresh();
+			this.remoteTreeCache.refresh().catch((error) => {
+				console.debug("Remote tree cache refresh failed:", error);
+			});
 
 			return {
 				success: true,

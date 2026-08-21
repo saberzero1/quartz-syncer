@@ -20,7 +20,7 @@ export function createRepositoryAdapter(
 		},
 		plugin.app,
 	);
-	const branch = plugin.settings.gitBranch || "v4";
+	const branch = plugin.settings.gitBranch || "v5";
 
 	return new RemoteFileSource(backend, branch);
 }

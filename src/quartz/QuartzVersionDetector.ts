@@ -2,6 +2,7 @@ import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 import type { QuartzVersion } from "./QuartzConfigTypes";
 
 const QUARTZ_CONFIG_YAML = "quartz.config.yaml";
+const QUARTZ_CONFIG_DEFAULT_YAML = "quartz.config.default.yaml";
 const QUARTZ_PLUGINS_JSON = "quartz.plugins.json";
 const QUARTZ_CONFIG_TS = "quartz.config.ts";
 const PACKAGE_JSON = "package.json";
@@ -17,6 +18,17 @@ export class QuartzVersionDetector {
 	): Promise<QuartzVersion> {
 		if (await QuartzVersionDetector.fileExists(repo, QUARTZ_CONFIG_YAML)) {
 			console.debug("Detected Quartz v5 (YAML config)");
+
+			return "v5-yaml";
+		}
+
+		if (
+			await QuartzVersionDetector.fileExists(
+				repo,
+				QUARTZ_CONFIG_DEFAULT_YAML,
+			)
+		) {
+			console.debug("Detected Quartz v5 (default YAML config)");
 
 			return "v5-yaml";
 		}

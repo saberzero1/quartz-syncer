@@ -3,6 +3,7 @@ import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 import type { QuartzV5Config, QuartzLockFile } from "./QuartzConfigTypes";
 
 const CONFIG_YAML_PATH = "quartz.config.yaml";
+const CONFIG_DEFAULT_YAML_PATH = "quartz.config.default.yaml";
 const CONFIG_JSON_PATH = "quartz.plugins.json";
 const LOCK_FILE_PATH = "quartz.lock.json";
 
@@ -80,16 +81,12 @@ export class QuartzConfigService {
 		return doc.toString();
 	}
 
-	async writeConfig(
-		config: QuartzV5Config,
-		commitMessage = "Update Quartz configuration via Syncer",
-	): Promise<void> {
+	async writeConfig(config: QuartzV5Config): Promise<void> {
 		const serialized = this.serializeConfig(config);
 
 		const filePath =
 			this.configFormat === "json" ? CONFIG_JSON_PATH : CONFIG_YAML_PATH;
 
-		void commitMessage;
 		await this.repo.writeFile(filePath, serialized);
 	}
 
@@ -107,13 +104,9 @@ export class QuartzConfigService {
 		}
 	}
 
-	async writeLockFile(
-		lockFile: QuartzLockFile,
-		commitMessage = "Update plugin lock file via Syncer",
-	): Promise<void> {
+	async writeLockFile(lockFile: QuartzLockFile): Promise<void> {
 		const serialized = JSON.stringify(lockFile, null, 2) + "\n";
 
-		void commitMessage;
 		await this.repo.writeFile(LOCK_FILE_PATH, serialized);
 	}
 
@@ -133,6 +126,18 @@ export class QuartzConfigService {
 			}
 		} catch {
 			console.debug("No YAML config found, trying JSON fallback");
+		}
+
+		try {
+			const defaultYamlContent = await this.repo.readFile(
+				CONFIG_DEFAULT_YAML_PATH,
+			);
+
+			if (defaultYamlContent) {
+				return { content: defaultYamlContent, format: "yaml" };
+			}
+		} catch {
+			console.debug("No default YAML config found, trying JSON fallback");
 		}
 
 		try {

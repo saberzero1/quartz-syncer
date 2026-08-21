@@ -36,7 +36,7 @@ const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	settingsSchemaVersion: 4,
 
 	gitRemoteUrl: "",
-	gitBranch: "v4",
+	gitBranch: "v5",
 	gitCorsProxyUrl: "",
 	gitAuthType: "basic",
 	gitAuthUsername: "",

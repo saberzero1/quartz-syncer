@@ -31,6 +31,15 @@ describe("QuartzVersionDetector", () => {
 			assert.strictEqual(version, "v5-yaml");
 		});
 
+		it("detects v5-yaml when quartz.config.default.yaml exists", async () => {
+			const repo = createMockRepo(["quartz.config.default.yaml"]);
+
+			const version =
+				await QuartzVersionDetector.detectQuartzVersion(repo);
+
+			assert.strictEqual(version, "v5-yaml");
+		});
+
 		it("detects v5-json when only quartz.plugins.json exists", async () => {
 			const repo = createMockRepo(["quartz.plugins.json"]);
 
