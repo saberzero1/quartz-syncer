@@ -1,5 +1,6 @@
 import type QuartzSyncer from "src/main";
 import type { CliHandler } from "src/cli/types";
+import type { PublishFile } from "src/publishFile/PublishFile";
 
 export function createStatusHandler(_plugin: QuartzSyncer): CliHandler {
 	return async (params) => {
@@ -10,25 +11,38 @@ export function createStatusHandler(_plugin: QuartzSyncer): CliHandler {
 
 		const status = await publisher.getPublishStatus();
 		if (params.verbose) {
+			const enrichFile = async (file: PublishFile) => {
+				const cached = await _plugin.dataStore.loadLocalFile(
+					file.file.path,
+				);
+				const blobCount = cached ? cached[1].blobs.length : 0;
+
+				return {
+					path: file.getVaultPath(),
+					publishFlag: file.shouldPublish(),
+					hasMedia: blobCount > 0,
+				};
+			};
+
 			return {
 				success: true,
 				data: {
 					unpublished: {
 						count: status.unpublished.length,
-						files: status.unpublished.map((file) =>
-							file.getVaultPath(),
+						files: await Promise.all(
+							status.unpublished.map(enrichFile),
 						),
 					},
 					changed: {
 						count: status.changed.length,
-						files: status.changed.map((file) =>
-							file.getVaultPath(),
+						files: await Promise.all(
+							status.changed.map(enrichFile),
 						),
 					},
 					published: {
 						count: status.published.length,
-						files: status.published.map((file) =>
-							file.getVaultPath(),
+						files: await Promise.all(
+							status.published.map(enrichFile),
 						),
 					},
 					deleted: {

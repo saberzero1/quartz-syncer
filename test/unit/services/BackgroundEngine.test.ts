@@ -6,9 +6,7 @@ import type QuartzSyncer from "src/main";
 const createPluginStub = (): QuartzSyncer => {
 	return {
 		getPublisher: () => ({
-			remoteTreeCache: {
-				refresh: vi.fn().mockResolvedValue([]),
-			},
+			refreshTreeCache: vi.fn().mockResolvedValue(undefined),
 		}),
 		settings: { useCache: true },
 		dataStore: {

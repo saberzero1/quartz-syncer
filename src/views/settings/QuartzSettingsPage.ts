@@ -13,10 +13,7 @@ import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
 import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
-import type {
-	QuartzPluginSource,
-	QuartzV5Config,
-} from "src/quartz/QuartzConfigTypes";
+import type { QuartzV5Config } from "src/quartz/QuartzConfigTypes";
 import { PluginBrowserModal } from "src/views/PluginBrowser/PluginBrowserModal";
 import { TerminalOutputModal } from "src/views/TerminalOutput/TerminalOutputModal";
 import { QuartzPreviewModal } from "src/views/QuartzPreview/QuartzPreviewModal";
@@ -475,7 +472,7 @@ export class QuartzSettingsPage extends SettingPageBase {
 		const registry = new QuartzPluginRegistry();
 		const manager = new QuartzPluginManager();
 
-		const onInstall = async (source: QuartzPluginSource) => {
+		const onInstall = async (source: string) => {
 			try {
 				await manager.installPlugin(config, source, {
 					runner: this.plugin.settings.enableSystemCommands

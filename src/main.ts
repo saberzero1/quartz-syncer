@@ -17,8 +17,11 @@ import {
 	shouldShowMigrationNotice,
 } from "src/views/MigrationNotice";
 import { registerCliHandlers } from "src/cli/registerCliHandlers";
+import type { CliHandler } from "src/cli/types";
 import { DataStore } from "src/cache/DataStore";
 import { Publisher } from "src/publisher/Publisher";
+import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
+import { LocalPublishBackend } from "src/publisher/LocalPublishBackend";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { BackgroundEngine } from "src/services/BackgroundEngine";
 import { ProcessRunner } from "src/process/ProcessRunner";
@@ -32,7 +35,7 @@ import { QuartzRunner } from "src/process/runners/QuartzRunner";
  * @remarks
  * This interface defines the default settings for the QuartzSyncer plugin.
  */
-const DEFAULT_SETTINGS: QuartzSyncerSettings = {
+export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	settingsSchemaVersion: 4,
 
 	gitRemoteUrl: "",
@@ -166,6 +169,7 @@ export default class QuartzSyncer extends Plugin {
 	appVersion!: string;
 	secretStorageService!: SecretStorageService;
 	dataStore!: DataStore;
+	cliHandlers: Record<string, CliHandler> = {};
 	private publisher: Publisher | null = null;
 	private backgroundEngine: BackgroundEngine | null = null;
 	private statusBar: HTMLElement | null = null;
@@ -203,12 +207,12 @@ export default class QuartzSyncer extends Plugin {
 		this.addSettingTab(new QuartzSyncerSettingTab(this.app, this));
 
 		this.addCommands();
-		registerCliHandlers(this);
+		this.cliHandlers = registerCliHandlers(this);
 		this.addRibbonIcon("leaf", "Quartz Syncer publication center", () => {
 			new PublicationCenter(this.app, this).open();
 		});
 
-		if (!this.settings.gitRemoteUrl) {
+		if (!this.settings.gitRemoteUrl && !this.settings.quartzRepoPath) {
 			const notice = new Notice("", 0);
 			const fragment = notice.noticeEl.createDiv();
 			fragment.createSpan({
@@ -255,7 +259,7 @@ export default class QuartzSyncer extends Plugin {
 	}
 
 	onunload() {
-		this.publisher?.remoteTreeCache.stopPeriodicFetch();
+		this.publisher?.stopPeriodicFetch();
 		this.backgroundEngine?.stopAutoPublish();
 		this.backgroundEngine?.stop();
 		this.backgroundEngine = null;
@@ -455,7 +459,7 @@ export default class QuartzSyncer extends Plugin {
 
 	private invalidateCachedInstances(): void {
 		if (this.publisher) {
-			this.publisher.remoteTreeCache.stopPeriodicFetch();
+			this.publisher.stopPeriodicFetch();
 			this.publisher = null;
 		}
 	}
@@ -475,8 +479,34 @@ export default class QuartzSyncer extends Plugin {
 	}
 
 	getPublisher(): Publisher | null {
-		if (!this.settings.gitRemoteUrl) return null;
-		if (!this.publisher) {
+		if (this.publisher) return this.publisher;
+
+		const compiler = new SyncerPageCompiler(
+			this.app,
+			this.app.vault,
+			this.settings,
+			this.app.metadataCache,
+			this.dataStore,
+		);
+
+		if (this.settings.quartzRepoPath) {
+			const backend = new LocalPublishBackend(
+				this.settings.quartzRepoPath,
+			);
+
+			this.publisher = new Publisher(
+				this.app,
+				this,
+				backend,
+				compiler,
+				this.dataStore,
+				this.backgroundEngine?.compilationQueue,
+			);
+
+			return this.publisher;
+		}
+
+		if (this.settings.gitRemoteUrl) {
 			const gitBackend = createGitBackend(
 				{
 					remoteUrl: this.settings.gitRemoteUrl,
@@ -492,30 +522,42 @@ export default class QuartzSyncer extends Plugin {
 				this.app,
 			);
 
-			const compiler = new SyncerPageCompiler(
-				this.app,
-				this.app.vault,
-				this.settings,
-				this.app.metadataCache,
-				this.dataStore,
+			const backend = new RemotePublishBackend(
+				gitBackend,
+				this.settings.gitBranch,
 			);
 
 			this.publisher = new Publisher(
 				this.app,
 				this,
-				gitBackend,
+				backend,
 				compiler,
 				this.dataStore,
 				this.backgroundEngine?.compilationQueue,
 			);
 
 			if (this.settings.remoteFetchInterval > 0) {
-				this.publisher.remoteTreeCache.startPeriodicFetch(
+				this.publisher.startPeriodicFetch(
 					this.settings.remoteFetchInterval,
 				);
 			}
+
+			return this.publisher;
 		}
-		return this.publisher;
+
+		return null;
+	}
+
+	getEngineStatus(): {
+		running: boolean;
+		pending: number;
+		autoPublish: boolean;
+	} {
+		return {
+			running: this.backgroundEngine?.isRunning ?? false,
+			pending: this.backgroundEngine?.pendingCount ?? 0,
+			autoPublish: this.backgroundEngine?.isAutoPublishActive ?? false,
+		};
 	}
 
 	private addCommands(): void {

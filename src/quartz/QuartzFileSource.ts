@@ -8,7 +8,10 @@
 export interface QuartzFileSource {
 	readFile(path: string): Promise<string | null>;
 	writeFile(path: string, content: string): Promise<void>;
+	writeBinaryFile(path: string, data: Uint8Array): Promise<void>;
+	deleteFile(path: string): Promise<void>;
 	listDirectory(path: string): Promise<QuartzDirectoryEntry[]>;
+	listAllFiles(basePath?: string): Promise<string[]>;
 	exists(path: string): Promise<boolean>;
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { App } from "obsidian";
 import { Publisher } from "src/publisher/Publisher";
+import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import type { GitBackend } from "src/git/types";
 import type { PublishFile } from "src/publishFile/PublishFile";
 import type QuartzSyncerSettings from "src/models/settings";
@@ -98,10 +99,11 @@ describe("Publisher", () => {
 			storeRemoteHash: vi.fn(),
 		} as unknown as DataStore;
 
+		const backend = new RemotePublishBackend(gitBackend, "main");
 		const publisher = new Publisher(
 			app,
 			plugin,
-			gitBackend,
+			backend,
 			compiler,
 			dataStore,
 		);
@@ -136,10 +138,11 @@ describe("Publisher", () => {
 			storeRemoteHash: vi.fn(),
 		} as unknown as DataStore;
 
+		const backend = new RemotePublishBackend(gitBackend, "main");
 		const publisher = new Publisher(
 			app,
 			plugin,
-			gitBackend,
+			backend,
 			compiler,
 			dataStore,
 		);
@@ -164,10 +167,11 @@ describe("Publisher", () => {
 		} as unknown as DataStore;
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1234);
 
+		const backend = new RemotePublishBackend(gitBackend, "main");
 		const publisher = new Publisher(
 			app,
 			plugin,
-			gitBackend,
+			backend,
 			compiler,
 			dataStore,
 		);
@@ -189,7 +193,7 @@ describe("Publisher", () => {
 		nowSpy.mockRestore();
 	});
 
-	it("publishBatch refreshes remote tree cache", async () => {
+	it("publishBatch refreshes tree cache", async () => {
 		const app = new App();
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
@@ -201,10 +205,11 @@ describe("Publisher", () => {
 			storeRemoteHash: vi.fn(),
 		} as unknown as DataStore;
 
+		const backend = new RemotePublishBackend(gitBackend, "main");
 		const publisher = new Publisher(
 			app,
 			plugin,
-			gitBackend,
+			backend,
 			compiler,
 			dataStore,
 		);
@@ -224,10 +229,11 @@ describe("Publisher", () => {
 			dropFile: vi.fn(),
 		} as unknown as DataStore;
 
+		const backend = new RemotePublishBackend(gitBackend, "main");
 		const publisher = new Publisher(
 			app,
 			plugin,
-			gitBackend,
+			backend,
 			compiler,
 			dataStore,
 		);
@@ -242,7 +248,7 @@ describe("Publisher", () => {
 		expect(dataStore.dropFile).toHaveBeenCalledWith("notes/a.md");
 	});
 
-	it("deleteBatch refreshes remote tree cache", async () => {
+	it("deleteBatch refreshes tree cache", async () => {
 		const app = new App();
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
@@ -252,10 +258,11 @@ describe("Publisher", () => {
 			dropFile: vi.fn(),
 		} as unknown as DataStore;
 
+		const backend = new RemotePublishBackend(gitBackend, "main");
 		const publisher = new Publisher(
 			app,
 			plugin,
-			gitBackend,
+			backend,
 			compiler,
 			dataStore,
 		);
@@ -275,10 +282,11 @@ describe("Publisher", () => {
 			dropFile: vi.fn(),
 		} as unknown as DataStore;
 
+		const backend = new RemotePublishBackend(gitBackend, "main");
 		const publisher = new Publisher(
 			app,
 			plugin,
-			gitBackend,
+			backend,
 			compiler,
 			dataStore,
 		);
@@ -314,10 +322,11 @@ describe("Publisher", () => {
 		};
 		vaultStub.getFiles = vi.fn().mockReturnValue([]);
 
+		const backend = new RemotePublishBackend(gitBackend, "main");
 		const publisher = new Publisher(
 			app,
 			plugin,
-			gitBackend,
+			backend,
 			compiler,
 			dataStore,
 			mockQueue as never,
@@ -358,10 +367,11 @@ describe("Publisher", () => {
 		};
 		vaultStub.getFiles = vi.fn().mockReturnValue([]);
 
+		const backend = new RemotePublishBackend(gitBackend, "main");
 		const publisher = new Publisher(
 			app,
 			plugin,
-			gitBackend,
+			backend,
 			compiler,
 			dataStore,
 			mockQueue as never,

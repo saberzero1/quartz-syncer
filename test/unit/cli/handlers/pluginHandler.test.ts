@@ -3,6 +3,10 @@ import type { GitBackend } from "src/git/types";
 import { createPluginHandler } from "src/cli/handlers/pluginHandler";
 import { buildParams, buildPlugin, makeBackend } from "./helpers";
 
+const { getPlugins } = vi.hoisted(() => ({
+	getPlugins: vi.fn(),
+}));
+
 const { createGitBackend, setBackend } = vi.hoisted(() => {
 	let backend: GitBackend | null = null;
 	return {
@@ -20,6 +24,12 @@ const { createGitBackend, setBackend } = vi.hoisted(() => {
 
 vi.mock("src/git/GitBackendFactory", () => ({
 	createGitBackend,
+}));
+
+vi.mock("src/quartz/QuartzPluginRegistry", () => ({
+	QuartzPluginRegistry: class {
+		getPlugins = getPlugins;
+	},
 }));
 
 describe("pluginHandler", () => {
@@ -121,6 +131,205 @@ describe("pluginHandler", () => {
 		});
 		const writeFiles = backend.writeFiles as ReturnType<typeof vi.fn>;
 		expect(writeFiles).toHaveBeenCalledTimes(1);
+	});
+
+	it("returns a dry-run add without writing config", async () => {
+		const files = {
+			"quartz.plugins.json": JSON.stringify({
+				configuration: { pageTitle: "Test" },
+				plugins: [],
+			}),
+		};
+		const backend = makeBackend(files);
+		setBackend(backend);
+		const plugin = buildPlugin();
+		const handler = createPluginHandler(plugin);
+
+		const result = await handler(
+			buildParams({ action: "add", source: "github:test/repo" }, [
+				"dry-run",
+			]),
+		);
+		expect(result.success).toBe(true);
+		expect(result.data).toMatchObject({
+			dryRun: true,
+			source: "github:test/repo",
+		});
+		expect(backend.writeFiles).not.toHaveBeenCalled();
+		expect(files["quartz.plugins.json"]).toBe(
+			JSON.stringify({
+				configuration: { pageTitle: "Test" },
+				plugins: [],
+			}),
+		);
+	});
+
+	it("returns a dry-run removal without writing config", async () => {
+		const files = {
+			"quartz.plugins.json": JSON.stringify({
+				configuration: { pageTitle: "Test" },
+				plugins: [
+					{
+						source: "github:test/repo",
+						enabled: true,
+						order: 50,
+						options: {},
+					},
+				],
+			}),
+		};
+		const backend = makeBackend(files);
+		setBackend(backend);
+		const plugin = buildPlugin();
+		const handler = createPluginHandler(plugin);
+
+		const result = await handler(
+			buildParams({ action: "remove", name: "github:test/repo" }, [
+				"dry-run",
+			]),
+		);
+		expect(result.success).toBe(true);
+		expect(result.data).toMatchObject({
+			dryRun: true,
+			source: "github:test/repo",
+		});
+		expect(backend.writeFiles).not.toHaveBeenCalled();
+		expect(files["quartz.plugins.json"]).toBe(
+			JSON.stringify({
+				configuration: { pageTitle: "Test" },
+				plugins: [
+					{
+						source: "github:test/repo",
+						enabled: true,
+						order: 50,
+						options: {},
+					},
+				],
+			}),
+		);
+	});
+
+	it("returns all plugins when search has no query", async () => {
+		getPlugins.mockResolvedValue([
+			{
+				name: "graph",
+				displayName: "Graph",
+				description: "Graph view",
+				keywords: ["graph"],
+				category: "visual",
+			},
+			{
+				name: "foo",
+				displayName: "Foo",
+				description: "Something else",
+				keywords: [],
+				category: "other",
+			},
+		]);
+		const plugin = buildPlugin();
+		const handler = createPluginHandler(plugin);
+
+		const result = await handler(buildParams({ action: "search" }));
+		expect(result).toEqual({
+			success: true,
+			data: {
+				count: 2,
+				plugins: [
+					{
+						name: "graph",
+						displayName: "Graph",
+						description: "Graph view",
+						keywords: ["graph"],
+						category: "visual",
+					},
+					{
+						name: "foo",
+						displayName: "Foo",
+						description: "Something else",
+						keywords: [],
+						category: "other",
+					},
+				],
+			},
+		});
+	});
+
+	it("filters registry results by query", async () => {
+		getPlugins.mockResolvedValue([
+			{
+				name: "graph",
+				displayName: "Graph",
+				description: "Graph view",
+				keywords: ["graph"],
+				category: "visual",
+			},
+			{
+				name: "toc",
+				displayName: "Table of contents",
+				description: "Navigation",
+				keywords: ["nav"],
+				category: "structure",
+			},
+		]);
+		const plugin = buildPlugin();
+		const handler = createPluginHandler(plugin);
+
+		const result = await handler(
+			buildParams({ action: "search", query: "graph" }),
+		);
+		expect(result.success).toBe(true);
+		const data = result.data as { count: number; plugins: unknown[] };
+		expect(data.count).toBe(1);
+		expect(data.plugins).toEqual([
+			{
+				name: "graph",
+				displayName: "Graph",
+				description: "Graph view",
+				keywords: ["graph"],
+				category: "visual",
+			},
+		]);
+	});
+
+	it("returns empty results for unmatched queries", async () => {
+		getPlugins.mockResolvedValue([
+			{
+				name: "graph",
+				displayName: "Graph",
+				description: "Graph view",
+				keywords: ["graph"],
+				category: "visual",
+			},
+		]);
+		const plugin = buildPlugin();
+		const handler = createPluginHandler(plugin);
+
+		const result = await handler(
+			buildParams({ action: "search", query: "nonexistent" }),
+		);
+		expect(result).toEqual({
+			success: true,
+			data: {
+				query: "nonexistent",
+				count: 0,
+				plugins: [],
+			},
+		});
+	});
+
+	it("returns empty results when registry fetch fails", async () => {
+		getPlugins.mockResolvedValue([]);
+		const plugin = buildPlugin();
+		const handler = createPluginHandler(plugin);
+
+		const result = await handler(buildParams({ action: "search" }));
+		expect(result).toEqual({
+			success: true,
+			data: {
+				count: 0,
+				plugins: [],
+			},
+		});
 	});
 
 	it("returns an error when repository is unavailable", async () => {

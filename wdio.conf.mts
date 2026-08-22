@@ -4,7 +4,10 @@ import * as fs from "fs";
 export const config: WebdriverIO.Config = {
 	runner: "local",
 	framework: "mocha",
-	specs: ["./test/specs/**/*.e2e.ts"],
+	specs: [
+		"./test/specs/**/*.e2e.ts",
+		"./test/scenario/specs/**/*.scenario.ts",
+	],
 	maxInstances: 1,
 
 	capabilities: [

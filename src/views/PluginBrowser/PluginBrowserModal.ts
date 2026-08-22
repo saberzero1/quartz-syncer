@@ -3,13 +3,10 @@ import type {
 	QuartzPluginRegistry,
 	RegistryPluginEntry,
 } from "src/quartz/QuartzPluginRegistry";
-import type {
-	QuartzPluginSource,
-	QuartzV5Config,
-} from "src/quartz/QuartzConfigTypes";
+import type { QuartzV5Config } from "src/quartz/QuartzConfigTypes";
 import { getPluginSourceKey } from "src/quartz/QuartzPluginUtils";
 
-type InstallPluginFn = (source: QuartzPluginSource) => Promise<void>;
+type InstallPluginFn = (source: string) => Promise<void>;
 
 export class PluginBrowserModal extends Modal {
 	private registry: QuartzPluginRegistry;
@@ -17,7 +14,7 @@ export class PluginBrowserModal extends Modal {
 	private onInstall: InstallPluginFn;
 	private allPlugins: RegistryPluginEntry[] = [];
 	private searchQuery = "";
-	private selectedTag = "";
+	private selectedCategory = "";
 	private isLoading = false;
 	private installingPlugins: Set<string> = new Set();
 
@@ -118,23 +115,26 @@ export class PluginBrowserModal extends Modal {
 			this.renderList();
 		});
 
-		const allTags = this.getAllTags();
+		const allCategories = this.getAllCategories();
 
-		if (allTags.length > 0) {
+		if (allCategories.length > 0) {
 			const tagSelect = controlsEl.createEl("select", {
 				cls: "quartz-syncer-plugin-browser-tag-filter",
 			});
 
 			tagSelect.createEl("option", { text: "All categories", value: "" });
 
-			for (const tag of allTags) {
-				tagSelect.createEl("option", { text: tag, value: tag });
+			for (const category of allCategories) {
+				tagSelect.createEl("option", {
+					text: category,
+					value: category,
+				});
 			}
 
-			tagSelect.value = this.selectedTag;
+			tagSelect.value = this.selectedCategory;
 
 			tagSelect.addEventListener("change", () => {
-				this.selectedTag = tagSelect.value;
+				this.selectedCategory = tagSelect.value;
 				this.renderList();
 			});
 		}
@@ -181,7 +181,7 @@ export class PluginBrowserModal extends Modal {
 		);
 
 		headerEl.createSpan({
-			text: entry.name,
+			text: entry.displayName,
 			cls: "quartz-syncer-plugin-browser-card-name",
 		});
 
@@ -201,13 +201,16 @@ export class PluginBrowserModal extends Modal {
 			"quartz-syncer-plugin-browser-card-footer",
 		);
 
-		const tagsEl = footerEl.createDiv(
+		const categoriesEl = footerEl.createDiv(
 			"quartz-syncer-plugin-browser-card-tags",
 		);
 
-		for (const tag of entry.tags) {
-			tagsEl.createSpan({
-				text: tag,
+		const categories = Array.isArray(entry.category)
+			? entry.category
+			: [entry.category];
+		for (const category of categories) {
+			categoriesEl.createSpan({
+				text: category,
 				cls: "quartz-syncer-plugin-browser-tag",
 			});
 		}
@@ -271,29 +274,39 @@ export class PluginBrowserModal extends Modal {
 		const query = this.searchQuery.toLowerCase().trim();
 
 		return this.allPlugins.filter((entry) => {
-			if (this.selectedTag && !entry.tags.includes(this.selectedTag)) {
-				return false;
+			if (this.selectedCategory) {
+				const categories = Array.isArray(entry.category)
+					? entry.category
+					: [entry.category];
+				if (!categories.includes(this.selectedCategory)) {
+					return false;
+				}
 			}
 
 			if (!query) return true;
 
 			return (
-				entry.name.toLowerCase().includes(query) ||
+				entry.displayName.toLowerCase().includes(query) ||
 				entry.description.toLowerCase().includes(query) ||
-				entry.tags.some((t) => t.toLowerCase().includes(query))
+				(entry.keywords ?? []).some((kw) =>
+					kw.toLowerCase().includes(query),
+				)
 			);
 		});
 	}
 
-	private getAllTags(): string[] {
-		const tagSet = new Set<string>();
+	private getAllCategories(): string[] {
+		const categorySet = new Set<string>();
 
 		for (const entry of this.allPlugins) {
-			for (const tag of entry.tags) {
-				tagSet.add(tag);
+			const categories = Array.isArray(entry.category)
+				? entry.category
+				: [entry.category];
+			for (const category of categories) {
+				categorySet.add(category);
 			}
 		}
 
-		return [...tagSet].sort();
+		return [...categorySet].sort();
 	}
 }

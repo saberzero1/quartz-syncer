@@ -648,6 +648,45 @@ export class DataStore {
 	}
 
 	/**
+	 * Export all cache entries as a JSON-serializable record.
+	 * Side-effect-free: does not write to settings or IndexedDB.
+	 */
+	public async exportCache(): Promise<Record<string, QuartzSyncerCache>> {
+		const data: Record<string, QuartzSyncerCache> = {};
+		const keys = await this.allKeys();
+
+		for (const key of keys) {
+			if (!key.startsWith("file:")) continue;
+
+			const value = await this.persister.getItem(key);
+
+			if (value) {
+				data[key] = value as QuartzSyncerCache;
+			}
+		}
+
+		return data;
+	}
+
+	/**
+	 * Import cache entries from a JSON record.
+	 * Writes directly to IndexedDB. Does not touch plugin settings.
+	 */
+	public async importCache(
+		data: Record<string, QuartzSyncerCache>,
+	): Promise<number> {
+		let count = 0;
+
+		for (const [key, value] of Object.entries(data)) {
+			if (!key.startsWith("file:")) continue;
+			await this.persister.setItem(key, value);
+			count += 1;
+		}
+
+		return count;
+	}
+
+	/**
 	 * Obtain a list of all metadata keys.
 	 *
 	 * @returns A list of all keys in the cache.

@@ -110,4 +110,100 @@ describe("DataStore", () => {
 
 		expect(persister.setItem).toHaveBeenCalledTimes(1);
 	});
+
+	it("exports an empty cache when no entries exist", async () => {
+		const store = new DataStore("vault", "app", "1.0.0");
+
+		const result = await store.exportCache();
+
+		expect(result).toEqual({});
+	});
+
+	it("exports all cached file entries", async () => {
+		const store = new DataStore("vault", "app", "1.0.0");
+		await store.persister.setItem("file:notes/a.md", {
+			version: "1.0.0",
+			time: 100,
+			sourceMtime: 100,
+		});
+		await store.persister.setItem("file:notes/b.md", {
+			version: "1.0.0",
+			time: 200,
+			sourceMtime: 200,
+		});
+
+		const result = await store.exportCache();
+
+		expect(Object.keys(result).sort()).toEqual([
+			"file:notes/a.md",
+			"file:notes/b.md",
+		]);
+	});
+
+	it("imports cache entries into the persister", async () => {
+		const store = new DataStore("vault", "app", "1.0.0");
+
+		const count = await store.importCache({
+			"file:notes/a.md": {
+				version: "1.0.0",
+				time: 100,
+				sourceMtime: 100,
+			},
+			"file:notes/b.md": {
+				version: "1.0.0",
+				time: 200,
+				sourceMtime: 200,
+			},
+		});
+
+		expect(count).toBe(2);
+		expect(await store.persister.getItem("file:notes/a.md")).toEqual({
+			version: "1.0.0",
+			time: 100,
+			sourceMtime: 100,
+		});
+	});
+
+	it("skips non-file keys when importing cache entries", async () => {
+		const store = new DataStore("vault", "app", "1.0.0");
+
+		const count = await store.importCache({
+			"file:notes/a.md": {
+				version: "1.0.0",
+				time: 100,
+				sourceMtime: 100,
+			},
+			metadata: {
+				version: "1.0.0",
+				time: 200,
+				sourceMtime: 200,
+			},
+		});
+
+		expect(count).toBe(1);
+		expect(await store.persister.getItem("metadata")).toBeUndefined();
+	});
+
+	it("roundtrips cache exports into a new store", async () => {
+		const store = new DataStore("vault", "app", "1.0.0");
+		await store.persister.setItem("file:notes/a.md", {
+			version: "1.0.0",
+			time: 100,
+			sourceMtime: 100,
+		});
+		await store.persister.setItem("file:notes/b.md", {
+			version: "1.0.0",
+			time: 200,
+			sourceMtime: 200,
+		});
+
+		const exported = await store.exportCache();
+
+		setStore(new Map());
+		const importedStore = new DataStore("vault", "app", "1.0.0");
+		await importedStore.importCache(exported);
+		const imported = await importedStore.exportCache();
+
+		expect(imported).toEqual(exported);
+	});
 });

@@ -2,17 +2,21 @@ import { Platform } from "obsidian";
 
 type FsPromisesType = {
 	readFile(path: string, options: { encoding: string }): Promise<string>;
+	readFile(path: string): Promise<Buffer>;
 	writeFile(
 		path: string,
 		data: string,
 		options: { encoding: string },
 	): Promise<void>;
+	writeFile(path: string, data: Buffer): Promise<void>;
 	access(path: string): Promise<void>;
-	readdir(path: string): Promise<string[]>;
+	readdir(path: string, options?: { recursive?: boolean }): Promise<string[]>;
 	stat(path: string): Promise<{
 		isFile(): boolean;
 		isDirectory(): boolean;
 	}>;
+	unlink(path: string): Promise<void>;
+	mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
 };
 
 type FsSyncType = {
@@ -175,4 +179,80 @@ export function externalIsDirectorySync(dirPath: string): boolean {
 	} catch {
 		return false;
 	}
+}
+
+export async function writeBinaryExternalFile(
+	filePath: string,
+	data: Uint8Array,
+): Promise<boolean> {
+	if (!Platform.isDesktopApp) return false;
+
+	const resolved = expandTilde(filePath);
+	try {
+		const fs = getFsPromises();
+		const path = getPath();
+		const dir = path.join(resolved, "..");
+		await fs.mkdir(dir, { recursive: true });
+		const BufferCtor = getModule<{
+			Buffer: { from(data: Uint8Array): Buffer };
+		}>("buffer").Buffer;
+		await fs.writeFile(resolved, BufferCtor.from(data));
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export async function readBinaryExternalFile(
+	filePath: string,
+): Promise<Uint8Array | null> {
+	if (!Platform.isDesktopApp) return null;
+
+	const resolved = expandTilde(filePath);
+	try {
+		const fs = getFsPromises();
+		const buffer = await (fs.readFile as (path: string) => Promise<Buffer>)(
+			resolved,
+		);
+		return new Uint8Array(buffer);
+	} catch {
+		return null;
+	}
+}
+
+export async function deleteExternalFile(filePath: string): Promise<boolean> {
+	if (!Platform.isDesktopApp) return false;
+
+	const resolved = expandTilde(filePath);
+	try {
+		const fs = getFsPromises();
+		await fs.unlink(resolved);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export async function readExternalDirRecursive(
+	dirPath: string,
+): Promise<string[] | null> {
+	if (!Platform.isDesktopApp) return null;
+
+	const resolved = expandTilde(dirPath);
+	try {
+		const fs = getFsPromises();
+		return await fs.readdir(resolved, { recursive: true });
+	} catch {
+		return null;
+	}
+}
+
+export async function ensureParentDir(filePath: string): Promise<void> {
+	if (!Platform.isDesktopApp) return;
+
+	const resolved = expandTilde(filePath);
+	const path = getPath();
+	const dir = path.join(resolved, "..");
+	const fs = getFsPromises();
+	await fs.mkdir(dir, { recursive: true });
 }

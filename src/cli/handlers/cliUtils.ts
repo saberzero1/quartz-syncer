@@ -1,11 +1,16 @@
 import type QuartzSyncer from "src/main";
 import { createGitBackend } from "src/git/GitBackendFactory";
 import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
+import { LocalFileSource } from "src/quartz/LocalFileSource";
 import { RemoteFileSource } from "src/quartz/RemoteFileSource";
 
 export function createRepositoryAdapter(
 	plugin: QuartzSyncer,
 ): QuartzFileSource | null {
+	if (plugin.settings.quartzRepoPath) {
+		return new LocalFileSource(plugin.settings.quartzRepoPath);
+	}
+
 	if (!plugin.settings.gitRemoteUrl) {
 		return null;
 	}

@@ -7,6 +7,7 @@ import {
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
 import type { QuartzPluginSource } from "src/quartz/QuartzConfigTypes";
+import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
 import { requireQuartzRunner } from "src/cli/handlers/guards";
 
 const DEFAULT_ACTION = "list";
@@ -49,6 +50,13 @@ export function createPluginHandler(plugin: QuartzSyncer): CliHandler {
 			const configService = new QuartzConfigService(repo);
 			const config = await configService.readConfig();
 			const source = parsePluginSource(sourceArg);
+
+			if (params.flags.has("dry-run")) {
+				const cloned = structuredClone(config);
+				const added = manager.addPlugin(cloned, source);
+				return { success: true, data: { dryRun: true, ...added } };
+			}
+
 			const added = manager.addPlugin(config, source);
 			await configService.writeConfig(config);
 			return { success: true, data: added };
@@ -64,9 +72,58 @@ export function createPluginHandler(plugin: QuartzSyncer): CliHandler {
 			}
 			const configService = new QuartzConfigService(repo);
 			const config = await configService.readConfig();
+
+			if (params.flags.has("dry-run")) {
+				const cloned = structuredClone(config);
+				const removed = manager.removePlugin(cloned, name);
+				return { success: true, data: { dryRun: true, ...removed } };
+			}
+
 			const removed = manager.removePlugin(config, name);
 			await configService.writeConfig(config);
 			return { success: true, data: removed };
+		}
+
+		if (action === "search") {
+			const registry = new QuartzPluginRegistry();
+			const allPlugins = await registry.getPlugins();
+			const query = params.args.query?.toLowerCase();
+
+			if (!query) {
+				return {
+					success: true,
+					data: {
+						count: allPlugins.length,
+						plugins: allPlugins,
+					},
+				};
+			}
+
+			const filtered = allPlugins.filter((entry) => {
+				const nameMatch =
+					entry.displayName?.toLowerCase().includes(query) ?? false;
+				const descMatch =
+					entry.description?.toLowerCase().includes(query) ?? false;
+				const keywordMatch = (entry.keywords ?? []).some((kw) =>
+					kw.toLowerCase().includes(query),
+				);
+				const categoryMatch = Array.isArray(entry.category)
+					? entry.category.some((c) =>
+							c.toLowerCase().includes(query),
+						)
+					: (entry.category?.toLowerCase().includes(query) ?? false);
+
+				return nameMatch || descMatch || keywordMatch || categoryMatch;
+			});
+
+			return {
+				success: true,
+				data: {
+					query,
+					count: filtered.length,
+					plugins: filtered,
+				},
+			};
 		}
 
 		if (action === "install") {

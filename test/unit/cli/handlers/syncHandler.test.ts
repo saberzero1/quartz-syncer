@@ -49,6 +49,44 @@ describe("syncHandler", () => {
 		});
 	});
 
+	it("uses custom messages for publish and delete", async () => {
+		const fileA = { getVaultPath: () => "a.md" } as PublishFile;
+		const publisher = {
+			getPublishStatus: vi.fn(async () => ({
+				unpublished: [fileA],
+				changed: [],
+				published: [],
+				deleted: ["old.md"],
+			})),
+			publishBatch: vi.fn(async () => ({
+				success: true,
+				filesPublished: 1,
+				commitSha: "pub123",
+			})),
+			deleteBatch: vi.fn(async () => ({
+				success: true,
+				filesDeleted: 1,
+				commitSha: "del456",
+			})),
+		} as unknown as Publisher;
+		const plugin = buildPlugin({
+			getPublisher: vi.fn(
+				() => publisher,
+			) as unknown as () => Publisher | null,
+		});
+		const handler = createSyncHandler(plugin);
+
+		await handler(buildParams({ message: "Sync commit" }, ["force"]));
+		expect(publisher.publishBatch).toHaveBeenCalledWith(
+			[fileA],
+			"Sync commit",
+		);
+		expect(publisher.deleteBatch).toHaveBeenCalledWith(
+			["old.md"],
+			"Sync commit (deletions)",
+		);
+	});
+
 	it("skips deletions without force", async () => {
 		const fileA = { getVaultPath: () => "a.md" } as PublishFile;
 		const publisher = {

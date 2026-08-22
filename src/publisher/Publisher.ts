@@ -1,6 +1,7 @@
 import type { App } from "obsidian";
 import type QuartzSyncer from "src/main";
-import type { GitBackend, FileChange } from "src/git/types";
+import type { FileChange } from "src/git/types";
+import type { PublishBackend } from "src/publisher/PublishBackend";
 import { PathMapper } from "src/git/PathMapper";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
@@ -13,26 +14,36 @@ import type {
 import { categorizeFiles } from "src/publisher/PublishStatusManager";
 import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
 import type { CompilationQueue } from "src/services/CompilationQueue";
-import { RemoteTreeCache } from "src/git/RemoteTreeCache";
 import { isMediaFile } from "src/utils/mediaTypes";
 
 export class Publisher {
 	private pathMapper: PathMapper;
-	readonly remoteTreeCache: RemoteTreeCache;
 
 	constructor(
 		private app: App,
 		private plugin: QuartzSyncer,
-		private gitBackend: GitBackend,
+		private backend: PublishBackend,
 		private compiler: SyncerPageCompiler,
 		private dataStore: DataStore,
 		private compilationQueue?: CompilationQueue,
 	) {
 		this.pathMapper = new PathMapper(plugin.settings.contentFolder);
-		this.remoteTreeCache = new RemoteTreeCache(
-			gitBackend,
-			plugin.settings.gitBranch,
-		);
+	}
+
+	get isLocal(): boolean {
+		return this.backend.isLocal;
+	}
+
+	startPeriodicFetch(intervalSeconds: number): void {
+		this.backend.startPeriodicFetch(intervalSeconds);
+	}
+
+	stopPeriodicFetch(): void {
+		this.backend.stopPeriodicFetch();
+	}
+
+	refreshTreeCache(): Promise<void> {
+		return this.backend.refreshTreeCache().then(() => {});
 	}
 
 	async getPublishStatus(): Promise<PublishStatus> {
@@ -70,7 +81,9 @@ export class Publisher {
 				compiledFiles.push(compiled);
 			}
 
-			const remoteTree = await this.remoteTreeCache.get();
+			const remoteTree = await this.backend.getCachedTree(
+				settings.gitBranch,
+			);
 			const linkedMedia = await resolveLinkedMedia(compiledFiles);
 
 			return await categorizeFiles(
@@ -98,14 +111,18 @@ export class Publisher {
 			const repoPath = this.pathMapper.toRepoPath(
 				this.toVaultRelativePath(vaultPath),
 			);
-			const tree = await this.remoteTreeCache.get();
+			const tree = await this.backend.getCachedTree(
+				this.plugin.settings.gitBranch,
+			);
 			const entry = tree.find(
 				(item) => item.path === repoPath && item.type === "blob",
 			);
 
 			if (!entry) return null;
 
-			const blob = await this.gitBackend.readBlob(entry.sha);
+			const blob = this.backend.isLocal
+				? await this.backend.readBlob(repoPath)
+				: await this.backend.readBlob(entry.sha);
 
 			return new TextDecoder().decode(blob);
 		} catch {
@@ -199,7 +216,7 @@ export class Publisher {
 				onProgress?.(index + 1, total);
 			}
 
-			const result = await this.gitBackend.writeFiles(
+			const result = await this.backend.writeFiles(
 				settings.gitBranch,
 				commitMessage,
 				changes,
@@ -213,9 +230,9 @@ export class Publisher {
 				);
 			}
 
-			this.remoteTreeCache.invalidate();
-			this.remoteTreeCache.refresh().catch((error) => {
-				console.debug("Remote tree cache refresh failed:", error);
+			this.backend.invalidateTreeCache();
+			this.backend.refreshTreeCache().catch((error) => {
+				console.debug("Tree cache refresh failed:", error);
 			});
 
 			const publishResult: PublishResult = {
@@ -259,7 +276,7 @@ export class Publisher {
 		const total = paths.length;
 
 		try {
-			const result = await this.gitBackend.deleteFiles(
+			const result = await this.backend.deleteFiles(
 				settings.gitBranch,
 				commitMessage,
 				repoPaths,
@@ -272,9 +289,9 @@ export class Publisher {
 				onProgress?.(index + 1, total);
 			}
 
-			this.remoteTreeCache.invalidate();
-			this.remoteTreeCache.refresh().catch((error) => {
-				console.debug("Remote tree cache refresh failed:", error);
+			this.backend.invalidateTreeCache();
+			this.backend.refreshTreeCache().catch((error) => {
+				console.debug("Tree cache refresh failed:", error);
 			});
 
 			const deleteResult: PublishResult = {
@@ -323,7 +340,7 @@ export class Publisher {
 		const total = repoPaths.length;
 
 		try {
-			const result = await this.gitBackend.deleteFiles(
+			const result = await this.backend.deleteFiles(
 				settings.gitBranch,
 				commitMessage,
 				repoPaths,
@@ -338,9 +355,9 @@ export class Publisher {
 				onProgress?.(index + 1, total);
 			}
 
-			this.remoteTreeCache.invalidate();
-			this.remoteTreeCache.refresh().catch((error) => {
-				console.debug("Remote tree cache refresh failed:", error);
+			this.backend.invalidateTreeCache();
+			this.backend.refreshTreeCache().catch((error) => {
+				console.debug("Tree cache refresh failed:", error);
 			});
 
 			return {
@@ -376,15 +393,15 @@ export class Publisher {
 		}));
 
 		try {
-			const result = await this.gitBackend.writeFiles(
+			const result = await this.backend.writeFiles(
 				settings.gitBranch,
 				commitMessage,
 				changes,
 			);
 
-			this.remoteTreeCache.invalidate();
-			this.remoteTreeCache.refresh().catch((error) => {
-				console.debug("Remote tree cache refresh failed:", error);
+			this.backend.invalidateTreeCache();
+			this.backend.refreshTreeCache().catch((error) => {
+				console.debug("Tree cache refresh failed:", error);
 			});
 
 			return {
@@ -439,7 +456,9 @@ export class Publisher {
 			}
 
 			const linkedMedia = await resolveLinkedMedia(compiledFiles);
-			const remoteTree = await this.remoteTreeCache.get();
+			const remoteTree = await this.backend.getCachedTree(
+				settings.gitBranch,
+			);
 			const orphanedRepoPaths: string[] = [];
 
 			for (const entry of remoteTree) {

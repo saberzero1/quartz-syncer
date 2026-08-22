@@ -50,7 +50,7 @@ export class BackgroundEngine {
 		const publisher = this.plugin.getPublisher();
 
 		if (publisher) {
-			void publisher.remoteTreeCache.refresh();
+			void publisher.refreshTreeCache();
 		}
 	}
 

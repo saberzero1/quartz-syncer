@@ -26,10 +26,9 @@ export function createDeleteHandler(_plugin: QuartzSyncer): CliHandler {
 				},
 			};
 		}
-		const result = await publisher.deleteBatch(
-			deletePaths,
-			"Deleted via Quartz Syncer CLI",
-		);
+		const commitMessage =
+			params.args.message ?? "Deleted via Quartz Syncer CLI";
+		const result = await publisher.deleteBatch(deletePaths, commitMessage);
 
 		if (!result.success) {
 			return {

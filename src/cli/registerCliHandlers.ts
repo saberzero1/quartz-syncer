@@ -22,11 +22,15 @@ import { createQuartzBuildHandler } from "src/cli/handlers/quartzBuildHandler";
 import { createQuartzServeHandler } from "src/cli/handlers/quartzServeHandler";
 import { createQuartzSyncHandler } from "src/cli/handlers/quartzSyncHandler";
 import { createQuartzRestoreHandler } from "src/cli/handlers/quartzRestoreHandler";
+import { createRepoHandler } from "src/cli/handlers/repoHandler";
+import { createMediaHandler } from "src/cli/handlers/mediaHandler";
+import { createDiffHandler } from "src/cli/handlers/diffHandler";
+import { createValidateHandler } from "src/cli/handlers/validateHandler";
+import { createInspectHandler } from "src/cli/handlers/inspectHandler";
 
 import type {
 	CliData as ObsidianCliData,
 	CliFlags as ObsidianCliFlags,
-	CliHandler as ObsidianCliHandler,
 } from "obsidian";
 
 const COMMAND_REGISTRY: CommandMeta[] = [
@@ -58,6 +62,7 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 		name: "quartz-syncer:sync",
 		description: "Publish pending notes and delete removed notes.",
 		args: [
+			{ name: "message", description: "Custom commit message." },
 			{ name: "format", description: "Output format (json or text)." },
 		],
 		flags: [
@@ -78,9 +83,19 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 		name: "quartz-syncer:publish",
 		description: "Publish pending notes only (no deletions).",
 		args: [
+			{
+				name: "action",
+				description:
+					"Default publishes pending notes. Use arbitrary for arbitrary file publishing.",
+			},
+			{ name: "message", description: "Custom commit message." },
 			{ name: "format", description: "Output format (json or text)." },
 		],
 		flags: [
+			{
+				name: "force",
+				description: "Required for arbitrary file publishing.",
+			},
 			{
 				name: "dry-run",
 				description: "Preview changes without executing.",
@@ -94,6 +109,7 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 		name: "quartz-syncer:delete",
 		description: "Delete removed notes from remote.",
 		args: [
+			{ name: "message", description: "Custom commit message." },
 			{ name: "format", description: "Output format (json or text)." },
 		],
 		flags: [
@@ -151,27 +167,38 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 		name: "quartz-syncer:cache",
 		description: "Manage the plugin cache.",
 		args: [
-			{ name: "action", description: "status, clear, or clear-file." },
+			{
+				name: "action",
+				description:
+					"status, clear, clear-file, export, import, or prune.",
+			},
 			{ name: "path", description: "File path for clear-file." },
+			{ name: "data", description: "JSON string for import action." },
 		],
 		flags: [{ name: "help", description: "Show help for this command." }],
 		examples: [
 			"obsidian quartz-syncer:cache action=status",
 			"obsidian quartz-syncer:cache action=clear",
+			"obsidian quartz-syncer:cache action=export",
+			"obsidian quartz-syncer:cache action=prune",
 		],
 	},
 	{
 		name: "quartz-syncer:config",
 		description: "Read or write plugin settings.",
 		args: [
-			{ name: "action", description: "list, get, or set." },
+			{ name: "action", description: "list, get, set, or reset." },
 			{ name: "key", description: "Setting key path." },
 			{ name: "value", description: "Value for set action." },
 		],
-		flags: [{ name: "help", description: "Show help for this command." }],
+		flags: [
+			{ name: "force", description: "Required for reset action." },
+			{ name: "help", description: "Show help for this command." },
+		],
 		examples: [
 			"obsidian quartz-syncer:config action=list",
 			"obsidian quartz-syncer:config action=get key=git.branch",
+			"obsidian quartz-syncer:config action=reset force",
 		],
 	},
 	{
@@ -205,7 +232,7 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 			{
 				name: "action",
 				description:
-					"list, add, remove, install, enable, disable, config, or prune.",
+					"list, add, remove, install, enable, disable, config, prune, or search.",
 			},
 			{
 				name: "source",
@@ -216,6 +243,7 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 				description: "Plugin name for remove/config/enable/disable.",
 			},
 			{ name: "set", description: "key=value for config." },
+			{ name: "query", description: "Search query for search action." },
 		],
 		flags: [
 			{
@@ -227,6 +255,9 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 		examples: [
 			"obsidian quartz-syncer:plugin action=list",
 			"obsidian quartz-syncer:plugin action=add source=@jackyzha0/quartz",
+			"obsidian quartz-syncer:plugin action=add source=@jackyzha0/quartz dry-run",
+			"obsidian quartz-syncer:plugin action=search",
+			"obsidian quartz-syncer:plugin action=search query=graph",
 		],
 	},
 	{
@@ -285,9 +316,98 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 		],
 		examples: ["obsidian quartz-syncer:quartz-restore force"],
 	},
+	{
+		name: "quartz-syncer:repo",
+		description: "Manage repository connection.",
+		args: [
+			{
+				name: "action",
+				description: "info, set-local, set-remote, or verify.",
+			},
+			{
+				name: "path",
+				description: "Local repo path for set-local or verify.",
+			},
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: [
+			"obsidian quartz-syncer:repo",
+			"obsidian quartz-syncer:repo action=info",
+			"obsidian quartz-syncer:repo action=set-local path=/path/to/quartz",
+			"obsidian quartz-syncer:repo action=verify path=/path/to/quartz",
+		],
+	},
+	{
+		name: "quartz-syncer:media",
+		description: "Manage media files in the Quartz repo.",
+		args: [
+			{
+				name: "action",
+				description: "list, orphaned, or clean.",
+			},
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [
+			{ name: "force", description: "Required for clean action." },
+			{
+				name: "dry-run",
+				description: "Preview changes without executing.",
+			},
+			{ name: "help", description: "Show help for this command." },
+		],
+		examples: [
+			"obsidian quartz-syncer:media",
+			"obsidian quartz-syncer:media action=orphaned",
+			"obsidian quartz-syncer:media action=clean force",
+		],
+	},
+	{
+		name: "quartz-syncer:diff",
+		description: "Show compiled diff between vault and repo.",
+		args: [
+			{ name: "path", description: "Specific file path to diff." },
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: [
+			"obsidian quartz-syncer:diff",
+			"obsidian quartz-syncer:diff path=notes/post.md",
+		],
+	},
+	{
+		name: "quartz-syncer:validate",
+		description: "Validate Quartz repo state.",
+		args: [
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: ["obsidian quartz-syncer:validate"],
+	},
+	{
+		name: "quartz-syncer:inspect",
+		description: "Inspect internal cache, hashes, and compilation state.",
+		args: [
+			{
+				name: "target",
+				description: "cache, hashes, compilation, queue, or all.",
+			},
+			{ name: "path", description: "Specific file path to inspect." },
+			{ name: "format", description: "Output format (json or text)." },
+		],
+		flags: [{ name: "help", description: "Show help for this command." }],
+		examples: [
+			"obsidian quartz-syncer:inspect",
+			"obsidian quartz-syncer:inspect target=hashes",
+			"obsidian quartz-syncer:inspect target=queue",
+			"obsidian quartz-syncer:inspect target=cache path=notes/post.md",
+		],
+	},
 ];
 
-export function registerCliHandlers(plugin: QuartzSyncer): void {
+export function registerCliHandlers(
+	plugin: QuartzSyncer,
+): Record<string, CliHandler> {
 	const handlers: Record<string, CliHandler> = {
 		"quartz-syncer": createBaseHandler(),
 		"quartz-syncer:status": createStatusHandler(plugin),
@@ -306,6 +426,11 @@ export function registerCliHandlers(plugin: QuartzSyncer): void {
 		"quartz-syncer:quartz-serve": createQuartzServeHandler(plugin),
 		"quartz-syncer:quartz-sync": createQuartzSyncHandler(plugin),
 		"quartz-syncer:quartz-restore": createQuartzRestoreHandler(plugin),
+		"quartz-syncer:repo": createRepoHandler(plugin),
+		"quartz-syncer:media": createMediaHandler(plugin),
+		"quartz-syncer:diff": createDiffHandler(plugin),
+		"quartz-syncer:validate": createValidateHandler(plugin),
+		"quartz-syncer:inspect": createInspectHandler(plugin),
 	};
 
 	const handleCommand = async (
@@ -350,6 +475,8 @@ export function registerCliHandlers(plugin: QuartzSyncer): void {
 			},
 		);
 	}
+
+	return handlers;
 }
 
 function normalizeCliParams(

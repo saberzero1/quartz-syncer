@@ -1,0 +1,11 @@
+configuration:
+    pageTitle: Custom Content Site
+    contentFolder: docs
+    enableSPA: true
+    enablePopovers: false
+    locale: en-US
+    baseUrl: localhost
+    ignorePatterns:
+        - private
+        - .obsidian
+plugins: []

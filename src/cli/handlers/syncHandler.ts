@@ -32,11 +32,16 @@ export function createSyncHandler(_plugin: QuartzSyncer): CliHandler {
 		let deleted = 0;
 		let publishSha: string | undefined;
 		let deleteSha: string | undefined;
+		const publishMessage =
+			params.args.message ?? "Published via Quartz Syncer CLI";
+		const deleteMessage = params.args.message
+			? `${params.args.message} (deletions)`
+			: "Deleted via Quartz Syncer CLI";
 
 		if (publishFiles.length > 0) {
 			const publishResult = await publisher.publishBatch(
 				publishFiles,
-				"Published via Quartz Syncer CLI",
+				publishMessage,
 			);
 			if (!publishResult.success) {
 				return {
@@ -51,7 +56,7 @@ export function createSyncHandler(_plugin: QuartzSyncer): CliHandler {
 		if (includeDeletes && deletePaths.length > 0) {
 			const deleteResult = await publisher.deleteBatch(
 				deletePaths,
-				"Deleted via Quartz Syncer CLI",
+				deleteMessage,
 			);
 			if (!deleteResult.success) {
 				return {

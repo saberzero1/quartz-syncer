@@ -33,6 +33,25 @@ export class RemoteFileSource implements QuartzFileSource {
 		);
 	}
 
+	async writeBinaryFile(path: string, data: Uint8Array): Promise<void> {
+		const base64 = uint8ArrayToBase64(data);
+		const changes: FileChange[] = [
+			{ path, content: base64, encoding: "base64" },
+		];
+
+		await this.backend.writeFiles(
+			this.branch,
+			"Update binary file via Syncer",
+			changes,
+		);
+	}
+
+	async deleteFile(path: string): Promise<void> {
+		await this.backend.deleteFiles(this.branch, "Delete file via Syncer", [
+			path,
+		]);
+	}
+
 	async listDirectory(path: string): Promise<QuartzDirectoryEntry[]> {
 		const entries = await this.backend.readTree(this.branch);
 		const prefix = path.endsWith("/") ? path : `${path}/`;
@@ -56,9 +75,40 @@ export class RemoteFileSource implements QuartzFileSource {
 		return [...results.entries()].map(([name, type]) => ({ name, type }));
 	}
 
+	async listAllFiles(basePath?: string): Promise<string[]> {
+		const entries = await this.backend.readTree(this.branch);
+		const files: string[] = [];
+
+		for (const entry of entries) {
+			if (entry.type !== "blob") continue;
+
+			if (basePath) {
+				const prefix = basePath.endsWith("/")
+					? basePath
+					: `${basePath}/`;
+
+				if (!entry.path.startsWith(prefix)) continue;
+			}
+
+			files.push(entry.path);
+		}
+
+		return files;
+	}
+
 	async exists(path: string): Promise<boolean> {
 		const entries = await this.backend.readTree(this.branch);
 
 		return entries.some((entry) => entry.path === path);
 	}
+}
+
+function uint8ArrayToBase64(data: Uint8Array): string {
+	let binary = "";
+
+	for (let i = 0; i < data.length; i += 1) {
+		binary += String.fromCharCode(data[i]!);
+	}
+
+	return btoa(binary);
 }

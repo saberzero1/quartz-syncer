@@ -1,26 +1,49 @@
-import type { QuartzPluginSource } from "./QuartzConfigTypes";
 import { requestUrl } from "obsidian";
 
 const REGISTRY_URL =
-	"https://raw.githubusercontent.com/quartz-community/registry/main/registry.json";
+	"https://quartz-community.github.io/marketplace/static/plugins.json";
 
 /** A single plugin entry from the community registry. */
 export interface RegistryPluginEntry {
-	/** Human-readable plugin name. */
 	name: string;
-	/** Short description of what the plugin does. */
+	displayName: string;
 	description: string;
-	/** Plugin source — string shorthand or object for monorepo plugins. */
-	source: QuartzPluginSource;
-	/** Categorization tags (e.g. "component", "transformer", "navigation"). */
-	tags: string[];
-	/** Whether this is an official quartz-community plugin. */
+	version: string;
+	author: string;
+	homepage: string | null;
+	keywords: string[];
+	category: string | string[];
+	quartzVersion: string;
+	dependencies: string[];
+	defaultOrder: number | null;
+	defaultEnabled: boolean | null;
+	defaultOptions: Record<string, unknown> | null;
+	configSchema: Record<string, unknown> | null;
+	components: Record<
+		string,
+		{
+			displayName: string;
+			defaultPosition?: string;
+			defaultPriority?: number;
+		}
+	> | null;
+	frames: Record<string, { exportName: string }> | null;
+	requiresInstall: boolean;
+	source: string;
+	repo: string;
+	stars: number;
+	license: string;
 	official: boolean;
+	lastUpdated: string;
+	installCommand: string;
+	configureCommand: string;
 }
 
 /** Parsed registry response. */
 interface RegistryData {
-	version: string;
+	$schema?: string;
+	schemaVersion: number;
+	generatedAt: string;
 	plugins: RegistryPluginEntry[];
 }
 

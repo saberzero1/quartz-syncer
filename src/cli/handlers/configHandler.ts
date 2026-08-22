@@ -1,4 +1,5 @@
 import type QuartzSyncer from "src/main";
+import { DEFAULT_SETTINGS } from "src/main";
 import type { CliHandler } from "src/cli/types";
 import {
 	getValueByPath,
@@ -43,6 +44,45 @@ export function createConfigHandler(plugin: QuartzSyncer): CliHandler {
 			setValueByPath(settings, key, value);
 			await plugin.saveSettings();
 			return { success: true, data: { key, value } };
+		}
+
+		if (action === "reset") {
+			if (!params.flags.has("force")) {
+				return {
+					success: false,
+					error: "Config reset requires the 'force' flag.",
+				};
+			}
+
+			const preserveKeys = new Set([
+				"gitRemoteUrl",
+				"gitBranch",
+				"gitAuthType",
+				"gitAuthUsername",
+				"quartzRepoPath",
+				"settingsSchemaVersion",
+				"pluginVersion",
+			]);
+			const defaults = DEFAULT_SETTINGS as unknown as Record<
+				string,
+				unknown
+			>;
+			const changed: string[] = [];
+
+			for (const [key, defaultValue] of Object.entries(defaults)) {
+				if (preserveKeys.has(key)) continue;
+				if (settings[key] !== defaultValue) {
+					settings[key] = defaultValue;
+					changed.push(key);
+				}
+			}
+
+			await plugin.saveSettings();
+
+			return {
+				success: true,
+				data: { reset: true, changed },
+			};
 		}
 
 		return { success: false, error: `Unknown action: ${action}` };
