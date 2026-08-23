@@ -35,6 +35,7 @@ export default defineConfig(
 						"eslint.config.mts",
 						"vitest.config.ts",
 						"vitest.integration.config.ts",
+						"vitest.e2e.config.ts",
 					],
 				},
 				tsconfigRootDir: import.meta.dirname,

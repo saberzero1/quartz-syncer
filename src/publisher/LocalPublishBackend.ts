@@ -71,7 +71,7 @@ export class LocalPublishBackend implements PublishBackend {
 			} else {
 				const success = await writeExternalFile(
 					fullPath,
-					file.content as string,
+					file.content,
 				);
 
 				if (!success) {
