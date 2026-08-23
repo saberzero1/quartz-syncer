@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GitBackend } from "src/git/types";
 import { createPluginHandler } from "src/cli/handlers/pluginHandler";
+import type { QuartzRunner } from "src/process/runners/QuartzRunner";
 import { buildParams, buildPlugin, makeBackend } from "./helpers";
 
 const { getPlugins } = vi.hoisted(() => ({
@@ -389,6 +390,210 @@ describe("pluginHandler", () => {
 		expect(result).toEqual({
 			success: false,
 			error: "Unknown action: sync",
+		});
+	});
+
+	describe("plugin actions with QuartzRunner", () => {
+		const buildRunnerPlugin = (runnerOverrides?: Partial<QuartzRunner>) => {
+			const mockQuartzRunner = {
+				pluginInstall: vi
+					.fn()
+					.mockResolvedValue({ ok: true, data: {} }),
+				pluginEnable: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+				pluginDisable: vi
+					.fn()
+					.mockResolvedValue({ ok: true, data: {} }),
+				pluginConfig: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+				pluginPrune: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+				...runnerOverrides,
+			};
+			return {
+				plugin: buildPlugin({
+					quartzRunner: mockQuartzRunner as QuartzRunner,
+					settings: {
+						...buildPlugin().settings,
+						enableSystemCommands: true,
+						quartzRepoPath: "/repo",
+					},
+				}),
+				mockQuartzRunner,
+			};
+		};
+
+		it("install calls pluginInstall with cwd", async () => {
+			const { plugin, mockQuartzRunner } = buildRunnerPlugin();
+			const handler = createPluginHandler(plugin);
+
+			await handler(buildParams({ action: "install" }));
+
+			expect(mockQuartzRunner.pluginInstall).toHaveBeenCalledWith({
+				cwd: "/repo",
+				fromConfig: false,
+				latest: false,
+				clean: false,
+				dryRun: false,
+			});
+		});
+
+		it("install passes from-config flag", async () => {
+			const { plugin, mockQuartzRunner } = buildRunnerPlugin();
+			const handler = createPluginHandler(plugin);
+
+			await handler(buildParams({ action: "install" }, ["from-config"]));
+
+			expect(mockQuartzRunner.pluginInstall).toHaveBeenCalledWith({
+				cwd: "/repo",
+				fromConfig: true,
+				latest: false,
+				clean: false,
+				dryRun: false,
+			});
+		});
+
+		it("install passes latest flag", async () => {
+			const { plugin, mockQuartzRunner } = buildRunnerPlugin();
+			const handler = createPluginHandler(plugin);
+
+			await handler(buildParams({ action: "install" }, ["latest"]));
+
+			expect(mockQuartzRunner.pluginInstall).toHaveBeenCalledWith({
+				cwd: "/repo",
+				fromConfig: false,
+				latest: true,
+				clean: false,
+				dryRun: false,
+			});
+		});
+
+		it("install passes clean and dry-run flags", async () => {
+			const { plugin, mockQuartzRunner } = buildRunnerPlugin();
+			const handler = createPluginHandler(plugin);
+
+			await handler(
+				buildParams({ action: "install" }, ["clean", "dry-run"]),
+			);
+
+			expect(mockQuartzRunner.pluginInstall).toHaveBeenCalledWith({
+				cwd: "/repo",
+				fromConfig: false,
+				latest: false,
+				clean: true,
+				dryRun: true,
+			});
+		});
+
+		it("install fails when QuartzRunner is missing", async () => {
+			const plugin = buildPlugin({
+				settings: {
+					...buildPlugin().settings,
+					enableSystemCommands: true,
+					quartzRepoPath: "/repo",
+				},
+				quartzRunner: null,
+			});
+			const handler = createPluginHandler(plugin);
+
+			const result = await handler(buildParams({ action: "install" }));
+
+			expect(result).toEqual({
+				success: false,
+				error: "System commands are not available. Enable them in settings and ensure Node.js is installed.",
+			});
+		});
+
+		it("enable calls pluginEnable with parsed names", async () => {
+			const { plugin, mockQuartzRunner } = buildRunnerPlugin();
+			const handler = createPluginHandler(plugin);
+
+			await handler(buildParams({ action: "enable", name: "graph" }));
+
+			expect(mockQuartzRunner.pluginEnable).toHaveBeenCalledWith(
+				["graph"],
+				{
+					cwd: "/repo",
+				},
+			);
+		});
+
+		it("enable splits comma-separated names", async () => {
+			const { plugin, mockQuartzRunner } = buildRunnerPlugin();
+			const handler = createPluginHandler(plugin);
+
+			await handler(
+				buildParams({ action: "enable", name: "graph, explorer" }),
+			);
+
+			expect(mockQuartzRunner.pluginEnable).toHaveBeenCalledWith(
+				["graph", "explorer"],
+				{ cwd: "/repo" },
+			);
+		});
+
+		it("enable fails without name parameter", async () => {
+			const { plugin } = buildRunnerPlugin();
+			const handler = createPluginHandler(plugin);
+
+			const result = await handler(buildParams({ action: "enable" }));
+
+			expect(result).toEqual({
+				success: false,
+				error: "Missing name parameter",
+			});
+		});
+
+		it("disable calls pluginDisable with parsed names", async () => {
+			const { plugin, mockQuartzRunner } = buildRunnerPlugin();
+			const handler = createPluginHandler(plugin);
+
+			await handler(buildParams({ action: "disable", name: "graph" }));
+
+			expect(mockQuartzRunner.pluginDisable).toHaveBeenCalledWith(
+				["graph"],
+				{
+					cwd: "/repo",
+				},
+			);
+		});
+
+		it("config calls pluginConfig with set option", async () => {
+			const { plugin, mockQuartzRunner } = buildRunnerPlugin();
+			const handler = createPluginHandler(plugin);
+
+			await handler(
+				buildParams({ action: "config", name: "graph", set: "a=b" }),
+			);
+
+			expect(mockQuartzRunner.pluginConfig).toHaveBeenCalledWith(
+				"graph",
+				{
+					cwd: "/repo",
+					set: "a=b",
+				},
+			);
+		});
+
+		it("config fails without name parameter", async () => {
+			const { plugin } = buildRunnerPlugin();
+			const handler = createPluginHandler(plugin);
+
+			const result = await handler(buildParams({ action: "config" }));
+
+			expect(result).toEqual({
+				success: false,
+				error: "Missing name parameter",
+			});
+		});
+
+		it("prune calls pluginPrune with dry-run", async () => {
+			const { plugin, mockQuartzRunner } = buildRunnerPlugin();
+			const handler = createPluginHandler(plugin);
+
+			await handler(buildParams({ action: "prune" }, ["dry-run"]));
+
+			expect(mockQuartzRunner.pluginPrune).toHaveBeenCalledWith({
+				cwd: "/repo",
+				dryRun: true,
+			});
 		});
 	});
 });

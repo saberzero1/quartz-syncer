@@ -456,7 +456,7 @@ describe("PublishFile", () => {
 			"rating:: 5\n[status:: done]\n(other:: thing)",
 		);
 
-		expect(compiled).toContain("rating: 5");
+		expect(compiled).toMatch(/rating: ["']?5["']?/);
 		expect(compiled).toContain("status: done");
 		expect(compiled).toContain("other: thing");
 		expect(compiled).toContain("title: Hello");

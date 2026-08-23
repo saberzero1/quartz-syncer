@@ -101,6 +101,7 @@ describe("BundledGitBackend", () => {
 
 	afterEach(() => {
 		vi.clearAllMocks();
+		vi.useRealTimers();
 	});
 
 	it("writeFiles clones, writes, commits, and pushes", async () => {
@@ -119,17 +120,15 @@ describe("BundledGitBackend", () => {
 		const entry = {
 			type: vi.fn().mockResolvedValue("blob"),
 			oid: vi.fn().mockResolvedValue("blob-sha"),
+			mode: vi.fn().mockResolvedValue(100644),
+			content: vi.fn().mockResolvedValue(new Uint8Array()),
+			stat: vi.fn().mockResolvedValue({}),
 		};
-		gitMock.walk.mockImplementation(
-			async ({
-				map,
-			}: {
-				map: (filepath: string, entries: unknown[]) => Promise<unknown>;
-			}) => {
-				await map("notes/test.md", [entry]);
-				return undefined;
-			},
-		);
+		gitMock.walk.mockImplementation(async ({ map }) => {
+			if (!map) return undefined;
+			await map("notes/test.md", [entry]);
+			return undefined;
+		});
 
 		const backend = new BundledGitBackend(baseConfig, mockApp);
 		const entries = await backend.readTree("main");
@@ -181,5 +180,109 @@ describe("BundledGitBackend", () => {
 		expect(
 			(noneBackend as unknown as WithGetAuth).getAuth(),
 		).toBeUndefined();
+	});
+
+	it("writeFiles throws when clone fails", async () => {
+		gitMock.clone.mockRejectedValueOnce(new Error("clone failed"));
+
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+		await expect(
+			backend.writeFiles("main", "Update files", [
+				{ path: "content/test.md", content: "hello" },
+			]),
+		).rejects.toThrow("clone failed");
+	});
+
+	it("writeFiles throws when push fails after all retries", async () => {
+		vi.useFakeTimers();
+		gitMock.push.mockRejectedValue(new Error("push failed"));
+
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+		const writePromise = backend.writeFiles("main", "Update files", [
+			{ path: "content/test.md", content: "hello" },
+		]);
+		const rejection = expect(writePromise).rejects.toThrow("push failed");
+
+		await vi.runAllTimersAsync();
+
+		await rejection;
+		expect(gitMock.push).toHaveBeenCalledTimes(4);
+	});
+
+	it("writeFiles succeeds after push retry", async () => {
+		vi.useFakeTimers();
+		gitMock.push
+			.mockRejectedValueOnce(new Error("push failed"))
+			.mockRejectedValueOnce(new Error("push failed"))
+			.mockResolvedValueOnce(
+				undefined as unknown as ReturnType<
+					typeof git.push
+				> extends Promise<infer R>
+					? R
+					: never,
+			);
+
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+		const writePromise = backend.writeFiles("main", "Update files", [
+			{ path: "content/test.md", content: "hello" },
+		]);
+
+		await vi.advanceTimersByTimeAsync(3000);
+
+		await expect(writePromise).resolves.toEqual({ sha: "new-sha" });
+		expect(gitMock.push).toHaveBeenCalledTimes(3);
+	});
+
+	it("deleteFiles continues when remove fails for individual files", async () => {
+		gitMock.remove.mockRejectedValueOnce(new Error("missing"));
+
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+		await backend.deleteFiles("main", "Remove files", [
+			"content/a.md",
+			"content/b.md",
+		]);
+
+		expect(gitMock.remove).toHaveBeenCalledTimes(2);
+		expect(gitMock.commit).toHaveBeenCalled();
+		expect(gitMock.push).toHaveBeenCalled();
+	});
+
+	it("deleteFiles throws when clone fails", async () => {
+		gitMock.clone.mockRejectedValueOnce(new Error("clone failed"));
+
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+		await expect(
+			backend.deleteFiles("main", "Remove files", ["content/a.md"]),
+		).rejects.toThrow("clone failed");
+	});
+
+	it("readTree throws when resolveRef fails", async () => {
+		gitMock.resolveRef.mockRejectedValueOnce(new Error("resolve failed"));
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+
+		await expect(backend.readTree("main")).rejects.toThrow(
+			"resolve failed",
+		);
+	});
+
+	it("readBlob throws when blob read fails", async () => {
+		gitMock.readBlob.mockRejectedValueOnce(new Error("blob failed"));
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+
+		await expect(backend.readBlob("blob-sha")).rejects.toThrow(
+			"blob failed",
+		);
+	});
+
+	it("testConnection returns error when getRemoteInfo fails", async () => {
+		gitMock.getRemoteInfo.mockRejectedValueOnce(new Error("no remote"));
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+
+		await expect(backend.testConnection()).resolves.toEqual({
+			ok: false,
+			readAccess: false,
+			writeAccess: false,
+			error: "no remote",
+		});
 	});
 });

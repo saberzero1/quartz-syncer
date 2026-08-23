@@ -202,6 +202,29 @@ describe("SyncerPageCompiler", () => {
 			expect(result).not.toContain("one");
 			expect(result).not.toContain("two");
 		});
+
+		it("preserves comments inside inline code", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"Inline `%%comment%%` stays",
+			);
+
+			expect(result).toContain("`%%comment%%`");
+		});
+
+		it("removes comments at end of line", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"Text before %%hidden%%",
+			);
+
+			expect(result).toContain("Text before");
+			expect(result).not.toContain("hidden");
+		});
 	});
 
 	describe("astTransform — math preservation", () => {
@@ -245,6 +268,63 @@ describe("SyncerPageCompiler", () => {
 			const result = await compiler.astTransform(file)("$a = b$");
 
 			expect(result).toContain("$a = b$");
+		});
+
+		it("preserves inline math blocks with underscores", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)("$a_{ij}$");
+
+			expect(result).toContain("$a_{ij}$");
+			expect(result).not.toContain("\\_");
+		});
+
+		it("preserves multiline display math blocks", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"$$\nE = mc^2\\n\\n\\text{line two}\n$$",
+			);
+
+			expect(result).toContain("E = mc^2");
+			expect(result).toContain("\\text{line two}");
+			expect(result).not.toContain("\\_");
+		});
+	});
+
+	describe("astTransform — table wikilink escaping", () => {
+		it("escapes a wikilink with pipe inside a table row", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result =
+				await compiler.astTransform(file)("| [[Note|Label]] |");
+
+			expect(result).toContain("| [[Note\\|Label]] |");
+		});
+
+		it("escapes multiple wikilinks with pipes in one table row", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"| [[A|Alpha]] | [[B|Beta]] |",
+			);
+
+			expect(result).toContain("[[A\\|Alpha]]");
+			expect(result).toContain("[[B\\|Beta]]");
+		});
+
+		it("does not escape wikilinks without pipes in table rows", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)("| [[Note]] |");
+
+			expect(result).toContain("| [[Note]] |");
+			expect(result).not.toContain("\\|");
 		});
 	});
 
@@ -378,6 +458,55 @@ describe("SyncerPageCompiler", () => {
 			expect(result).toContain("> [!note|wide]+ Foldable");
 			expect(result).not.toContain("\\[");
 		});
+
+		it("unescapes callouts with metadata strings", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"> [!note|metadata] Title\n> Content",
+			);
+
+			expect(result).toContain("> [!note|metadata] Title");
+			expect(result).not.toContain("\\[");
+		});
+
+		it("unescapes collapsed foldable callouts", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"> [!note]- Collapsed\n> Content",
+			);
+
+			expect(result).toContain("> [!note]- Collapsed");
+			expect(result).not.toContain("\\[");
+		});
+
+		it("unescapes expanded foldable callouts", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"> [!note]+ Expanded\n> Content",
+			);
+
+			expect(result).toContain("> [!note]+ Expanded");
+			expect(result).not.toContain("\\[");
+		});
+
+		it("unescapes nested callouts inside callouts", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"> [!note] Outer\n> > [!warning] Inner\n> > Content",
+			);
+
+			expect(result).toContain("> [!note] Outer");
+			expect(result).toContain("> > [!warning] Inner");
+			expect(result).not.toContain("\\[");
+		});
 	});
 
 	describe("astTransform — footnote unescaping", () => {
@@ -429,6 +558,45 @@ describe("SyncerPageCompiler", () => {
 
 			expect(result).toContain("[^my-note]");
 			expect(result).not.toContain("\\[^my-note]");
+		});
+
+		it("preserves footnote definitions with rich content", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"[^1]: with *bold* and [link](url)",
+			);
+
+			expect(result).toContain("[^1]: with _bold_ and [link](url)");
+			expect(result).not.toContain("\\[^1]:");
+		});
+
+		it("preserves multiple footnote references in a paragraph", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"Multiple refs [^1] and [^2] here.",
+			);
+
+			expect(result).toContain("[^1]");
+			expect(result).toContain("[^2]");
+			expect(result).not.toContain("\\[^1]");
+			expect(result).not.toContain("\\[^2]");
+		});
+
+		it("preserves footnote definitions with multiple paragraphs", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"[^1]: First paragraph\n\n\tSecond paragraph",
+			);
+
+			expect(result).toContain("[^1]: First paragraph");
+			expect(result).toContain("Second paragraph");
+			expect(result).not.toContain("\\[^1]:");
 		});
 	});
 
@@ -503,6 +671,300 @@ describe("SyncerPageCompiler", () => {
 				"attachments/image.png",
 				"folder/note.md",
 			);
+		});
+
+		it("preserves anchors in wikilink embeds", async () => {
+			const mc = new MetadataCache();
+
+			(mc.getCache as Mock).mockReturnValue({
+				embeds: [
+					{ link: "image.png", original: "![[image.png#center]]" },
+				],
+			});
+
+			const linkedFile = {
+				path: "attachments/image.png",
+				extension: "png",
+			} as TFile;
+
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(path: string) => {
+					if (path === "image.png") return linkedFile;
+					if (path === "attachments/image.png") return linkedFile;
+					return null;
+				},
+			);
+			(mc.fileToLinktext as Mock).mockReturnValue(
+				"attachments/image.png",
+			);
+
+			const { compiler, vault } = makeCompiler({}, mc);
+			const file = makeMockPublishFile({ path: "folder/note.md" });
+
+			vi.spyOn(vault, "readBinary").mockResolvedValue(new ArrayBuffer(0));
+
+			const [result, assets] = await compiler.convertFileLinks(file)(
+				"![[image.png#center]]",
+			);
+
+			expect(result).toBe("![[attachments/image.png#center]]");
+			expect(assets[0]?.path).toBe("attachments/image.png");
+		});
+
+		it("preserves dimensions in wikilink embeds", async () => {
+			const mc = new MetadataCache();
+
+			(mc.getCache as Mock).mockReturnValue({
+				embeds: [
+					{ link: "image.png", original: "![[image.png|300x200]]" },
+				],
+			});
+
+			const linkedFile = {
+				path: "attachments/image.png",
+				extension: "png",
+			} as TFile;
+
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(path: string) => {
+					if (path === "image.png") return linkedFile;
+					if (path === "attachments/image.png") return linkedFile;
+					return null;
+				},
+			);
+			(mc.fileToLinktext as Mock).mockReturnValue(
+				"attachments/image.png",
+			);
+
+			const { compiler, vault } = makeCompiler({}, mc);
+			const file = makeMockPublishFile({ path: "folder/note.md" });
+
+			vi.spyOn(vault, "readBinary").mockResolvedValue(new ArrayBuffer(0));
+
+			const [result] = await compiler.convertFileLinks(file)(
+				"![[image.png|300x200]]",
+			);
+
+			expect(result).toBe("![[attachments/image.png|300x200]]");
+		});
+
+		it("preserves anchors and dimensions in wikilink embeds", async () => {
+			const mc = new MetadataCache();
+
+			(mc.getCache as Mock).mockReturnValue({
+				embeds: [
+					{
+						link: "image.png",
+						original: "![[image.png#center|300]]",
+					},
+				],
+			});
+
+			const linkedFile = {
+				path: "attachments/image.png",
+				extension: "png",
+			} as TFile;
+
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(path: string) => {
+					if (path === "image.png") return linkedFile;
+					if (path === "attachments/image.png") return linkedFile;
+					return null;
+				},
+			);
+			(mc.fileToLinktext as Mock).mockReturnValue(
+				"attachments/image.png",
+			);
+
+			const { compiler, vault } = makeCompiler({}, mc);
+			const file = makeMockPublishFile({ path: "folder/note.md" });
+
+			vi.spyOn(vault, "readBinary").mockResolvedValue(new ArrayBuffer(0));
+
+			const [result] = await compiler.convertFileLinks(file)(
+				"![[image.png#center|300]]",
+			);
+
+			expect(result).toBe("![[attachments/image.png#center|300]]");
+		});
+
+		it("preserves anchors in markdown image links", async () => {
+			const mc = new MetadataCache();
+
+			(mc.getCache as Mock).mockReturnValue({
+				embeds: [
+					{ link: "image.png", original: "![alt](image.png#center)" },
+				],
+			});
+
+			const linkedFile = {
+				path: "attachments/image.png",
+				extension: "png",
+			} as TFile;
+
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(path: string) => {
+					if (path === "image.png") return linkedFile;
+					if (path === "attachments/image.png") return linkedFile;
+					return null;
+				},
+			);
+			(mc.fileToLinktext as Mock).mockReturnValue(
+				"attachments/image.png",
+			);
+
+			const { compiler, vault } = makeCompiler({}, mc);
+			const file = makeMockPublishFile({ path: "folder/note.md" });
+
+			vi.spyOn(vault, "readBinary").mockResolvedValue(new ArrayBuffer(0));
+
+			const [result] = await compiler.convertFileLinks(file)(
+				"![alt](image.png#center)",
+			);
+
+			expect(result).toBe("![alt](attachments/image.png#center)");
+		});
+
+		it("supports unicode filenames in embeds", async () => {
+			const mc = new MetadataCache();
+
+			(mc.getCache as Mock).mockReturnValue({
+				embeds: [{ link: "日本語.png", original: "![[日本語.png]]" }],
+			});
+
+			const linkedFile = {
+				path: "attachments/日本語.png",
+				extension: "png",
+			} as TFile;
+
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(path: string) => {
+					if (path === "日本語.png") return linkedFile;
+					if (path === "attachments/日本語.png") return linkedFile;
+					return null;
+				},
+			);
+			(mc.fileToLinktext as Mock).mockReturnValue(
+				"attachments/日本語.png",
+			);
+
+			const { compiler, vault } = makeCompiler({}, mc);
+			const file = makeMockPublishFile({ path: "folder/note.md" });
+
+			vi.spyOn(vault, "readBinary").mockResolvedValue(new ArrayBuffer(0));
+
+			const [result] =
+				await compiler.convertFileLinks(file)("![[日本語.png]]");
+
+			expect(result).toBe("![[attachments/日本語.png]]");
+		});
+
+		it("replaces escaped pipes in table embeds", async () => {
+			const mc = new MetadataCache();
+
+			(mc.getCache as Mock).mockReturnValue({
+				embeds: [{ link: "img", original: "![[img|300]]" }],
+			});
+
+			const linkedFile = {
+				path: "attachments/img.png",
+				extension: "png",
+			} as TFile;
+
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(path: string) => {
+					if (path === "img") return linkedFile;
+					if (path === "attachments/img.png") return linkedFile;
+					return null;
+				},
+			);
+			(mc.fileToLinktext as Mock).mockReturnValue("attachments/img.png");
+
+			const { compiler, vault } = makeCompiler({}, mc);
+			const file = makeMockPublishFile({ path: "folder/note.md" });
+
+			vi.spyOn(vault, "readBinary").mockResolvedValue(new ArrayBuffer(0));
+
+			const [result] =
+				await compiler.convertFileLinks(file)("| ![[img\\|300]] |");
+
+			expect(result).toBe("| ![[attachments/img.png|300]] |");
+		});
+
+		it("replaces multiple embeds of the same file", async () => {
+			const mc = new MetadataCache();
+
+			(mc.getCache as Mock).mockReturnValue({
+				embeds: [
+					{ link: "image.png", original: "![[image.png]]" },
+					{ link: "image.png", original: "![[image.png]]" },
+				],
+			});
+
+			const linkedFile = {
+				path: "attachments/image.png",
+				extension: "png",
+			} as TFile;
+
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(path: string) => {
+					if (path === "image.png") return linkedFile;
+					if (path === "attachments/image.png") return linkedFile;
+					return null;
+				},
+			);
+			(mc.fileToLinktext as Mock).mockReturnValue(
+				"attachments/image.png",
+			);
+
+			const { compiler, vault } = makeCompiler({}, mc);
+			const file = makeMockPublishFile({ path: "folder/note.md" });
+
+			vi.spyOn(vault, "readBinary").mockResolvedValue(new ArrayBuffer(0));
+
+			const [result] = await compiler.convertFileLinks(file)(
+				"![[image.png]] and ![[image.png]]",
+			);
+
+			const matches = result.match(/!\[\[attachments\/image\.png\]\]/g);
+			expect(matches).toHaveLength(2);
+		});
+
+		it("supports PDF embeds", async () => {
+			const mc = new MetadataCache();
+
+			(mc.getCache as Mock).mockReturnValue({
+				embeds: [
+					{ link: "document.pdf", original: "![[document.pdf]]" },
+				],
+			});
+
+			const linkedFile = {
+				path: "attachments/document.pdf",
+				extension: "pdf",
+			} as TFile;
+
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(path: string) => {
+					if (path === "document.pdf") return linkedFile;
+					if (path === "attachments/document.pdf") return linkedFile;
+					return null;
+				},
+			);
+			(mc.fileToLinktext as Mock).mockReturnValue(
+				"attachments/document.pdf",
+			);
+
+			const { compiler, vault } = makeCompiler({}, mc);
+			const file = makeMockPublishFile({ path: "folder/note.md" });
+
+			vi.spyOn(vault, "readBinary").mockResolvedValue(new ArrayBuffer(0));
+
+			const [result, assets] =
+				await compiler.convertFileLinks(file)("![[document.pdf]]");
+
+			expect(result).toBe("![[attachments/document.pdf]]");
+			expect(assets[0]?.path).toBe("attachments/document.pdf");
 		});
 	});
 

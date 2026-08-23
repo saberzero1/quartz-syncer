@@ -14,6 +14,7 @@ import {
 import QuartzSyncerSettings from "src/models/settings";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { vi } from "vitest";
+import { parse as parseYaml } from "yaml";
 
 function makeSettings(
 	overrides: Partial<QuartzSyncerSettings> = {},
@@ -175,6 +176,300 @@ describe("FrontmatterCompiler", () => {
 			const result = compiler.compile(file, frontmatter);
 
 			expect(result).toContain("publish: false");
+		});
+	});
+
+	describe("YAML output validity", () => {
+		const extractYamlBlock = (compiled: string) =>
+			compiled.replace(/^---\n/, "").replace(/---\n$/, "");
+
+		const buildStructuredFrontmatter = (
+			compiler: FrontmatterCompiler,
+			file: PublishFile,
+			frontmatter: FrontMatterCache,
+			includeAllFrontmatter = false,
+		) => {
+			const compilerPrivate =
+				compiler as unknown as PrivateFrontmatterCompiler;
+			let published: TPublishedFrontMatter = { publish: true };
+
+			published = compilerPrivate.addPermalink(file)(
+				frontmatter,
+				published,
+			);
+			published = compilerPrivate.addDefaultPassThrough(
+				frontmatter,
+				published,
+			);
+			published = compilerPrivate.addTimestampsFrontmatter(file)(
+				frontmatter,
+				published,
+			);
+			published = compilerPrivate.addTags(frontmatter, published);
+			published = compilerPrivate.addCSSClasses(frontmatter, published);
+			published = compilerPrivate.addSocialImage(frontmatter, published);
+
+			return includeAllFrontmatter
+				? { ...published, ...frontmatter }
+				: published;
+		};
+
+		it("produces valid YAML when title contains colons", () => {
+			const compiler = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const frontmatter = { title: "My: Title" } as FrontMatterCache;
+			const structured = buildStructuredFrontmatter(
+				compiler,
+				file,
+				frontmatter,
+			);
+
+			expect(structured.title).toBe("My: Title");
+		});
+
+		it("produces valid YAML when description contains hashes", () => {
+			const compiler = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const frontmatter = {
+				description: "Use # for headings",
+			} as FrontMatterCache;
+			const structured = buildStructuredFrontmatter(
+				compiler,
+				file,
+				frontmatter,
+			);
+
+			expect(structured.description).toBe("Use # for headings");
+		});
+
+		it("treats tag strings with brackets as literal values", () => {
+			const compiler = makeCompiler({ includeAllFrontmatter: true });
+			const file = makeMockPublishFile();
+
+			const frontmatter = {
+				tags: "[not, an, array]",
+			} as FrontMatterCache;
+			const structured = buildStructuredFrontmatter(
+				compiler,
+				file,
+				frontmatter,
+				true,
+			);
+
+			expect(structured.tags).toBe("[not, an, array]");
+		});
+
+		it("preserves titles with curly braces", () => {
+			const compiler = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const frontmatter = { title: "{template}" } as FrontMatterCache;
+			const structured = buildStructuredFrontmatter(
+				compiler,
+				file,
+				frontmatter,
+			);
+
+			expect(structured.title).toBe("{template}");
+		});
+
+		it("parses YAML when title contains single quotes", () => {
+			const compiler = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const frontmatter = { title: "It's a test" } as FrontMatterCache;
+			const compiled = compiler.compile(file, frontmatter);
+			const yamlContent = extractYamlBlock(compiled);
+
+			expect(() => parseYaml(yamlContent)).not.toThrow();
+			expect(parseYaml(yamlContent)).toMatchObject({
+				title: "It's a test",
+			});
+		});
+
+		it("parses YAML when title contains double quotes", () => {
+			const compiler = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const frontmatter = {
+				title: 'She said "hello"',
+			} as FrontMatterCache;
+			const compiled = compiler.compile(file, frontmatter);
+			const yamlContent = extractYamlBlock(compiled);
+
+			expect(() => parseYaml(yamlContent)).not.toThrow();
+			expect(parseYaml(yamlContent)).toMatchObject({
+				title: 'She said "hello"',
+			});
+		});
+
+		it("preserves multiline descriptions", () => {
+			const compiler = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const frontmatter = {
+				description: "Line one\nLine two",
+			} as FrontMatterCache;
+			const structured = buildStructuredFrontmatter(
+				compiler,
+				file,
+				frontmatter,
+			);
+
+			expect(structured.description).toBe("Line one\nLine two");
+		});
+
+		it("keeps empty string values when included", () => {
+			const compiler = makeCompiler({ includeAllFrontmatter: true });
+			const file = makeMockPublishFile();
+
+			const frontmatter = { title: "" } as FrontMatterCache;
+			const structured = buildStructuredFrontmatter(
+				compiler,
+				file,
+				frontmatter,
+				true,
+			);
+
+			expect(structured.title).toBe("");
+		});
+
+		it("keeps numeric tags as strings", () => {
+			const compiler = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const frontmatter = { tag: "2024" } as FrontMatterCache;
+			const structured = buildStructuredFrontmatter(
+				compiler,
+				file,
+				frontmatter,
+			);
+
+			expect(structured.tags).toEqual(["2024"]);
+			expect(typeof structured.tags?.[0]).toBe("string");
+		});
+
+		it("preserves boolean-like strings versus booleans", () => {
+			const compiler = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const stringFrontmatter = { draft: "true" } as FrontMatterCache;
+			const booleanFrontmatter = { draft: true } as FrontMatterCache;
+
+			const stringStructured = buildStructuredFrontmatter(
+				compiler,
+				file,
+				stringFrontmatter,
+			);
+			const booleanStructured = buildStructuredFrontmatter(
+				compiler,
+				file,
+				booleanFrontmatter,
+			);
+
+			expect(stringStructured.draft).toBe("true");
+			expect(booleanStructured.draft).toBe(true);
+		});
+
+		it("preserves null-like strings", () => {
+			const compiler = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const frontmatter = { description: "null" } as FrontMatterCache;
+			const structured = buildStructuredFrontmatter(
+				compiler,
+				file,
+				frontmatter,
+			);
+
+			expect(structured.description).toBe("null");
+		});
+
+		it("parses YAML with unicode characters", () => {
+			const compiler = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const frontmatter = {
+				title: "日本語 🌟 café",
+			} as FrontMatterCache;
+			const compiled = compiler.compile(file, frontmatter);
+			const yamlContent = extractYamlBlock(compiled);
+
+			expect(() => parseYaml(yamlContent)).not.toThrow();
+			expect(parseYaml(yamlContent)).toMatchObject({
+				title: "日本語 🌟 café",
+			});
+		});
+
+		it("parses YAML with tags containing special characters", () => {
+			const compiler = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const frontmatter = {
+				tags: "tag/one, tag.two, tag-three, tag_four",
+			} as FrontMatterCache;
+			const compiled = compiler.compile(file, frontmatter);
+			const yamlContent = extractYamlBlock(compiled);
+
+			expect(() => parseYaml(yamlContent)).not.toThrow();
+			expect(parseYaml(yamlContent)).toMatchObject({
+				tags: ["tag/one", "tag.two", "tag-three", "tag_four"],
+			});
+		});
+
+		it("renders a full frontmatter payload", () => {
+			const compiler = makeCompiler({
+				usePermalink: true,
+				showCreatedTimestamp: true,
+				showUpdatedTimestamp: true,
+				showPublishedTimestamp: true,
+			});
+			const file = makeMockPublishFile({
+				vaultPath: "notes/full.md",
+				createdAt: "2024-01-01",
+				updatedAt: "2024-01-02",
+				publishedAt: "2024-01-03",
+			});
+
+			const frontmatter = {
+				title: "Full Title",
+				description: "Full description",
+				draft: true,
+				comments: true,
+				lang: "en",
+				enableToc: true,
+				permalink: "custom/path",
+				aliases: "Alpha, Beta",
+				tags: "one, two",
+				cssclasses: "wide highlight",
+				socialImage: "social.png",
+				socialDescription: "social desc",
+			} as FrontMatterCache;
+
+			const compiled = compiler.compile(file, frontmatter);
+			const yamlContent = extractYamlBlock(compiled);
+
+			expect(() => parseYaml(yamlContent)).not.toThrow();
+			expect(parseYaml(yamlContent)).toMatchObject({
+				publish: true,
+				title: "Full Title",
+				description: "Full description",
+				draft: true,
+				comments: true,
+				lang: "en",
+				enableToc: true,
+				permalink: "custom/path",
+				aliases: ["Alpha", "Beta"],
+				tags: ["one", "two"],
+				cssclasses: ["wide", "highlight"],
+				socialImage: "social.png",
+				socialDescription: "social desc",
+				created: "2024-01-01",
+				modified: "2024-01-02",
+				published: "2024-01-03",
+			});
 		});
 	});
 

@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "obsidian";
+import { App, MetadataCache, TFile, Vault } from "obsidian";
 import { DataviewIntegration } from "src/compiler/integrations/dataview";
 import type { PatternMatch } from "src/compiler/integrations/types";
 import type { PublishFile } from "src/publishFile/PublishFile";
 import type { DataviewApi } from "src/compiler/integrations/apis/dataview";
 import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
+import { PublishFile as PublishFileImpl } from "src/publishFile/PublishFile";
+import type QuartzSyncerSettings from "src/models/settings";
+import type { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
+import type { DataStore } from "src/cache/DataStore";
 
 vi.mock("src/utils/utils", async () => {
 	const actual =
@@ -40,6 +44,79 @@ const makeApi = (): DataviewApi => ({
 	executeJs: vi.fn(),
 	page: vi.fn().mockReturnValue({}),
 });
+
+const makeSettings = (
+	overrides: Partial<QuartzSyncerSettings> = {},
+): QuartzSyncerSettings =>
+	({
+		vaultPath: "/",
+		useExcalidraw: false,
+		useDataview: true,
+		usePermalink: false,
+		includeAllFrontmatter: false,
+		showCreatedTimestamp: false,
+		showUpdatedTimestamp: false,
+		showPublishedTimestamp: false,
+		publishFrontmatterKey: "publish",
+		allNotesPublishableByDefault: false,
+		contentFolder: "content",
+		createdTimestampKey: "created",
+		updatedTimestampKey: "updated",
+		publishedTimestampKey: "published",
+		timestampFormat: "YYYY-MM-DD",
+		frontmatterFormat: "yaml",
+		useCache: false,
+		autoCleanOrphanedMedia: false,
+		syncCache: false,
+		persistCache: false,
+		cacheTimestamp: 0,
+		cache: "",
+		useAutoCardLink: false,
+		useDatacore: false,
+		useFantasyStatblocks: false,
+		useBases: false,
+		useCanvas: false,
+		manageSyncerStyles: false,
+		noteSettingsIsInitialized: false,
+		lastUsedSettingsTab: "",
+		pluginVersion: "0.0.0",
+		diffViewStyle: "auto",
+		gitRemoteUrl: "",
+		gitBranch: "main",
+		gitAuthType: "none",
+		gitAuthUsername: "",
+		gitCorsProxyUrl: "",
+		gitProviderHint: "github",
+		settingsSchemaVersion: 0,
+		...overrides,
+	}) as QuartzSyncerSettings;
+
+const makePublishFile = (
+	frontmatter: Record<string, unknown> = {},
+	settingsOverrides: Partial<QuartzSyncerSettings> = {},
+) => {
+	const file = new TFile();
+	file.path = "notes/test.md";
+	file.name = "test.md";
+	file.extension = "md";
+	file.stat = { mtime: 0, ctime: 0, size: 0 };
+
+	const metadataCache = new MetadataCache();
+	metadataCache.getCache = vi.fn().mockReturnValue({ frontmatter });
+
+	const vault = new Vault();
+	const compiler = {} as SyncerPageCompiler;
+	const datastore = {} as DataStore;
+
+	return new PublishFileImpl({
+		file,
+		compiler,
+		metadataCache,
+		vault,
+		settings: makeSettings(settingsOverrides),
+		datastore,
+	});
+};
 
 describe("DataviewIntegration", () => {
 	beforeEach(() => {
@@ -140,5 +217,52 @@ describe("DataviewIntegration", () => {
 		mockedGetDataviewApi.mockReturnValue(undefined);
 
 		expect(DataviewIntegration.isAvailable()).toBe(false);
+	});
+
+	it("renders inline fields as static frontmatter entries", () => {
+		const publishFile = makePublishFile(
+			{},
+			{
+				useDataview: true,
+				includeAllFrontmatter: true,
+			},
+		);
+
+		const compiled = publishFile.getCompiledFrontmatter("key:: value");
+
+		expect(compiled).toContain("key: value");
+	});
+
+	it("renders inline fields with colons in values", () => {
+		const publishFile = makePublishFile(
+			{},
+			{
+				useDataview: true,
+				includeAllFrontmatter: true,
+			},
+		);
+
+		const compiled = publishFile.getCompiledFrontmatter(
+			"key:: value: with colons",
+		);
+
+		expect(compiled).toContain('key: "value: with colons"');
+	});
+
+	it("renders multiple inline fields in the same note", () => {
+		const publishFile = makePublishFile(
+			{},
+			{
+				useDataview: true,
+				includeAllFrontmatter: true,
+			},
+		);
+
+		const compiled = publishFile.getCompiledFrontmatter(
+			"one:: first\ntext\n[inline:: second]",
+		);
+
+		expect(compiled).toContain("one: first");
+		expect(compiled).toContain("inline: second");
 	});
 });

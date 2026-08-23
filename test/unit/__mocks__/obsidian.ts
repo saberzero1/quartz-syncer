@@ -13,20 +13,8 @@ export const getLinkpath = (link: string): string => {
 };
 
 export function stringifyYaml(obj: Record<string, unknown>): string {
-	const lines: string[] = [];
-	for (const [key, value] of Object.entries(obj)) {
-		if (Array.isArray(value)) {
-			lines.push(`${key}:`);
-			for (const item of value) {
-				lines.push(`  - ${String(item)}`);
-			}
-		} else if (typeof value === "object" && value !== null) {
-			lines.push(`${key}: ${JSON.stringify(value)}`);
-		} else {
-			lines.push(`${key}: ${String(value)}`);
-		}
-	}
-	return lines.join("\n") + "\n";
+	const yaml = require("yaml");
+	return yaml.stringify(obj);
 }
 
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -37,8 +25,9 @@ export function htmlToMarkdown(_html: string): string {
 	return _html;
 }
 
-export function parseYaml(_yaml: string): Record<string, unknown> {
-	return {};
+export function parseYaml(yamlString: string): Record<string, unknown> {
+	const yaml = require("yaml");
+	return yaml.parse(yamlString) as Record<string, unknown>;
 }
 
 export class Notice {
@@ -234,10 +223,32 @@ export class Workspace {
 	onLayoutReady = vi.fn((callback: () => void) => {
 		callback();
 	});
-	on = vi.fn().mockReturnValue({ id: "mock-event-ref" });
-	off = vi.fn();
-	offref = vi.fn();
 	getActiveFile = vi.fn().mockReturnValue(null);
+	private listeners = new Map<string, Set<EventRef["callback"]>>();
+
+	on = vi.fn((event: string, callback: EventRef["callback"]): EventRef => {
+		const set = this.listeners.get(event) ?? new Set();
+		set.add(callback);
+		this.listeners.set(event, set);
+		return { event, callback };
+	});
+
+	off = vi.fn();
+
+	offref = vi.fn((ref: EventRef): void => {
+		const set = this.listeners.get(ref.event);
+		if (set) {
+			set.delete(ref.callback);
+		}
+	});
+
+	trigger(event: string, ...args: unknown[]): void {
+		const set = this.listeners.get(event);
+		if (!set) return;
+		for (const callback of set) {
+			callback(...args);
+		}
+	}
 }
 
 export class App {

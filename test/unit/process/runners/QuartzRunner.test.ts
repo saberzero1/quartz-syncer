@@ -158,4 +158,117 @@ describe("QuartzRunner", () => {
 			timeout: 120000,
 		});
 	});
+
+	it("pluginRemove calls correct args", async () => {
+		const run = vi.fn().mockResolvedValue(successResult);
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
+		await runner.pluginRemove("graph");
+
+		expect(run).toHaveBeenCalledWith({
+			binary: "npx",
+			args: ["quartz", "plugin", "remove", "graph"],
+			cwd: "/repo",
+		});
+	});
+
+	it("pluginEnable calls correct args with multiple names", async () => {
+		const run = vi.fn().mockResolvedValue(successResult);
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
+		await runner.pluginEnable(["graph", "explorer"]);
+
+		expect(run).toHaveBeenCalledWith({
+			binary: "npx",
+			args: ["quartz", "plugin", "enable", "graph", "explorer"],
+			cwd: "/repo",
+		});
+	});
+
+	it("pluginDisable calls correct args with multiple names", async () => {
+		const run = vi.fn().mockResolvedValue(successResult);
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
+		await runner.pluginDisable(["graph", "explorer"]);
+
+		expect(run).toHaveBeenCalledWith({
+			binary: "npx",
+			args: ["quartz", "plugin", "disable", "graph", "explorer"],
+			cwd: "/repo",
+		});
+	});
+
+	it("pluginConfig calls correct args with --set", async () => {
+		const run = vi.fn().mockResolvedValue(successResult);
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
+		await runner.pluginConfig("graph", { set: "a=b" });
+
+		expect(run).toHaveBeenCalledWith({
+			binary: "npx",
+			args: ["quartz", "plugin", "config", "graph", "--set", "a=b"],
+			cwd: "/repo",
+		});
+	});
+
+	it("pluginPrune calls correct args with --dry-run", async () => {
+		const run = vi.fn().mockResolvedValue(successResult);
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
+		await runner.pluginPrune({ dryRun: true });
+
+		expect(run).toHaveBeenCalledWith({
+			binary: "npx",
+			args: ["quartz", "plugin", "prune", "--dry-run"],
+			cwd: "/repo",
+		});
+	});
+
+	it("build calls correct args", async () => {
+		const run = vi.fn().mockResolvedValue(successResult);
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			"/repo",
+		);
+		await runner.build();
+
+		expect(run).toHaveBeenCalledWith({
+			binary: "npx",
+			args: ["quartz", "build"],
+			cwd: "/repo",
+		});
+	});
+
+	it("returns error when desktop-only method called on mobile", async () => {
+		Platform.isDesktopApp = false;
+		const runner = new QuartzRunner(
+			{ run: vi.fn() } as unknown as ProcessRunner,
+			"/repo",
+		);
+
+		const result = await runner.build();
+
+		expect(result).toEqual({ ok: false, error: "Desktop only" });
+	});
+
+	it("returns error when cwd is not set", async () => {
+		const runner = new QuartzRunner({ run: vi.fn() } as ProcessRunner);
+
+		const result = await runner.pluginRemove("graph");
+
+		expect(result).toEqual({
+			ok: false,
+			error: "Quartz repo path not set",
+		});
+	});
 });

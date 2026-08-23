@@ -1,4 +1,5 @@
 import assert from "node:assert";
+import { vi } from "vitest";
 import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
 import type { QuartzV5Config } from "src/quartz/QuartzConfigTypes";
 
@@ -225,6 +226,196 @@ describe("QuartzPluginManager", () => {
 			);
 
 			assert.strictEqual(found, undefined);
+		});
+	});
+
+	describe("installPlugin", () => {
+		it("uses runner when provided and source is string", async () => {
+			const config = makeConfig();
+			const runner = {
+				pluginAdd: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+			};
+
+			const entry = await manager.installPlugin(
+				config,
+				"github:quartz-community/explorer",
+				{ runner: runner as never, cwd: "/repo" },
+			);
+
+			assert.strictEqual(
+				entry.source,
+				"github:quartz-community/explorer",
+			);
+			assert.strictEqual(config.plugins.length, 1);
+			expect(runner.pluginAdd).toHaveBeenCalledWith(
+				"github:quartz-community/explorer",
+				{ cwd: "/repo" },
+			);
+		});
+
+		it("skips runner when not provided", async () => {
+			const config = makeConfig();
+			const runner = {
+				pluginAdd: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+			};
+
+			await manager.installPlugin(
+				config,
+				"github:quartz-community/graph",
+				{ runner: null, cwd: "/repo" },
+			);
+
+			assert.strictEqual(config.plugins.length, 1);
+			expect(runner.pluginAdd).not.toHaveBeenCalled();
+		});
+
+		it("skips runner for object sources", async () => {
+			const config = makeConfig();
+			const runner = {
+				pluginAdd: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+			};
+
+			await manager.installPlugin(
+				config,
+				{ repo: "github:saberzero1/quartz-themes", subdir: "plugin" },
+				{ runner: runner as never, cwd: "/repo" },
+			);
+
+			assert.strictEqual(config.plugins.length, 1);
+			expect(runner.pluginAdd).not.toHaveBeenCalled();
+		});
+
+		it("throws when runner pluginAdd fails", async () => {
+			const config = makeConfig();
+			const runner = {
+				pluginAdd: vi
+					.fn()
+					.mockResolvedValue({ ok: false, error: "failed" }),
+			};
+
+			await assert.rejects(
+				() =>
+					manager.installPlugin(
+						config,
+						"github:quartz-community/explorer",
+						{ runner: runner as never, cwd: "/repo" },
+					),
+				/failed/,
+			);
+		});
+
+		it("passes entry options through to addPlugin", async () => {
+			const config = makeConfig();
+
+			const entry = await manager.installPlugin(
+				config,
+				"github:quartz-community/explorer",
+				{
+					entryOptions: {
+						enabled: false,
+						order: 12,
+						options: { depth: 2 },
+					},
+				},
+			);
+
+			assert.strictEqual(entry.enabled, false);
+			assert.strictEqual(entry.order, 12);
+			assert.deepStrictEqual(entry.options, { depth: 2 });
+		});
+
+		it("throws for duplicate plugin", async () => {
+			const config = makeConfig([
+				{ source: "github:quartz-community/explorer", enabled: true },
+			]);
+
+			await assert.rejects(
+				() =>
+					manager.installPlugin(
+						config,
+						"github:quartz-community/explorer",
+					),
+				/already in the configuration/,
+			);
+		});
+	});
+
+	describe("uninstallPlugin", () => {
+		it("uses runner when provided", async () => {
+			const config = makeConfig([
+				{ source: "github:quartz-community/explorer", enabled: true },
+			]);
+			const runner = {
+				pluginRemove: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+			};
+
+			const removed = await manager.uninstallPlugin(
+				config,
+				"github:quartz-community/explorer",
+				{ runner: runner as never, cwd: "/repo" },
+			);
+
+			assert.strictEqual(
+				removed.source,
+				"github:quartz-community/explorer",
+			);
+			assert.strictEqual(config.plugins.length, 0);
+			expect(runner.pluginRemove).toHaveBeenCalledWith("explorer", {
+				cwd: "/repo",
+			});
+		});
+
+		it("skips runner when not provided", async () => {
+			const config = makeConfig([
+				{ source: "github:quartz-community/explorer", enabled: true },
+			]);
+			const runner = {
+				pluginRemove: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+			};
+
+			await manager.uninstallPlugin(
+				config,
+				"github:quartz-community/explorer",
+				{ runner: null, cwd: "/repo" },
+			);
+
+			assert.strictEqual(config.plugins.length, 0);
+			expect(runner.pluginRemove).not.toHaveBeenCalled();
+		});
+
+		it("throws when plugin not found", async () => {
+			const config = makeConfig();
+
+			await assert.rejects(
+				() =>
+					manager.uninstallPlugin(
+						config,
+						"github:quartz-community/missing",
+						{ runner: {} as never, cwd: "/repo" },
+					),
+				/not found/,
+			);
+		});
+
+		it("throws when runner pluginRemove fails", async () => {
+			const config = makeConfig([
+				{ source: "github:quartz-community/explorer", enabled: true },
+			]);
+			const runner = {
+				pluginRemove: vi
+					.fn()
+					.mockResolvedValue({ ok: false, error: "failed" }),
+			};
+
+			await assert.rejects(
+				() =>
+					manager.uninstallPlugin(
+						config,
+						"github:quartz-community/explorer",
+						{ runner: runner as never, cwd: "/repo" },
+					),
+				/failed/,
+			);
 		});
 	});
 });

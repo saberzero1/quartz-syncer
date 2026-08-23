@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "obsidian";
 import { Publisher } from "src/publisher/Publisher";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
@@ -8,6 +8,11 @@ import type QuartzSyncerSettings from "src/models/settings";
 import type QuartzSyncer from "src/main";
 import type { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import type { DataStore } from "src/cache/DataStore";
+import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
+
+vi.mock("src/publisher/MediaLinkResolver", () => ({
+	resolveLinkedMedia: vi.fn(),
+}));
 
 const makeSettings = (
 	overrides: Partial<QuartzSyncerSettings> = {},
@@ -87,6 +92,10 @@ const makePublishFile = (path: string): PublishFile =>
 	}) as PublishFile;
 
 describe("Publisher", () => {
+	beforeEach(() => {
+		vi.mocked(resolveLinkedMedia).mockResolvedValue(new Set());
+	});
+
 	it("publishBatch calls writeFiles with compiled content", async () => {
 		const app = new App();
 		const settings = makeSettings();
@@ -382,5 +391,298 @@ describe("Publisher", () => {
 		);
 
 		expect(mockQueue.resume).toHaveBeenCalled();
+	});
+
+	it("cleanOrphanedMedia deletes only unlinked media files in content folder", async () => {
+		const app = new App();
+		const settings = makeSettings({ useCache: false });
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend({
+			readTree: vi.fn().mockResolvedValue([
+				{ path: "content/images/linked.png", type: "blob", sha: "1" },
+				{ path: "content/images/orphan.png", type: "blob", sha: "2" },
+			]),
+		});
+		const compiler = {
+			generateMarkdown: vi
+				.fn()
+				.mockResolvedValue(["text", { blobs: [] }]),
+		} as unknown as SyncerPageCompiler;
+		const dataStore = {
+			dropFile: vi.fn(),
+		} as unknown as DataStore;
+
+		const metadataStub = app.metadataCache as typeof app.metadataCache & {
+			getCache?: (path: string) => {
+				frontmatter: Record<string, unknown>;
+			};
+		};
+		metadataStub.getCache = vi
+			.fn()
+			.mockReturnValue({ frontmatter: { publish: true } });
+
+		const vaultStub = app.vault as typeof app.vault & {
+			getFiles?: () => Array<{
+				path: string;
+				name: string;
+				extension: string;
+				stat: { mtime: number };
+			}>;
+		};
+		vaultStub.getFiles = vi.fn().mockReturnValue([
+			{
+				path: "notes/a.md",
+				name: "a.md",
+				extension: "md",
+				stat: { mtime: 1000 },
+			},
+		]);
+
+		vi.mocked(resolveLinkedMedia).mockResolvedValue(
+			new Set(["images/linked.png"]),
+		);
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		const result = await publisher.cleanOrphanedMedia();
+
+		expect(gitBackend.deleteFiles).toHaveBeenCalledWith(
+			"main",
+			"Cleaned orphaned media",
+			["content/images/orphan.png"],
+		);
+		expect(dataStore.dropFile).toHaveBeenCalledWith("images/orphan.png");
+		expect(result).toEqual({
+			success: true,
+			commitSha: "abc",
+			filesPublished: 0,
+			filesDeleted: 1,
+		});
+	});
+
+	it("cleanOrphanedMedia returns null when no orphans exist", async () => {
+		const app = new App();
+		const settings = makeSettings({ useCache: false });
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend({
+			readTree: vi
+				.fn()
+				.mockResolvedValue([
+					{
+						path: "content/images/linked.png",
+						type: "blob",
+						sha: "1",
+					},
+				]),
+		});
+		const compiler = {
+			generateMarkdown: vi
+				.fn()
+				.mockResolvedValue(["text", { blobs: [] }]),
+		} as unknown as SyncerPageCompiler;
+		const dataStore = {
+			dropFile: vi.fn(),
+		} as unknown as DataStore;
+
+		const metadataStub = app.metadataCache as typeof app.metadataCache & {
+			getCache?: (path: string) => {
+				frontmatter: Record<string, unknown>;
+			};
+		};
+		metadataStub.getCache = vi
+			.fn()
+			.mockReturnValue({ frontmatter: { publish: true } });
+
+		const vaultStub = app.vault as typeof app.vault & {
+			getFiles?: () => Array<{
+				path: string;
+				name: string;
+				extension: string;
+				stat: { mtime: number };
+			}>;
+		};
+		vaultStub.getFiles = vi.fn().mockReturnValue([
+			{
+				path: "notes/a.md",
+				name: "a.md",
+				extension: "md",
+				stat: { mtime: 1000 },
+			},
+		]);
+
+		vi.mocked(resolveLinkedMedia).mockResolvedValue(
+			new Set(["images/linked.png"]),
+		);
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		const result = await publisher.cleanOrphanedMedia();
+
+		expect(result).toBeNull();
+		expect(gitBackend.deleteFiles).not.toHaveBeenCalled();
+	});
+
+	it("cleanOrphanedMedia skips non-media files and files outside content folder", async () => {
+		const app = new App();
+		const settings = makeSettings({ useCache: false });
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend({
+			readTree: vi.fn().mockResolvedValue([
+				{ path: "content/notes/a.md", type: "blob", sha: "1" },
+				{ path: "assets/orphan.png", type: "blob", sha: "2" },
+			]),
+		});
+		const compiler = {
+			generateMarkdown: vi
+				.fn()
+				.mockResolvedValue(["text", { blobs: [] }]),
+		} as unknown as SyncerPageCompiler;
+		const dataStore = {
+			dropFile: vi.fn(),
+		} as unknown as DataStore;
+
+		const metadataStub = app.metadataCache as typeof app.metadataCache & {
+			getCache?: (path: string) => {
+				frontmatter: Record<string, unknown>;
+			};
+		};
+		metadataStub.getCache = vi
+			.fn()
+			.mockReturnValue({ frontmatter: { publish: true } });
+
+		const vaultStub = app.vault as typeof app.vault & {
+			getFiles?: () => Array<{
+				path: string;
+				name: string;
+				extension: string;
+				stat: { mtime: number };
+			}>;
+		};
+		vaultStub.getFiles = vi.fn().mockReturnValue([
+			{
+				path: "notes/a.md",
+				name: "a.md",
+				extension: "md",
+				stat: { mtime: 1000 },
+			},
+		]);
+
+		vi.mocked(resolveLinkedMedia).mockResolvedValue(new Set());
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		const result = await publisher.cleanOrphanedMedia();
+
+		expect(result).toBeNull();
+		expect(gitBackend.deleteFiles).not.toHaveBeenCalled();
+	});
+
+	it("getRemoteFileContent returns content for existing remote file", async () => {
+		const app = new App();
+		const settings = makeSettings();
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend({
+			readTree: vi
+				.fn()
+				.mockResolvedValue([
+					{ path: "content/notes/a.md", type: "blob", sha: "sha-1" },
+				]),
+			readBlob: vi
+				.fn()
+				.mockResolvedValue(new TextEncoder().encode("hello remote")),
+		});
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {} as DataStore;
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		await expect(
+			publisher.getRemoteFileContent("notes/a.md"),
+		).resolves.toBe("hello remote");
+		expect(gitBackend.readBlob).toHaveBeenCalledWith("sha-1");
+	});
+
+	it("getRemoteFileContent returns null for missing remote file", async () => {
+		const app = new App();
+		const settings = makeSettings();
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend({
+			readTree: vi.fn().mockResolvedValue([]),
+		});
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {} as DataStore;
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		await expect(
+			publisher.getRemoteFileContent("notes/missing.md"),
+		).resolves.toBeNull();
+		expect(gitBackend.readBlob).not.toHaveBeenCalled();
+	});
+
+	it("getLocalCompiledContent returns compiled text from cache", async () => {
+		const app = new App();
+		const settings = makeSettings();
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			loadLocalFile: vi
+				.fn()
+				.mockResolvedValue(["compiled", { blobs: [] }]),
+		} as unknown as DataStore;
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+		const file = makePublishFile("notes/a.md");
+
+		await expect(publisher.getLocalCompiledContent(file)).resolves.toBe(
+			"compiled",
+		);
+		expect(dataStore.loadLocalFile).toHaveBeenCalledWith(
+			"notes/a.md",
+			1000,
+		);
 	});
 });

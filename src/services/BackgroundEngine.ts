@@ -205,10 +205,12 @@ export class BackgroundEngine {
 
 		this.vaultEventRefs.push(
 			this.app.vault.on("rename", (file, oldPath) => {
-				if (file instanceof TFile && file.path.endsWith(".md")) {
+				if (oldPath.endsWith(".md")) {
 					this.plugin.dataStore.dropFile(oldPath).catch((error) => {
 						console.debug("Failed to drop cache entry:", error);
 					});
+				}
+				if (file instanceof TFile && file.path.endsWith(".md")) {
 					if (!this.isStartupNoise(file)) {
 						debouncedEnqueue(file.path);
 					}

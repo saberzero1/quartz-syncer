@@ -31,6 +31,13 @@ describe("QuartzPluginUtils", () => {
 		it("returns false for string source", () => {
 			assert.strictEqual(isObjectSource("github:org/repo"), false);
 		});
+
+		it("returns false for scoped npm source", () => {
+			assert.strictEqual(
+				isObjectSource("@quartz-community/explorer"),
+				false,
+			);
+		});
 	});
 
 	describe("getPluginName", () => {
@@ -87,6 +94,13 @@ describe("QuartzPluginUtils", () => {
 				assert.strictEqual(getPluginName(test.input), test.expected);
 			});
 		}
+
+		it("extracts name from scoped npm source", () => {
+			assert.strictEqual(
+				getPluginName("@quartz-community/explorer"),
+				"explorer",
+			);
+		});
 	});
 
 	describe("getPluginSourceKey", () => {
@@ -128,6 +142,13 @@ describe("QuartzPluginUtils", () => {
 					subdir: "pkg",
 				}),
 				"github:org/repo::pkg",
+			);
+		});
+
+		it("preserves scoped npm source", () => {
+			assert.strictEqual(
+				getPluginSourceKey("@quartz-community/explorer"),
+				"@quartz-community/explorer",
 			);
 		});
 	});
@@ -178,6 +199,13 @@ describe("QuartzPluginUtils", () => {
 				);
 			});
 		}
+
+		it("passes through scoped npm source", () => {
+			assert.strictEqual(
+				resolveSourceToGitUrl("@quartz-community/explorer"),
+				"@quartz-community/explorer",
+			);
+		});
 	});
 
 	describe("getSourceRef", () => {

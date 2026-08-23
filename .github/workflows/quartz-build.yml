@@ -1,0 +1,29 @@
+name: Quartz Build Tests
+
+on:
+    push:
+        branches: ["main", "master"]
+    pull_request:
+        branches: ["main", "master"]
+    workflow_dispatch:
+
+jobs:
+    quartz-build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - name: Use Node.js 24.x
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 24.x
+                  cache: "npm"
+            - run: npm ci
+            - run: npm run build
+            - name: Cache Quartz v5
+              uses: actions/cache@v4
+              with:
+                  path: test/e2e/quartz-build/.quartz-cache
+                  key: quartz-${{ hashFiles('test/e2e/quartz-build/quartz-config.ts') }}
+                  restore-keys: quartz-
+            - name: Run Quartz build tests
+              run: npm run test:e2e:build

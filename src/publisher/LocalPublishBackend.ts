@@ -10,6 +10,7 @@ import {
 	ensureParentDir,
 	externalIsDirectorySync,
 	joinPath,
+	getModule,
 } from "src/utils/external-fs";
 import { generateBlobHash } from "src/utils/utils";
 
@@ -19,12 +20,28 @@ export class LocalPublishBackend implements PublishBackend {
 
 	constructor(private repoPath: string) {}
 
+	private validatePath(filePath: string): void {
+		if (filePath.includes("..")) {
+			throw new Error(`Path traversal rejected: ${filePath}`);
+		}
+
+		const pathModule = getModule<{ resolve(...p: string[]): string }>(
+			"path",
+		);
+		const resolved = pathModule.resolve(this.repoPath, filePath);
+
+		if (!resolved.startsWith(this.repoPath)) {
+			throw new Error(`Path escapes repository: ${filePath}`);
+		}
+	}
+
 	async writeFiles(
 		_branch: string,
 		_message: string,
 		files: FileChange[],
 	): Promise<{ sha: string }> {
 		for (const file of files) {
+			this.validatePath(file.path);
 			const fullPath = joinPath(this.repoPath, file.path);
 			await ensureParentDir(fullPath);
 
@@ -74,6 +91,7 @@ export class LocalPublishBackend implements PublishBackend {
 		paths: string[],
 	): Promise<{ sha: string }> {
 		for (const path of paths) {
+			this.validatePath(path);
 			const fullPath = joinPath(this.repoPath, path);
 			const success = await deleteExternalFile(fullPath);
 
