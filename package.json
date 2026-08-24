@@ -3,9 +3,9 @@
 	"version": "2.0.0",
 	"type": "module",
 	"main": "main.js",
-    "engines": {
-        "node": ">=22.0.0"
-    },
+	"engines": {
+		"node": ">=22.0.0"
+	},
 	"scripts": {
 		"dev": "node esbuild.config.mjs watch",
 		"build": "node esbuild.config.mjs production",
@@ -17,7 +17,7 @@
 		"test:e2e:build": "vitest run --config vitest.e2e.config.ts",
 		"typecheck": "tsc --noEmit",
 		"check-formatting": "prettier . --check",
-        "format": "prettier . --write"
+		"format": "prettier . --write"
 	},
 	"devDependencies": {
 		"@types/diff": "^7.0.2",
@@ -32,6 +32,7 @@
 		"globals": "latest",
 		"jiti": "^2.7.0",
 		"obsidian": "^1.13.0",
+		"obsidian-typings": "^6.33.0",
 		"prettier": "^3",
 		"typescript": "^5.2",
 		"vitest": "^2.1.9",

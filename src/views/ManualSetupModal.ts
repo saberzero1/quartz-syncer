@@ -45,7 +45,7 @@ export class ManualSetupModal extends Modal {
 		this.titleEl.setText("Manual setup");
 
 		this.contentEl.createDiv({ cls: "qs-manual-setup-desc" }).createSpan({
-			text: "Configure your Quartz repository connection.",
+			text: "Configure a direct Git connection to any Quartz repository.",
 		});
 
 		new Setting(this.contentEl)
@@ -64,7 +64,7 @@ export class ManualSetupModal extends Modal {
 						this.remoteUrl,
 					);
 				});
-				text.inputEl.style.width = "100%";
+				text.inputEl.addClass("qs-full-width-input");
 			});
 
 		new Setting(this.contentEl)
@@ -120,9 +120,11 @@ export class ManualSetupModal extends Modal {
 							this.token = value.trim();
 						});
 					text.inputEl.type = "password";
-					text.inputEl.style.width = "100%";
+					text.inputEl.addClass("qs-full-width-input");
 				});
 		}
+
+		new Setting(this.contentEl).setName("Advanced").setHeading();
 
 		const advancedDetails = this.contentEl.createEl("details", {
 			cls: "qs-manual-setup-advanced",
@@ -138,7 +140,7 @@ export class ManualSetupModal extends Modal {
 					.onChange((value) => {
 						this.corsProxyUrl = value.trim();
 					});
-				text.inputEl.style.width = "100%";
+				text.inputEl.addClass("qs-full-width-input");
 			});
 
 		new Setting(advancedDetails)

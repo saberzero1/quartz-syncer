@@ -29,6 +29,7 @@ import { BinaryDetector } from "src/process/BinaryDetector";
 import { GitRunner } from "src/process/runners/GitRunner";
 import { NpmRunner } from "src/process/runners/NpmRunner";
 import { QuartzRunner } from "src/process/runners/QuartzRunner";
+import { StatusBar, type StatusBarState } from "src/views/StatusBar";
 
 /**
  * QuartzSyncer plugin settings.
@@ -149,6 +150,7 @@ export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 
 	/** UI settings */
 	diffViewStyle: "auto",
+	diffContextLines: 3,
 	allowArbitraryFilePublishing: false,
 	arbitraryPublishPaths: [],
 
@@ -172,7 +174,7 @@ export default class QuartzSyncer extends Plugin {
 	cliHandlers: Record<string, CliHandler> = {};
 	private publisher: Publisher | null = null;
 	private backgroundEngine: BackgroundEngine | null = null;
-	private statusBar: HTMLElement | null = null;
+	private statusBarManager: StatusBar | null = null;
 	processRunner: ProcessRunner | null = null;
 	binaryDetector: BinaryDetector | null = null;
 	gitRunner: GitRunner | null = null;
@@ -193,7 +195,7 @@ export default class QuartzSyncer extends Plugin {
 		await this.loadSettings();
 
 		if (shouldShowMigrationNotice(previousVersion, this.appVersion)) {
-			new MigrationNotice(this.app, this).open();
+			new MigrationNotice(this.app).open();
 		}
 
 		this.dataStore = new DataStore(
@@ -214,7 +216,7 @@ export default class QuartzSyncer extends Plugin {
 
 		if (!this.settings.gitRemoteUrl && !this.settings.quartzRepoPath) {
 			const notice = new Notice("", 0);
-			const fragment = notice.noticeEl.createDiv();
+			const fragment = notice.messageEl.createDiv();
 			fragment.createSpan({
 				text: "Quartz Syncer: no repository configured. ",
 			});
@@ -232,14 +234,43 @@ export default class QuartzSyncer extends Plugin {
 				}
 			});
 			fragment.createSpan({ text: " to get started." });
+			const dismissLink = fragment.createEl("a", {
+				text: "×",
+				href: "#",
+				cls: "quartz-syncer-notice-dismiss",
+			});
+			dismissLink.addEventListener("click", (e) => {
+				e.preventDefault();
+				notice.hide();
+			});
 		}
 
-		this.statusBar = this.addStatusBarItem();
-		this.statusBar.setText("Quartz Syncer: ready");
+		const statusBarEl = this.addStatusBarItem();
+		this.statusBarManager = new StatusBar(
+			statusBarEl,
+			(state: StatusBarState) => {
+				if (state === "unconfigured") {
+					if (Platform.isDesktopApp) {
+						new OnboardingWizard(this.app, this).open();
+					} else {
+						new ManualSetupModal(this.app, this).open();
+					}
+				} else if (state === "error") {
+					new Notice("Quartz Syncer: error");
+				} else {
+					new PublicationCenter(this.app, this).open();
+				}
+			},
+		);
+		const isConfigured =
+			!!this.settings.gitRemoteUrl || !!this.settings.quartzRepoPath;
+		this.statusBarManager.setState(isConfigured ? "ready" : "unconfigured");
 		this.backgroundEngine = new BackgroundEngine(
 			this.app,
 			this,
-			this.statusBar,
+			(state, count) => {
+				this.statusBarManager?.setState(state, count);
+			},
 		);
 		this.backgroundEngine.start();
 

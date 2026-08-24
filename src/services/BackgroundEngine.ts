@@ -28,7 +28,10 @@ export class BackgroundEngine {
 	constructor(
 		private app: App,
 		private plugin: QuartzSyncer,
-		private statusBar?: HTMLElement,
+		private onStatusChange?: (
+			state: "ready" | "compiling",
+			count: number,
+		) => void,
 	) {
 		this.compilationQueue = new CompilationQueue({
 			concurrency: 1,
@@ -153,6 +156,9 @@ export class BackgroundEngine {
 		if (signal.aborted) return;
 
 		await publishFile.compile();
+
+		const blobLinks = await publishFile.getBlobLinks();
+		await this.plugin.dataStore.storeMediaLinks(path, blobLinks);
 
 		const dvApi = getDataviewApi();
 		const dcApi = this.getDatacoreApi();
@@ -551,13 +557,8 @@ export class BackgroundEngine {
 	}
 
 	private updateStatusBar(): void {
-		if (!this.statusBar) return;
+		if (!this.onStatusChange) return;
 		const count = this.pendingCount;
-
-		if (count > 0) {
-			this.statusBar.setText(`Quartz Syncer: ${count} compiling`);
-		} else {
-			this.statusBar.setText("Quartz Syncer: ready");
-		}
+		this.onStatusChange(count > 0 ? "compiling" : "ready", count);
 	}
 }

@@ -5,6 +5,11 @@ import {
 	type SettingDefinitionItem,
 } from "obsidian";
 import type QuartzSyncer from "src/main";
+import { createGitBackend } from "src/git/GitBackendFactory";
+import { QuartzConfigService } from "src/quartz/QuartzConfigService";
+import { QuartzPluginUpdateChecker } from "src/quartz/QuartzPluginUpdateChecker";
+import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
+import { RemoteFileSource } from "src/quartz/RemoteFileSource";
 import { frontmatterSettingDefinitions } from "src/views/settings/FrontmatterSettings";
 import { integrationSettingDefinitions } from "src/views/settings/IntegrationSettings";
 import { performanceSettingDefinitions } from "src/views/settings/PerformanceSettings";
@@ -13,6 +18,18 @@ import { GitSettingsPage } from "src/views/settings/GitSettingsPage";
 import { ManualSetupModal } from "src/views/ManualSetupModal";
 import { OnboardingWizard } from "src/views/OnboardingWizard/OnboardingWizard";
 import { QuartzSettingsPage } from "src/views/settings/QuartzSettingsPage";
+
+type PluginUpdateState =
+	| "not-checked"
+	| "checking"
+	| "failed"
+	| "v5-required"
+	| "complete";
+
+type PluginUpdateCache = {
+	state: PluginUpdateState;
+	updates?: number;
+};
 
 /**
  * Quartz Syncer settings tab.
@@ -24,6 +41,9 @@ import { QuartzSettingsPage } from "src/views/settings/QuartzSettingsPage";
  */
 export class QuartzSyncerSettingTab extends PluginSettingTab {
 	plugin: QuartzSyncer;
+	private pluginUpdateStatus: PluginUpdateCache = {
+		state: "not-checked",
+	};
 
 	constructor(app: App, plugin: QuartzSyncer) {
 		super(app, plugin);
@@ -86,7 +106,12 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 			},
 		];
 
-		if (!this.plugin.settings.gitRemoteUrl) {
+		if (this.plugin.settings.gitRemoteUrl) {
+			items.push({
+				name: "Status",
+				desc: this.buildStatusFragment(),
+			});
+		} else {
 			items.push({
 				name: Platform.isDesktopApp
 					? "Run setup wizard"
@@ -137,5 +162,118 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		});
 
 		return frag;
+	}
+
+	private buildStatusFragment(): DocumentFragment {
+		const frag = createFragment();
+		const addLine = (label: string, value: string): void => {
+			frag.createSpan({ text: `${label}: ` });
+			frag.createSpan({ text: value });
+			frag.createEl("br");
+		};
+
+		addLine(
+			"Repository",
+			this.formatRepoUrl(this.plugin.settings.gitRemoteUrl),
+		);
+		addLine("Branch", this.plugin.settings.gitBranch);
+		addLine(
+			"Authentication",
+			this.plugin.secretStorageService.hasToken()
+				? "Token stored securely"
+				: "No token set",
+		);
+
+		frag.createSpan({ text: "Quartz plugins: " });
+		const statusEl = frag.createSpan({
+			text: this.getPluginUpdateStatusText(),
+		});
+		frag.createSpan({ text: " " });
+		const checkLink = frag.createEl("a", {
+			text: "Check now",
+			href: "#",
+		});
+		checkLink.addEventListener("click", (event) => {
+			event.preventDefault();
+			void this.runPluginUpdateCheck(statusEl);
+		});
+
+		return frag;
+	}
+
+	private formatRepoUrl(url: string): string {
+		return url.replace(/^https?:\/\//, "").replace(/\.git$/, "");
+	}
+
+	private getPluginUpdateStatusText(): string {
+		switch (this.pluginUpdateStatus.state) {
+			case "checking":
+				return "Checking…";
+			case "failed":
+				return "Check failed";
+			case "v5-required":
+				return "Quartz v5 required";
+			case "complete": {
+				const updateCount = this.pluginUpdateStatus.updates ?? 0;
+				if (updateCount > 0) {
+					return `${updateCount} update${
+						updateCount === 1 ? "" : "s"
+					} available`;
+				}
+				return "All up to date";
+			}
+			case "not-checked":
+			default:
+				return "Not checked";
+		}
+	}
+
+	private async runPluginUpdateCheck(statusEl: HTMLElement): Promise<void> {
+		if (this.pluginUpdateStatus.state === "checking") {
+			return;
+		}
+
+		this.pluginUpdateStatus = { state: "checking" };
+		statusEl.setText(this.getPluginUpdateStatusText());
+
+		try {
+			this.pluginUpdateStatus = await this.fetchPluginUpdateStatus();
+		} catch {
+			this.pluginUpdateStatus = { state: "failed" };
+		}
+
+		statusEl.setText(this.getPluginUpdateStatusText());
+	}
+
+	private async fetchPluginUpdateStatus(): Promise<PluginUpdateCache> {
+		const gitSettings = this.plugin.getGitSettingsWithSecret();
+		const backend = createGitBackend(
+			{
+				remoteUrl: gitSettings.remoteUrl,
+				branch: gitSettings.branch,
+				corsProxyUrl: gitSettings.corsProxyUrl,
+				auth: gitSettings.auth,
+			},
+			this.app,
+		);
+
+		const repo = new RemoteFileSource(backend, gitSettings.branch);
+		const version = await QuartzVersionDetector.detectQuartzVersion(repo);
+
+		if (version !== "v5-yaml" && version !== "v5-json") {
+			return { state: "v5-required" };
+		}
+
+		const configService = new QuartzConfigService(repo);
+		const config = await configService.readConfig();
+		const lockFile = await configService.readLockFile();
+		const checker = new QuartzPluginUpdateChecker(
+			gitSettings.auth,
+			gitSettings.corsProxyUrl,
+		);
+		const status = await checker.checkUpdates(config.plugins, lockFile);
+		const updates = status.filter((entry) => entry.hasUpdate).length;
+
+		return { state: "complete", updates };
 	}
 }

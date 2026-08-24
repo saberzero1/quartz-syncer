@@ -67,6 +67,7 @@ export default defineConfig(
 						"CLI",
 						"CORS",
 						"CSS",
+						"HTTP",
 						"HTTPS",
 						"ID",
 						"JSON",

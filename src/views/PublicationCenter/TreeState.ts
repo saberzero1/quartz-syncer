@@ -14,13 +14,19 @@ export type TreeEntry = {
 	category: PublishCategory;
 };
 
+export type TreeTab = "publish" | "advanced";
+
 export class TreeState {
 	selectedFiles = new Set<string>();
 	expandedFolders = new Set<string>();
 	filterText = "";
+	tab: TreeTab = "publish";
+	linkedMediaFiles = new Map<string, Set<string>>();
 	private categoryFiles = new Map<SelectableCategory, Set<string>>();
 	private folderFiles = new Map<string, Set<string>>();
 	private fileCategories = new Map<string, PublishCategory>();
+	private knownFiles = new Set<string>();
+	private autoSelectedMedia = new Set<string>();
 
 	setEntries(entries: TreeEntry[]): void {
 		this.categoryFiles = new Map<SelectableCategory, Set<string>>([
@@ -54,10 +60,12 @@ export class TreeState {
 			}
 		}
 
+		const filterSet =
+			this.knownFiles.size > 0
+				? this.knownFiles
+				: new Set(this.fileCategories.keys());
 		this.selectedFiles = new Set(
-			[...this.selectedFiles].filter((path) =>
-				this.fileCategories.has(path),
-			),
+			[...this.selectedFiles].filter((path) => filterSet.has(path)),
 		);
 
 		if (this.expandedFolders.size === 0) {
@@ -68,12 +76,41 @@ export class TreeState {
 		}
 	}
 
+	setKnownFiles(paths: Iterable<string>): void {
+		this.knownFiles = new Set(paths);
+		this.selectedFiles = new Set(
+			[...this.selectedFiles].filter((path) => this.knownFiles.has(path)),
+		);
+	}
+
+	setLinkedMediaFiles(map: Map<string, Set<string>>): void {
+		this.linkedMediaFiles = map;
+	}
+
+	getVisibleCategories(): PublishCategory[] {
+		if (this.tab === "advanced") {
+			return ["media-linked", "media-unlinked", "arbitrary"];
+		}
+
+		return ["unpublished", "changed", "published", "deleted"];
+	}
+
 	toggleFile(path: string): void {
 		if (this.selectedFiles.has(path)) {
 			this.selectedFiles.delete(path);
+			if (this.tab === "publish") {
+				this.autoDeselectLinkedMedia(path);
+			} else {
+				this.autoSelectedMedia.delete(path);
+			}
 			return;
 		}
 		this.selectedFiles.add(path);
+		if (this.tab === "publish") {
+			this.autoSelectLinkedMedia(path);
+		} else {
+			this.autoSelectedMedia.delete(path);
+		}
 	}
 
 	toggleFolder(path: string): void {
@@ -87,8 +124,18 @@ export class TreeState {
 		for (const filePath of files) {
 			if (allSelected) {
 				this.selectedFiles.delete(filePath);
+				if (this.tab === "publish") {
+					this.autoDeselectLinkedMedia(filePath);
+				} else {
+					this.autoSelectedMedia.delete(filePath);
+				}
 			} else {
 				this.selectedFiles.add(filePath);
+				if (this.tab === "publish") {
+					this.autoSelectLinkedMedia(filePath);
+				} else {
+					this.autoSelectedMedia.delete(filePath);
+				}
 			}
 		}
 	}
@@ -98,6 +145,11 @@ export class TreeState {
 		if (!files) return;
 		for (const path of files) {
 			this.selectedFiles.add(path);
+			if (this.tab === "publish") {
+				this.autoSelectLinkedMedia(path);
+			} else {
+				this.autoSelectedMedia.delete(path);
+			}
 		}
 	}
 
@@ -106,15 +158,31 @@ export class TreeState {
 		if (!files) return;
 		for (const path of files) {
 			this.selectedFiles.delete(path);
+			if (this.tab === "publish") {
+				this.autoDeselectLinkedMedia(path);
+			} else {
+				this.autoSelectedMedia.delete(path);
+			}
 		}
 	}
 
 	deselectAll(): void {
 		this.selectedFiles.clear();
+		this.autoSelectedMedia.clear();
 	}
 
 	getSelectedFiles(): string[] {
 		return [...this.selectedFiles];
+	}
+
+	getSelectedCount(category: SelectableCategory): number {
+		let count = 0;
+		for (const path of this.selectedFiles) {
+			if (this.fileCategories.get(path) === category) {
+				count += 1;
+			}
+		}
+		return count;
 	}
 
 	getCategory(path: string): PublishCategory | undefined {
@@ -169,5 +237,40 @@ export class TreeState {
 			return;
 		}
 		this.expandedFolders.add(path);
+	}
+
+	private autoSelectLinkedMedia(filePath: string): void {
+		const linked = this.linkedMediaFiles.get(filePath);
+		if (!linked || linked.size === 0) return;
+		for (const mediaPath of linked) {
+			this.selectedFiles.add(mediaPath);
+			this.autoSelectedMedia.add(mediaPath);
+		}
+	}
+
+	private autoDeselectLinkedMedia(filePath: string): void {
+		const linked = this.linkedMediaFiles.get(filePath);
+		if (!linked || linked.size === 0) return;
+		for (const mediaPath of linked) {
+			if (
+				this.autoSelectedMedia.has(mediaPath) &&
+				!this.isMediaLinkedBySelectedNotes(mediaPath, filePath)
+			) {
+				this.selectedFiles.delete(mediaPath);
+				this.autoSelectedMedia.delete(mediaPath);
+			}
+		}
+	}
+
+	private isMediaLinkedBySelectedNotes(
+		mediaPath: string,
+		excludeNote?: string,
+	): boolean {
+		for (const [notePath, mediaLinks] of this.linkedMediaFiles) {
+			if (excludeNote && notePath === excludeNote) continue;
+			if (!this.selectedFiles.has(notePath)) continue;
+			if (mediaLinks.has(mediaPath)) return true;
+		}
+		return false;
 	}
 }

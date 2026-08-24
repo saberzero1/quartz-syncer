@@ -3,6 +3,7 @@ import {
 	FuzzySuggestModal,
 	Modal,
 	Notice,
+	Platform,
 	setIcon,
 	TFile,
 } from "obsidian";
@@ -17,27 +18,25 @@ import type {
 import { isMediaFile, isTextMediaFile } from "src/utils/mediaTypes";
 import { DiffModal } from "src/views/DiffView/DiffModal";
 import {
-	PublicationTree,
-	renderCategoryControls,
-} from "src/views/PublicationCenter/TreeRenderer";
+	computeDiffStats,
+	expandAllCollapsed,
+	getCollapseState,
+	collapseAll,
+	renderDiffView,
+	type DiffViewMode,
+} from "src/views/DiffView/DiffRenderer";
+import { ManualSetupModal } from "src/views/ManualSetupModal";
+import { OnboardingWizard } from "src/views/OnboardingWizard/OnboardingWizard";
+import { PublicationTree } from "src/views/PublicationCenter/TreeRenderer";
 import {
-	SelectableCategory,
+	type SelectableCategory,
+	type TreeTab,
 	TreeState,
 } from "src/views/PublicationCenter/TreeState";
 
 type ProgressState = {
 	current: number;
 	total: number;
-};
-
-const categoryLabels: Record<SelectableCategory, string> = {
-	unpublished: "Unpublished",
-	changed: "Changed",
-	deleted: "Deleted",
-	published: "Published",
-	"media-linked": "Linked",
-	"media-unlinked": "Unlinked",
-	arbitrary: "Custom",
 };
 
 export class PublicationCenter extends Modal {
@@ -48,8 +47,10 @@ export class PublicationCenter extends Modal {
 	private publishButtonEl: HTMLButtonElement | null = null;
 	private deleteButtonEl: HTMLButtonElement | null = null;
 	private treeContainerEl: HTMLDivElement | null = null;
+	private overviewEl: HTMLDivElement | null = null;
+	private diffInlineEl: HTMLDivElement | null = null;
+	private diffContentEl: HTMLDivElement | null = null;
 	private publicationTree: PublicationTree | null = null;
-	private categoryCountEls = new Map<SelectableCategory, HTMLSpanElement>();
 	private searchInputEl: HTMLInputElement | null = null;
 	private filterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 	private hasShell = false;
@@ -57,6 +58,10 @@ export class PublicationCenter extends Modal {
 	private fileMap = new Map<string, PublishFile>();
 	private mediaMap = new Map<string, MediaEntry>();
 	private arbitraryMap = new Map<string, ArbitraryFileEntry>();
+	private mediaSources = new Map<string, Set<string>>();
+	private tabButtons = new Map<TreeTab, HTMLButtonElement>();
+	private diffMode: DiffViewMode = "split";
+	private inlineScrollSync: ReturnType<typeof renderDiffView> = null;
 
 	constructor(
 		app: App,
@@ -93,16 +98,22 @@ export class PublicationCenter extends Modal {
 	onClose(): void {
 		this._plugin.resumeAutoPublish();
 		this.publicationTree?.unmount();
+		this.inlineScrollSync?.destroy();
+		this.inlineScrollSync = null;
 		this.contentEl.empty();
 		this.progressIndicatorEl = null;
 		this.publishButtonEl = null;
 		this.deleteButtonEl = null;
 		this.treeContainerEl = null;
+		this.overviewEl = null;
+		this.diffInlineEl = null;
+		this.diffContentEl = null;
 		this.searchInputEl = null;
-		this.categoryCountEls.clear();
 		this.publicationTree = null;
 		this.mediaMap.clear();
 		this.arbitraryMap.clear();
+		this.mediaSources.clear();
+		this.tabButtons.clear();
 		if (this.filterDebounceTimer !== null) {
 			clearTimeout(this.filterDebounceTimer);
 			this.filterDebounceTimer = null;
@@ -123,6 +134,9 @@ export class PublicationCenter extends Modal {
 		if (!publisher) {
 			this.status = null;
 			this.progressState = { current: 0, total: 0 };
+			this.treeState.setKnownFiles([]);
+			this.treeState.setLinkedMediaFiles(new Map());
+			this.mediaSources.clear();
 			this.renderShell(true);
 			this.updateTreeState();
 			return;
@@ -138,6 +152,8 @@ export class PublicationCenter extends Modal {
 		}
 		this.progressState = { current: 0, total: 0 };
 		this.buildFileMap();
+		await this.buildMediaLinksMap();
+		this.treeState.setKnownFiles(this.getKnownFilePaths());
 		this.renderShell(true);
 		this.updateTreeState();
 	}
@@ -175,9 +191,14 @@ export class PublicationCenter extends Modal {
 		this.hasShell = true;
 		this.publicationTree?.unmount();
 		this.publicationTree = null;
-		this.categoryCountEls.clear();
+		this.inlineScrollSync?.destroy();
+		this.inlineScrollSync = null;
+		this.tabButtons.clear();
 		this.searchInputEl = null;
 		this.treeContainerEl = null;
+		this.overviewEl = null;
+		this.diffInlineEl = null;
+		this.diffContentEl = null;
 
 		this.contentEl.empty();
 		const header = this.contentEl.createDiv({ cls: "pub-center-header" });
@@ -186,7 +207,10 @@ export class PublicationCenter extends Modal {
 			text: `Select notes to publish or delete with ${pluginName}.`,
 		});
 
-		if (this._plugin.settings.allowArbitraryFilePublishing) {
+		if (
+			this._plugin.settings.allowArbitraryFilePublishing &&
+			this.treeState.tab === "advanced"
+		) {
 			const addButton = header.createEl("button", {
 				text: "Add file",
 				cls: "mod-cta",
@@ -196,53 +220,31 @@ export class PublicationCenter extends Modal {
 			});
 		}
 
-		const controls = this.contentEl.createDiv({
-			cls: "pub-center-controls",
+		const tabs = this.contentEl.createDiv({ cls: "pub-center-tabs" });
+		const publishTab = tabs.createEl("button", {
+			cls: "pub-center-tab",
+			text: "Publish",
 		});
-		this.categoryCountEls.set(
-			"unpublished",
-			renderCategoryControls(controls, this.treeState, "unpublished", {
-				onStateChange: () => this.updateTreeState(),
-			}),
-		);
-		this.categoryCountEls.set(
-			"changed",
-			renderCategoryControls(controls, this.treeState, "changed", {
-				onStateChange: () => this.updateTreeState(),
-			}),
-		);
-		this.categoryCountEls.set(
-			"deleted",
-			renderCategoryControls(controls, this.treeState, "deleted", {
-				onStateChange: () => this.updateTreeState(),
-			}),
-		);
-		this.categoryCountEls.set(
-			"published",
-			renderCategoryControls(controls, this.treeState, "published", {
-				onStateChange: () => this.updateTreeState(),
-			}),
-		);
-		this.categoryCountEls.set(
-			"media-linked",
-			renderCategoryControls(controls, this.treeState, "media-linked", {
-				onStateChange: () => this.updateTreeState(),
-			}),
-		);
-		this.categoryCountEls.set(
-			"media-unlinked",
-			renderCategoryControls(controls, this.treeState, "media-unlinked", {
-				onStateChange: () => this.updateTreeState(),
-			}),
-		);
-		this.categoryCountEls.set(
-			"arbitrary",
-			renderCategoryControls(controls, this.treeState, "arbitrary", {
-				onStateChange: () => this.updateTreeState(),
-			}),
-		);
+		publishTab.dataset.tab = "publish";
+		publishTab.addEventListener("click", () => {
+			this.switchTab("publish");
+		});
+		const advancedTab = tabs.createEl("button", {
+			cls: "pub-center-tab",
+			text: "Advanced",
+		});
+		advancedTab.dataset.tab = "advanced";
+		advancedTab.addEventListener("click", () => {
+			this.switchTab("advanced");
+		});
+		this.tabButtons.set("publish", publishTab);
+		this.tabButtons.set("advanced", advancedTab);
+		this.updateTabButtons();
 
-		this.searchInputEl = this.contentEl.createEl("input", {
+		const body = this.contentEl.createDiv({ cls: "pub-center-body" });
+		const leftColumn = body.createDiv({ cls: "pub-center-column-left" });
+
+		this.searchInputEl = leftColumn.createEl("input", {
 			type: "text",
 			cls: "tree-search-input",
 			placeholder: "Filter by file name\u2026",
@@ -261,7 +263,7 @@ export class PublicationCenter extends Modal {
 			}, 200);
 		});
 
-		this.treeContainerEl = this.contentEl.createDiv({
+		this.treeContainerEl = leftColumn.createDiv({
 			cls: "pub-center-tree",
 		});
 
@@ -276,8 +278,18 @@ export class PublicationCenter extends Modal {
 			);
 			this.publicationTree.mount(this.status);
 		} else {
-			this.treeContainerEl.createSpan({
-				text: "Configure your git repository in settings to get started.",
+			this.renderEmptyState();
+		}
+
+		if (Platform.isDesktopApp) {
+			const rightColumn = body.createDiv({
+				cls: "pub-center-column-right",
+			});
+			this.overviewEl = rightColumn.createDiv({
+				cls: "pub-center-overview",
+			});
+			this.diffInlineEl = rightColumn.createDiv({
+				cls: "pub-center-diff-inline qs-hidden qs-diff-view",
 			});
 		}
 
@@ -306,36 +318,343 @@ export class PublicationCenter extends Modal {
 		this.deleteButtonEl.addEventListener("click", () => {
 			void this.handleDelete();
 		});
+
+		this.diffMode = this.getDefaultDiffMode();
+		if (this.status && this.publicationTree) {
+			void this.computeTreeDiffStats();
+		}
 	}
 
 	private updateTreeState(): void {
 		this.publicationTree?.update();
-		for (const [category, label] of this.categoryCountEls) {
-			const count = this.treeState.getCategoryCount(category);
-			label.setText(`${categoryLabels[category]} (${count})`);
+		if (this.overviewEl && Platform.isDesktopApp) {
+			this.renderOverview();
 		}
 	}
 
-	private async openDiff(path: string): Promise<void> {
+	private switchTab(tab: TreeTab): void {
+		if (this.treeState.tab === tab) return;
+		this.treeState.tab = tab;
+		this.renderShell(true);
+		this.updateTreeState();
+	}
+
+	private updateTabButtons(): void {
+		for (const [tab, button] of this.tabButtons) {
+			button.classList.toggle("is-active", tab === this.treeState.tab);
+		}
+	}
+
+	private renderEmptyState(): void {
+		if (!this.treeContainerEl) return;
+		this.treeContainerEl.empty();
+		const emptyEl = this.treeContainerEl.createDiv({
+			cls: "pub-center-empty",
+		});
+		const iconEl = emptyEl.createSpan({ cls: "pub-center-empty-icon" });
+		setIcon(iconEl, "settings");
+		emptyEl.createEl("p", { text: "No repository configured." });
+		const setupBtn = emptyEl.createEl("button", {
+			cls: "mod-cta",
+			text: Platform.isDesktopApp
+				? "Open setup wizard"
+				: "Open manual setup",
+		});
+		setupBtn.addEventListener("click", () => {
+			this.close();
+			if (Platform.isDesktopApp) {
+				new OnboardingWizard(this.app, this._plugin).open();
+			} else {
+				new ManualSetupModal(this.app, this._plugin).open();
+			}
+		});
+	}
+
+	private getDefaultDiffMode(): DiffViewMode {
+		const style = this._plugin.settings.diffViewStyle ?? "auto";
+		if (style === "auto") {
+			return Platform.isDesktopApp ? "split" : "unified";
+		}
+		return style;
+	}
+
+	private async buildMediaLinksMap(): Promise<void> {
+		this.mediaSources.clear();
+		if (!this.status) {
+			this.treeState.setLinkedMediaFiles(new Map());
+			return;
+		}
+		const files = [
+			...this.status.unpublished,
+			...this.status.changed,
+			...this.status.published,
+		];
+		const entries = await Promise.all(
+			files.map(async (file) => {
+				const path = file.getVaultPath();
+				const links = await this._plugin.dataStore.loadMediaLinks(path);
+				return { path, links };
+			}),
+		);
+		const linked = new Map<string, Set<string>>();
+		for (const entry of entries) {
+			if (entry.links.length === 0) continue;
+			const linkSet = new Set(entry.links);
+			linked.set(entry.path, linkSet);
+			for (const link of linkSet) {
+				const sources = this.mediaSources.get(link) ?? new Set();
+				sources.add(entry.path);
+				this.mediaSources.set(link, sources);
+			}
+		}
+		this.treeState.setLinkedMediaFiles(linked);
+	}
+
+	private getKnownFilePaths(): string[] {
+		if (!this.status) return [];
+		const paths = new Set<string>();
+		for (const file of this.status.unpublished) {
+			paths.add(file.getVaultPath());
+		}
+		for (const file of this.status.changed) {
+			paths.add(file.getVaultPath());
+		}
+		for (const file of this.status.published) {
+			paths.add(file.getVaultPath());
+		}
+		for (const path of this.status.deleted) {
+			paths.add(path);
+		}
+		for (const entry of this.status.media) {
+			paths.add(entry.vaultPath);
+		}
+		for (const entry of this.status.arbitrary) {
+			paths.add(entry.vaultPath);
+		}
+		return [...paths];
+	}
+
+	private renderOverview(): void {
+		if (!this.overviewEl) return;
+		this.overviewEl.empty();
+		const selected = this.treeState.getSelectedFiles();
+		if (selected.length === 0) {
+			this.overviewEl.createDiv({
+				cls: "pub-center-overview-empty",
+				text: "Select files to see a summary of changes.",
+			});
+			return;
+		}
+
+		const publishing: string[] = [];
+		const deleting: string[] = [];
+		const media: string[] = [];
+
+		for (const path of selected) {
+			if (this.mediaMap.has(path) || this.mediaSources.has(path)) {
+				media.push(path);
+				continue;
+			}
+			const category = this.treeState.getCategory(path);
+			if (category === "deleted" || category === "published") {
+				deleting.push(path);
+				continue;
+			}
+			if (
+				category === "unpublished" ||
+				category === "changed" ||
+				category === "arbitrary"
+			) {
+				publishing.push(path);
+			}
+		}
+
+		const hasAny =
+			publishing.length > 0 || media.length > 0 || deleting.length > 0;
+		if (!hasAny) {
+			this.overviewEl.createDiv({
+				cls: "pub-center-overview-empty",
+				text: "Select files to see a summary of changes.",
+			});
+			return;
+		}
+
+		this.renderOverviewGroup("Publishing", publishing, (item, path) => {
+			item.setText(path);
+		});
+		this.renderOverviewGroup("Including media", media, (item, path) => {
+			item.setText(path);
+			const sources = this.mediaSources.get(path);
+			if (sources && sources.size > 0) {
+				const sourceText = Array.from(sources).join(", ");
+				item.createSpan({
+					cls: "pub-center-overview-media-source",
+					text: ` (from ${sourceText})`,
+				});
+			}
+		});
+		this.renderOverviewGroup("Deleting", deleting, (item, path) => {
+			item.setText(path);
+		});
+	}
+
+	private renderOverviewGroup(
+		title: string,
+		items: string[],
+		renderItem: (item: HTMLDivElement, path: string) => void,
+	): void {
+		if (!this.overviewEl || items.length === 0) return;
+		const group = this.overviewEl.createDiv({
+			cls: "pub-center-overview-group",
+		});
+		group.createDiv({
+			cls: "pub-center-overview-heading",
+			text: title,
+		});
+		for (const path of items) {
+			const item = group.createDiv({ cls: "pub-center-overview-item" });
+			renderItem(item, path);
+		}
+	}
+
+	private renderInlineDiff(
+		path: string,
+		localContent: string,
+		remoteContent: string,
+	): void {
+		if (!this.diffInlineEl || !this.overviewEl) return;
+		this.overviewEl.addClass("qs-hidden");
+		this.diffInlineEl.removeClass("qs-hidden");
+		this.diffInlineEl.empty();
+		this.inlineScrollSync?.destroy();
+		this.inlineScrollSync = null;
+
+		const backButton = this.diffInlineEl.createEl("button", {
+			cls: "pub-center-diff-back",
+			text: "Back to overview",
+		});
+		backButton.addEventListener("click", () => {
+			this.inlineScrollSync?.destroy();
+			this.inlineScrollSync = null;
+			this.diffInlineEl?.addClass("qs-hidden");
+			this.overviewEl?.removeClass("qs-hidden");
+			this.diffContentEl = null;
+		});
+
+		const header = this.diffInlineEl.createDiv({ cls: "diff-header" });
+		header.createSpan({ text: path });
+
+		const stats = computeDiffStats(localContent, remoteContent);
+		if (stats.added > 0 || stats.removed > 0) {
+			const statsEl = header.createSpan({ cls: "diff-stats" });
+			statsEl.createSpan({
+				cls: "diff-stat-added",
+				text: `+${stats.added}`,
+			});
+			statsEl.createSpan({ text: " / " });
+			statsEl.createSpan({
+				cls: "diff-stat-removed",
+				text: `-${stats.removed}`,
+			});
+		}
+
+		const controls = header.createDiv({ cls: "diff-controls" });
+		const splitButton = controls.createEl("button", { text: "Split" });
+		const unifiedButton = controls.createEl("button", { text: "Unified" });
+		const collapseButton = controls.createEl("button", {
+			text: "Expand all",
+		});
+		const updateButtons = () => {
+			splitButton.classList.toggle(
+				"is-active",
+				this.diffMode === "split",
+			);
+			unifiedButton.classList.toggle(
+				"is-active",
+				this.diffMode === "unified",
+			);
+		};
+		const updateCollapseButton = () => {
+			if (!this.diffContentEl) return;
+			const state = getCollapseState(this.diffContentEl);
+			collapseButton.disabled = !state.hasRegions;
+			collapseButton.textContent = state.hasRegions
+				? state.hasCollapsed
+					? "Expand all"
+					: "Collapse all"
+				: "Expand all";
+		};
+		const renderContent = () => {
+			this.diffContentEl?.remove();
+			this.diffContentEl = this.diffInlineEl
+				? this.diffInlineEl.createDiv({ cls: "diff-content" })
+				: null;
+			if (!this.diffContentEl) return;
+			this.diffContentEl.addEventListener(
+				"qs-diff-collapse-change",
+				() => {
+					updateCollapseButton();
+				},
+			);
+			this.inlineScrollSync?.destroy();
+			this.inlineScrollSync = renderDiffView(
+				this.diffContentEl,
+				localContent,
+				remoteContent,
+				this.diffMode,
+				this._plugin.settings.diffContextLines,
+			);
+			updateCollapseButton();
+		};
+		collapseButton.addEventListener("click", () => {
+			if (!this.diffContentEl) return;
+			const state = getCollapseState(this.diffContentEl);
+			if (!state.hasRegions) return;
+			if (state.hasCollapsed) {
+				expandAllCollapsed(this.diffContentEl);
+			} else {
+				collapseAll(this.diffContentEl);
+			}
+			updateCollapseButton();
+		});
+		splitButton.addEventListener("click", () => {
+			this.diffMode = "split";
+			updateButtons();
+			renderContent();
+		});
+		unifiedButton.addEventListener("click", () => {
+			this.diffMode = "unified";
+			updateButtons();
+			renderContent();
+		});
+		updateButtons();
+		renderContent();
+	}
+
+	private async resolveDiffContent(path: string): Promise<{
+		localContent: string;
+		remoteContent: string;
+		category: SelectableCategory | undefined;
+	} | null> {
 		const publisher = this._plugin.getPublisher();
 
 		if (!publisher) {
 			new Notice(
 				"Configure your git repository in settings to get started.",
 			);
-			return;
+			return null;
 		}
 
 		const category = this.treeState.getCategory(path);
 
 		if (category === "published") {
 			new Notice("No changes to display.");
-			return;
+			return null;
 		}
 
 		if (category === "arbitrary") {
 			new Notice("Diffs are not available for custom files.");
-			return;
+			return null;
 		}
 
 		let localContent = "";
@@ -369,21 +688,59 @@ export class PublicationCenter extends Modal {
 			}
 		} catch {
 			new Notice("Failed to load file content for diff.");
-			return;
+			return null;
 		}
 
 		if (!localContent && !remoteContent) {
 			new Notice(
 				"No content available for diff. Try refreshing publish status.",
 			);
+			return null;
+		}
+
+		return { localContent, remoteContent, category };
+	}
+
+	private async computeTreeDiffStats(): Promise<void> {
+		const publisher = this._plugin.getPublisher();
+		if (!publisher || !this.status) return;
+
+		for (const file of this.status.changed) {
+			if (!this.publicationTree) return;
+			const localContent =
+				(await publisher.getLocalCompiledContent(file)) ?? "";
+			const remoteContent =
+				(await publisher.getRemoteFileContent(file.getVaultPath())) ??
+				"";
+			if (!this.publicationTree) return;
+			const stats = computeDiffStats(localContent, remoteContent);
+			this.publicationTree.updateFileStats(
+				file.getVaultPath(),
+				stats.added,
+				stats.removed,
+			);
+		}
+	}
+
+	private async openDiff(path: string): Promise<void> {
+		const diffData = await this.resolveDiffContent(path);
+		if (!diffData) return;
+
+		if (Platform.isDesktopApp && this.diffInlineEl && this.overviewEl) {
+			this.renderInlineDiff(
+				path,
+				diffData.localContent,
+				diffData.remoteContent,
+			);
 			return;
 		}
 
 		new DiffModal(this.app, {
 			filePath: path,
-			localContent,
-			remoteContent,
+			localContent: diffData.localContent,
+			remoteContent: diffData.remoteContent,
 			diffViewStyle: this._plugin.settings.diffViewStyle,
+			contextLines: this._plugin.settings.diffContextLines,
 		}).open();
 	}
 

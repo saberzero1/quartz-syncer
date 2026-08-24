@@ -21,6 +21,17 @@ export function uiSettingDefinitions(): SettingDefinitionItem[] {
 						},
 					},
 				},
+				{
+					name: "Diff context lines",
+					desc: "Number of unchanged lines shown around each change in the diff viewer.",
+					control: {
+						type: "number",
+						key: "diffContextLines",
+						defaultValue: 3,
+						min: 1,
+						max: 20,
+					},
+				},
 			],
 		},
 		{

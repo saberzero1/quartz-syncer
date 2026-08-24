@@ -16,7 +16,7 @@ import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
 import type { QuartzV5Config } from "src/quartz/QuartzConfigTypes";
 import { PluginBrowserModal } from "src/views/PluginBrowser/PluginBrowserModal";
 import { TerminalOutputModal } from "src/views/TerminalOutput/TerminalOutputModal";
-import { QuartzPreviewModal } from "src/views/QuartzPreview/QuartzPreviewModal";
+import { launchQuartzPreview } from "src/views/QuartzPreview/QuartzPreviewModal";
 import type { BinaryInfo } from "src/process/types";
 import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 import { RemoteFileSource } from "src/quartz/RemoteFileSource";
@@ -340,11 +340,11 @@ export class QuartzSettingsPage extends SettingPageBase {
 					new Notice("Quartz runner is unavailable.");
 					return;
 				}
-				new QuartzPreviewModal(
+				launchQuartzPreview(
 					this.app,
 					this.plugin.quartzRunner,
 					repoPath,
-				).open();
+				);
 			});
 		});
 	}

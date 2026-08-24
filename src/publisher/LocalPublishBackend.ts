@@ -69,10 +69,7 @@ export class LocalPublishBackend implements PublishBackend {
 					);
 				}
 			} else {
-				const success = await writeExternalFile(
-					fullPath,
-					file.content,
-				);
+				const success = await writeExternalFile(fullPath, file.content);
 
 				if (!success) {
 					throw new Error(`Failed to write file: ${file.path}`);

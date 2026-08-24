@@ -1,23 +1,20 @@
 import { App, Modal, Notice } from "obsidian";
-import type QuartzSyncer from "src/main";
 import {
 	detectOldDatabases,
 	cleanupOldDatabases,
 } from "src/utils/LightningFsCleanup";
 
 export class MigrationNotice extends Modal {
-	private plugin: QuartzSyncer;
-
-	constructor(app: App, plugin: QuartzSyncer) {
+	constructor(app: App) {
 		super(app);
-		this.plugin = plugin;
 	}
 
 	async onOpen(): Promise<void> {
+		this.modalEl.addClass("qs-migration-notice");
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl("h2", { text: "Welcome to Quartz Syncer v2" });
+		this.titleEl.setText("Welcome to Quartz Syncer v2");
 
 		contentEl.createEl("p", {
 			text: "Quartz Syncer has been rebuilt from the ground up for better performance, reliability, and new features.",
@@ -46,6 +43,7 @@ export class MigrationNotice extends Modal {
 
 			const cleanupBtn = contentEl.createEl("button", {
 				text: "Clean up old cache data",
+				cls: "mod-cta",
 			});
 			cleanupBtn.addEventListener("click", () => {
 				void cleanupOldDatabases().then((count) => {

@@ -36,9 +36,6 @@ export class TerminalOutputModal extends Modal {
 	private render(): void {
 		this.contentEl.empty();
 
-		const heading = this.contentEl.createEl("h2", { text: this.title });
-		heading.addClass("qs-terminal-output-heading");
-
 		this.outputEl = this.contentEl.createEl("pre");
 
 		const actions = this.contentEl.createDiv({
@@ -59,8 +56,10 @@ export class TerminalOutputModal extends Modal {
 
 	private appendLine(line: string, isError = false): void {
 		if (!this.outputEl) return;
-		const prefix = isError ? "[stderr] " : "";
-		this.outputEl.textContent += `${prefix}${line}\n`;
+		const span = this.outputEl.createSpan({
+			cls: isError ? "qs-terminal-stderr" : undefined,
+		});
+		span.textContent = `${line}\n`;
 		this.outputEl.scrollTop = this.outputEl.scrollHeight;
 	}
 

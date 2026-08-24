@@ -214,6 +214,7 @@ export default interface QuartzSyncerSettings {
 
 	/** UI settings */
 	diffViewStyle: DiffViewStyle;
+	diffContextLines: number;
 	/** Allow publishing arbitrary files outside the content folder */
 	allowArbitraryFilePublishing: boolean;
 	/** Vault paths to publish as custom files */

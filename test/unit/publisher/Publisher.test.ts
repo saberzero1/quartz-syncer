@@ -472,15 +472,13 @@ describe("Publisher", () => {
 		const settings = makeSettings({ useCache: false });
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend({
-			readTree: vi
-				.fn()
-				.mockResolvedValue([
-					{
-						path: "content/images/linked.png",
-						type: "blob",
-						sha: "1",
-					},
-				]),
+			readTree: vi.fn().mockResolvedValue([
+				{
+					path: "content/images/linked.png",
+					type: "blob",
+					sha: "1",
+				},
+			]),
 		});
 		const compiler = {
 			generateMarkdown: vi

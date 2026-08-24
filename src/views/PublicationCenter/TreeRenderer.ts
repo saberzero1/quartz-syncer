@@ -49,15 +49,16 @@ const categoryLabels: Record<PublishCategory, string> = {
 	changed: "Changed",
 	deleted: "Deleted",
 	published: "Published",
-	"media-linked": "Linked",
-	"media-unlinked": "Unlinked",
-	arbitrary: "Custom",
+	"media-linked": "Linked media",
+	"media-unlinked": "Unlinked media",
+	arbitrary: "Custom files",
 };
 
-const categoryIcons: Partial<Record<PublishCategory, string>> = {
+const categoryIcons: Record<PublishCategory, string> = {
 	unpublished: "plus",
 	changed: "pencil",
 	deleted: "trash",
+	published: "check",
 	"media-linked": "paperclip",
 	"media-unlinked": "alert-triangle",
 	arbitrary: "package",
@@ -66,6 +67,7 @@ const categoryIcons: Partial<Record<PublishCategory, string>> = {
 type FileRow = {
 	row: HTMLElement;
 	checkbox: HTMLInputElement;
+	statsEl?: HTMLSpanElement;
 };
 
 type FolderRow = {
@@ -75,10 +77,21 @@ type FolderRow = {
 	toggleEl: HTMLButtonElement;
 };
 
+type CategoryRow = {
+	headerEl: HTMLElement;
+	childrenEl: HTMLElement;
+	toggleEl: HTMLElement;
+	checkbox: HTMLInputElement;
+	labelEl: HTMLSpanElement;
+	countEl: HTMLSpanElement;
+	category: SelectableCategory;
+};
+
 export class PublicationTree {
 	private fileRows = new Map<string, FileRow>();
 	private folderRows = new Map<string, FolderRow>();
-	private treeRoot: TreeNode | null = null;
+	private categoryRows = new Map<SelectableCategory, CategoryRow>();
+	private categoryTrees = new Map<SelectableCategory, TreeNode>();
 	private emptyFilterEl: HTMLDivElement | null = null;
 
 	constructor(
@@ -89,12 +102,23 @@ export class PublicationTree {
 
 	mount(status: PublishStatus): void {
 		this.unmount();
-		const entries = buildEntries(status);
+		const visibleCategories = this.treeState.getVisibleCategories();
+		const entries = buildEntries(status, visibleCategories);
 		this.treeState.setEntries(entries);
-		this.treeRoot = buildTree(entries);
 
-		for (const node of this.treeRoot.children) {
-			this.renderNode(this.containerEl, node, 0);
+		const entriesByCategory = new Map<SelectableCategory, TreeEntry[]>();
+		for (const category of visibleCategories) {
+			entriesByCategory.set(category, []);
+		}
+		for (const entry of entries) {
+			entriesByCategory.get(entry.category)?.push(entry);
+		}
+
+		for (const category of visibleCategories) {
+			const categoryEntries = entriesByCategory.get(category) ?? [];
+			const tree = buildTree(categoryEntries);
+			this.categoryTrees.set(category, tree);
+			this.renderCategorySection(category, tree);
 		}
 
 		this.emptyFilterEl = this.containerEl.createDiv({
@@ -108,6 +132,10 @@ export class PublicationTree {
 	update(): void {
 		for (const [path, row] of this.fileRows) {
 			row.checkbox.checked = this.treeState.selectedFiles.has(path);
+			row.row.classList.toggle(
+				"tree-item-selected",
+				row.checkbox.checked,
+			);
 		}
 
 		for (const [path, row] of this.folderRows) {
@@ -116,13 +144,61 @@ export class PublicationTree {
 			row.checkbox.indeterminate = folderState.indeterminate;
 		}
 
-		if (!this.treeRoot) return;
+		for (const [category, catRow] of this.categoryRows) {
+			const count = this.treeState.getCategoryCount(category);
+			const selected = this.treeState.getSelectedCount(category);
+			catRow.countEl.setText(`(${count})`);
+			catRow.headerEl.classList.toggle("qs-hidden", count === 0);
+			catRow.childrenEl.classList.toggle("qs-hidden", count === 0);
+			catRow.checkbox.checked = count > 0 && selected === count;
+			catRow.checkbox.indeterminate = selected > 0 && selected < count;
+		}
 
 		const filterActive = !!this.treeState.filterText;
 		let hasVisibleNodes = false;
-		for (const node of this.treeRoot.children) {
-			const isVisible = this.updateVisibility(node, filterActive);
-			if (isVisible) hasVisibleNodes = true;
+
+		for (const [category, tree] of this.categoryTrees) {
+			const catRow = this.categoryRows.get(category);
+			if (!catRow) continue;
+
+			if (this.treeState.getCategoryCount(category) === 0) continue;
+
+			let categoryHasVisible = false;
+			for (const node of tree.children) {
+				const isVisible = this.updateVisibility(node, filterActive);
+				if (isVisible) categoryHasVisible = true;
+			}
+
+			if (filterActive) {
+				catRow.headerEl.classList.toggle(
+					"tree-hidden",
+					!categoryHasVisible,
+				);
+				catRow.childrenEl.classList.toggle(
+					"tree-hidden",
+					!categoryHasVisible,
+				);
+			}
+
+			if (categoryHasVisible) hasVisibleNodes = true;
+		}
+
+		for (const [, catRow] of this.categoryRows) {
+			const isExpanded =
+				filterActive ||
+				this.treeState.isFolderExpanded(
+					`__category__${catRow.category}`,
+				);
+			setIcon(
+				catRow.toggleEl,
+				isExpanded ? "chevron-down" : "chevron-right",
+			);
+			if (
+				!catRow.childrenEl.classList.contains("qs-hidden") ||
+				!filterActive
+			) {
+				catRow.childrenEl.style.display = isExpanded ? "" : "none";
+			}
 		}
 
 		for (const [path, row] of this.folderRows) {
@@ -141,12 +217,88 @@ export class PublicationTree {
 		}
 	}
 
+	updateFileStats(path: string, added: number, removed: number): void {
+		const row = this.fileRows.get(path);
+		if (row?.statsEl) {
+			row.statsEl.setText(`+${added} / -${removed}`);
+		}
+	}
+
 	unmount(): void {
 		this.containerEl.empty();
 		this.fileRows.clear();
 		this.folderRows.clear();
-		this.treeRoot = null;
+		this.categoryRows.clear();
+		this.categoryTrees.clear();
 		this.emptyFilterEl = null;
+	}
+
+	private renderCategorySection(
+		category: SelectableCategory,
+		tree: TreeNode,
+	): void {
+		const headerEl = this.containerEl.createDiv({
+			cls: "tree-category-header",
+		});
+
+		const toggleEl = headerEl.createSpan({ cls: "tree-toggle" });
+
+		const checkbox = headerEl.createEl("input", {
+			type: "checkbox",
+			cls: "tree-checkbox",
+		});
+		checkbox.addEventListener("change", (event) => {
+			event.stopPropagation();
+			const count = this.treeState.getCategoryCount(category);
+			const selected = this.treeState.getSelectedCount(category);
+			if (selected === count) {
+				this.treeState.deselectCategory(category);
+			} else {
+				this.treeState.selectAll(category);
+			}
+			this.options.onStateChange();
+		});
+
+		const iconEl = headerEl.createSpan({ cls: "category-icon" });
+		setIcon(iconEl, categoryIcons[category]);
+
+		const labelEl = headerEl.createSpan({
+			cls: "tree-label",
+			text: categoryLabels[category],
+		});
+
+		const countEl = headerEl.createSpan({
+			cls: "tree-category-count",
+		});
+
+		headerEl.addEventListener("click", (event) => {
+			if (
+				event.target === checkbox ||
+				(event.target as HTMLElement).closest("input")
+			)
+				return;
+			event.stopPropagation();
+			this.treeState.toggleFolderExpanded(`__category__${category}`);
+			this.options.onStateChange();
+		});
+
+		const childrenEl = this.containerEl.createDiv({
+			cls: "tree-children",
+		});
+
+		this.categoryRows.set(category, {
+			headerEl,
+			childrenEl,
+			toggleEl,
+			checkbox,
+			labelEl,
+			countEl,
+			category,
+		});
+
+		for (const node of tree.children) {
+			this.renderNode(childrenEl, node, 1);
+		}
 	}
 
 	private updateVisibility(node: TreeNode, filterActive: boolean): boolean {
@@ -263,7 +415,12 @@ export class PublicationTree {
 			(category.startsWith("media-") && !isTextMediaFile(node.path)) ||
 			category === "arbitrary"
 		) {
-			diffButton.style.display = "none";
+			diffButton.addClass("qs-hidden");
+		}
+
+		let statsEl: HTMLSpanElement | undefined;
+		if (category === "changed") {
+			statsEl = row.createSpan({ cls: "tree-diff-stats" });
 		}
 
 		const badge = row.createSpan({
@@ -276,7 +433,7 @@ export class PublicationTree {
 		}
 		badge.createSpan({ text: categoryLabels[category] });
 
-		this.fileRows.set(node.path, { row, checkbox });
+		this.fileRows.set(node.path, { row, checkbox, statsEl });
 	}
 }
 
@@ -290,49 +447,68 @@ function hasMatchingDescendant(node: TreeNode, treeState: TreeState): boolean {
 	);
 }
 
-function buildEntries(status: PublishStatus): TreeEntry[] {
+export function buildEntries(
+	status: PublishStatus,
+	visibleCategories: PublishCategory[],
+): TreeEntry[] {
 	const entries: TreeEntry[] = [];
+	const visible = new Set(visibleCategories);
 
-	for (const file of status.unpublished) {
-		entries.push({
-			path: file.getVaultPath(),
-			category: "unpublished",
-		});
+	if (visible.has("unpublished")) {
+		for (const file of status.unpublished) {
+			entries.push({
+				path: file.getVaultPath(),
+				category: "unpublished",
+			});
+		}
 	}
 
-	for (const file of status.changed) {
-		entries.push({
-			path: file.getVaultPath(),
-			category: "changed",
-		});
+	if (visible.has("changed")) {
+		for (const file of status.changed) {
+			entries.push({
+				path: file.getVaultPath(),
+				category: "changed",
+			});
+		}
 	}
 
-	for (const file of status.published) {
-		entries.push({
-			path: file.getVaultPath(),
-			category: "published",
-		});
+	if (visible.has("published")) {
+		for (const file of status.published) {
+			entries.push({
+				path: file.getVaultPath(),
+				category: "published",
+			});
+		}
 	}
 
-	for (const path of status.deleted) {
-		entries.push({
-			path,
-			category: "deleted",
-		});
+	if (visible.has("deleted")) {
+		for (const path of status.deleted) {
+			entries.push({
+				path,
+				category: "deleted",
+			});
+		}
 	}
 
-	for (const entry of status.media) {
-		entries.push({
-			path: entry.vaultPath,
-			category: entry.linked ? "media-linked" : "media-unlinked",
-		});
+	if (visible.has("media-linked") || visible.has("media-unlinked")) {
+		for (const entry of status.media) {
+			const category = entry.linked ? "media-linked" : "media-unlinked";
+			if (visible.has(category)) {
+				entries.push({
+					path: entry.vaultPath,
+					category,
+				});
+			}
+		}
 	}
 
-	for (const entry of status.arbitrary) {
-		entries.push({
-			path: entry.vaultPath,
-			category: "arbitrary",
-		});
+	if (visible.has("arbitrary")) {
+		for (const entry of status.arbitrary) {
+			entries.push({
+				path: entry.vaultPath,
+				category: "arbitrary",
+			});
+		}
 	}
 
 	return entries;
@@ -404,37 +580,4 @@ function sortTree(node: TreeNode): void {
 			sortTree(child);
 		}
 	}
-}
-
-export function renderCategoryControls(
-	containerEl: HTMLElement,
-	treeState: TreeState,
-	category: SelectableCategory,
-	options: { onStateChange: () => void },
-): HTMLSpanElement {
-	const row = containerEl.createDiv({ cls: "category-controls" });
-	const count = treeState.getCategoryCount(category);
-	const label = row.createSpan({
-		text: `${categoryLabels[category]} (${count})`,
-	});
-
-	const selectButton = row.createEl("button", {
-		cls: "category-action",
-		text: "Select all",
-	});
-	selectButton.addEventListener("click", () => {
-		treeState.selectAll(category);
-		options.onStateChange();
-	});
-
-	const deselectButton = row.createEl("button", {
-		cls: "category-action",
-		text: "Deselect all",
-	});
-	deselectButton.addEventListener("click", () => {
-		treeState.deselectCategory(category);
-		options.onStateChange();
-	});
-
-	return label;
 }

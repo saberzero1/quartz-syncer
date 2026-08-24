@@ -1,4 +1,4 @@
-import { App, Modal } from "obsidian";
+import { App, Modal, Platform, setIcon } from "obsidian";
 import type QuartzSyncer from "src/main";
 import { GitHubApiService } from "src/github/GitHubApiService";
 import type {
@@ -13,6 +13,7 @@ import {
 	NotFoundError,
 	RateLimitError,
 } from "src/git/errors";
+import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
 
 const DEPLOY_WORKFLOW = `name: Deploy Quartz site to GitHub Pages
 
@@ -88,8 +89,8 @@ Edit this note in Obsidian, then publish it with Quartz Syncer.
 `;
 
 type WizardStep =
+	| "method"
 	| "token"
-	| "flow"
 	| "create"
 	| "connect"
 	| "configure"
@@ -155,7 +156,8 @@ export function getRepoNameError(name: string): string | null {
 
 export class OnboardingWizard extends Modal {
 	private plugin: QuartzSyncer;
-	private step: WizardStep = "token";
+	private step: WizardStep = "method";
+	private flow: "create" | "connect" | null = null;
 	private token = "";
 	private user: GitHubUser | null = null;
 	private repos: GitHubRepo[] = [];
@@ -168,6 +170,7 @@ export class OnboardingWizard extends Modal {
 	private apiService: GitHubApiService | null = null;
 	private newSiteName = "";
 	private isPrivate = false;
+	private stepContentEl: HTMLDivElement | null = null;
 
 	constructor(app: App, plugin: QuartzSyncer) {
 		super(app);
@@ -186,14 +189,25 @@ export class OnboardingWizard extends Modal {
 
 	private render(): void {
 		this.contentEl.empty();
+		this.stepContentEl = null;
+
+		if (Platform.isDesktopApp) {
+			const layout = this.contentEl.createDiv("qs-onboarding-layout");
+			this.renderStepper(layout);
+			this.stepContentEl = layout.createDiv("qs-onboarding-content");
+		} else {
+			this.renderStepper(this.contentEl);
+			this.stepContentEl = this.contentEl.createDiv();
+		}
+
 		this.renderNav();
 
 		switch (this.step) {
+			case "method":
+				this.renderMethodStep();
+				break;
 			case "token":
 				this.renderTokenStep();
-				break;
-			case "flow":
-				this.renderFlowStep();
 				break;
 			case "create":
 				this.renderCreateStep();
@@ -211,7 +225,8 @@ export class OnboardingWizard extends Modal {
 	}
 
 	private renderNav(): void {
-		const navEl = this.contentEl.createDiv("qs-onboarding-nav");
+		const container = this.stepContentEl ?? this.contentEl;
+		const navEl = container.createDiv("qs-onboarding-nav");
 		if (this.canGoBack()) {
 			const backBtn = navEl.createEl("button", {
 				text: "Back",
@@ -221,16 +236,130 @@ export class OnboardingWizard extends Modal {
 		}
 	}
 
-	private renderTokenStep(): void {
-		this.contentEl.createEl("p", {
-			text: "Enter your GitHub personal access token to continue.",
+	private renderStepper(container: HTMLElement): void {
+		const stepLabels = [
+			"Choose method",
+			"Enter token",
+			this.flow === "create" ? "Name your site" : "Select repository",
+			"Configure",
+			"Done",
+		];
+		const stepKeys: WizardStep[] = [
+			"method",
+			"token",
+			this.flow === "create" ? "create" : "connect",
+			"configure",
+			"success",
+		];
+		const currentIndex = stepKeys.indexOf(this.step);
+
+		if (!Platform.isDesktopApp) {
+			const safeIndex = Math.max(0, currentIndex);
+			const currentLabel = stepLabels[safeIndex] ?? "Choose method";
+			container.createDiv({
+				cls: "qs-onboarding-step-indicator",
+				text: `Step ${safeIndex + 1} of 5 — ${currentLabel}`,
+			});
+			return;
+		}
+
+		const stepper = container.createDiv("qs-onboarding-stepper");
+		stepLabels.forEach((label, index) => {
+			const stepEl = stepper.createDiv("qs-onboarding-step");
+			const iconEl = stepEl.createSpan("qs-onboarding-step-icon");
+			if (index < currentIndex) {
+				stepEl.addClass("is-completed");
+				setIcon(iconEl, "check");
+			} else if (index === currentIndex) {
+				stepEl.addClass("is-current");
+				setIcon(iconEl, "circle-dot");
+			} else {
+				stepEl.addClass("is-future");
+				setIcon(iconEl, "circle");
+			}
+			stepEl.createSpan({ text: label });
+		});
+	}
+
+	private renderMethodStep(): void {
+		const container = this.stepContentEl ?? this.contentEl;
+		this.renderError();
+
+		if (this.user) {
+			container.createEl("p", {
+				text: `Signed in as ${this.user.name ?? this.user.login}.`,
+			});
+		}
+
+		const choices = container.createDiv("qs-onboarding-choices");
+		const createCard = choices.createDiv("qs-onboarding-choice-card");
+		createCard.setAttr("tabindex", "0");
+		createCard.setAttr("role", "button");
+		const createIcon = createCard.createSpan("qs-onboarding-choice-icon");
+		setIcon(createIcon, "plus");
+		createCard.createSpan({
+			cls: "qs-onboarding-choice-title",
+			text: "Create new Quartz site",
+		});
+		createCard.createSpan({
+			cls: "qs-onboarding-choice-desc",
+			text: "Start fresh with a new GitHub repository",
 		});
 
-		const linkContainer = this.contentEl.createDiv("qs-onboarding-helper");
+		const connectCard = choices.createDiv("qs-onboarding-choice-card");
+		connectCard.setAttr("tabindex", "0");
+		connectCard.setAttr("role", "button");
+		const connectIcon = connectCard.createSpan("qs-onboarding-choice-icon");
+		setIcon(connectIcon, "link");
+		connectCard.createSpan({
+			cls: "qs-onboarding-choice-title",
+			text: "Connect existing repository",
+		});
+		connectCard.createSpan({
+			cls: "qs-onboarding-choice-desc",
+			text: "Link to a Quartz repository you already have",
+		});
+
+		const handleChoice = (flow: "create" | "connect") => {
+			this.flow = flow;
+			this.step = "token";
+			this.errorMessage = "";
+			this.render();
+		};
+		const handleKey = (
+			event: KeyboardEvent,
+			flow: "create" | "connect",
+		) => {
+			if (event.key === "Enter" || event.key === " ") {
+				event.preventDefault();
+				handleChoice(flow);
+			}
+		};
+		createCard.addEventListener("click", () => handleChoice("create"));
+		createCard.addEventListener("keydown", (event) =>
+			handleKey(event, "create"),
+		);
+		connectCard.addEventListener("click", () => handleChoice("connect"));
+		connectCard.addEventListener("keydown", (event) =>
+			handleKey(event, "connect"),
+		);
+	}
+
+	private renderTokenStep(): void {
+		const container = this.stepContentEl ?? this.contentEl;
+		this.renderError();
+
+		container.createEl("p", {
+			text: "You'll need a GitHub personal access token.",
+		});
+
+		const linkContainer = container.createDiv("qs-onboarding-helper");
 		const linkEl = linkContainer.createEl("a", {
-			text: "Generate a classic token",
 			href: "https://github.com/settings/tokens/new?scopes=repo,workflow&description=Quartz+Syncer",
 		});
+		const linkIcon = linkEl.createSpan();
+		setIcon(linkIcon, "external-link");
+		linkEl.appendText(" Generate a classic token");
 		linkEl.setAttr("target", "_blank");
 		linkContainer.appendText(
 			" with repo and workflow scopes. Alternatively, use a ",
@@ -244,7 +373,7 @@ export class OnboardingWizard extends Modal {
 			" with Contents, Workflows, and Administration permissions (read and write).",
 		);
 
-		const inputEl = this.contentEl.createEl("input", {
+		const inputEl = container.createEl("input", {
 			type: "password",
 			placeholder: "GitHub personal access token",
 			cls: "qs-onboarding-token-input",
@@ -254,7 +383,7 @@ export class OnboardingWizard extends Modal {
 			this.token = inputEl.value.trim();
 		});
 
-		const validateBtn = this.contentEl.createEl("button", {
+		const validateBtn = container.createEl("button", {
 			text: this.isBusy ? "Validating..." : "Validate",
 			cls: "qs-onboarding-validate",
 		});
@@ -262,53 +391,24 @@ export class OnboardingWizard extends Modal {
 		validateBtn.addEventListener("click", () => {
 			void this.handleValidateToken();
 		});
-
-		this.renderError();
-	}
-
-	private renderFlowStep(): void {
-		if (this.user) {
-			this.contentEl.createEl("p", {
-				text: `Signed in as ${this.user.name ?? this.user.login}.`,
-			});
-		}
-
-		const createBtn = this.contentEl.createEl("button", {
-			text: "Create new Quartz site",
-			cls: "qs-onboarding-create",
-		});
-		createBtn.addEventListener("click", () => {
-			this.step = "create";
-			this.errorMessage = "";
-			this.render();
-		});
-
-		const connectBtn = this.contentEl.createEl("button", {
-			text: "Connect to existing repository",
-			cls: "qs-onboarding-connect",
-		});
-		connectBtn.addEventListener("click", () => {
-			void this.handleLoadRepos();
-		});
-
-		this.renderError();
 	}
 
 	private renderCreateStep(): void {
-		this.contentEl.createEl("p", {
+		const container = this.stepContentEl ?? this.contentEl;
+		this.renderError();
+
+		container.createEl("p", {
 			text: "Choose a name for your Quartz site.",
 		});
 
-		const inputEl = this.contentEl.createEl("input", {
+		const inputEl = container.createEl("input", {
 			type: "text",
 			placeholder: "quartz",
 			cls: "qs-onboarding-site-name",
 		});
 		inputEl.value = this.newSiteName;
 
-		const validationEl = this.contentEl.createDiv(
-			"qs-onboarding-validation",
-		);
+		const validationEl = container.createDiv("qs-onboarding-validation");
 
 		const nameError = getRepoNameError(this.newSiteName);
 
@@ -334,9 +434,7 @@ export class OnboardingWizard extends Modal {
 				!isValidRepoName(this.newSiteName);
 		});
 
-		const toggleContainer = this.contentEl.createDiv(
-			"qs-onboarding-toggle",
-		);
+		const toggleContainer = container.createDiv("qs-onboarding-toggle");
 		const toggleLabel = toggleContainer.createEl("label");
 		const checkboxEl = toggleLabel.createEl("input", { type: "checkbox" });
 		checkboxEl.checked = this.isPrivate;
@@ -349,7 +447,7 @@ export class OnboardingWizard extends Modal {
 			cls: "qs-onboarding-helper",
 		});
 
-		const createBtn = this.contentEl.createEl("button", {
+		const createBtn = container.createEl("button", {
 			text: this.isBusy ? "Creating..." : "Create site",
 			cls: "qs-onboarding-create-confirm",
 		});
@@ -362,35 +460,35 @@ export class OnboardingWizard extends Modal {
 		});
 
 		if (this.isBusy) {
-			this.contentEl.createEl("p", {
+			container.createEl("p", {
 				text: "Creating repository and enabling pages...",
 				cls: "qs-onboarding-progress",
 			});
 		}
-
-		this.renderError();
 	}
 
 	private renderConnectStep(): void {
-		this.contentEl.createEl("p", {
+		const container = this.stepContentEl ?? this.contentEl;
+		this.renderError();
+		container.createEl("p", {
 			text: "Select a repository to connect.",
 		});
 
 		if (this.isBusy && this.repos.length === 0) {
-			this.contentEl.createEl("p", {
+			container.createEl("p", {
 				text: "Loading repositories...",
 				cls: "qs-onboarding-progress",
 			});
 			return;
 		}
 
-		const filterInput = this.contentEl.createEl("input", {
+		const filterInput = container.createEl("input", {
 			type: "text",
 			placeholder: "Filter repositories\u2026",
 			cls: "qs-onboarding-repo-filter",
 		});
 
-		const selectEl = this.contentEl.createEl("select", {
+		const selectEl = container.createEl("select", {
 			cls: "qs-onboarding-repo-select",
 		});
 		selectEl.size = 8;
@@ -436,11 +534,11 @@ export class OnboardingWizard extends Modal {
 			this.selectedRepo = selected ?? null;
 		});
 
-		this.contentEl.createDiv({ cls: "qs-onboarding-helper" }).createSpan({
+		container.createDiv({ cls: "qs-onboarding-helper" }).createSpan({
 			text: `${this.repos.length} repositories loaded.`,
 		});
 
-		const connectBtn = this.contentEl.createEl("button", {
+		const connectBtn = container.createEl("button", {
 			text: "Continue",
 			cls: "qs-onboarding-connect-confirm",
 		});
@@ -454,34 +552,35 @@ export class OnboardingWizard extends Modal {
 			this.errorMessage = "";
 			this.render();
 		});
-
-		this.renderError();
 	}
 
 	private renderConfigureStep(): void {
+		const container = this.stepContentEl ?? this.contentEl;
+		this.renderError();
+
 		const repo = this.createdRepo ?? this.selectedRepo;
 		if (!repo) {
-			this.contentEl.createEl("p", {
+			container.createEl("p", {
 				text: "No repository selected.",
 			});
 			return;
 		}
 
-		this.contentEl.createEl("p", {
+		container.createEl("p", {
 			text: "We will configure Quartz Syncer with the following settings:",
 		});
 
-		this.contentEl.createEl("p", {
+		container.createEl("p", {
 			text: `Repository: ${repo.full_name}`,
 		});
 		const displayBranch = this.createdRepo
 			? "v5"
 			: repo.default_branch || "v5";
-		this.contentEl.createEl("p", {
+		container.createEl("p", {
 			text: `Branch: ${displayBranch}`,
 		});
 
-		const configureBtn = this.contentEl.createEl("button", {
+		const configureBtn = container.createEl("button", {
 			text: this.isBusy ? "Saving..." : "Save settings",
 			cls: "qs-onboarding-configure",
 		});
@@ -489,21 +588,24 @@ export class OnboardingWizard extends Modal {
 		configureBtn.addEventListener("click", () => {
 			void this.handleConfigure(repo);
 		});
-
-		this.renderError();
 	}
 
 	private renderSuccessStep(): void {
-		this.contentEl.createEl("p", {
-			text: "Your Quartz site is ready! Mark notes with 'publish: true' to get started.",
+		const container = this.stepContentEl ?? this.contentEl;
+		this.renderError();
+
+		container.createEl("p", {
+			text: "Your Quartz site is ready!",
 		});
 
 		const repo = this.createdRepo ?? this.selectedRepo;
 		if (repo) {
 			const [owner] = repo.full_name.split("/");
 			const repoName = repo.full_name.split("/")[1] ?? "";
-			const pagesUrl = `https://${owner}.github.io/${repoName}/`;
-			const urlContainer = this.contentEl.createEl("p");
+			const pagesUrl =
+				this.pagesConfig?.url ??
+				`https://${owner}.github.io/${repoName}/`;
+			const urlContainer = container.createEl("p");
 			urlContainer.createSpan({ text: "Site URL: " });
 			const urlLink = urlContainer.createEl("a", {
 				text: pagesUrl,
@@ -513,45 +615,57 @@ export class OnboardingWizard extends Modal {
 		}
 
 		if (this.pagesWarning) {
-			this.contentEl.createEl("p", {
+			container.createEl("p", {
 				text: this.pagesWarning,
 				cls: "qs-onboarding-warning",
 			});
 		}
 
-		const doneButton = this.contentEl.createEl("button", {
+		container.createEl("p", { text: "What's next" });
+		container.createEl("p", {
+			text: "Mark notes with `publish: true` in their frontmatter, then open the Publication Center to publish them.",
+		});
+
+		const openCenterButton = container.createEl("button", {
 			cls: "mod-cta",
+			text: "Open Publication Center",
+		});
+		openCenterButton.addEventListener("click", () => {
+			this.close();
+			new PublicationCenter(this.app, this.plugin).open();
+		});
+
+		const doneButton = container.createEl("button", {
 			text: "Done",
 		});
-		doneButton.style.marginTop = "1em";
+		doneButton.addClass("qs-done-button");
 		doneButton.addEventListener("click", () => {
 			this.close();
 		});
 	}
 
 	private renderError(): void {
+		const container = this.stepContentEl ?? this.contentEl;
 		if (!this.errorMessage) return;
-		this.contentEl.createEl("p", {
-			text: this.errorMessage,
-			cls: "qs-onboarding-error",
-		});
+		const errorEl = container.createDiv("qs-onboarding-error-callout");
+		errorEl.createSpan({ text: this.errorMessage });
 	}
 
 	private canGoBack(): boolean {
-		return this.step !== "token";
+		return this.step !== "method";
 	}
 
 	private goBack(): void {
 		switch (this.step) {
-			case "flow":
-				this.step = "token";
+			case "token":
+				this.step = "method";
 				break;
 			case "create":
 			case "connect":
-				this.step = "flow";
+				this.step = "token";
 				break;
 			case "configure":
-				this.step = this.createdRepo ? "create" : "connect";
+				this.step = this.flow === "create" ? "create" : "connect";
 				break;
 			case "success":
 				this.step = "configure";
@@ -573,7 +687,12 @@ export class OnboardingWizard extends Modal {
 		try {
 			const service = this.getService();
 			this.user = await service.validateToken(this.token);
-			this.step = "flow";
+			if (this.flow === "create") {
+				this.step = "create";
+				return;
+			}
+			void this.handleLoadRepos();
+			return;
 		} catch (error) {
 			this.errorMessage = this.formatError(error);
 		} finally {

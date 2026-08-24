@@ -29,6 +29,8 @@ export type QuartzSyncerCache = {
 	dataviewRevision?: number;
 	/** Datacore index revision at the time this file was compiled. */
 	datacoreRevision?: number;
+	/** Vault paths of media files linked by this note. */
+	mediaLinks?: string[];
 };
 
 /**
@@ -486,6 +488,15 @@ export class DataStore {
 			},
 			timestamp,
 		);
+	}
+
+	public async storeMediaLinks(path: string, links: string[]): Promise<void> {
+		await this.mergeAndStore(path, { mediaLinks: links });
+	}
+
+	public async loadMediaLinks(path: string): Promise<string[]> {
+		const data = await this.getCacheEntry(path);
+		return data?.mediaLinks ?? [];
 	}
 
 	public async storeCompilationRevisions(
