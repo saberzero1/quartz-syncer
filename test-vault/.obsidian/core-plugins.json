@@ -29,5 +29,6 @@
 	"publish": false,
 	"sync": true,
 	"bases": true,
-	"webviewer": false
+	"webviewer": true,
+	"undefined": false
 }
