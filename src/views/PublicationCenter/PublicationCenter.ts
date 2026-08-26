@@ -63,7 +63,7 @@ export class PublicationCenter extends Modal {
 	private diffContentEl: HTMLDivElement | null = null;
 	private publicationTree: PublicationTree | null = null;
 	private searchInputEl: HTMLInputElement | null = null;
-	private filterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+	private filterDebounceTimer: number | null = null;
 	private hasShell = false;
 	private isOperating = false;
 	private fileMap = new Map<string, PublishFile>();
@@ -88,7 +88,7 @@ export class PublicationCenter extends Modal {
 		this.modalEl.addClass("qs-pub-center");
 		this.modalEl.setAttrs(qsDom("pub-center"));
 		this.contentEl.empty();
-		this.titleEl.setText("Publication center");
+		this.titleEl.setText("Publication Center");
 		this.renderLoadingState();
 
 		this._plugin.pauseAutoPublish();
@@ -133,7 +133,7 @@ export class PublicationCenter extends Modal {
 		this.mediaSources.clear();
 		this.tabButtons.clear();
 		if (this.filterDebounceTimer !== null) {
-			clearTimeout(this.filterDebounceTimer);
+			window.clearTimeout(this.filterDebounceTimer);
 			this.filterDebounceTimer = null;
 		}
 		this.hasShell = false;
@@ -302,10 +302,10 @@ export class PublicationCenter extends Modal {
 		this.searchInputEl.setAttrs(qsDom("pub-search"));
 		this.searchInputEl.addEventListener("input", () => {
 			if (this.filterDebounceTimer !== null) {
-				clearTimeout(this.filterDebounceTimer);
+				window.clearTimeout(this.filterDebounceTimer);
 			}
 
-			this.filterDebounceTimer = setTimeout(() => {
+			this.filterDebounceTimer = window.setTimeout(() => {
 				this.treeState.filterText = this.searchInputEl?.value ?? "";
 				this.updateTreeState();
 				this.filterDebounceTimer = null;
@@ -321,7 +321,7 @@ export class PublicationCenter extends Modal {
 				this.treeContainerEl,
 				this.treeState,
 				{
-					onFileClick: (path) => this.openDiff(path),
+					onFileClick: (path) => void this.openDiff(path),
 					onStateChange: () => this.updateTreeState(),
 				},
 			);

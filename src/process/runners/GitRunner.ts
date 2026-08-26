@@ -89,6 +89,7 @@ export class GitRunner {
 			binary: "git" as const,
 			args: ["clone", url, dest],
 			cwd,
+			timeout: -1,
 		};
 		const result = await this.runner.run({
 			...config,

@@ -47,7 +47,7 @@ export class GitSettingsPage extends SettingPageBase {
 		new Setting(this.containerEl)
 			.setName("Remote URL")
 			.setDesc(
-				"The full URL of your git repository (e.g., HTTPS://GitHub.com/username/Quartz.git)",
+				"The full URL of your git repository (e.g., https://github.com/username/quartz.git)",
 			)
 			.addText((text) =>
 				text

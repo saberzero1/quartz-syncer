@@ -103,8 +103,8 @@ export class ManualSetupModal extends Modal {
 				.setName("Username")
 				.setDesc("Your username for authentication")
 				.addText((text) => {
-					text.setPlaceholder("username")
-						.setValue(this.username)
+					text.setPlaceholder("")
+						.setValue(this.username || "username")
 						.onChange((value) => {
 							this.username = value.trim();
 						});
@@ -153,8 +153,8 @@ export class ManualSetupModal extends Modal {
 			.setName("Content folder")
 			.setDesc("Quartz content folder in the repository")
 			.addText((text) => {
-				text.setPlaceholder("content")
-					.setValue(this.contentFolder)
+				text.setPlaceholder("")
+					.setValue(this.contentFolder || "content")
 					.onChange((value) => {
 						this.contentFolder = value.trim() || "content";
 					});

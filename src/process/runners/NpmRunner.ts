@@ -80,6 +80,7 @@ export class NpmRunner {
 			binary: "npm" as const,
 			args: ["install"],
 			cwd,
+			timeout: -1,
 		};
 		const result = await this.runner.run({
 			...config,

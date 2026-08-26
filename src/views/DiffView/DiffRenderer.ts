@@ -116,10 +116,8 @@ export function collapseAll(container: HTMLElement): void {
 			if (rows.length === 0) continue;
 			const firstRow = rows[0];
 			if (!firstRow) continue;
-			const placeholder = createCollapsedPlaceholderElement(
-				unifiedContainer.ownerDocument,
-				region,
-				() => expandRegion(container, region.id),
+			const placeholder = createCollapsedPlaceholderElement(region, () =>
+				expandRegion(container, region.id),
 			);
 			firstRow.replaceWith(placeholder);
 			for (const row of rows.slice(1)) {
@@ -151,12 +149,10 @@ export function collapseAll(container: HTMLElement): void {
 		const firstRight = rightRows[0];
 		if (!firstLeft || !firstRight) continue;
 		const leftPlaceholderEl = createCollapsedPlaceholderElement(
-			leftPane.ownerDocument,
 			region,
 			() => expandRegion(container, region.id),
 		);
 		const rightPlaceholderEl = createCollapsedPlaceholderElement(
-			rightPane.ownerDocument,
 			region,
 			() => expandRegion(container, region.id),
 		);
@@ -221,7 +217,6 @@ function renderSplitView(
 		for (const row of rows) {
 			leftPane.appendChild(
 				buildSplitRowElement(
-					leftPane.ownerDocument,
 					row.leftNumber,
 					row.leftText,
 					row.leftClass,
@@ -229,7 +224,6 @@ function renderSplitView(
 			);
 			rightPane.appendChild(
 				buildSplitRowElement(
-					rightPane.ownerDocument,
 					row.rightNumber,
 					row.rightText,
 					row.rightClass,
@@ -273,9 +267,7 @@ function renderUnifiedView(
 	diffState.set(targetEl, state);
 	if (collapseRegions.length === 0) {
 		for (const row of rows) {
-			container.appendChild(
-				buildUnifiedRowElement(container.ownerDocument, row),
-			);
+			container.appendChild(buildUnifiedRowElement(row));
 		}
 		return;
 	}
@@ -295,12 +287,10 @@ function renderSplitRowsWithCollapse(
 		const region = regions[regionIndex];
 		if (region && region.start === index) {
 			const leftPlaceholder = createCollapsedPlaceholderElement(
-				leftPane.ownerDocument,
 				region,
 				() => expandRegion(container, region.id),
 			);
 			const rightPlaceholder = createCollapsedPlaceholderElement(
-				rightPane.ownerDocument,
 				region,
 				() => expandRegion(container, region.id),
 			);
@@ -313,16 +303,10 @@ function renderSplitRowsWithCollapse(
 		const row = rows[index];
 		if (!row) continue;
 		leftPane.appendChild(
-			buildSplitRowElement(
-				leftPane.ownerDocument,
-				row.leftNumber,
-				row.leftText,
-				row.leftClass,
-			),
+			buildSplitRowElement(row.leftNumber, row.leftText, row.leftClass),
 		);
 		rightPane.appendChild(
 			buildSplitRowElement(
-				rightPane.ownerDocument,
 				row.rightNumber,
 				row.rightText,
 				row.rightClass,
@@ -341,10 +325,8 @@ function renderUnifiedRowsWithCollapse(
 	for (let index = 0; index < rows.length; index += 1) {
 		const region = regions[regionIndex];
 		if (region && region.start === index) {
-			const placeholder = createCollapsedPlaceholderElement(
-				unifiedContainer.ownerDocument,
-				region,
-				() => expandRegion(container, region.id),
+			const placeholder = createCollapsedPlaceholderElement(region, () =>
+				expandRegion(container, region.id),
 			);
 			unifiedContainer.appendChild(placeholder);
 			index = region.end;
@@ -353,73 +335,54 @@ function renderUnifiedRowsWithCollapse(
 		}
 		const row = rows[index];
 		if (!row) continue;
-		unifiedContainer.appendChild(
-			buildUnifiedRowElement(unifiedContainer.ownerDocument, row),
-		);
+		unifiedContainer.appendChild(buildUnifiedRowElement(row));
 	}
 }
 
 function buildSplitRowElement(
-	doc: Document,
 	lineNumber: number | null,
 	text: string,
 	className?: string,
 	collapseId?: string,
 ): HTMLDivElement {
-	const line = doc.createElement("div");
-	line.className = `diff-line ${className ?? ""}`.trim();
+	const line = createDiv({ cls: `diff-line ${className ?? ""}`.trim() });
 	if (collapseId) {
 		line.dataset.collapseId = collapseId;
 	}
-	const numberEl = doc.createElement("span");
-	numberEl.className = "diff-line-number";
-	numberEl.textContent = lineNumber ? String(lineNumber) : "";
-	line.appendChild(numberEl);
-	const textEl = doc.createElement("span");
-	textEl.className = "diff-line-text";
-	textEl.textContent = text;
-	line.appendChild(textEl);
+	line.createSpan({
+		cls: "diff-line-number",
+		text: lineNumber ? String(lineNumber) : "",
+	});
+	line.createSpan({ cls: "diff-line-text", text });
 	return line;
 }
 
 function buildUnifiedRowElement(
-	doc: Document,
 	row: UnifiedRow,
 	collapseId?: string,
 ): HTMLDivElement {
-	const line = doc.createElement("div");
-	line.className = `diff-line ${row.className ?? ""}`.trim();
+	const line = createDiv({ cls: `diff-line ${row.className ?? ""}`.trim() });
 	if (collapseId) {
 		line.dataset.collapseId = collapseId;
 	}
-	const numberEl = doc.createElement("span");
-	numberEl.className = "diff-line-number";
-	numberEl.textContent = row.lineNumber ? String(row.lineNumber) : "";
-	line.appendChild(numberEl);
-	const prefixEl = doc.createElement("span");
-	prefixEl.className = "diff-line-prefix";
-	prefixEl.textContent = row.prefix;
-	line.appendChild(prefixEl);
-	const textEl = doc.createElement("span");
-	textEl.className = "diff-line-text";
-	textEl.textContent = row.text;
-	line.appendChild(textEl);
+	line.createSpan({
+		cls: "diff-line-number",
+		text: row.lineNumber ? String(row.lineNumber) : "",
+	});
+	line.createSpan({ cls: "diff-line-prefix", text: row.prefix });
+	line.createSpan({ cls: "diff-line-text", text: row.text });
 	return line;
 }
 
 function createCollapsedPlaceholderElement(
-	doc: Document,
 	region: CollapseRegion,
 	onClick: () => void,
 ): HTMLDivElement {
-	const el = doc.createElement("div");
-	el.className = "diff-collapsed";
+	const el = createDiv({ cls: "diff-collapsed" });
 	el.dataset.collapseId = region.id;
 	el.dataset.hiddenCount = String(region.count);
-	const span = doc.createElement("span");
 	const suffix = region.count === 1 ? "" : "s";
-	span.textContent = `Show ${region.count} hidden line${suffix}`;
-	el.appendChild(span);
+	el.createSpan({ text: `Show ${region.count} hidden line${suffix}` });
 	el.addEventListener("click", onClick);
 	return el;
 }
@@ -437,18 +400,11 @@ function expandRegion(container: HTMLElement, regionId: string): void {
 			`.diff-collapsed[data-collapse-id="${regionId}"]`,
 		);
 		if (!placeholder) return;
-		const fragment =
-			unifiedContainer.ownerDocument.createDocumentFragment();
+		const fragment = createFragment();
 		for (let index = region.start; index <= region.end; index += 1) {
 			const row = rows[index];
 			if (!row) continue;
-			fragment.appendChild(
-				buildUnifiedRowElement(
-					unifiedContainer.ownerDocument,
-					row,
-					regionId,
-				),
-			);
+			fragment.appendChild(buildUnifiedRowElement(row, regionId));
 		}
 		placeholder.replaceWith(fragment);
 		notifyCollapseChange(container);
@@ -466,14 +422,13 @@ function expandRegion(container: HTMLElement, regionId: string): void {
 		`.diff-collapsed[data-collapse-id="${regionId}"]`,
 	);
 	if (!leftPlaceholder || !rightPlaceholder) return;
-	const leftFragment = leftPane.ownerDocument.createDocumentFragment();
-	const rightFragment = rightPane.ownerDocument.createDocumentFragment();
+	const leftFragment = createFragment();
+	const rightFragment = createFragment();
 	for (let index = region.start; index <= region.end; index += 1) {
 		const row = rows[index];
 		if (!row) continue;
 		leftFragment.appendChild(
 			buildSplitRowElement(
-				leftPane.ownerDocument,
 				row.leftNumber,
 				row.leftText,
 				row.leftClass,
@@ -482,7 +437,6 @@ function expandRegion(container: HTMLElement, regionId: string): void {
 		);
 		rightFragment.appendChild(
 			buildSplitRowElement(
-				rightPane.ownerDocument,
 				row.rightNumber,
 				row.rightText,
 				row.rightClass,

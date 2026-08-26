@@ -33,6 +33,7 @@ import { StatusBar, type StatusBarState } from "src/views/StatusBar";
 import { OperabilityFacadeImpl } from "src/operability/OperabilityFacade";
 import { EventBuffer } from "src/operability/EventBuffer";
 import { PublicationCenterManager } from "src/operability/PublicationCenterManager";
+import { QuartzHubManager } from "src/operability/QuartzHubManager";
 
 /**
  * QuartzSyncer plugin settings.
@@ -181,6 +182,7 @@ export default class QuartzSyncer extends Plugin {
 	private operabilityFacade: OperabilityFacadeImpl | null = null;
 	private eventSink: EventBuffer | null = null;
 	private publicationCenterManager: PublicationCenterManager | null = null;
+	private quartzHubManager: QuartzHubManager | null = null;
 	processRunner: ProcessRunner | null = null;
 	binaryDetector: BinaryDetector | null = null;
 	gitRunner: GitRunner | null = null;
@@ -220,7 +222,7 @@ export default class QuartzSyncer extends Plugin {
 
 		this.addCommands();
 		this.cliHandlers = registerCliHandlers(this);
-		this.addRibbonIcon("leaf", "Quartz Syncer publication center", () => {
+		this.addRibbonIcon("leaf", "Quartz Syncer Publication Center", () => {
 			this.publicationCenterManager?.open() ??
 				new PublicationCenter(this.app, this).open();
 		});
@@ -295,6 +297,10 @@ export default class QuartzSyncer extends Plugin {
 			this.quartzRunner = new QuartzRunner(this.processRunner);
 		}
 
+		if (Platform.isDesktopApp) {
+			this.quartzHubManager = new QuartzHubManager(this.app, this);
+		}
+
 		if (Platform.isDesktopApp && this.settings.autoPublishInterval > 0) {
 			this.backgroundEngine.startAutoPublish(
 				this.settings.autoPublishInterval,
@@ -320,6 +326,7 @@ export default class QuartzSyncer extends Plugin {
 		this.operabilityFacade = null;
 		this.eventSink = null;
 		this.publicationCenterManager = null;
+		this.quartzHubManager = null;
 		this.publisher?.stopPeriodicFetch();
 		this.backgroundEngine?.stopAutoPublish();
 		this.backgroundEngine?.stop();
@@ -627,6 +634,10 @@ export default class QuartzSyncer extends Plugin {
 		return this.publicationCenterManager;
 	}
 
+	getQuartzHubManager(): QuartzHubManager | null {
+		return this.quartzHubManager;
+	}
+
 	getEngineStatus(): {
 		running: boolean;
 		pending: number;
@@ -642,7 +653,7 @@ export default class QuartzSyncer extends Plugin {
 	private addCommands(): void {
 		this.addCommand({
 			id: "open-publish-modal",
-			name: "Open publication center",
+			name: "Open Publication Center",
 			callback: () => {
 				this.publicationCenterManager?.open() ??
 					new PublicationCenter(this.app, this).open();
@@ -655,6 +666,13 @@ export default class QuartzSyncer extends Plugin {
 				name: "Setup wizard",
 				callback: () => {
 					new OnboardingWizard(this.app, this).open();
+				},
+			});
+			this.addCommand({
+				id: "open-hub",
+				name: "Open Quartz Hub",
+				callback: () => {
+					this.quartzHubManager?.open();
 				},
 			});
 		}

@@ -45,6 +45,7 @@ describe("GitRunner", () => {
 			binary: "git",
 			args: ["clone", "https://example.com/repo.git", "dest"],
 			cwd: "/repo",
+			timeout: -1,
 		});
 	});
 

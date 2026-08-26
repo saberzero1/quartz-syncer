@@ -51,7 +51,7 @@ export function createMarkHandler(_plugin: QuartzSyncer): CliHandler {
 					normalizeFuzzy(file.basename).includes(normalizedQuery),
 				);
 		} else if (isGlob) {
-			const unsupported = /[?{}\[\]!]/.test(pathArg);
+			const unsupported = /[?{}[\]!]/.test(pathArg);
 			if (unsupported) {
 				return {
 					success: false,

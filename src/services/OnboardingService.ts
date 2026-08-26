@@ -229,7 +229,7 @@ export class OnboardingService {
 		const delayMs = 2000;
 
 		for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-			await new Promise((resolve) => setTimeout(resolve, delayMs));
+			await new Promise((resolve) => window.setTimeout(resolve, delayMs));
 			const file = await service.getFileContent(
 				owner,
 				repo,

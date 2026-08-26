@@ -2,7 +2,7 @@ import { browser, expect } from "@wdio/globals";
 import { before, describe, it } from "mocha";
 import { obsidianPage } from "wdio-obsidian-service";
 
-describe("Publication center", function () {
+describe("Publication Center", function () {
 	before(async function () {
 		await browser.reloadObsidian({ vault: "test-vault" });
 		await obsidianPage.openFile("Target.md");

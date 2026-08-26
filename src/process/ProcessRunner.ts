@@ -57,7 +57,7 @@ let childProcessCache: ChildProcessModule | null = null;
 let pendingProcess: ChildProcessHandle | null = null;
 let disabled = false;
 let errorTimestamps: number[] = [];
-let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+let recoveryTimer: number | null = null;
 
 const ERROR_WINDOW_MS = 60_000;
 const ERROR_THRESHOLD = 3;
@@ -91,7 +91,7 @@ function recordError(message: string, error?: ExecFileError): void {
 function scheduleRecovery(): void {
 	if (recoveryTimer !== null) return;
 
-	recoveryTimer = setTimeout(() => {
+	recoveryTimer = window.setTimeout(() => {
 		disabled = false;
 		errorTimestamps = [];
 		recoveryTimer = null;
@@ -438,7 +438,7 @@ export class ProcessRunner {
 		disabled = false;
 		errorTimestamps = [];
 		if (recoveryTimer !== null) {
-			clearTimeout(recoveryTimer);
+			window.clearTimeout(recoveryTimer);
 			recoveryTimer = null;
 		}
 	}

@@ -18,7 +18,18 @@ export type QSDomRole =
 	| "settings-test-btn"
 	| "settings-test-result"
 	| "notice"
-	| "diff-view";
+	| "diff-view"
+	| "hub"
+	| "hub-tab"
+	| "hub-status"
+	| "hub-action"
+	| "hub-path"
+	| "hub-serve-status"
+	| "hub-setup-link"
+	| "hub-setup-link-path"
+	| "hub-setup-clone"
+	| "hub-setup-clone-url"
+	| "hub-setup-clone-dest";
 
 /**
  * Generates stable DOM attributes for the operability DOM contract.

@@ -14,9 +14,9 @@ export function launchQuartzPreview(
 		return;
 	}
 
-	const internalPlugins = (app as any).internalPlugins as
-		| InternalPlugins
-		| undefined;
+	const internalPlugins = (
+		app as unknown as { internalPlugins?: InternalPlugins }
+	).internalPlugins;
 	const webviewerPlugin = internalPlugins?.getPluginById("webviewer");
 
 	if (!webviewerPlugin?.enabled || !webviewerPlugin?.instance) {
@@ -35,7 +35,9 @@ export function launchQuartzPreview(
 		port,
 		signal: new AbortController().signal,
 		onStdout: (line) => {
-			if (/server running/i.test(line)) {
+			// eslint-disable-next-line no-control-regex -- Control characters are used for color codes in the terminal output
+			const stripped = line.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "");
+			if (/listening at/i.test(stripped)) {
 				webviewerPlugin.instance.openUrl(url, "tab", true);
 			}
 		},

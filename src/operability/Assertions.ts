@@ -395,7 +395,7 @@ function parseExpectedCounts(
 	const expected: Partial<Record<CountKey, number>> = {};
 
 	for (const key of COUNT_KEYS) {
-		const value = (candidate as Record<string, unknown>)[key];
+		const value = candidate[key];
 		if (typeof value === "number") {
 			expected[key] = value;
 		}

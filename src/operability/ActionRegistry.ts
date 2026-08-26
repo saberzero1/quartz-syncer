@@ -14,6 +14,7 @@ import { LocalFileSource } from "src/quartz/LocalFileSource";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 import { getValueByPath, setValueByPath } from "src/cli/handlers/cliUtils";
 import type { PublicationCenterManager } from "src/operability/PublicationCenterManager";
+import type { QuartzHubManager } from "src/operability/QuartzHubManager";
 
 type PublishStatusSummary = {
 	unpublished: number;
@@ -42,6 +43,7 @@ export class ActionRegistry {
 		private getPublicationService: () => PublicationService | null,
 		private getOnboardingService: () => OnboardingService | null,
 		private getPublicationCenterManager: () => PublicationCenterManager | null,
+		private getQuartzHubManager: () => QuartzHubManager | null,
 	) {}
 
 	getPublishStatusSummary(): PublishStatusSummary | null {
@@ -103,6 +105,22 @@ export class ActionRegistry {
 				return this.selectAllPublicationPaths();
 			case "pub.deselectAll":
 				return this.deselectAllPublicationPaths();
+			case "hub.open":
+				return this.openQuartzHub();
+			case "hub.close":
+				return this.closeQuartzHub();
+			case "hub.setup.link":
+				return this.withLock(() =>
+					this.linkLocalRepo(action.params.path),
+				);
+			case "hub.setup.clone":
+				return this.withLock(() =>
+					this.cloneAndLinkRepo(
+						action.params.url,
+						action.params.dest,
+						action.params.confirm,
+					),
+				);
 			case "onboarding.start":
 			case "onboarding.setToken":
 			case "onboarding.createRepo":
@@ -248,7 +266,7 @@ export class ActionRegistry {
 	private openPublicationCenter(): ActionResult {
 		const manager = this.getPublicationCenterManager();
 		if (!manager) {
-			return { success: false, error: "Publication center unavailable" };
+			return { success: false, error: "Publication Center unavailable" };
 		}
 		manager.open();
 		return { success: true };
@@ -257,16 +275,111 @@ export class ActionRegistry {
 	private closePublicationCenter(): ActionResult {
 		const manager = this.getPublicationCenterManager();
 		if (!manager) {
-			return { success: false, error: "Publication center unavailable" };
+			return { success: false, error: "Publication Center unavailable" };
 		}
 		manager.close();
 		return { success: true };
 	}
 
+	private openQuartzHub(): ActionResult {
+		const manager = this.getQuartzHubManager();
+		if (!manager) {
+			return { success: false, error: "Quartz Hub unavailable" };
+		}
+		manager.open();
+		return { success: true };
+	}
+
+	private closeQuartzHub(): ActionResult {
+		const manager = this.getQuartzHubManager();
+		if (!manager) {
+			return { success: false, error: "Quartz Hub unavailable" };
+		}
+		manager.close();
+		return { success: true };
+	}
+
+	private async linkLocalRepo(path: string): Promise<ActionResult> {
+		if (!path) {
+			return { success: false, error: "Path is required" };
+		}
+
+		const trimmed = path.trim();
+		const { QuartzHubService } =
+			await import("src/services/QuartzHubService");
+		const service = new QuartzHubService(this.plugin);
+		const validation = service.validateRepoPath(trimmed);
+
+		if (!validation.ok) {
+			return { success: false, error: validation.message };
+		}
+
+		this.plugin.settings.quartzRepoPath = trimmed;
+		this.plugin.settings.enableSystemCommands = true;
+		await this.plugin.saveSettings();
+
+		return { success: true, data: { path: trimmed } };
+	}
+
+	private async cloneAndLinkRepo(
+		url: string,
+		dest: string,
+		confirm: true | undefined,
+	): Promise<ActionResult> {
+		if (!confirm) {
+			return { success: false, error: "Confirmation required" };
+		}
+
+		if (!url || !dest) {
+			return {
+				success: false,
+				error: "URL and destination path are required",
+			};
+		}
+
+		const gitRunner = this.plugin.gitRunner;
+		const npmRunner = this.plugin.npmRunner;
+
+		if (!gitRunner) {
+			return { success: false, error: "Git runner unavailable" };
+		}
+
+		if (!npmRunner) {
+			return { success: false, error: "Npm runner unavailable" };
+		}
+
+		const parentDir = dest.substring(0, dest.lastIndexOf("/")) || "/";
+		const dirName = dest.substring(dest.lastIndexOf("/") + 1);
+
+		const cloneResult = await gitRunner.clone(url, dirName, {
+			cwd: parentDir,
+		});
+		if (!cloneResult.ok) {
+			return {
+				success: false,
+				error: `Clone failed: ${cloneResult.error}`,
+			};
+		}
+
+		const installResult = await npmRunner.install({ cwd: dest });
+		if (!installResult.ok) {
+			return {
+				success: false,
+				error: `npm install failed: ${installResult.error}`,
+			};
+		}
+
+		this.plugin.settings.quartzRepoPath = dest;
+		this.plugin.settings.enableSystemCommands = true;
+		await this.plugin.saveSettings();
+
+		return { success: true, data: { path: dest } };
+	}
+
 	private selectPublicationPaths(paths: string[]): ActionResult {
 		const controller = this.getPublicationCenterController();
 		if (!controller) {
-			return { success: false, error: "Publication center unavailable" };
+			return { success: false, error: "Publication Center unavailable" };
 		}
 		controller.setSelected(paths);
 		return { success: true };
@@ -275,7 +388,7 @@ export class ActionRegistry {
 	private deselectPublicationPaths(paths: string[]): ActionResult {
 		const controller = this.getPublicationCenterController();
 		if (!controller) {
-			return { success: false, error: "Publication center unavailable" };
+			return { success: false, error: "Publication Center unavailable" };
 		}
 		const remaining = new Set(controller.getSelected());
 		for (const path of paths) {
@@ -288,7 +401,7 @@ export class ActionRegistry {
 	private selectAllPublicationPaths(): ActionResult {
 		const controller = this.getPublicationCenterController();
 		if (!controller) {
-			return { success: false, error: "Publication center unavailable" };
+			return { success: false, error: "Publication Center unavailable" };
 		}
 		controller.selectAll();
 		return { success: true };
@@ -297,7 +410,7 @@ export class ActionRegistry {
 	private deselectAllPublicationPaths(): ActionResult {
 		const controller = this.getPublicationCenterController();
 		if (!controller) {
-			return { success: false, error: "Publication center unavailable" };
+			return { success: false, error: "Publication Center unavailable" };
 		}
 		controller.deselectAll();
 		return { success: true };

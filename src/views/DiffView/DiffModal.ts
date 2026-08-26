@@ -99,8 +99,8 @@ export class DiffModal extends Modal {
 			this.props.category === "unpublished" ||
 			this.props.category === "deleted"
 		) {
-			this.splitButtonEl.style.display = "none";
-			this.unifiedButtonEl.style.display = "none";
+			this.splitButtonEl.hide();
+			this.unifiedButtonEl.hide();
 		}
 
 		this.collapseToggleEl = controls.createEl("button", {

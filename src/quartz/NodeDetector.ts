@@ -88,7 +88,7 @@ export class NodeDetector {
 				{ timeout: 10000 },
 				(error, stdout, stderr) => {
 					if (error) {
-						reject(error);
+						reject(new Error(error.message ?? "execFile failed"));
 						return;
 					}
 

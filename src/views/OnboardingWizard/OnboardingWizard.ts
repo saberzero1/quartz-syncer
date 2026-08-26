@@ -375,7 +375,7 @@ export class OnboardingWizard extends Modal {
 			" with repo and workflow scopes. Alternatively, use a ",
 		);
 		const fineGrainedLink = linkContainer.createEl("a", {
-			text: "fine-grained token",
+			text: "Fine-grained token",
 			href: "https://github.com/settings/personal-access-tokens/new",
 		});
 		fineGrainedLink.setAttr("target", "_blank");

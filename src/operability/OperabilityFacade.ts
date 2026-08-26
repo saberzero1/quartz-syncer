@@ -33,6 +33,7 @@ export class OperabilityFacadeImpl implements IOperabilityFacade {
 			() => this.getPublicationService(),
 			() => this.getOnboardingService(),
 			() => plugin.getPublicationCenterManager(),
+			() => plugin.getQuartzHubManager(),
 		);
 
 		this.eventBuffer.emit("plugin.loaded", {
@@ -83,7 +84,9 @@ export class OperabilityFacadeImpl implements IOperabilityFacade {
 		while (Date.now() < deadline) {
 			const result = this.assert(condition, params);
 			if (result.pass) return result;
-			await new Promise((resolve) => setTimeout(resolve, interval));
+			await new Promise((resolve) =>
+				window.setTimeout(resolve, interval),
+			);
 		}
 
 		return {

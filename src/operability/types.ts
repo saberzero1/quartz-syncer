@@ -113,6 +113,13 @@ export type Action =
 	| {
 			name: "env.emulateMobile";
 			params: { enabled: boolean; confirm: true };
+	  }
+	| { name: "hub.open" }
+	| { name: "hub.close" }
+	| { name: "hub.setup.link"; params: { path: string } }
+	| {
+			name: "hub.setup.clone";
+			params: { url: string; dest: string; confirm: true };
 	  };
 
 /**

@@ -66,7 +66,7 @@ export function performanceSettingDefinitions(
 			items: [
 				{
 					name: "Remote fetch interval (seconds)",
-					desc: "How often to fetch the remote repository state in the background. Lower values make the publication center open faster. Set to 0 to fetch on demand only.",
+					desc: "How often to fetch the remote repository state in the background. Lower values make the Publication Center open faster. Set to 0 to fetch on demand only.",
 					aliases: ["fetch", "refresh", "remote", "git"],
 					visible: () => settings.useCache,
 					control: {
