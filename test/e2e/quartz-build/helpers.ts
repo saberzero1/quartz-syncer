@@ -30,11 +30,15 @@ export async function runQuartzBuild(
 		encoding: "utf-8",
 		timeout: 60_000,
 	});
-	return {
-		exitCode: result.status ?? 1,
-		stdout: result.stdout ?? "",
-		stderr: result.stderr ?? (result.error ? String(result.error) : ""),
-	};
+	const exitCode = result.status ?? 1;
+	const stdout = result.stdout ?? "";
+	const stderr = result.stderr ?? (result.error ? String(result.error) : "");
+	if (exitCode !== 0) {
+		console.error(
+			`[quartz-build] exit=${exitCode}\n  stdout: ${stdout.slice(0, 500)}\n  stderr: ${stderr.slice(0, 500)}`,
+		);
+	}
+	return { exitCode, stdout, stderr };
 }
 
 export function outputExists(quartzDir: string): boolean {

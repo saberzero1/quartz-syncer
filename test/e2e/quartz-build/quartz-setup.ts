@@ -17,6 +17,16 @@ const TAG_MARKER_FILE = ".quartz-tag";
 const QUARTZ_ENGINE_DIR = ".quartz";
 const QUARTZ_SOURCE_DIR = "quartz";
 
+function approveInstallScripts(): void {
+	const pkgPath = join(QUARTZ_CACHE_DIR, "package.json");
+	const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+	pkg.allowScripts = pkg.allowScripts ?? {};
+	pkg.allowScripts["esbuild"] = true;
+	pkg.allowScripts["sharp"] = true;
+	pkg.allowScripts["@parcel/watcher"] = true;
+	writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n", "utf-8");
+}
+
 function cacheTagMatches(): boolean {
 	const tagPath = join(QUARTZ_CACHE_DIR, TAG_MARKER_FILE);
 	if (!existsSync(tagPath)) {
@@ -47,13 +57,10 @@ function ensureQuartzUtilsCompatibility(): void {
 	if (hasNormalizeHastElement()) {
 		return;
 	}
-	execSync(
-		"npm install --ignore-scripts=false @quartz-community/utils@latest",
-		{
-			cwd: QUARTZ_CACHE_DIR,
-			stdio: "inherit",
-		},
-	);
+	execSync("npm install @quartz-community/utils@latest", {
+		cwd: QUARTZ_CACHE_DIR,
+		stdio: "inherit",
+	});
 }
 
 export function ensureQuartzCache(): void {
@@ -77,10 +84,8 @@ export function ensureQuartzCache(): void {
 		`git clone --branch ${QUARTZ_TAG} --depth 1 ${QUARTZ_REPO} ${QUARTZ_CACHE_DIR}`,
 		{ stdio: "inherit" },
 	);
-	execSync("npm install --ignore-scripts=false", {
-		cwd: QUARTZ_CACHE_DIR,
-		stdio: "inherit",
-	});
+	approveInstallScripts();
+	execSync("npm install", { cwd: QUARTZ_CACHE_DIR, stdio: "inherit" });
 	cpSync(
 		join(QUARTZ_CACHE_DIR, QUARTZ_SOURCE_DIR),
 		join(QUARTZ_CACHE_DIR, QUARTZ_ENGINE_DIR),

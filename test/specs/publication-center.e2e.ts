@@ -52,9 +52,7 @@ describe("Publication Center", function () {
 		expect(modalState.title).toBe("Publication Center");
 		expect(modalState.hasHeader).toBe(true);
 		expect(modalState.hasTree).toBe(true);
-		expect(modalState.message).toContain(
-			"Configure your git repository in settings to get started.",
-		);
+		expect(modalState.message).toContain("No repository configured.");
 
 		await closePublicationCenter();
 	});
