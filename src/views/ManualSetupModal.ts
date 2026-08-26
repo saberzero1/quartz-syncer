@@ -24,6 +24,9 @@ export class ManualSetupModal extends Modal {
 	}
 
 	onOpen(): void {
+		this.plugin
+			.getEventSink()
+			?.emit("ui.modal.opened", { name: "manual-setup" });
 		this.remoteUrl = this.plugin.settings.gitRemoteUrl;
 		this.branch = this.plugin.settings.gitBranch || "v5";
 		this.authType = this.plugin.settings.gitAuthType || "basic";
@@ -35,6 +38,9 @@ export class ManualSetupModal extends Modal {
 	}
 
 	onClose(): void {
+		this.plugin
+			.getEventSink()
+			?.emit("ui.modal.closed", { name: "manual-setup" });
 		this.contentEl.empty();
 		this.testStatusEl = null;
 	}

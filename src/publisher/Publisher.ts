@@ -15,6 +15,7 @@ import { categorizeFiles } from "src/publisher/PublishStatusManager";
 import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
 import type { CompilationQueue } from "src/services/CompilationQueue";
 import { isMediaFile } from "src/utils/mediaTypes";
+import type { IOperabilityEventSink } from "src/operability/types";
 
 export class Publisher {
 	private pathMapper: PathMapper;
@@ -26,6 +27,7 @@ export class Publisher {
 		private compiler: SyncerPageCompiler,
 		private dataStore: DataStore,
 		private compilationQueue?: CompilationQueue,
+		private eventSink?: IOperabilityEventSink,
 	) {
 		this.pathMapper = new PathMapper(plugin.settings.contentFolder);
 	}
@@ -42,8 +44,8 @@ export class Publisher {
 		this.backend.stopPeriodicFetch();
 	}
 
-	refreshTreeCache(): Promise<void> {
-		return this.backend.refreshTreeCache().then(() => {});
+	async refreshTreeCache(): Promise<void> {
+		await this.backend.refreshTreeCache();
 	}
 
 	async getPublishStatus(): Promise<PublishStatus> {
@@ -150,6 +152,7 @@ export class Publisher {
 		message?: string,
 		onProgress?: PublishProgressCallback,
 	): Promise<PublishResult> {
+		this.eventSink?.emit("publish.started", { fileCount: files.length });
 		const settings = this.plugin.settings;
 		const changes: FileChange[] = [];
 		const remoteHashes: Array<{
@@ -221,6 +224,10 @@ export class Publisher {
 				commitMessage,
 				changes,
 			);
+			this.eventSink?.emit("publish.completed", {
+				fileCount: files.length,
+				commitSha: result.sha,
+			});
 
 			for (const entry of remoteHashes) {
 				await this.dataStore.storeRemoteHash(
@@ -254,6 +261,9 @@ export class Publisher {
 
 			return publishResult;
 		} catch (error) {
+			this.eventSink?.emit("publish.failed", {
+				error: error instanceof Error ? error.message : String(error),
+			});
 			return {
 				success: false,
 				filesPublished: 0,
@@ -268,6 +278,7 @@ export class Publisher {
 		message?: string,
 		onProgress?: PublishProgressCallback,
 	): Promise<PublishResult> {
+		this.eventSink?.emit("delete.started", { fileCount: paths.length });
 		const settings = this.plugin.settings;
 		const repoPaths = paths.map((path) =>
 			this.pathMapper.toRepoPath(this.toVaultRelativePath(path)),
@@ -294,6 +305,11 @@ export class Publisher {
 				console.debug("Tree cache refresh failed:", error);
 			});
 
+			this.eventSink?.emit("delete.completed", {
+				fileCount: paths.length,
+				commitSha: result.sha,
+			});
+
 			const deleteResult: PublishResult = {
 				success: true,
 				commitSha: result.sha,
@@ -313,6 +329,9 @@ export class Publisher {
 
 			return deleteResult;
 		} catch (error) {
+			this.eventSink?.emit("delete.failed", {
+				error: error instanceof Error ? error.message : String(error),
+			});
 			return {
 				success: false,
 				filesPublished: 0,
@@ -335,6 +354,9 @@ export class Publisher {
 		message?: string,
 		onProgress?: PublishProgressCallback,
 	): Promise<PublishResult> {
+		this.eventSink?.emit("delete.started", {
+			fileCount: repoPaths.length,
+		});
 		const settings = this.plugin.settings;
 		const commitMessage = message ?? "Delete notes";
 		const total = repoPaths.length;
@@ -360,6 +382,11 @@ export class Publisher {
 				console.debug("Tree cache refresh failed:", error);
 			});
 
+			this.eventSink?.emit("delete.completed", {
+				fileCount: repoPaths.length,
+				commitSha: result.sha,
+			});
+
 			return {
 				success: true,
 				commitSha: result.sha,
@@ -367,6 +394,9 @@ export class Publisher {
 				filesDeleted: repoPaths.length,
 			};
 		} catch (error) {
+			this.eventSink?.emit("delete.failed", {
+				error: error instanceof Error ? error.message : String(error),
+			});
 			return {
 				success: false,
 				filesPublished: 0,

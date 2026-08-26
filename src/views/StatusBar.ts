@@ -1,4 +1,5 @@
 import { setIcon } from "obsidian";
+import { qsDom } from "src/operability/DomContract";
 
 export type StatusBarState = "ready" | "compiling" | "error" | "unconfigured";
 
@@ -23,8 +24,13 @@ export class StatusBar {
 		this.setState("unconfigured");
 	}
 
+	get currentState(): StatusBarState {
+		return this.state;
+	}
+
 	setState(state: StatusBarState, count?: number): void {
 		this.state = state;
+		this.el.setAttrs(qsDom("statusbar", { state }));
 		this.el.removeClass(
 			"is-ready",
 			"is-compiling",

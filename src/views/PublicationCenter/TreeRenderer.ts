@@ -9,6 +9,7 @@ import {
 	TreeEntry,
 	TreeState,
 } from "src/views/PublicationCenter/TreeState";
+import { qsDom } from "src/operability/DomContract";
 
 type TreeNode = {
 	name: string;
@@ -240,6 +241,7 @@ export class PublicationTree {
 		const headerEl = this.containerEl.createDiv({
 			cls: "tree-category-header",
 		});
+		headerEl.setAttrs(qsDom("pub-category", { value: category }));
 
 		const toggleEl = headerEl.createSpan({ cls: "tree-toggle" });
 
@@ -247,6 +249,7 @@ export class PublicationTree {
 			type: "checkbox",
 			cls: "tree-checkbox",
 		});
+		checkbox.setAttrs(qsDom("pub-checkbox", { category }));
 		checkbox.addEventListener("change", (event) => {
 			event.stopPropagation();
 			const count = this.treeState.getCategoryCount(category);
@@ -377,12 +380,14 @@ export class PublicationTree {
 		const category = node.category ?? "published";
 
 		const row = containerEl.createDiv({ cls: "tree-item tree-file" });
+		row.setAttrs(qsDom("pub-row", { path: node.path }));
 		row.style.paddingLeft = `${level * 16}px`;
 
 		const checkbox = row.createEl("input", {
 			type: "checkbox",
 			cls: "tree-checkbox",
 		});
+		checkbox.setAttrs(qsDom("pub-checkbox", { path: node.path }));
 		checkbox.addEventListener("change", (event) => {
 			event.stopPropagation();
 			this.treeState.toggleFile(node.path);

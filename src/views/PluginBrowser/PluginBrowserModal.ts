@@ -5,6 +5,7 @@ import type {
 } from "src/quartz/QuartzPluginRegistry";
 import type { QuartzV5Config } from "src/quartz/QuartzConfigTypes";
 import { getPluginSourceKey } from "src/quartz/QuartzPluginUtils";
+import type { IOperabilityEventSink } from "src/operability/types";
 
 type InstallPluginFn = (source: string) => Promise<void>;
 type ViewMode = "card" | "list";
@@ -29,6 +30,7 @@ export class PluginBrowserModal extends Modal {
 		registry: QuartzPluginRegistry,
 		config: QuartzV5Config,
 		onInstall: InstallPluginFn,
+		private eventSink?: IOperabilityEventSink,
 	) {
 		super(app);
 		this.registry = registry;
@@ -37,12 +39,14 @@ export class PluginBrowserModal extends Modal {
 	}
 
 	async onOpen(): Promise<void> {
+		this.eventSink?.emit("ui.modal.opened", { name: "plugin-browser" });
 		this.modalEl.addClass("quartz-syncer-plugin-browser");
 		this.titleEl.setText("Community plugin browser");
 		void this.loadAndRender();
 	}
 
 	onClose(): void {
+		this.eventSink?.emit("ui.modal.closed", { name: "plugin-browser" });
 		this.contentEl.empty();
 	}
 

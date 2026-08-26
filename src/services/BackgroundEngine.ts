@@ -4,6 +4,7 @@ import { CompilationQueue } from "src/services/CompilationQueue";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
+import type { IOperabilityEventSink } from "src/operability/types";
 
 const PRIORITY_PREWARM = 0;
 const PRIORITY_VAULT_CHANGE = 5;
@@ -32,6 +33,7 @@ export class BackgroundEngine {
 			state: "ready" | "compiling",
 			count: number,
 		) => void,
+		private eventSink?: IOperabilityEventSink,
 	) {
 		this.compilationQueue = new CompilationQueue({
 			concurrency: 1,
@@ -59,6 +61,7 @@ export class BackgroundEngine {
 
 	start(): void {
 		if (this.running) return;
+		this.eventSink?.emit("engine.started", {});
 		this.running = true;
 
 		this.app.workspace.onLayoutReady(() => {
@@ -73,6 +76,7 @@ export class BackgroundEngine {
 	}
 
 	stop(): void {
+		this.eventSink?.emit("engine.stopped", {});
 		this.running = false;
 		this.compilationQueue.cancel();
 		this.updateStatusBar();
@@ -155,19 +159,28 @@ export class BackgroundEngine {
 
 		if (signal.aborted) return;
 
-		await publishFile.compile();
+		try {
+			await publishFile.compile();
 
-		const blobLinks = await publishFile.getBlobLinks();
-		await this.plugin.dataStore.storeMediaLinks(path, blobLinks);
+			const blobLinks = await publishFile.getBlobLinks();
+			await this.plugin.dataStore.storeMediaLinks(path, blobLinks);
 
-		const dvApi = getDataviewApi();
-		const dcApi = this.getDatacoreApi();
+			const dvApi = getDataviewApi();
+			const dcApi = this.getDatacoreApi();
 
-		await this.plugin.dataStore.storeCompilationRevisions(
-			path,
-			dvApi?.index?.revision,
-			dcApi?.core?.revision,
-		);
+			await this.plugin.dataStore.storeCompilationRevisions(
+				path,
+				dvApi?.index?.revision,
+				dcApi?.core?.revision,
+			);
+			this.eventSink?.emit("compilation.completed", { path });
+		} catch (error) {
+			this.eventSink?.emit("compilation.failed", {
+				path,
+				error: error instanceof Error ? error.message : String(error),
+			});
+			throw error;
+		}
 	}
 
 	// --- Vault listeners ---
@@ -419,6 +432,7 @@ export class BackgroundEngine {
 
 	private enqueue(path: string, priority: number): void {
 		this.compilationQueue.enqueue(path, priority);
+		this.eventSink?.emit("compilation.enqueued", { path });
 		this.updateStatusBar();
 	}
 
@@ -554,6 +568,14 @@ export class BackgroundEngine {
 
 	get isAutoPublishActive(): boolean {
 		return this.autoPublishTimer !== null;
+	}
+
+	get isAutoPublishPaused(): boolean {
+		return this.autoPublishPaused;
+	}
+
+	get queuedPaths(): string[] {
+		return this.compilationQueue.queuedPaths;
 	}
 
 	private updateStatusBar(): void {

@@ -300,6 +300,7 @@ export class QuartzSettingsPage extends SettingPageBase {
 								);
 							}
 						},
+						this.plugin.getEventSink() ?? undefined,
 					).open();
 				});
 		});
@@ -328,6 +329,7 @@ export class QuartzSettingsPage extends SettingPageBase {
 							);
 						}
 					},
+					this.plugin.getEventSink() ?? undefined,
 				).open();
 			});
 		});
@@ -488,7 +490,13 @@ export class QuartzSettingsPage extends SettingPageBase {
 			}
 		};
 
-		new PluginBrowserModal(this.app, registry, config, onInstall).open();
+		new PluginBrowserModal(
+			this.app,
+			registry,
+			config,
+			onInstall,
+			this.plugin.getEventSink() ?? undefined,
+		).open();
 	}
 }
 

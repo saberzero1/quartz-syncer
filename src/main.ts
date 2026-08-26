@@ -30,6 +30,9 @@ import { GitRunner } from "src/process/runners/GitRunner";
 import { NpmRunner } from "src/process/runners/NpmRunner";
 import { QuartzRunner } from "src/process/runners/QuartzRunner";
 import { StatusBar, type StatusBarState } from "src/views/StatusBar";
+import { OperabilityFacadeImpl } from "src/operability/OperabilityFacade";
+import { EventBuffer } from "src/operability/EventBuffer";
+import { PublicationCenterManager } from "src/operability/PublicationCenterManager";
 
 /**
  * QuartzSyncer plugin settings.
@@ -175,6 +178,9 @@ export default class QuartzSyncer extends Plugin {
 	private publisher: Publisher | null = null;
 	private backgroundEngine: BackgroundEngine | null = null;
 	private statusBarManager: StatusBar | null = null;
+	private operabilityFacade: OperabilityFacadeImpl | null = null;
+	private eventSink: EventBuffer | null = null;
+	private publicationCenterManager: PublicationCenterManager | null = null;
 	processRunner: ProcessRunner | null = null;
 	binaryDetector: BinaryDetector | null = null;
 	gitRunner: GitRunner | null = null;
@@ -194,6 +200,10 @@ export default class QuartzSyncer extends Plugin {
 				: "";
 		await this.loadSettings();
 
+		if (__DEV__ || this.settings.ENABLE_DEVELOPER_TOOLS === true) {
+			this.eventSink = new EventBuffer(500);
+		}
+
 		if (shouldShowMigrationNotice(previousVersion, this.appVersion)) {
 			new MigrationNotice(this.app).open();
 		}
@@ -211,7 +221,8 @@ export default class QuartzSyncer extends Plugin {
 		this.addCommands();
 		this.cliHandlers = registerCliHandlers(this);
 		this.addRibbonIcon("leaf", "Quartz Syncer publication center", () => {
-			new PublicationCenter(this.app, this).open();
+			this.publicationCenterManager?.open() ??
+				new PublicationCenter(this.app, this).open();
 		});
 
 		if (!this.settings.gitRemoteUrl && !this.settings.quartzRepoPath) {
@@ -258,7 +269,8 @@ export default class QuartzSyncer extends Plugin {
 				} else if (state === "error") {
 					new Notice("Quartz Syncer: error");
 				} else {
-					new PublicationCenter(this.app, this).open();
+					this.publicationCenterManager?.open() ??
+						new PublicationCenter(this.app, this).open();
 				}
 			},
 		);
@@ -271,6 +283,7 @@ export default class QuartzSyncer extends Plugin {
 			(state, count) => {
 				this.statusBarManager?.setState(state, count);
 			},
+			this.eventSink ?? undefined,
 		);
 		this.backgroundEngine.start();
 
@@ -287,9 +300,26 @@ export default class QuartzSyncer extends Plugin {
 				this.settings.autoPublishInterval,
 			);
 		}
+
+		if (this.eventSink) {
+			this.publicationCenterManager = new PublicationCenterManager(
+				this.app,
+				this,
+			);
+			this.operabilityFacade = new OperabilityFacadeImpl(
+				this,
+				this.eventSink,
+			);
+			window.__QS__ = this.operabilityFacade;
+		}
 	}
 
 	onunload() {
+		this.operabilityFacade?.shutdown();
+		window.__QS__ = undefined;
+		this.operabilityFacade = null;
+		this.eventSink = null;
+		this.publicationCenterManager = null;
 		this.publisher?.stopPeriodicFetch();
 		this.backgroundEngine?.stopAutoPublish();
 		this.backgroundEngine?.stop();
@@ -532,6 +562,7 @@ export default class QuartzSyncer extends Plugin {
 				compiler,
 				this.dataStore,
 				this.backgroundEngine?.compilationQueue,
+				this.eventSink ?? undefined,
 			);
 
 			return this.publisher;
@@ -565,6 +596,7 @@ export default class QuartzSyncer extends Plugin {
 				compiler,
 				this.dataStore,
 				this.backgroundEngine?.compilationQueue,
+				this.eventSink ?? undefined,
 			);
 
 			if (this.settings.remoteFetchInterval > 0) {
@@ -577,6 +609,22 @@ export default class QuartzSyncer extends Plugin {
 		}
 
 		return null;
+	}
+
+	getEventSink(): EventBuffer | null {
+		return this.eventSink;
+	}
+
+	getBackgroundEngine(): BackgroundEngine | null {
+		return this.backgroundEngine;
+	}
+
+	getStatusBar(): StatusBar | null {
+		return this.statusBarManager;
+	}
+
+	getPublicationCenterManager(): PublicationCenterManager | null {
+		return this.publicationCenterManager;
 	}
 
 	getEngineStatus(): {
@@ -596,7 +644,8 @@ export default class QuartzSyncer extends Plugin {
 			id: "open-publish-modal",
 			name: "Open publication center",
 			callback: () => {
-				new PublicationCenter(this.app, this).open();
+				this.publicationCenterManager?.open() ??
+					new PublicationCenter(this.app, this).open();
 			},
 		});
 
@@ -622,7 +671,8 @@ export default class QuartzSyncer extends Plugin {
 			id: "publish-status",
 			name: "Show publish status",
 			callback: () => {
-				new PublicationCenter(this.app, this).open();
+				this.publicationCenterManager?.open() ??
+					new PublicationCenter(this.app, this).open();
 			},
 		});
 	}

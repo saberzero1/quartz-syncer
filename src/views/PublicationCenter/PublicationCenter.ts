@@ -33,11 +33,22 @@ import {
 	type TreeTab,
 	TreeState,
 } from "src/views/PublicationCenter/TreeState";
+import { qsDom } from "src/operability/DomContract";
 
 type ProgressState = {
 	current: number;
 	total: number;
 };
+
+export interface PublicationCenterController {
+	getSelected(): string[];
+	setSelected(paths: string[]): void;
+	selectAll(): void;
+	deselectAll(): void;
+	triggerPublish(): Promise<void>;
+	triggerDelete(): Promise<void>;
+	close(): void;
+}
 
 export class PublicationCenter extends Modal {
 	private status: PublishStatus | null = null;
@@ -71,7 +82,11 @@ export class PublicationCenter extends Modal {
 	}
 
 	onOpen(): void {
+		this._plugin
+			.getEventSink()
+			?.emit("ui.modal.opened", { name: "publication-center" });
 		this.modalEl.addClass("qs-pub-center");
+		this.modalEl.setAttrs(qsDom("pub-center"));
 		this.contentEl.empty();
 		this.titleEl.setText("Publication center");
 		this.renderLoadingState();
@@ -96,6 +111,9 @@ export class PublicationCenter extends Modal {
 	}
 
 	onClose(): void {
+		this._plugin
+			.getEventSink()
+			?.emit("ui.modal.closed", { name: "publication-center" });
 		this._plugin.resumeAutoPublish();
 		this.publicationTree?.unmount();
 		this.inlineScrollSync?.destroy();
@@ -119,6 +137,34 @@ export class PublicationCenter extends Modal {
 			this.filterDebounceTimer = null;
 		}
 		this.hasShell = false;
+	}
+
+	getController(): PublicationCenterController {
+		return {
+			getSelected: () => this.treeState.getSelectedFiles(),
+			setSelected: (paths: string[]) => {
+				this.treeState.deselectAll();
+				for (const path of paths) {
+					if (this.treeState.hasFile(path)) {
+						this.treeState.selectFile(path);
+					}
+				}
+				this.updateTreeState();
+			},
+			selectAll: () => {
+				for (const category of this.treeState.getVisibleCategories()) {
+					this.treeState.selectAll(category);
+				}
+				this.updateTreeState();
+			},
+			deselectAll: () => {
+				this.treeState.deselectAll();
+				this.updateTreeState();
+			},
+			triggerPublish: () => this.handlePublish(),
+			triggerDelete: () => this.handleDelete(),
+			close: () => this.close(),
+		};
 	}
 
 	private renderLoadingState(): void {
@@ -226,6 +272,7 @@ export class PublicationCenter extends Modal {
 			text: "Publish",
 		});
 		publishTab.dataset.tab = "publish";
+		publishTab.setAttrs(qsDom("pub-tab", { value: "publish" }));
 		publishTab.addEventListener("click", () => {
 			this.switchTab("publish");
 		});
@@ -234,6 +281,7 @@ export class PublicationCenter extends Modal {
 			text: "Advanced",
 		});
 		advancedTab.dataset.tab = "advanced";
+		advancedTab.setAttrs(qsDom("pub-tab", { value: "advanced" }));
 		advancedTab.addEventListener("click", () => {
 			this.switchTab("advanced");
 		});
@@ -251,6 +299,7 @@ export class PublicationCenter extends Modal {
 			value: this.treeState.filterText,
 		});
 		this.searchInputEl.setAttribute("aria-label", "Filter files");
+		this.searchInputEl.setAttrs(qsDom("pub-search"));
 		this.searchInputEl.addEventListener("input", () => {
 			if (this.filterDebounceTimer !== null) {
 				clearTimeout(this.filterDebounceTimer);
@@ -298,6 +347,7 @@ export class PublicationCenter extends Modal {
 		this.progressIndicatorEl = progress.createDiv({
 			cls: "progress-bar-indicator",
 		});
+		this.progressIndicatorEl.setAttrs(qsDom("pub-progress"));
 		this.updateProgress();
 
 		const actions = footer.createDiv({ cls: "pub-center-actions" });
@@ -305,6 +355,7 @@ export class PublicationCenter extends Modal {
 			cls: "mod-cta",
 			text: "Publish",
 		});
+		this.publishButtonEl.setAttrs(qsDom("pub-publish-btn"));
 		this.publishButtonEl.disabled = this.isOperating;
 		this.publishButtonEl.addEventListener("click", () => {
 			void this.handlePublish();
@@ -314,6 +365,7 @@ export class PublicationCenter extends Modal {
 			cls: "mod-warning",
 			text: "Delete",
 		});
+		this.deleteButtonEl.setAttrs(qsDom("pub-delete-btn"));
 		this.deleteButtonEl.disabled = this.isOperating;
 		this.deleteButtonEl.addEventListener("click", () => {
 			void this.handleDelete();
@@ -521,6 +573,7 @@ export class PublicationCenter extends Modal {
 		path: string,
 		localContent: string,
 		remoteContent: string,
+		category: SelectableCategory | undefined,
 	): void {
 		if (!this.diffInlineEl || !this.overviewEl) return;
 		this.overviewEl.addClass("qs-hidden");
@@ -564,6 +617,13 @@ export class PublicationCenter extends Modal {
 		const collapseButton = controls.createEl("button", {
 			text: "Expand all",
 		});
+		const forceUnified =
+			category === "unpublished" || category === "deleted";
+		splitButton.style.display = forceUnified ? "none" : "";
+		unifiedButton.style.display = forceUnified ? "none" : "";
+		if (forceUnified) {
+			this.diffMode = "unified";
+		}
 		const updateButtons = () => {
 			splitButton.classList.toggle(
 				"is-active",
@@ -731,17 +791,23 @@ export class PublicationCenter extends Modal {
 				path,
 				diffData.localContent,
 				diffData.remoteContent,
+				diffData.category,
 			);
 			return;
 		}
 
-		new DiffModal(this.app, {
-			filePath: path,
-			localContent: diffData.localContent,
-			remoteContent: diffData.remoteContent,
-			diffViewStyle: this._plugin.settings.diffViewStyle,
-			contextLines: this._plugin.settings.diffContextLines,
-		}).open();
+		new DiffModal(
+			this.app,
+			{
+				filePath: path,
+				localContent: diffData.localContent,
+				remoteContent: diffData.remoteContent,
+				category: diffData.category,
+				diffViewStyle: this._plugin.settings.diffViewStyle,
+				contextLines: this._plugin.settings.diffContextLines,
+			},
+			this._plugin.getEventSink() ?? undefined,
+		).open();
 	}
 
 	private async handlePublish(): Promise<void> {

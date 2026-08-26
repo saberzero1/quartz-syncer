@@ -1,5 +1,7 @@
 import { Modal, Platform } from "obsidian";
 import type { App } from "obsidian";
+import { qsDom } from "src/operability/DomContract";
+import type { IOperabilityEventSink } from "src/operability/types";
 import type { ScrollSync } from "src/views/DiffView/ScrollSync";
 import {
 	computeDiffStats,
@@ -14,6 +16,7 @@ type DiffModalProps = {
 	localContent: string;
 	remoteContent: string;
 	filePath: string;
+	category?: string;
 	diffViewStyle?: "split" | "unified" | "auto";
 	contextLines?: number;
 };
@@ -29,6 +32,7 @@ export class DiffModal extends Modal {
 	constructor(
 		app: App,
 		private props: DiffModalProps,
+		private eventSink?: IOperabilityEventSink,
 	) {
 		super(app);
 		const style = this.props.diffViewStyle ?? "auto";
@@ -38,10 +42,18 @@ export class DiffModal extends Modal {
 					? "split"
 					: "unified"
 				: style;
+		if (
+			this.props.category === "unpublished" ||
+			this.props.category === "deleted"
+		) {
+			this.mode = "unified";
+		}
 	}
 
 	onOpen(): void {
+		this.eventSink?.emit("ui.modal.opened", { name: "diff-viewer" });
 		this.modalEl.addClass("qs-diff-view");
+		this.modalEl.setAttrs(qsDom("diff-view"));
 		this.contentEl.empty();
 
 		const header = this.contentEl.createDiv({ cls: "diff-header" });
@@ -83,6 +95,14 @@ export class DiffModal extends Modal {
 			this.renderContent();
 		});
 
+		if (
+			this.props.category === "unpublished" ||
+			this.props.category === "deleted"
+		) {
+			this.splitButtonEl.style.display = "none";
+			this.unifiedButtonEl.style.display = "none";
+		}
+
 		this.collapseToggleEl = controls.createEl("button", {
 			text: "Expand all",
 		});
@@ -108,6 +128,7 @@ export class DiffModal extends Modal {
 	}
 
 	onClose(): void {
+		this.eventSink?.emit("ui.modal.closed", { name: "diff-viewer" });
 		this.scrollSync?.destroy();
 		this.scrollSync = null;
 		this.contentEl.empty();

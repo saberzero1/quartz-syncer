@@ -14,6 +14,7 @@ import {
 	RateLimitError,
 } from "src/git/errors";
 import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
+import { qsDom } from "src/operability/DomContract";
 
 const DEPLOY_WORKFLOW = `name: Deploy Quartz site to GitHub Pages
 
@@ -178,12 +179,19 @@ export class OnboardingWizard extends Modal {
 	}
 
 	onOpen(): void {
+		this.plugin
+			.getEventSink()
+			?.emit("ui.modal.opened", { name: "onboarding-wizard" });
 		this.modalEl.addClass("quartz-syncer-onboarding-wizard");
+		this.modalEl.setAttrs(qsDom("wizard"));
 		this.titleEl.setText("Quartz Syncer setup wizard");
 		this.render();
 	}
 
 	onClose(): void {
+		this.plugin
+			.getEventSink()
+			?.emit("ui.modal.closed", { name: "onboarding-wizard" });
 		this.contentEl.empty();
 	}
 
@@ -232,6 +240,7 @@ export class OnboardingWizard extends Modal {
 				text: "Back",
 				cls: "qs-onboarding-back",
 			});
+			backBtn.setAttrs(qsDom("wizard-back"));
 			backBtn.addEventListener("click", () => this.goBack());
 		}
 	}
@@ -266,6 +275,7 @@ export class OnboardingWizard extends Modal {
 		const stepper = container.createDiv("qs-onboarding-stepper");
 		stepLabels.forEach((label, index) => {
 			const stepEl = stepper.createDiv("qs-onboarding-step");
+			stepEl.setAttrs(qsDom("wizard-step", { value: String(index + 1) }));
 			const iconEl = stepEl.createSpan("qs-onboarding-step-icon");
 			if (index < currentIndex) {
 				stepEl.addClass("is-completed");
@@ -378,6 +388,7 @@ export class OnboardingWizard extends Modal {
 			placeholder: "GitHub personal access token",
 			cls: "qs-onboarding-token-input",
 		});
+		inputEl.setAttrs(qsDom("wizard-input", { field: "token" }));
 		inputEl.value = this.token;
 		inputEl.addEventListener("input", () => {
 			this.token = inputEl.value.trim();
@@ -387,6 +398,7 @@ export class OnboardingWizard extends Modal {
 			text: this.isBusy ? "Validating..." : "Validate",
 			cls: "qs-onboarding-validate",
 		});
+		validateBtn.setAttrs(qsDom("wizard-next"));
 		validateBtn.disabled = this.isBusy;
 		validateBtn.addEventListener("click", () => {
 			void this.handleValidateToken();
@@ -406,6 +418,7 @@ export class OnboardingWizard extends Modal {
 			placeholder: "quartz",
 			cls: "qs-onboarding-site-name",
 		});
+		inputEl.setAttrs(qsDom("wizard-input", { field: "site-name" }));
 		inputEl.value = this.newSiteName;
 
 		const validationEl = container.createDiv("qs-onboarding-validation");
@@ -451,6 +464,7 @@ export class OnboardingWizard extends Modal {
 			text: this.isBusy ? "Creating..." : "Create site",
 			cls: "qs-onboarding-create-confirm",
 		});
+		createBtn.setAttrs(qsDom("wizard-next"));
 		createBtn.disabled =
 			this.isBusy ||
 			!this.newSiteName ||
@@ -487,6 +501,7 @@ export class OnboardingWizard extends Modal {
 			placeholder: "Filter repositories\u2026",
 			cls: "qs-onboarding-repo-filter",
 		});
+		filterInput.setAttrs(qsDom("wizard-input", { field: "repo-filter" }));
 
 		const selectEl = container.createEl("select", {
 			cls: "qs-onboarding-repo-select",
@@ -542,6 +557,7 @@ export class OnboardingWizard extends Modal {
 			text: "Continue",
 			cls: "qs-onboarding-connect-confirm",
 		});
+		connectBtn.setAttrs(qsDom("wizard-next"));
 		connectBtn.addEventListener("click", () => {
 			if (!this.selectedRepo) {
 				this.errorMessage = "Select a repository to continue.";
@@ -584,6 +600,7 @@ export class OnboardingWizard extends Modal {
 			text: this.isBusy ? "Saving..." : "Save settings",
 			cls: "qs-onboarding-configure",
 		});
+		configureBtn.setAttrs(qsDom("wizard-next"));
 		configureBtn.disabled = this.isBusy;
 		configureBtn.addEventListener("click", () => {
 			void this.handleConfigure(repo);
@@ -632,7 +649,8 @@ export class OnboardingWizard extends Modal {
 		});
 		openCenterButton.addEventListener("click", () => {
 			this.close();
-			new PublicationCenter(this.app, this.plugin).open();
+			this.plugin.getPublicationCenterManager()?.open() ??
+				new PublicationCenter(this.app, this.plugin).open();
 		});
 
 		const doneButton = container.createEl("button", {
@@ -648,6 +666,7 @@ export class OnboardingWizard extends Modal {
 		const container = this.stepContentEl ?? this.contentEl;
 		if (!this.errorMessage) return;
 		const errorEl = container.createDiv("qs-onboarding-error-callout");
+		errorEl.setAttrs(qsDom("wizard-error"));
 		errorEl.createSpan({ text: this.errorMessage });
 	}
 

@@ -1,5 +1,6 @@
 import { Modal, Notice } from "obsidian";
 import type { App } from "obsidian";
+import type { IOperabilityEventSink } from "src/operability/types";
 
 export type TerminalOutputExecutor = (options: {
 	onStdout: (line: string) => void;
@@ -14,13 +15,19 @@ export class TerminalOutputModal extends Modal {
 	private abortController: AbortController | null = null;
 	private isRunning = false;
 
-	constructor(app: App, title: string, executor: TerminalOutputExecutor) {
+	constructor(
+		app: App,
+		title: string,
+		executor: TerminalOutputExecutor,
+		private eventSink?: IOperabilityEventSink,
+	) {
 		super(app);
 		this.title = title;
 		this.executor = executor;
 	}
 
 	onOpen(): void {
+		this.eventSink?.emit("ui.modal.opened", { name: "terminal-output" });
 		this.modalEl.addClass("qs-terminal-output");
 		this.titleEl.setText(this.title);
 		this.render();
@@ -28,6 +35,7 @@ export class TerminalOutputModal extends Modal {
 	}
 
 	onClose(): void {
+		this.eventSink?.emit("ui.modal.closed", { name: "terminal-output" });
 		this.abort();
 		this.contentEl.empty();
 		this.outputEl = null;

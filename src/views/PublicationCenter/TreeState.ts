@@ -95,6 +95,20 @@ export class TreeState {
 		return ["unpublished", "changed", "published", "deleted"];
 	}
 
+	hasFile(path: string): boolean {
+		return this.fileCategories.has(path);
+	}
+
+	selectFile(path: string): void {
+		if (this.selectedFiles.has(path)) return;
+		this.selectedFiles.add(path);
+		if (this.tab === "publish") {
+			this.autoSelectLinkedMedia(path);
+		} else {
+			this.autoSelectedMedia.delete(path);
+		}
+	}
+
 	toggleFile(path: string): void {
 		if (this.selectedFiles.has(path)) {
 			this.selectedFiles.delete(path);

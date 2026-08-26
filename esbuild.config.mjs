@@ -28,6 +28,7 @@ const buildOptions = {
 	inject: ["./esbuild-buffer-shim.js"],
 	define: {
 		global: "globalThis",
+		__DEV__: JSON.stringify(!isProduction),
 	},
 	banner: {
 		js: banner,

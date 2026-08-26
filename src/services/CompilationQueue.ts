@@ -55,6 +55,10 @@ export class CompilationQueue {
 		return this.queue.some((item) => item.path === path);
 	}
 
+	get queuedPaths(): string[] {
+		return this.queue.map((item) => item.path);
+	}
+
 	pause(): void {
 		this.paused = true;
 	}
