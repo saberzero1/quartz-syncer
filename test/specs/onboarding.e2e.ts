@@ -27,32 +27,21 @@ describe("Onboarding wizard", function () {
 		await new Promise((resolve) => setTimeout(resolve, 300));
 	};
 
-	it("renders the token step and closes", async function () {
+	it("renders the method step and closes", async function () {
 		await openWizard();
 
 		const wizardState = await browser.executeObsidian(() => {
 			const wizard = document.querySelector(
 				".quartz-syncer-onboarding-wizard",
 			);
-			const tokenInput = wizard?.querySelector(
-				".qs-onboarding-token-input",
-			) as HTMLInputElement | null;
-			const validateButton = wizard?.querySelector(
-				".qs-onboarding-validate",
-			);
 			return {
 				hasWizard: wizard !== null,
 				stepText: wizard?.textContent ?? "",
-				tokenType: tokenInput?.type ?? "",
-				hasValidate: validateButton !== null,
 			};
 		});
 		expect(wizardState.hasWizard).toBe(true);
-		expect(wizardState.stepText).toContain(
-			"Enter your GitHub token to continue.",
-		);
-		expect(wizardState.tokenType).toBe("password");
-		expect(wizardState.hasValidate).toBe(true);
+		expect(wizardState.stepText).toContain("Create new Quartz site");
+		expect(wizardState.stepText).toContain("Connect existing repository");
 
 		await browser.executeObsidian(() => {
 			const wizard = document.querySelector(

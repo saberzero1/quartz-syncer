@@ -39,8 +39,8 @@ jobs:
             - name: Install dependencies
               run: npm install
 
-            - name: Build
-              run: npm run build
+            - name: Build (dev)
+              run: npm run build:dev
 
             - name: Cache Obsidian
               uses: actions/cache@v5

@@ -47,10 +47,13 @@ function ensureQuartzUtilsCompatibility(): void {
 	if (hasNormalizeHastElement()) {
 		return;
 	}
-	execSync("npm install @quartz-community/utils@latest", {
-		cwd: QUARTZ_CACHE_DIR,
-		stdio: "inherit",
-	});
+	execSync(
+		"npm install --ignore-scripts=false @quartz-community/utils@latest",
+		{
+			cwd: QUARTZ_CACHE_DIR,
+			stdio: "inherit",
+		},
+	);
 }
 
 export function ensureQuartzCache(): void {
@@ -74,7 +77,10 @@ export function ensureQuartzCache(): void {
 		`git clone --branch ${QUARTZ_TAG} --depth 1 ${QUARTZ_REPO} ${QUARTZ_CACHE_DIR}`,
 		{ stdio: "inherit" },
 	);
-	execSync("npm install", { cwd: QUARTZ_CACHE_DIR, stdio: "inherit" });
+	execSync("npm install --ignore-scripts=false", {
+		cwd: QUARTZ_CACHE_DIR,
+		stdio: "inherit",
+	});
 	cpSync(
 		join(QUARTZ_CACHE_DIR, QUARTZ_SOURCE_DIR),
 		join(QUARTZ_CACHE_DIR, QUARTZ_ENGINE_DIR),

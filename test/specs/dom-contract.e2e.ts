@@ -75,83 +75,29 @@ describe("DOM contract", function () {
 			expect(count).toBe(1);
 		});
 
-		it("has pub-tab data-qs when configured", async function () {
-			const result = await browser.executeObsidian(() => {
-				const tabs = document.querySelectorAll('[data-qs="pub-tab"]');
-				const configured = Boolean(
-					(
-						app as unknown as {
-							plugins: {
-								plugins: Record<
-									string,
-									{ settings?: { gitRemoteUrl?: string } }
-								>;
-							};
-						}
-					).plugins.plugins["quartz-syncer"]?.settings?.gitRemoteUrl,
-				);
-				return { count: tabs.length, configured };
+		it("has pub-tab data-qs", async function () {
+			const count = await browser.executeObsidian(() => {
+				return document.querySelectorAll('[data-qs="pub-tab"]').length;
 			});
-			if (result.configured) {
-				expect(result.count).toBe(2);
-			} else {
-				expect(result.count).toBe(0);
-			}
+			expect(count).toBe(2);
 		});
 
-		it("has pub-publish-btn when configured", async function () {
-			const result = await browser.executeObsidian(() => {
-				const publish = document.querySelector(
-					'[data-qs="pub-publish-btn"]',
+		it("has pub-publish-btn", async function () {
+			const hasPublish = await browser.executeObsidian(() => {
+				return (
+					document.querySelector('[data-qs="pub-publish-btn"]') !==
+					null
 				);
-				const configured = Boolean(
-					(
-						app as unknown as {
-							plugins: {
-								plugins: Record<
-									string,
-									{ settings?: { gitRemoteUrl?: string } }
-								>;
-							};
-						}
-					).plugins.plugins["quartz-syncer"]?.settings?.gitRemoteUrl,
-				);
-				return {
-					hasPublish: publish !== null,
-					configured,
-				};
 			});
-			if (result.configured) {
-				expect(result.hasPublish).toBe(true);
-			} else {
-				expect(result.hasPublish).toBe(false);
-			}
+			expect(hasPublish).toBe(true);
 		});
 
-		it("has pub-search when configured", async function () {
-			const result = await browser.executeObsidian(() => {
-				const search = document.querySelectorAll(
-					'[data-qs="pub-search"]',
-				);
-				const configured = Boolean(
-					(
-						app as unknown as {
-							plugins: {
-								plugins: Record<
-									string,
-									{ settings?: { gitRemoteUrl?: string } }
-								>;
-							};
-						}
-					).plugins.plugins["quartz-syncer"]?.settings?.gitRemoteUrl,
-				);
-				return { count: search.length, configured };
+		it("has pub-search", async function () {
+			const count = await browser.executeObsidian(() => {
+				return document.querySelectorAll('[data-qs="pub-search"]')
+					.length;
 			});
-			if (result.configured) {
-				expect(result.count).toBe(1);
-			} else {
-				expect(result.count).toBe(0);
-			}
+			expect(count).toBe(1);
 		});
 	});
 });

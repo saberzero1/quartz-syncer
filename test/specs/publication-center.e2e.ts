@@ -49,7 +49,7 @@ describe("Publication Center", function () {
 			};
 		});
 		expect(modalState.hasModal).toBe(true);
-		expect(modalState.title).toBe("Publication center");
+		expect(modalState.title).toBe("Publication Center");
 		expect(modalState.hasHeader).toBe(true);
 		expect(modalState.hasTree).toBe(true);
 		expect(modalState.message).toContain(
