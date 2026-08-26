@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
 	test: {
+		globalSetup: ["test/e2e/quartz-build/global-setup.ts"],
 		include: ["test/e2e/**/*.test.ts"],
 		exclude: ["**/.quartz-cache/**", "**/.quartz/**"],
 		globals: true,

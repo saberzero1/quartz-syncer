@@ -1,12 +1,8 @@
-import { beforeAll, beforeEach, afterEach, describe, expect, it } from "vitest";
+import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
-import {
-	ensureQuartzCache,
-	createTestQuartzDir,
-	cleanupTestDir,
-} from "./quartz-setup";
+import { createTestQuartzDir, cleanupTestDir } from "./quartz-setup";
 import {
 	indexHtmlExists,
 	outputExists,
@@ -33,10 +29,6 @@ function noteHtmlExists(baseDir: string, slug: string): boolean {
 	const indexPath = join(baseDir, "public", slug, "index.html");
 	return existsSync(directPath) || existsSync(indexPath);
 }
-
-beforeAll(() => {
-	ensureQuartzCache();
-}, 120_000);
 
 beforeEach(() => {
 	quartzDir = createTestQuartzDir();

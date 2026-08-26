@@ -1,13 +1,9 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
-import {
-	cleanupTestDir,
-	createTestQuartzDir,
-	ensureQuartzCache,
-} from "./quartz-setup";
+import { cleanupTestDir, createTestQuartzDir } from "./quartz-setup";
 import { outputExists, runQuartzBuild, writeNoteToQuartz } from "./helpers";
 
 function runQuartzPlugin(
@@ -42,10 +38,6 @@ function readUserQuartzConfig(quartzDir: string): string | null {
 }
 
 let quartzDir = "";
-
-beforeAll(() => {
-	ensureQuartzCache();
-}, 120_000);
 
 beforeEach(() => {
 	quartzDir = createTestQuartzDir();
