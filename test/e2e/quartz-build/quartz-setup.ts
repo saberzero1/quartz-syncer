@@ -36,33 +36,6 @@ function cacheTagMatches(): boolean {
 	return cachedTag === QUARTZ_TAG;
 }
 
-function hasNormalizeHastElement(): boolean {
-	const utilsTypesPath = join(
-		QUARTZ_CACHE_DIR,
-		"node_modules",
-		"@quartz-community",
-		"utils",
-		"dist",
-		"index.d.ts",
-	);
-	if (!existsSync(utilsTypesPath)) {
-		return false;
-	}
-	return readFileSync(utilsTypesPath, "utf-8").includes(
-		"normalizeHastElement",
-	);
-}
-
-function ensureQuartzUtilsCompatibility(): void {
-	if (hasNormalizeHastElement()) {
-		return;
-	}
-	execSync("npm install @quartz-community/utils@latest", {
-		cwd: QUARTZ_CACHE_DIR,
-		stdio: "inherit",
-	});
-}
-
 export function ensureQuartzCache(): void {
 	if (existsSync(QUARTZ_CACHE_DIR) && cacheTagMatches()) {
 		const engineDir = join(QUARTZ_CACHE_DIR, QUARTZ_ENGINE_DIR);
@@ -71,7 +44,6 @@ export function ensureQuartzCache(): void {
 				recursive: true,
 			});
 		}
-		ensureQuartzUtilsCompatibility();
 		return;
 	}
 
@@ -93,7 +65,6 @@ export function ensureQuartzCache(): void {
 			recursive: true,
 		},
 	);
-	ensureQuartzUtilsCompatibility();
 	writeFileSync(join(QUARTZ_CACHE_DIR, TAG_MARKER_FILE), QUARTZ_TAG, "utf-8");
 }
 
