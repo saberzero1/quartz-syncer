@@ -23,9 +23,28 @@ Activate after any code change that affects runtime behavior — source files in
 ## Prerequisites
 
 - Obsidian must be running with the test vault open.
-- The plugin must have operability enabled (automatic in dev builds via `__DEV__` flag).
-- The Obsidian CLI must be registered and working (`obsidian eval code="1+1"` should return `=> 2`).
-- Console capture requires the debugger: run `obsidian dev:debug on` once per Obsidian session before using `dev:console`.
+- Plugin must be built with `npm run build:dev` (copies to test vault, enables facade via `__DEV__` flag).
+- The Obsidian CLI must be registered and working (`obsidian eval code="1+1" 2>/dev/null` should return `=> 2`).
+- Console capture requires the debugger: run `obsidian dev:debug on 2>/dev/null` once per Obsidian session before using `dev:console`.
+
+## Important: CLI Patterns
+
+**Suppress GTK warnings.** Always append `2>/dev/null` to every `obsidian` CLI command. Linux produces GTK/Electron warnings that clutter output.
+
+**Async eval loses return values.** `obsidian eval` cannot capture return values from async code. Use the IIFE + `console.log` pattern:
+```bash
+# WRONG — returns nothing:
+obsidian eval code="await window.__QS__.act({name:'pub.open'})" 2>/dev/null
+
+# CORRECT — prints the result:
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'pub.open'});console.log(JSON.stringify(r))})()" 2>/dev/null
+```
+
+Synchronous calls return values directly:
+```bash
+obsidian eval code="typeof window.__QS__" 2>/dev/null
+# => object
+```
 
 ## Workflow
 
@@ -41,20 +60,22 @@ Do NOT use `npm run build` (production) for verification — it does not copy to
 
 ### Step 2: Reload plugin
 
+Build alone does NOT update the running instance. You must reload:
+
 ```bash
-obsidian eval code="(async()=>{await app.plugins.disablePlugin('quartz-syncer');await app.plugins.enablePlugin('quartz-syncer')})()"
+obsidian eval code="(async()=>{await app.plugins.disablePlugin('quartz-syncer');await new Promise(r=>setTimeout(r,1000));await app.plugins.enablePlugin('quartz-syncer')})()" 2>/dev/null
 ```
 
-Wait 3 seconds for initialization to complete. Verify the plugin loaded:
+Wait 3 seconds after this command, then verify the plugin loaded:
 ```bash
-obsidian eval code="typeof window.__QS__"
+sleep 3 && obsidian eval code="typeof window.__QS__" 2>/dev/null
 ```
-Expected: `=> object`. If `=> undefined`, the facade didn't mount — check that `ENABLE_DEVELOPER_TOOLS` is `true` or use a dev build.
+Expected: `=> object`. If `=> undefined`, the facade didn't mount — check that the dev build was used.
 
 ### Step 3: Health check
 
 ```bash
-obsidian eval code="JSON.stringify(window.__QS__.assert('health.core'))"
+obsidian eval code="JSON.stringify(window.__QS__.assert('health.core'))" 2>/dev/null
 ```
 
 Expected: `{"pass":true,"details":{...}}`. If `pass` is `false`, the plugin failed to initialize — check `details` for the reason.
@@ -62,7 +83,7 @@ Expected: `{"pass":true,"details":{...}}`. If `pass` is `false`, the plugin fail
 ### Step 4: Snapshot
 
 ```bash
-obsidian eval code="JSON.stringify(window.__QS__.snapshot())"
+obsidian eval code="JSON.stringify(window.__QS__.snapshot())" 2>/dev/null
 ```
 
 Inspect the snapshot for anomalies:
@@ -74,18 +95,14 @@ Inspect the snapshot for anomalies:
 ### Step 5: Check for errors
 
 ```bash
-obsidian dev:errors
-```
-
-For console messages (requires `obsidian dev:debug on` to have been run first in this session):
-```bash
-obsidian dev:console level=error
+obsidian dev:errors 2>/dev/null
+obsidian dev:console level=error 2>/dev/null
 ```
 
 If errors are present, investigate. Use the event buffer for context:
 
 ```bash
-obsidian eval code="JSON.stringify(window.__QS__.events.tail(10))"
+obsidian eval code="JSON.stringify(window.__QS__.events.tail(10))" 2>/dev/null
 ```
 
 ### Step 6: Area-specific verification
@@ -94,50 +111,65 @@ Based on what was changed:
 
 **Compiler/frontmatter changes:** Refresh status and check file counts.
 ```bash
-obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'status.refresh'});console.log(JSON.stringify(r))})()"
-obsidian eval code="JSON.stringify(window.__QS__.snapshot().publishStatus)"
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'status.refresh'});console.log(JSON.stringify(r))})()" 2>/dev/null
+obsidian eval code="JSON.stringify(window.__QS__.snapshot().publishStatus)" 2>/dev/null
 ```
 
-**UI/view changes:** Open the affected modal and check DOM.
+**UI/view changes:** Open the affected modal, verify DOM, take screenshot.
 ```bash
-obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'pub.open'});console.log(JSON.stringify(r))})()"
-obsidian dev:dom selector='[data-qs="pub-center"]' total
-obsidian dev:screenshot path=/tmp/verify.png
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'pub.open'});console.log(JSON.stringify(r))})()" 2>/dev/null
+sleep 2
+obsidian dev:dom selector='[data-qs="pub-center"]' total 2>/dev/null
+obsidian dev:screenshot path=/tmp/verify.png 2>/dev/null
 ```
 
 **Settings changes:** Verify settings are readable.
 ```bash
-obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'settings.get',params:{key:'gitRemoteUrl'}});console.log(JSON.stringify(r))})()"
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'settings.get',params:{key:'gitRemoteUrl'}});console.log(JSON.stringify(r))})()" 2>/dev/null
 ```
 
 **Git/connection changes:** Test the connection.
 ```bash
-obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'connection.test'});console.log(JSON.stringify(r))})()"
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'connection.test'});console.log(JSON.stringify(r))})()" 2>/dev/null
+```
+
+**Quartz Hub changes:** Open the Hub and verify.
+```bash
+obsidian command id=quartz-syncer:open-hub 2>/dev/null
+sleep 2
+obsidian dev:dom selector='[data-qs="hub"]' total 2>/dev/null
+obsidian dev:dom selector='[data-qs="hub-action"]' total 2>/dev/null
+obsidian dev:screenshot path=/tmp/hub-verify.png 2>/dev/null
 ```
 
 ## MUST DO
 
-- Always build before reloading — Obsidian loads the compiled `main.js`, not source files.
+- Always append `2>/dev/null` to all `obsidian` CLI commands.
+- Always build AND reload — build alone doesn't update the running instance.
 - Always health-check after reload — a successful build doesn't guarantee successful initialization.
-- Always check `dev:console level=error` — some errors only appear in the renderer console.
+- Always use the IIFE pattern for async facade calls.
+- Always wait after operations (3s after reload, 2s after modal open).
+- Always verify actions took effect — follow up a click with a DOM query or screenshot.
 - Parse all JSON responses — don't assume success. Check `pass` or `success` fields.
 - If health check fails, collect a failure bundle before attempting fixes.
 
 ## MUST NOT DO
 
+- Do NOT omit `2>/dev/null` — GTK warnings will pollute output parsing.
 - Do NOT skip the reload step — Obsidian caches the old plugin code until disabled/enabled.
 - Do NOT assume the plugin loaded correctly just because the build succeeded.
-- Do NOT ignore errors in `dev:console` — they may indicate runtime issues not caught by TypeScript.
-- Do NOT modify code and re-verify without rebuilding first.
+- Do NOT use `await` at the top level of `obsidian eval` — it loses return values. Use the IIFE pattern.
+- Do NOT set input `.value` without `dispatchEvent(new Event('input', { bubbles: true }))` — event listeners won't fire.
+- Do NOT modify code and re-verify without rebuilding AND reloading.
 
 ## Failure Bundle
 
 When something goes wrong, collect all diagnostic data before investigating:
 
 ```bash
-obsidian eval code="JSON.stringify(window.__QS__.snapshot())"
-obsidian eval code="JSON.stringify(window.__QS__.events.tail(20))"
-obsidian dev:console level=error
-obsidian dev:errors
-obsidian dev:screenshot path=/tmp/failure.png
+obsidian eval code="JSON.stringify(window.__QS__.snapshot())" 2>/dev/null
+obsidian eval code="JSON.stringify(window.__QS__.events.tail(20))" 2>/dev/null
+obsidian dev:errors 2>/dev/null
+obsidian dev:console level=error 2>/dev/null
+obsidian dev:screenshot path=/tmp/failure.png 2>/dev/null
 ```

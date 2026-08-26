@@ -22,7 +22,9 @@ When the plugin isn't behaving correctly in Obsidian, systematically collect dia
 
 - Obsidian must be running.
 - Plugin should be built with `npm run build:dev` (enables facade via `__DEV__` flag).
-- Console capture requires `obsidian dev:debug on` (once per session).
+- Console capture requires `obsidian dev:debug on 2>/dev/null` (once per session).
+- Always append `2>/dev/null` to all `obsidian` CLI commands to suppress GTK/Electron warnings.
+- Always use the IIFE + `console.log` pattern for async eval: `obsidian eval code="(async()=>{const r=await ...;console.log(JSON.stringify(r))})()" 2>/dev/null`
 - If `window.__QS__` is undefined, the plugin may be running a production build without `ENABLE_DEVELOPER_TOOLS`. Rebuild with `npm run build:dev` and reload. If still unavailable, fall back to direct `app.plugins.plugins['quartz-syncer']` access for raw state inspection.
 
 ## When to Activate
@@ -42,11 +44,11 @@ Activate when:
 Always start by capturing the current state before any investigation changes it:
 
 ```bash
-obsidian eval code="JSON.stringify(window.__QS__.snapshot())"
-obsidian eval code="JSON.stringify(window.__QS__.events.tail(20))"
-obsidian dev:console level=error
-obsidian dev:errors
-obsidian dev:screenshot path=/tmp/debug.png
+obsidian eval code="JSON.stringify(window.__QS__.snapshot())" 2>/dev/null
+obsidian eval code="JSON.stringify(window.__QS__.events.tail(20))" 2>/dev/null
+obsidian dev:errors 2>/dev/null
+obsidian dev:console level=error 2>/dev/null
+obsidian dev:screenshot path=/tmp/debug.png 2>/dev/null
 ```
 
 Save these outputs — they're the baseline for investigation.
@@ -78,7 +80,7 @@ Events are ordered by cursor (monotonically increasing). Most recent events are 
 ### Step 4: Check console errors
 
 ```bash
-obsidian dev:console level=error
+obsidian dev:console level=error 2>/dev/null
 ```
 
 Look for:
@@ -93,39 +95,39 @@ Based on what Step 2-4 revealed:
 
 **Plugin won't load:**
 ```bash
-obsidian eval code="JSON.stringify(typeof window.__QS__)"
+obsidian eval code="typeof window.__QS__" 2>/dev/null
 # "undefined" means facade didn't mount — check if ENABLE_DEVELOPER_TOOLS is set
-obsidian eval code="JSON.stringify(app.plugins.plugins['quartz-syncer']?.settings?.ENABLE_DEVELOPER_TOOLS)"
+obsidian eval code="app.plugins.plugins['quartz-syncer']?.settings?.ENABLE_DEVELOPER_TOOLS" 2>/dev/null
 ```
 
 **Publisher unavailable:**
 ```bash
-obsidian eval code="JSON.stringify(app.plugins.plugins['quartz-syncer']?.settings?.gitRemoteUrl)"
-obsidian eval code="JSON.stringify(app.plugins.plugins['quartz-syncer']?.settings?.gitAuthType)"
+obsidian eval code="app.plugins.plugins['quartz-syncer']?.settings?.gitRemoteUrl" 2>/dev/null
+obsidian eval code="app.plugins.plugins['quartz-syncer']?.settings?.gitAuthType" 2>/dev/null
 ```
 
 **Compilation failures:**
 ```bash
-obsidian eval code="JSON.stringify(window.__QS__.events.tail(50).filter(e => e.type === 'compilation.failed'))"
+obsidian eval code="JSON.stringify(window.__QS__.events.tail(50).filter(e => e.type === 'compilation.failed'))" 2>/dev/null
 ```
 
 **Connection failures:**
 ```bash
-obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'connection.test'});console.log(JSON.stringify(r))})()"
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'connection.test'});console.log(JSON.stringify(r))})()" 2>/dev/null
 ```
 
 **UI not rendering:**
 ```bash
-obsidian dev:dom selector='[data-qs="pub-center"]' total
-obsidian dev:dom selector='[data-qs="statusbar"]' total
-obsidian dev:dom selector='.modal' total
+obsidian dev:dom selector='[data-qs="pub-center"]' total 2>/dev/null
+obsidian dev:dom selector='[data-qs="statusbar"]' total 2>/dev/null
+obsidian dev:dom selector='.modal' total 2>/dev/null
 ```
 
 **Stale status:**
 ```bash
-obsidian eval code="JSON.stringify(window.__QS__.snapshot().publishStatus?.stale)"
+obsidian eval code="JSON.stringify(window.__QS__.snapshot().publishStatus?.stale)" 2>/dev/null
 # If true, status needs refresh:
-obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'status.refresh'});console.log(JSON.stringify(r))})()"
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'status.refresh'});console.log(JSON.stringify(r))})()" 2>/dev/null
 ```
 
 ### Step 6: Wait for conditions
@@ -134,30 +136,32 @@ Use `waitFor` to monitor async conditions:
 
 ```bash
 # Wait for engine to become idle (compilation to finish)
-obsidian eval code="(async()=>{const r=await window.__QS__.waitFor('engine.idle',{},10000);console.log(JSON.stringify(r))})()"
+obsidian eval code="(async()=>{const r=await window.__QS__.waitFor('engine.idle',{},10000);console.log(JSON.stringify(r))})()" 2>/dev/null
 
 # Wait for no errors since a cursor
-obsidian eval code="(async()=>{const r=await window.__QS__.waitFor('errors.none',{cursor:0},5000);console.log(JSON.stringify(r))})()"
+obsidian eval code="(async()=>{const r=await window.__QS__.waitFor('errors.none',{cursor:0},5000);console.log(JSON.stringify(r))})()" 2>/dev/null
 ```
 
 ### Step 7: Mobile-specific debugging
 
 ```bash
 # Enable mobile emulation
-obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'env.emulateMobile',params:{enabled:true,confirm:true}});console.log(JSON.stringify(r))})()"
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'env.emulateMobile',params:{enabled:true,confirm:true}});console.log(JSON.stringify(r))})()" 2>/dev/null
 
 # Take screenshot in mobile mode
-obsidian dev:screenshot path=/tmp/mobile-debug.png
+obsidian dev:screenshot path=/tmp/mobile-debug.png 2>/dev/null
 
 # Check if desktop-only features are properly hidden
-obsidian dev:dom selector='[data-qs="pub-center"]' total
+obsidian dev:dom selector='[data-qs="pub-center"]' total 2>/dev/null
 
 # Disable emulation when done
-obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'env.emulateMobile',params:{enabled:false,confirm:true}});console.log(JSON.stringify(r))})()"
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'env.emulateMobile',params:{enabled:false,confirm:true}});console.log(JSON.stringify(r))})()" 2>/dev/null
 ```
 
 ## MUST DO
 
+- Always append `2>/dev/null` to all `obsidian` CLI commands.
+- Always use the IIFE + `console.log` pattern for async eval calls.
 - Always collect the failure bundle FIRST — before any investigation that might change state.
 - Parse JSON responses systematically — don't eyeball large outputs.
 - Check BOTH the facade (`window.__QS__`) AND the console (`dev:console`) — some errors only appear in one.
@@ -166,6 +170,8 @@ obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'env.emulat
 
 ## MUST NOT DO
 
+- Do NOT omit `2>/dev/null` — GTK warnings pollute output parsing.
+- Do NOT use top-level `await` in eval — use the IIFE pattern.
 - Do NOT start changing code before understanding the root cause.
 - Do NOT ignore console errors even if the facade reports no errors — they may come from different sources.
 - Do NOT assume the plugin is broken if the facade is unavailable — check if ENABLE_DEVELOPER_TOOLS is enabled.
