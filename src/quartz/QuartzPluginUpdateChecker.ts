@@ -23,6 +23,7 @@ export interface PluginUpdateStatus {
 export class QuartzPluginUpdateChecker {
 	private auth: GitAuth;
 	private corsProxyUrl?: string;
+	private commitCache = new Map<string, Promise<string | null>>();
 
 	constructor(auth: GitAuth, corsProxyUrl?: string) {
 		this.auth = auth;
@@ -63,13 +64,21 @@ export class QuartzPluginUpdateChecker {
 		try {
 			const gitUrl = resolveSourceToGitUrl(plugin.source);
 			const ref = getSourceRef(plugin.source) ?? undefined;
+			const cacheKey = `${gitUrl}#${ref ?? "HEAD"}`;
 
-			const remoteCommit = await fetchRemoteHeadCommit(
-				gitUrl,
-				this.auth,
-				ref,
-				this.corsProxyUrl,
-			);
+			let commitPromise = this.commitCache.get(cacheKey);
+
+			if (!commitPromise) {
+				commitPromise = fetchRemoteHeadCommit(
+					gitUrl,
+					this.auth,
+					ref,
+					this.corsProxyUrl,
+				);
+				this.commitCache.set(cacheKey, commitPromise);
+			}
+
+			const remoteCommit = await commitPromise;
 
 			if (!remoteCommit) {
 				return {

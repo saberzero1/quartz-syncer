@@ -16,6 +16,13 @@ const createPluginStub = (): QuartzSyncer => {
 			loadCompilationRevisions: vi.fn().mockResolvedValue({}),
 			storeCompilationRevisions: vi.fn().mockResolvedValue(undefined),
 		},
+		statusCache: {
+			markStale: vi.fn(),
+			markStaleFile: vi.fn(),
+			invalidate: vi.fn(),
+			clearDiffCache: vi.fn(),
+		},
+		cacheHandle: null,
 	} as unknown as QuartzSyncer;
 };
 
@@ -44,6 +51,13 @@ const createAutoPublishPluginStub = (
 			loadCompilationRevisions: vi.fn().mockResolvedValue({}),
 			storeCompilationRevisions: vi.fn().mockResolvedValue(undefined),
 		},
+		statusCache: {
+			markStale: vi.fn(),
+			markStaleFile: vi.fn(),
+			invalidate: vi.fn(),
+			clearDiffCache: vi.fn(),
+		},
+		cacheHandle: null,
 	} as unknown as QuartzSyncer;
 };
 
@@ -473,6 +487,47 @@ describe("BackgroundEngine", () => {
 		app.vault.trigger("modify", file);
 
 		expect(enqueueSpy).toHaveBeenCalledWith("notes/after-guard.md", 5);
+		vi.useRealTimers();
+	});
+
+	it("vault delete marks statusCache stale for the file", () => {
+		vi.useFakeTimers();
+		const app = new App();
+		const plugin = createAutoPublishPluginStub();
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.compilationQueue.pause();
+		engine.start();
+		vi.advanceTimersByTime(40_001);
+
+		const file = createFile("notes/removed.md", Date.now());
+		app.vault.trigger("delete", file);
+
+		expect(plugin.statusCache.markStaleFile).toHaveBeenCalledWith(
+			"notes/removed.md",
+		);
+		vi.useRealTimers();
+	});
+
+	it("vault rename marks statusCache stale for both old and new paths", () => {
+		vi.useFakeTimers();
+		const app = new App();
+		const plugin = createAutoPublishPluginStub();
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.compilationQueue.pause();
+		engine.start();
+		vi.advanceTimersByTime(40_001);
+
+		const file = createFile("notes/new-name.md", Date.now());
+		app.vault.trigger("rename", file, "notes/old-name.md");
+
+		expect(plugin.statusCache.markStaleFile).toHaveBeenCalledWith(
+			"notes/old-name.md",
+		);
+		expect(plugin.statusCache.markStaleFile).toHaveBeenCalledWith(
+			"notes/new-name.md",
+		);
 		vi.useRealTimers();
 	});
 });

@@ -81,6 +81,8 @@ export class DataStore {
 	 * Call `clearMemoryCache()` when the batch operation is complete.
 	 */
 	public async preloadCache(): Promise<void> {
+		if (this.memoryCache) return;
+
 		const cache = new Map<string, QuartzSyncerCache>();
 
 		await this.persister.iterate<QuartzSyncerCache>(

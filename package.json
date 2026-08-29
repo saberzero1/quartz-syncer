@@ -45,6 +45,7 @@
 		"buffer": "^6.0.3",
 		"diff": "^9.0.0",
 		"isomorphic-git": "https://github.com/saberzero1/isomorphic-git.git",
+		"obsidian-extended-metadatacache": "^0.5.1",
 		"remark-frontmatter": "^5.0.0",
 		"remark-parse": "^11.0.0",
 		"remark-stringify": "^11.0.0",

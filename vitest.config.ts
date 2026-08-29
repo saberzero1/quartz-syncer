@@ -12,6 +12,10 @@ export default defineConfig({
 				"test/unit/__mocks__/obsidian.ts",
 				import.meta.url,
 			).pathname,
+			"obsidian-extended-metadatacache": new URL(
+				"__mocks__/obsidian-extended-metadatacache.ts",
+				import.meta.url,
+			).pathname,
 			src: new URL("src", import.meta.url).pathname,
 		},
 	},

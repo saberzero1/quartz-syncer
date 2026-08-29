@@ -1,17 +1,42 @@
-import type { FileChange, GitBackend } from "src/git/types";
+import type { FileChange, GitBackend, TreeEntry } from "src/git/types";
 import type {
 	QuartzDirectoryEntry,
 	QuartzFileSource,
 } from "src/quartz/QuartzFileSource";
 
 export class RemoteFileSource implements QuartzFileSource {
+	private treeCache: TreeEntry[] | null = null;
+	private treeFetchPromise: Promise<TreeEntry[]> | null = null;
+
 	constructor(
 		private backend: GitBackend,
 		private branch: string,
 	) {}
 
+	private async getTree(): Promise<TreeEntry[]> {
+		if (this.treeCache) return this.treeCache;
+		if (this.treeFetchPromise) return this.treeFetchPromise;
+
+		this.treeFetchPromise = this.backend
+			.readTree(this.branch)
+			.then((entries) => {
+				this.treeCache = entries;
+				return entries;
+			});
+
+		try {
+			return await this.treeFetchPromise;
+		} finally {
+			this.treeFetchPromise = null;
+		}
+	}
+
+	clearTreeCache(): void {
+		this.treeCache = null;
+	}
+
 	async readFile(path: string): Promise<string | null> {
-		const entries = await this.backend.readTree(this.branch);
+		const entries = await this.getTree();
 		const match = entries.find(
 			(entry) => entry.path === path && entry.type === "blob",
 		);
@@ -31,6 +56,7 @@ export class RemoteFileSource implements QuartzFileSource {
 			"Update Quartz configuration via Syncer",
 			changes,
 		);
+		this.treeCache = null;
 	}
 
 	async writeBinaryFile(path: string, data: Uint8Array): Promise<void> {
@@ -44,16 +70,18 @@ export class RemoteFileSource implements QuartzFileSource {
 			"Update binary file via Syncer",
 			changes,
 		);
+		this.treeCache = null;
 	}
 
 	async deleteFile(path: string): Promise<void> {
 		await this.backend.deleteFiles(this.branch, "Delete file via Syncer", [
 			path,
 		]);
+		this.treeCache = null;
 	}
 
 	async listDirectory(path: string): Promise<QuartzDirectoryEntry[]> {
-		const entries = await this.backend.readTree(this.branch);
+		const entries = await this.getTree();
 		const prefix = path.endsWith("/") ? path : `${path}/`;
 		const results = new Map<string, "blob" | "tree">();
 
@@ -76,7 +104,7 @@ export class RemoteFileSource implements QuartzFileSource {
 	}
 
 	async listAllFiles(basePath?: string): Promise<string[]> {
-		const entries = await this.backend.readTree(this.branch);
+		const entries = await this.getTree();
 		const files: string[] = [];
 
 		for (const entry of entries) {
@@ -97,7 +125,7 @@ export class RemoteFileSource implements QuartzFileSource {
 	}
 
 	async exists(path: string): Promise<boolean> {
-		const entries = await this.backend.readTree(this.branch);
+		const entries = await this.getTree();
 
 		return entries.some((entry) => entry.path === path);
 	}

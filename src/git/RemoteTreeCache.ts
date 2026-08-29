@@ -1,15 +1,34 @@
 import type { GitBackend, TreeEntry } from "src/git/types";
+import { createStore, type IndexedDBStore } from "src/cache/IndexedDBStore";
 
 export class RemoteTreeCache {
 	private cache: TreeEntry[] | null = null;
 	private cacheTime = 0;
 	private fetchPromise: Promise<TreeEntry[]> | null = null;
 	private timer: number | null = null;
+	private store: IndexedDBStore | null = null;
 
 	constructor(
 		private gitBackend: GitBackend,
 		private branch: string,
 	) {}
+
+	enablePersistence(vaultName: string, pluginId: string): void {
+		this.store = createStore(`${vaultName}-${pluginId}-tree`);
+	}
+
+	async loadPersisted(): Promise<void> {
+		if (!this.store || this.cache) return;
+
+		const data = await this.store
+			.getItem<{ entries: TreeEntry[]; time: number }>("tree")
+			.catch(() => null);
+
+		if (data) {
+			this.cache = data.entries;
+			this.cacheTime = data.time;
+		}
+	}
 
 	async get(): Promise<TreeEntry[]> {
 		if (this.cache) return this.cache;
@@ -25,6 +44,7 @@ export class RemoteTreeCache {
 			.then((entries) => {
 				this.cache = entries;
 				this.cacheTime = Date.now();
+				void this.persist();
 				return entries;
 			})
 			.finally(() => {
@@ -37,6 +57,16 @@ export class RemoteTreeCache {
 	invalidate(): void {
 		this.cache = null;
 		this.cacheTime = 0;
+		this.store?.removeItem("tree").catch(() => {});
+	}
+
+	removeEntries(paths: string[]): void {
+		if (!this.cache) return;
+
+		const toRemove = new Set(paths);
+		this.cache = this.cache.filter((e) => !toRemove.has(e.path));
+		this.cacheTime = Date.now();
+		void this.persist();
 	}
 
 	get age(): number {
@@ -65,5 +95,16 @@ export class RemoteTreeCache {
 			window.clearInterval(this.timer);
 			this.timer = null;
 		}
+	}
+
+	private async persist(): Promise<void> {
+		if (!this.store || !this.cache) return;
+
+		await this.store
+			.setItem("tree", {
+				entries: this.cache,
+				time: this.cacheTime,
+			})
+			.catch(() => {});
 	}
 }

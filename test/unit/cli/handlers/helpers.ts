@@ -42,6 +42,18 @@ export const buildPlugin = (
 		secretStorageService: {},
 		quartzRunner: null,
 		processRunner: null,
+		statusCache: {
+			invalidate: vi.fn(),
+			markStale: vi.fn(),
+			markStaleFile: vi.fn(),
+			clearDiffCache: vi.fn(),
+			patchPublished: vi.fn(),
+			patchDeleted: vi.fn(),
+		},
+		pluginRegistry: {
+			getPlugins: vi.fn().mockResolvedValue([]),
+			clearCache: vi.fn(),
+		},
 	} as unknown as QuartzSyncer;
 
 	return Object.assign(plugin, overrides);

@@ -34,6 +34,13 @@ import { OperabilityFacadeImpl } from "src/operability/OperabilityFacade";
 import { EventBuffer } from "src/operability/EventBuffer";
 import { PublicationCenterManager } from "src/operability/PublicationCenterManager";
 import { QuartzHubManager } from "src/operability/QuartzHubManager";
+import {
+	getAPI,
+	type ExtendedMetadataCacheHandle,
+} from "obsidian-extended-metadatacache";
+import { StatusCacheService } from "src/services/StatusCacheService";
+import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
+import { HubDetectionCache } from "src/services/HubDetectionCache";
 
 /**
  * QuartzSyncer plugin settings.
@@ -188,6 +195,10 @@ export default class QuartzSyncer extends Plugin {
 	gitRunner: GitRunner | null = null;
 	npmRunner: NpmRunner | null = null;
 	quartzRunner: QuartzRunner | null = null;
+	cacheHandle: ExtendedMetadataCacheHandle | null = null;
+	statusCache = new StatusCacheService("", "");
+	pluginRegistry = new QuartzPluginRegistry();
+	hubDetectionCache = new HubDetectionCache();
 
 	async onload() {
 		this.appVersion = this.manifest.version;
@@ -215,7 +226,23 @@ export default class QuartzSyncer extends Plugin {
 			this.manifest.id,
 			this.appVersion,
 		);
+		this.statusCache = new StatusCacheService(
+			this.app.vault.getName(),
+			this.manifest.id,
+		);
+		void this.statusCache.loadPersistedSnapshot();
+		this.pluginRegistry.enablePersistence(
+			this.app.vault.getName(),
+			this.manifest.id,
+		);
+		this.hubDetectionCache.enablePersistence(
+			this.app.vault.getName(),
+			this.manifest.id,
+		);
+		void this.hubDetectionCache.loadPersisted();
 		registerBundledGitBackend(BundledGitBackend);
+
+		this.cacheHandle = getAPI(this.app);
 
 		console.debug("Initializing QuartzSyncer plugin v" + this.appVersion);
 		this.addSettingTab(new QuartzSyncerSettingTab(this.app, this));
@@ -282,8 +309,11 @@ export default class QuartzSyncer extends Plugin {
 		this.backgroundEngine = new BackgroundEngine(
 			this.app,
 			this,
-			(state, count) => {
+			(state, count, summary) => {
 				this.statusBarManager?.setState(state, count);
+				if (summary !== undefined) {
+					this.statusBarManager?.setSummary(summary);
+				}
 			},
 			this.eventSink ?? undefined,
 		);
@@ -331,6 +361,8 @@ export default class QuartzSyncer extends Plugin {
 		this.backgroundEngine?.stopAutoPublish();
 		this.backgroundEngine?.stop();
 		this.backgroundEngine = null;
+		this.cacheHandle?.release();
+		this.cacheHandle = null;
 		this.quartzRunner?.stopServe();
 		this.publisher = null;
 		this.processRunner = null;
@@ -511,6 +543,8 @@ export default class QuartzSyncer extends Plugin {
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 		this.invalidateCachedInstances();
+		this.statusCache?.invalidate();
+		this.hubDetectionCache.clear();
 	}
 
 	getSecretStorageService(): SecretStorageService {
@@ -594,6 +628,10 @@ export default class QuartzSyncer extends Plugin {
 			const backend = new RemotePublishBackend(
 				gitBackend,
 				this.settings.gitBranch,
+			);
+			backend.enableTreePersistence(
+				this.app.vault.getName(),
+				this.manifest.id,
 			);
 
 			this.publisher = new Publisher(

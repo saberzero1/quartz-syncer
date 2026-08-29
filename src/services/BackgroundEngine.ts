@@ -5,6 +5,8 @@ import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
 import type { IOperabilityEventSink } from "src/operability/types";
+import type { StatusSummary } from "src/services/StatusCacheService";
+import { isMediaFile } from "src/utils/mediaTypes";
 
 const PRIORITY_PREWARM = 0;
 const PRIORITY_VAULT_CHANGE = 5;
@@ -19,6 +21,7 @@ export class BackgroundEngine {
 	private workspaceEventRefs: EventRef[] = [];
 	private metadataCacheEventRefs: EventRef[] = [];
 	private datacoreEventRefs: EventRef[] = [];
+	private extCacheEventRef: EventRef | null = null;
 	private compiler: SyncerPageCompiler | null = null;
 	private lastActiveFilePath: string | null = null;
 	private readonly startupTime = Date.now();
@@ -32,6 +35,7 @@ export class BackgroundEngine {
 		private onStatusChange?: (
 			state: "ready" | "compiling",
 			count: number,
+			summary?: StatusSummary | null,
 		) => void,
 		private eventSink?: IOperabilityEventSink,
 	) {
@@ -55,7 +59,109 @@ export class BackgroundEngine {
 		const publisher = this.plugin.getPublisher();
 
 		if (publisher) {
-			void publisher.refreshTreeCache();
+			void publisher.refreshTreeCache().then(() => {
+				void this.computeLightweightSummary();
+			});
+		}
+	}
+
+	private async computeLightweightSummary(): Promise<void> {
+		const publisher = this.plugin.getPublisher();
+		if (!publisher) return;
+
+		try {
+			const settings = this.plugin.settings;
+			const extCache = this.plugin.cacheHandle?.api;
+			const vaultFiles = this.app.vault.getFiles();
+
+			let candidatePaths: Set<string>;
+
+			if (settings.allNotesPublishableByDefault) {
+				candidatePaths = new Set(vaultFiles.map((f) => f.path));
+			} else if (extCache?.isReady) {
+				candidatePaths = new Set(
+					extCache.getFilesWithFrontmatterValue(
+						settings.publishFrontmatterKey,
+						true,
+					),
+				);
+			} else {
+				candidatePaths = new Set(vaultFiles.map((f) => f.path));
+			}
+
+			const remoteTree = await publisher.getCachedTree();
+			if (!remoteTree) return;
+
+			const pathMapper = publisher.getPathMapper();
+			const remoteMap = new Map<string, string>();
+
+			for (const entry of remoteTree) {
+				if (entry.type !== "blob") continue;
+				if (!pathMapper.isInContentFolder(entry.path)) continue;
+				remoteMap.set(entry.path, entry.sha);
+			}
+
+			let unpublished = 0;
+			let changed = 0;
+			let published = 0;
+			const localRepoPaths = new Set<string>();
+
+			for (const filePath of candidatePaths) {
+				const file = this.app.vault.getFileByPath(filePath);
+				if (!file) continue;
+
+				const vaultPath =
+					settings.vaultPath !== "/" &&
+					file.path.startsWith(settings.vaultPath)
+						? file.path.replace(settings.vaultPath, "")
+						: file.path;
+				const repoPath = pathMapper.toRepoPath(vaultPath);
+				localRepoPaths.add(repoPath);
+
+				const remoteSha = remoteMap.get(repoPath);
+
+				if (!remoteSha) {
+					unpublished++;
+					continue;
+				}
+
+				const localHash = await this.plugin.dataStore.loadLocalHash(
+					file.path,
+					file.stat.mtime,
+				);
+
+				if (localHash && localHash === remoteSha) {
+					published++;
+				} else {
+					changed++;
+				}
+			}
+
+			let deleted = 0;
+			let media = 0;
+
+			for (const repoPath of remoteMap.keys()) {
+				if (localRepoPaths.has(repoPath)) continue;
+
+				if (isMediaFile(repoPath)) {
+					media++;
+				} else {
+					deleted++;
+				}
+			}
+
+			this.plugin.statusCache.setSummary({
+				unpublished,
+				changed,
+				published,
+				deleted,
+				media,
+				timestamp: Date.now(),
+			});
+
+			this.updateStatusBar();
+		} catch {
+			// No-op
 		}
 	}
 
@@ -70,6 +176,7 @@ export class BackgroundEngine {
 				this.registerActiveLeafListener();
 				this.registerDataviewListeners();
 				this.registerDatacoreListeners();
+				this.registerExtCacheListener();
 				this.prewarmCache();
 			}, STARTUP_DELAY_MS);
 		});
@@ -218,6 +325,7 @@ export class BackgroundEngine {
 					this.plugin.dataStore.dropFile(file.path).catch((error) => {
 						console.debug("Failed to drop cache entry:", error);
 					});
+					this.plugin.statusCache.markStaleFile(file.path);
 				}
 			}),
 		);
@@ -228,8 +336,10 @@ export class BackgroundEngine {
 					this.plugin.dataStore.dropFile(oldPath).catch((error) => {
 						console.debug("Failed to drop cache entry:", error);
 					});
+					this.plugin.statusCache.markStaleFile(oldPath);
 				}
 				if (file instanceof TFile && file.path.endsWith(".md")) {
+					this.plugin.statusCache.markStaleFile(file.path);
 					if (!this.isStartupNoise(file)) {
 						debouncedEnqueue(file.path);
 					}
@@ -329,6 +439,44 @@ export class BackgroundEngine {
 
 		if (ref) {
 			this.datacoreEventRefs.push(ref);
+		}
+	}
+
+	private registerExtCacheListener(): void {
+		if (!this.running) return;
+
+		const extCache = this.plugin.cacheHandle?.api;
+		if (!extCache) return;
+
+		const onFileUpdated = (path: string) => {
+			const settings = this.plugin.settings;
+
+			if (settings.allNotesPublishableByDefault) {
+				this.plugin.statusCache.markStaleFile(path);
+				return;
+			}
+
+			const publishable = extCache.getFilesWithFrontmatterValue(
+				settings.publishFrontmatterKey,
+				true,
+			);
+
+			if (publishable.has(path)) {
+				this.plugin.statusCache.markStaleFile(path);
+			}
+		};
+
+		if (extCache.isReady) {
+			this.extCacheEventRef = extCache.on("file-updated", onFileUpdated);
+		} else {
+			const readyRef = extCache.on("ready", () => {
+				extCache.offref(readyRef);
+				if (!this.running) return;
+				this.extCacheEventRef = extCache.on(
+					"file-updated",
+					onFileUpdated,
+				);
+			});
 		}
 	}
 
@@ -551,6 +699,11 @@ export class BackgroundEngine {
 			}
 		}
 		this.datacoreEventRefs = [];
+
+		if (this.extCacheEventRef) {
+			this.plugin.cacheHandle?.api?.offref(this.extCacheEventRef);
+			this.extCacheEventRef = null;
+		}
 	}
 
 	// --- Status ---
@@ -581,6 +734,10 @@ export class BackgroundEngine {
 	private updateStatusBar(): void {
 		if (!this.onStatusChange) return;
 		const count = this.pendingCount;
-		this.onStatusChange(count > 0 ? "compiling" : "ready", count);
+		this.onStatusChange(
+			count > 0 ? "compiling" : "ready",
+			count,
+			this.plugin.statusCache.getSummary(),
+		);
 	}
 }

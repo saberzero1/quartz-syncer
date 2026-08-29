@@ -42,6 +42,13 @@ function makePlugin(
 		}),
 		saveSettings: vi.fn(),
 		loadSettings: vi.fn(),
+		statusCache: {
+			getCachedStatusEvenIfStale: () => null,
+			isStale: () => true,
+			invalidate: vi.fn(),
+			markStale: vi.fn(),
+			clearDiffCache: vi.fn(),
+		},
 	} as unknown as QuartzSyncer;
 }
 

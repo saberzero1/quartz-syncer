@@ -13,6 +13,11 @@ export class RemotePublishBackend implements PublishBackend {
 		this.treeCache = new RemoteTreeCache(gitBackend, branch);
 	}
 
+	enableTreePersistence(vaultName: string, pluginId: string): void {
+		this.treeCache.enablePersistence(vaultName, pluginId);
+		void this.treeCache.loadPersisted();
+	}
+
 	async writeFiles(
 		branch: string,
 		message: string,
@@ -47,6 +52,10 @@ export class RemotePublishBackend implements PublishBackend {
 
 	invalidateTreeCache(): void {
 		this.treeCache.invalidate();
+	}
+
+	removeTreeEntries(paths: string[]): void {
+		this.treeCache.removeEntries(paths);
 	}
 
 	async refreshTreeCache(): Promise<TreeEntry[]> {

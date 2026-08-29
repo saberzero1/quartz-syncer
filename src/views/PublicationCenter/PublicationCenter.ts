@@ -10,6 +10,7 @@ import {
 import type { App } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { PublishFile } from "src/publishFile/PublishFile";
+import type { StatusSnapshot } from "src/services/StatusCacheService";
 import type {
 	ArbitraryFileEntry,
 	MediaEntry,
@@ -66,6 +67,8 @@ export class PublicationCenter extends Modal {
 	private filterDebounceTimer: number | null = null;
 	private hasShell = false;
 	private isOperating = false;
+	private isRefreshing = false;
+	private hasFullStatus = false;
 	private fileMap = new Map<string, PublishFile>();
 	private mediaMap = new Map<string, MediaEntry>();
 	private arbitraryMap = new Map<string, ArbitraryFileEntry>();
@@ -73,6 +76,7 @@ export class PublicationCenter extends Modal {
 	private tabButtons = new Map<TreeTab, HTMLButtonElement>();
 	private diffMode: DiffViewMode = "split";
 	private inlineScrollSync: ReturnType<typeof renderDiffView> = null;
+	private diffStatsAbort: AbortController | null = null;
 
 	constructor(
 		app: App,
@@ -115,6 +119,8 @@ export class PublicationCenter extends Modal {
 			.getEventSink()
 			?.emit("ui.modal.closed", { name: "publication-center" });
 		this._plugin.resumeAutoPublish();
+		this.diffStatsAbort?.abort();
+		this.diffStatsAbort = null;
 		this.publicationTree?.unmount();
 		this.inlineScrollSync?.destroy();
 		this.inlineScrollSync = null;
@@ -128,6 +134,7 @@ export class PublicationCenter extends Modal {
 		this.diffContentEl = null;
 		this.searchInputEl = null;
 		this.publicationTree = null;
+		this.fileMap.clear();
 		this.mediaMap.clear();
 		this.arbitraryMap.clear();
 		this.mediaSources.clear();
@@ -137,6 +144,8 @@ export class PublicationCenter extends Modal {
 			this.filterDebounceTimer = null;
 		}
 		this.hasShell = false;
+		this.isRefreshing = false;
+		this.hasFullStatus = false;
 	}
 
 	getController(): PublicationCenterController {
@@ -176,6 +185,9 @@ export class PublicationCenter extends Modal {
 	}
 
 	private async loadStatus(): Promise<void> {
+		this.diffStatsAbort?.abort();
+		this._plugin.statusCache.clearDiffCache();
+
 		const publisher = this._plugin.getPublisher();
 		if (!publisher) {
 			this.status = null;
@@ -188,8 +200,43 @@ export class PublicationCenter extends Modal {
 			return;
 		}
 
+		const cached = this._plugin.statusCache.getCachedStatusEvenIfStale();
+
+		if (cached && this.isCachedStatusValid(cached)) {
+			this.hasFullStatus = true;
+			this.status = cached;
+			this.progressState = { current: 0, total: 0 };
+			this.buildFileMap();
+			await this.buildMediaLinksMap();
+			this.treeState.setKnownFiles(this.getKnownFilePaths());
+			this.renderShell(true);
+			this.updateTreeState();
+
+			void this.refreshStatusInBackground(publisher);
+			return;
+		}
+
+		const snapshot = this._plugin.statusCache.getSnapshot();
+
+		if (snapshot) {
+			this.hasFullStatus = false;
+			this.isRefreshing = true;
+			this.status = this.statusFromSnapshot(snapshot);
+			this.progressState = { current: 0, total: 0 };
+			this.buildFileMap();
+			this.buildMediaLinksFromSnapshot(snapshot);
+			this.treeState.setKnownFiles(this.getKnownFilePaths());
+			this.renderShell(true);
+			this.updateTreeState();
+			this.updateOperationButtons();
+
+			void this.refreshStatusInBackground(publisher);
+			return;
+		}
+
 		try {
-			this.status = await publisher.getPublishStatus();
+			this.status = await this.fetchAndCacheStatus(publisher);
+			this.hasFullStatus = true;
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);
@@ -202,6 +249,114 @@ export class PublicationCenter extends Modal {
 		this.treeState.setKnownFiles(this.getKnownFilePaths());
 		this.renderShell(true);
 		this.updateTreeState();
+	}
+
+	private async fetchAndCacheStatus(
+		publisher: ReturnType<QuartzSyncer["getPublisher"]> & object,
+	): Promise<PublishStatus> {
+		const statusCache = this._plugin.statusCache;
+		let inflight = statusCache.getInflight();
+
+		if (!inflight) {
+			inflight = publisher.getPublishStatus();
+			statusCache.setInflight(inflight);
+		}
+
+		try {
+			const status = await inflight;
+			statusCache.setStatus(status);
+			return status;
+		} finally {
+			statusCache.clearInflight();
+		}
+	}
+
+	private async refreshStatusInBackground(
+		publisher: ReturnType<QuartzSyncer["getPublisher"]> & object,
+	): Promise<void> {
+		this.isRefreshing = true;
+		this.updateOperationButtons();
+
+		try {
+			const fresh = await this.fetchAndCacheStatus(publisher);
+			this.status = fresh;
+			this.hasFullStatus = true;
+			const selectedPaths = this.treeState.getSelectedFiles();
+			this.diffStatsAbort?.abort();
+			this._plugin.statusCache.clearDiffCache();
+			this.progressState = { current: 0, total: 0 };
+			this.buildFileMap();
+			await this.buildMediaLinksMap();
+			this.treeState.setKnownFiles(this.getKnownFilePaths());
+			this.renderShell(true);
+			this.updateTreeState();
+
+			for (const path of selectedPaths) {
+				if (this.treeState.hasFile(path)) {
+					this.treeState.selectFile(path);
+				}
+			}
+		} catch {
+			new Notice("Failed to refresh publish status.");
+		} finally {
+			this.isRefreshing = false;
+			this.updateOperationButtons();
+		}
+	}
+
+	private statusFromSnapshot(snapshot: StatusSnapshot): PublishStatus {
+		const stub = (path: string) =>
+			({
+				file: { path },
+				getVaultPath: () => path,
+			}) as unknown as PublishFile;
+
+		return {
+			unpublished: snapshot.unpublished.map(stub),
+			changed: snapshot.changed.map(stub),
+			published: snapshot.published.map(stub),
+			deleted: [...snapshot.deleted],
+			media: [...snapshot.media],
+			arbitrary: [...snapshot.arbitrary],
+			mediaLinks: new Map(Object.entries(snapshot.mediaLinks)),
+		};
+	}
+
+	private buildMediaLinksFromSnapshot(snapshot: StatusSnapshot): void {
+		this.mediaSources.clear();
+		const linked = new Map<string, Set<string>>();
+
+		for (const [notePath, links] of Object.entries(snapshot.mediaLinks)) {
+			if (links.length === 0) continue;
+			const linkSet = new Set(links);
+			linked.set(notePath, linkSet);
+			for (const link of linkSet) {
+				const sources = this.mediaSources.get(link) ?? new Set();
+				sources.add(notePath);
+				this.mediaSources.set(link, sources);
+			}
+		}
+
+		this.treeState.setLinkedMediaFiles(linked);
+	}
+
+	private isCachedStatusValid(status: PublishStatus): boolean {
+		const vault = this.app.vault;
+		const fileArrays = [
+			status.unpublished,
+			status.changed,
+			status.published,
+		];
+
+		for (const files of fileArrays) {
+			for (const file of files) {
+				if (!vault.getFileByPath(file.file.path)) {
+					return false;
+				}
+			}
+		}
+
+		return true;
 	}
 
 	private buildFileMap(): void {
@@ -252,6 +407,14 @@ export class PublicationCenter extends Modal {
 		header.createSpan({
 			text: `Select notes to publish or delete with ${pluginName}.`,
 		});
+
+		if (this.isRefreshing) {
+			const refreshEl = header.createSpan({
+				cls: "pub-center-refreshing",
+			});
+			setIcon(refreshEl, "refresh-cw");
+			refreshEl.createSpan({ text: " Refreshing…" });
+		}
 
 		if (
 			this._plugin.settings.allowArbitraryFilePublishing &&
@@ -436,29 +599,46 @@ export class PublicationCenter extends Modal {
 			this.treeState.setLinkedMediaFiles(new Map());
 			return;
 		}
-		const files = [
-			...this.status.unpublished,
-			...this.status.changed,
-			...this.status.published,
-		];
-		const entries = await Promise.all(
-			files.map(async (file) => {
-				const path = file.getVaultPath();
-				const links = await this._plugin.dataStore.loadMediaLinks(path);
-				return { path, links };
-			}),
-		);
+
 		const linked = new Map<string, Set<string>>();
-		for (const entry of entries) {
-			if (entry.links.length === 0) continue;
-			const linkSet = new Set(entry.links);
-			linked.set(entry.path, linkSet);
-			for (const link of linkSet) {
-				const sources = this.mediaSources.get(link) ?? new Set();
-				sources.add(entry.path);
-				this.mediaSources.set(link, sources);
+
+		if (this.status.mediaLinks && this.status.mediaLinks.size > 0) {
+			for (const [notePath, links] of this.status.mediaLinks) {
+				if (links.length === 0) continue;
+				const linkSet = new Set(links);
+				linked.set(notePath, linkSet);
+				for (const link of linkSet) {
+					const sources = this.mediaSources.get(link) ?? new Set();
+					sources.add(notePath);
+					this.mediaSources.set(link, sources);
+				}
+			}
+		} else {
+			const files = [
+				...this.status.unpublished,
+				...this.status.changed,
+				...this.status.published,
+			];
+			const entries = await Promise.all(
+				files.map(async (file) => {
+					const path = file.getVaultPath();
+					const links =
+						await this._plugin.dataStore.loadMediaLinks(path);
+					return { path, links };
+				}),
+			);
+			for (const entry of entries) {
+				if (entry.links.length === 0) continue;
+				const linkSet = new Set(entry.links);
+				linked.set(entry.path, linkSet);
+				for (const link of linkSet) {
+					const sources = this.mediaSources.get(link) ?? new Set();
+					sources.add(entry.path);
+					this.mediaSources.set(link, sources);
+				}
 			}
 		}
+
 		this.treeState.setLinkedMediaFiles(linked);
 	}
 
@@ -717,6 +897,16 @@ export class PublicationCenter extends Modal {
 			return null;
 		}
 
+		const cached = this._plugin.statusCache.getDiffContent(path);
+
+		if (cached) {
+			return {
+				localContent: cached.local,
+				remoteContent: cached.remote,
+				category,
+			};
+		}
+
 		let localContent = "";
 		let remoteContent = "";
 
@@ -758,27 +948,64 @@ export class PublicationCenter extends Modal {
 			return null;
 		}
 
+		if (localContent || remoteContent) {
+			this._plugin.statusCache.cacheDiffContent(
+				path,
+				localContent,
+				remoteContent,
+			);
+		}
+
 		return { localContent, remoteContent, category };
 	}
 
 	private async computeTreeDiffStats(): Promise<void> {
+		this.diffStatsAbort?.abort();
+
+		const abort = new AbortController();
+		this.diffStatsAbort = abort;
+
 		const publisher = this._plugin.getPublisher();
 		if (!publisher || !this.status) return;
 
-		for (const file of this.status.changed) {
-			if (!this.publicationTree) return;
-			const localContent =
-				(await publisher.getLocalCompiledContent(file)) ?? "";
-			const remoteContent =
-				(await publisher.getRemoteFileContent(file.getVaultPath())) ??
-				"";
-			if (!this.publicationTree) return;
-			const stats = computeDiffStats(localContent, remoteContent);
-			this.publicationTree.updateFileStats(
-				file.getVaultPath(),
-				stats.added,
-				stats.removed,
-			);
+		const changed = this.status.changed;
+		const chunkSize = 5;
+
+		for (let i = 0; i < changed.length; i += chunkSize) {
+			if (abort.signal.aborted || !this.publicationTree) return;
+
+			const chunk = changed.slice(i, i + chunkSize);
+
+			for (const file of chunk) {
+				if (abort.signal.aborted || !this.publicationTree) return;
+
+				const vaultPath = file.getVaultPath();
+				const localContent =
+					(await publisher.getLocalCompiledContent(file)) ?? "";
+				const remoteContent =
+					(await publisher.getRemoteFileContent(vaultPath)) ?? "";
+
+				if (abort.signal.aborted || !this.publicationTree) return;
+
+				if (localContent || remoteContent) {
+					this._plugin.statusCache.cacheDiffContent(
+						vaultPath,
+						localContent,
+						remoteContent,
+					);
+				}
+
+				const stats = computeDiffStats(localContent, remoteContent);
+				this.publicationTree.updateFileStats(
+					vaultPath,
+					stats.added,
+					stats.removed,
+				);
+			}
+
+			if (i + chunkSize < changed.length) {
+				await new Promise<void>((r) => window.setTimeout(r, 0));
+			}
 		}
 	}
 
@@ -1116,11 +1343,18 @@ export class PublicationCenter extends Modal {
 
 	private setOperating(operating: boolean): void {
 		this.isOperating = operating;
+		this.updateOperationButtons();
+	}
+
+	private updateOperationButtons(): void {
+		const disabled = this.isOperating || !this.hasFullStatus;
+
 		if (this.publishButtonEl) {
-			this.publishButtonEl.disabled = operating;
+			this.publishButtonEl.disabled = disabled;
 		}
+
 		if (this.deleteButtonEl) {
-			this.deleteButtonEl.disabled = operating;
+			this.deleteButtonEl.disabled = disabled;
 		}
 	}
 

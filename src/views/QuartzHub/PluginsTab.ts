@@ -8,7 +8,7 @@ import type {
 } from "src/quartz/QuartzConfigTypes";
 import { LocalFileSource } from "src/quartz/LocalFileSource";
 import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
-import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
+
 import {
 	getPluginName,
 	getPluginSourceKey,
@@ -231,7 +231,7 @@ async function openPluginBrowser(
 		return;
 	}
 
-	const registry = new QuartzPluginRegistry();
+	const registry = plugin.pluginRegistry;
 	const manager = new QuartzPluginManager();
 
 	const onInstall = async (source: string) => {

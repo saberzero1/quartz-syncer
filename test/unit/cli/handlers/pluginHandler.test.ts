@@ -33,6 +33,17 @@ vi.mock("src/quartz/QuartzPluginRegistry", () => ({
 	},
 }));
 
+const buildPluginWithRegistry = (overrides: Record<string, unknown> = {}) => {
+	const plugin = buildPlugin(
+		overrides as Partial<typeof import("src/main").default>,
+	);
+	(plugin as Record<string, unknown>).pluginRegistry = {
+		getPlugins,
+		clearCache: vi.fn(),
+	};
+	return plugin;
+};
+
 describe("pluginHandler", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -227,7 +238,7 @@ describe("pluginHandler", () => {
 				category: "other",
 			},
 		]);
-		const plugin = buildPlugin();
+		const plugin = buildPluginWithRegistry();
 		const handler = createPluginHandler(plugin);
 
 		const result = await handler(buildParams({ action: "search" }));
@@ -272,7 +283,7 @@ describe("pluginHandler", () => {
 				category: "structure",
 			},
 		]);
-		const plugin = buildPlugin();
+		const plugin = buildPluginWithRegistry();
 		const handler = createPluginHandler(plugin);
 
 		const result = await handler(
@@ -302,7 +313,7 @@ describe("pluginHandler", () => {
 				category: "visual",
 			},
 		]);
-		const plugin = buildPlugin();
+		const plugin = buildPluginWithRegistry();
 		const handler = createPluginHandler(plugin);
 
 		const result = await handler(
@@ -320,7 +331,7 @@ describe("pluginHandler", () => {
 
 	it("returns empty results when registry fetch fails", async () => {
 		getPlugins.mockResolvedValue([]);
-		const plugin = buildPlugin();
+		const plugin = buildPluginWithRegistry();
 		const handler = createPluginHandler(plugin);
 
 		const result = await handler(buildParams({ action: "search" }));

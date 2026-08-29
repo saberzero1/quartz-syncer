@@ -1,43 +1,45 @@
+import { vi } from "vitest";
+
 const mockApi = {
 	isReady: true,
 	isDestroyed: false,
-	getFilesWithTag: jest.fn().mockReturnValue(new Set()),
-	getFilesWithTagInBody: jest.fn().mockReturnValue(new Set()),
-	getFilesWithTagInFrontmatter: jest.fn().mockReturnValue(new Set()),
-	getAllTagsWithFiles: jest.fn().mockReturnValue(new Map()),
-	getBacklinksForFile: jest.fn().mockReturnValue(new Set()),
-	getBacklinksFromBody: jest.fn().mockReturnValue(new Set()),
-	getBacklinksFromFrontmatter: jest.fn().mockReturnValue(new Set()),
-	getAllBacklinksWithFiles: jest.fn().mockReturnValue(new Map()),
-	getUnresolvedBacklinks: jest.fn().mockReturnValue(new Set()),
-	getFilesEmbedding: jest.fn().mockReturnValue(new Set()),
-	getAllEmbedsWithFiles: jest.fn().mockReturnValue(new Map()),
-	getFilesWithHeading: jest.fn().mockReturnValue(new Set()),
-	getAllHeadingsWithFiles: jest.fn().mockReturnValue(new Map()),
-	getFilesWithFrontmatterKey: jest.fn().mockReturnValue(new Set()),
-	getFilesWithFrontmatterValue: jest.fn().mockReturnValue(new Set()),
-	getAllFrontmatterKeysWithFiles: jest.fn().mockReturnValue(new Map()),
-	getFilesWithAlias: jest.fn().mockReturnValue(new Set()),
-	getAllAliasesWithFiles: jest.fn().mockReturnValue(new Map()),
-	getFileWithBlockId: jest.fn().mockReturnValue(null),
-	getFilesWithTasks: jest.fn().mockReturnValue(new Set()),
-	getFilesWithTaskStatus: jest.fn().mockReturnValue(new Set()),
-	getAllTaskStatusesWithFiles: jest.fn().mockReturnValue(new Map()),
-	getFilesWithOpenTasks: jest.fn().mockReturnValue(new Set()),
-	getFilesWithCompletedTasks: jest.fn().mockReturnValue(new Set()),
-	on: jest.fn(),
-	off: jest.fn(),
-	offref: jest.fn(),
-	destroy: jest.fn(),
+	getFilesWithTag: vi.fn().mockReturnValue(new Set()),
+	getFilesWithTagInBody: vi.fn().mockReturnValue(new Set()),
+	getFilesWithTagInFrontmatter: vi.fn().mockReturnValue(new Set()),
+	getAllTagsWithFiles: vi.fn().mockReturnValue(new Map()),
+	getBacklinksForFile: vi.fn().mockReturnValue(new Set()),
+	getBacklinksFromBody: vi.fn().mockReturnValue(new Set()),
+	getBacklinksFromFrontmatter: vi.fn().mockReturnValue(new Set()),
+	getAllBacklinksWithFiles: vi.fn().mockReturnValue(new Map()),
+	getUnresolvedBacklinks: vi.fn().mockReturnValue(new Set()),
+	getFilesEmbedding: vi.fn().mockReturnValue(new Set()),
+	getAllEmbedsWithFiles: vi.fn().mockReturnValue(new Map()),
+	getFilesWithHeading: vi.fn().mockReturnValue(new Set()),
+	getAllHeadingsWithFiles: vi.fn().mockReturnValue(new Map()),
+	getFilesWithFrontmatterKey: vi.fn().mockReturnValue(new Set()),
+	getFilesWithFrontmatterValue: vi.fn().mockReturnValue(new Set()),
+	getAllFrontmatterKeysWithFiles: vi.fn().mockReturnValue(new Map()),
+	getFilesWithAlias: vi.fn().mockReturnValue(new Set()),
+	getAllAliasesWithFiles: vi.fn().mockReturnValue(new Map()),
+	getFileWithBlockId: vi.fn().mockReturnValue(null),
+	getFilesWithTasks: vi.fn().mockReturnValue(new Set()),
+	getFilesWithTaskStatus: vi.fn().mockReturnValue(new Set()),
+	getAllTaskStatusesWithFiles: vi.fn().mockReturnValue(new Map()),
+	getFilesWithOpenTasks: vi.fn().mockReturnValue(new Set()),
+	getFilesWithCompletedTasks: vi.fn().mockReturnValue(new Set()),
+	on: vi.fn(),
+	off: vi.fn(),
+	offref: vi.fn(),
+	destroy: vi.fn(),
 };
 
-export const getAPI = jest.fn().mockReturnValue({
+export const getAPI = vi.fn().mockReturnValue({
 	api: mockApi,
-	release: jest.fn(),
+	release: vi.fn(),
 });
 
-export const hasAPI = jest.fn().mockReturnValue(true);
+export const hasAPI = vi.fn().mockReturnValue(true);
 
-export const createExtendedMetadataCache = jest.fn().mockReturnValue(mockApi);
+export const createExtendedMetadataCache = vi.fn().mockReturnValue(mockApi);
 
 export const apiVersion = { major: 0, minor: 1, version: "0.5.1" };

@@ -2,8 +2,9 @@ import type { App } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { FileChange } from "src/git/types";
 import type { PublishBackend } from "src/publisher/PublishBackend";
+import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import { PathMapper } from "src/git/PathMapper";
-import { PublishFile } from "src/publishFile/PublishFile";
+import { getSpecialFileType, PublishFile } from "src/publishFile/PublishFile";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { DataStore } from "src/cache/DataStore";
 import type {
@@ -48,12 +49,66 @@ export class Publisher {
 		await this.backend.refreshTreeCache();
 	}
 
+	async getCachedTree(): Promise<import("src/git/types").TreeEntry[] | null> {
+		try {
+			return await this.backend.getCachedTree(
+				this.plugin.settings.gitBranch,
+			);
+		} catch {
+			return null;
+		}
+	}
+
+	getPathMapper(): PathMapper {
+		return this.pathMapper;
+	}
+
 	async getPublishStatus(): Promise<PublishStatus> {
 		const settings = this.plugin.settings;
 		const vaultFiles = this.app.vault.getFiles();
 		const publishFiles: PublishFile[] = [];
 
-		for (const file of vaultFiles) {
+		const extCache = this.plugin.cacheHandle?.api;
+		const useAllDefault = settings.allNotesPublishableByDefault;
+
+		// Determine candidate file paths.
+		// When allNotesPublishableByDefault is true, ALL vault files are
+		// candidates — matching the current Validator.ts behavior where
+		// override=true bypasses the frontmatter check entirely.
+		// The fast-path (inverse-index lookup) only applies when
+		// allNotesPublishableByDefault is false (the default).
+		let candidatePaths: Set<string>;
+
+		if (useAllDefault) {
+			candidatePaths = new Set(vaultFiles.map((f) => f.path));
+		} else if (extCache?.isReady) {
+			candidatePaths = new Set(
+				extCache.getFilesWithFrontmatterValue(
+					settings.publishFrontmatterKey,
+					true,
+				),
+			);
+
+			for (const f of vaultFiles) {
+				const type = getSpecialFileType(f);
+
+				if (type === "base" && settings.useBases) {
+					candidatePaths.add(f.path);
+				} else if (type === "canvas" && settings.useCanvas) {
+					candidatePaths.add(f.path);
+				} else if (type === "excalidraw" && settings.useExcalidraw) {
+					candidatePaths.add(f.path);
+				}
+			}
+		} else {
+			candidatePaths = new Set(vaultFiles.map((f) => f.path));
+		}
+
+		for (const path of candidatePaths) {
+			const file = this.app.vault.getFileByPath(path);
+
+			if (!file) continue;
+
 			const publishFile = new PublishFile({
 				file,
 				compiler: this.compiler,
@@ -63,7 +118,7 @@ export class Publisher {
 				datastore: this.dataStore,
 			});
 
-			if (publishFile.shouldPublish()) {
+			if (useAllDefault || publishFile.shouldPublish()) {
 				publishFiles.push(publishFile);
 			}
 		}
@@ -88,7 +143,19 @@ export class Publisher {
 			);
 			const linkedMedia = await resolveLinkedMedia(compiledFiles);
 
-			return await categorizeFiles(
+			const mediaLinks = new Map<string, string[]>();
+
+			for (const file of compiledFiles) {
+				const links = await this.dataStore.loadMediaLinks(
+					file.file.path,
+				);
+
+				if (links.length > 0) {
+					mediaLinks.set(file.file.path, links);
+				}
+			}
+
+			const status = await categorizeFiles(
 				compiledFiles,
 				remoteTree,
 				this.dataStore,
@@ -98,6 +165,10 @@ export class Publisher {
 					? settings.arbitraryPublishPaths
 					: undefined,
 			);
+
+			status.mediaLinks = mediaLinks;
+
+			return status;
 		} finally {
 			if (settings.useCache) {
 				await this.dataStore.flushCache();
@@ -238,6 +309,9 @@ export class Publisher {
 			}
 
 			this.backend.invalidateTreeCache();
+			this.plugin.statusCache.patchPublished(
+				new Set(files.map((f) => f.getVaultPath())),
+			);
 			this.backend.refreshTreeCache().catch((error) => {
 				console.debug("Tree cache refresh failed:", error);
 			});
@@ -300,7 +374,12 @@ export class Publisher {
 				onProgress?.(index + 1, total);
 			}
 
-			this.backend.invalidateTreeCache();
+			if (this.backend instanceof RemotePublishBackend) {
+				this.backend.removeTreeEntries(repoPaths);
+			} else {
+				this.backend.invalidateTreeCache();
+			}
+			this.plugin.statusCache.patchDeleted(new Set(paths));
 			this.backend.refreshTreeCache().catch((error) => {
 				console.debug("Tree cache refresh failed:", error);
 			});
@@ -378,6 +457,7 @@ export class Publisher {
 			}
 
 			this.backend.invalidateTreeCache();
+			this.plugin.statusCache.invalidate();
 			this.backend.refreshTreeCache().catch((error) => {
 				console.debug("Tree cache refresh failed:", error);
 			});
@@ -430,6 +510,7 @@ export class Publisher {
 			);
 
 			this.backend.invalidateTreeCache();
+			this.plugin.statusCache.invalidate();
 			this.backend.refreshTreeCache().catch((error) => {
 				console.debug("Tree cache refresh failed:", error);
 			});

@@ -200,4 +200,35 @@ describe("QuartzPluginUpdateChecker", () => {
 		assert.strictEqual(first.hasUpdate, false);
 		assert.strictEqual(first.lockedCommit, null);
 	});
+
+	it("deduplicates fetchRemoteHeadCommit for same repo", async () => {
+		const duplicatePlugin: QuartzPluginEntry = {
+			source: "github:quartz-community/explorer",
+			enabled: true,
+		};
+		const lockWithBoth: QuartzLockFile = {
+			version: "1.0.0",
+			plugins: {
+				explorer: {
+					source: "github:quartz-community/explorer",
+					resolved:
+						"https://github.com/quartz-community/explorer.git",
+					commit: "aaa1111222233334444555566667777888899990000",
+					installedAt: "2026-03-20T00:00:00Z",
+				},
+			},
+		};
+		mockFetchRemoteHeadCommit({
+			"https://github.com/quartz-community/explorer.git":
+				"bbb2222333344445555666677778888999900001111",
+		});
+
+		const checker = new QuartzPluginUpdateChecker({ type: "none" });
+		await checker.checkUpdates(
+			[PLUGIN_EXPLORER, duplicatePlugin],
+			lockWithBoth,
+		);
+
+		assert.strictEqual(mockedFetchRemoteHeadCommit.mock.calls.length, 1);
+	});
 });

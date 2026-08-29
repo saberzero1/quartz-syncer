@@ -7,7 +7,7 @@ import {
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
 import type { QuartzPluginSource } from "src/quartz/QuartzConfigTypes";
-import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
+
 import { requireQuartzRunner } from "src/cli/handlers/guards";
 
 const DEFAULT_ACTION = "list";
@@ -85,8 +85,7 @@ export function createPluginHandler(plugin: QuartzSyncer): CliHandler {
 		}
 
 		if (action === "search") {
-			const registry = new QuartzPluginRegistry();
-			const allPlugins = await registry.getPlugins();
+			const allPlugins = await plugin.pluginRegistry.getPlugins();
 			const query = params.args.query?.toLowerCase();
 
 			if (!query) {

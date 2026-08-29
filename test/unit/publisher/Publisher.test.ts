@@ -71,6 +71,14 @@ const makePlugin = (settings: QuartzSyncerSettings): QuartzSyncer =>
 	({
 		settings,
 		saveSettings: vi.fn(),
+		statusCache: {
+			invalidate: vi.fn(),
+			markStale: vi.fn(),
+			markStaleFile: vi.fn(),
+			clearDiffCache: vi.fn(),
+			patchPublished: vi.fn(),
+			patchDeleted: vi.fn(),
+		},
 	}) as unknown as QuartzSyncer;
 
 const makeGitBackend = (overrides: Partial<GitBackend> = {}): GitBackend =>
@@ -228,6 +236,34 @@ describe("Publisher", () => {
 		expect(gitBackend.readTree).toHaveBeenCalledWith("main");
 	});
 
+	it("publishBatch patches status cache with published paths", async () => {
+		const app = new App();
+		const settings = makeSettings();
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
+			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
+			storeRemoteHash: vi.fn(),
+		} as unknown as DataStore;
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		await publisher.publishBatch([makePublishFile("notes/a.md")]);
+
+		expect(plugin.statusCache.patchPublished).toHaveBeenCalledWith(
+			new Set(["notes/a.md"]),
+		);
+	});
+
 	it("deleteBatch calls deleteFiles with mapped paths", async () => {
 		const app = new App();
 		const settings = makeSettings();
@@ -279,6 +315,32 @@ describe("Publisher", () => {
 		await publisher.deleteBatch(["notes/a.md"]);
 
 		expect(gitBackend.readTree).toHaveBeenCalledWith("main");
+	});
+
+	it("deleteBatch patches status cache with deleted paths", async () => {
+		const app = new App();
+		const settings = makeSettings();
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			dropFile: vi.fn(),
+		} as unknown as DataStore;
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		await publisher.deleteBatch(["notes/a.md", "notes/b.md"]);
+
+		expect(plugin.statusCache.patchDeleted).toHaveBeenCalledWith(
+			new Set(["notes/a.md", "notes/b.md"]),
+		);
 	});
 
 	it("deleteByRepoPaths drops cache entries for deleted files", async () => {

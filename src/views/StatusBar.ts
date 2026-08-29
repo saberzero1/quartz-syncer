@@ -1,5 +1,6 @@
 import { setIcon } from "obsidian";
 import { qsDom } from "src/operability/DomContract";
+import type { StatusSummary } from "src/services/StatusCacheService";
 
 export type StatusBarState = "ready" | "compiling" | "error" | "unconfigured";
 
@@ -7,6 +8,7 @@ export class StatusBar {
 	private iconEl: HTMLElement;
 	private textEl: HTMLElement;
 	private state: StatusBarState = "unconfigured";
+	private summary: StatusSummary | null = null;
 
 	constructor(
 		private el: HTMLElement,
@@ -26,6 +28,11 @@ export class StatusBar {
 
 	get currentState(): StatusBarState {
 		return this.state;
+	}
+
+	setSummary(summary: StatusSummary | null): void {
+		this.summary = summary;
+		this.updateTooltip();
 	}
 
 	setState(state: StatusBarState, count?: number): void {
@@ -51,13 +58,43 @@ export class StatusBar {
 		const showCount = state === "compiling" && !!count && count > 0;
 		this.textEl.setText(showCount ? String(count) : "");
 
-		const tooltips: Record<StatusBarState, string> = {
-			ready: "Quartz Syncer: ready",
-			compiling: `Quartz Syncer: compiling ${count ?? 0} files`,
-			error: "Quartz Syncer: error",
-			unconfigured: "Quartz Syncer: not configured",
-		};
+		this.updateTooltip(count);
+	}
 
-		this.el.ariaLabel = tooltips[state];
+	private updateTooltip(compilingCount?: number): void {
+		if (this.state !== "ready" || !this.summary) {
+			const tooltips: Record<StatusBarState, string> = {
+				ready: "Quartz Syncer: ready",
+				compiling: `Quartz Syncer: compiling ${compilingCount ?? 0} files`,
+				error: "Quartz Syncer: error",
+				unconfigured: "Quartz Syncer: not configured",
+			};
+			this.el.ariaLabel = tooltips[this.state];
+			return;
+		}
+
+		const parts: string[] = ["Quartz Syncer"];
+
+		if (this.summary.unpublished > 0) {
+			parts.push(`${this.summary.unpublished} unpublished`);
+		}
+
+		if (this.summary.changed > 0) {
+			parts.push(`${this.summary.changed} changed`);
+		}
+
+		if (this.summary.deleted > 0) {
+			parts.push(`${this.summary.deleted} deleted`);
+		}
+
+		if (
+			this.summary.unpublished === 0 &&
+			this.summary.changed === 0 &&
+			this.summary.deleted === 0
+		) {
+			parts.push("all published");
+		}
+
+		this.el.ariaLabel = parts.join(" · ");
 	}
 }

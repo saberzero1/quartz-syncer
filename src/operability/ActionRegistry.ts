@@ -35,8 +35,6 @@ type PluginManagerLike = {
 
 export class ActionRegistry {
 	private operating = false;
-	private cachedStatus: PublishStatus | null = null;
-	private statusStale = true;
 
 	constructor(
 		private plugin: QuartzSyncer,
@@ -47,23 +45,26 @@ export class ActionRegistry {
 	) {}
 
 	getPublishStatusSummary(): PublishStatusSummary | null {
-		if (!this.cachedStatus) {
+		const cachedStatus =
+			this.plugin.statusCache.getCachedStatusEvenIfStale();
+
+		if (!cachedStatus) {
 			return null;
 		}
 
 		return {
-			unpublished: this.cachedStatus.unpublished.length,
-			changed: this.cachedStatus.changed.length,
-			published: this.cachedStatus.published.length,
-			deleted: this.cachedStatus.deleted.length,
-			media: this.cachedStatus.media.length,
-			arbitrary: this.cachedStatus.arbitrary.length,
-			stale: this.statusStale,
+			unpublished: cachedStatus.unpublished.length,
+			changed: cachedStatus.changed.length,
+			published: cachedStatus.published.length,
+			deleted: cachedStatus.deleted.length,
+			media: cachedStatus.media.length,
+			arbitrary: cachedStatus.arbitrary.length,
+			stale: this.plugin.statusCache.isStale(),
 		};
 	}
 
 	getCachedStatus(): PublishStatus | null {
-		return this.cachedStatus;
+		return this.plugin.statusCache.getCachedStatusEvenIfStale();
 	}
 
 	async dispatch(action: Action): Promise<ActionResult> {
@@ -162,8 +163,7 @@ export class ActionRegistry {
 
 		try {
 			const status = await service.getStatus();
-			this.cachedStatus = status;
-			this.statusStale = false;
+			this.plugin.statusCache.setStatus(status);
 
 			return { success: true, data: status };
 		} catch (error) {
@@ -185,17 +185,17 @@ export class ActionRegistry {
 			return { success: false, error: "Publisher not available" };
 		}
 
-		if (!this.cachedStatus) {
+		const cachedStatus =
+			this.plugin.statusCache.getCachedStatusEvenIfStale();
+
+		if (!cachedStatus) {
 			return {
 				success: false,
 				error: "Publish status not loaded. Run status.refresh first.",
 			};
 		}
 
-		const files = [
-			...this.cachedStatus.unpublished,
-			...this.cachedStatus.changed,
-		];
+		const files = [...cachedStatus.unpublished, ...cachedStatus.changed];
 
 		if (files.length === 0) {
 			return {
@@ -206,7 +206,6 @@ export class ActionRegistry {
 
 		try {
 			const result = await service.publish(files, message);
-			this.statusStale = true;
 
 			return {
 				success: result.success,
@@ -231,14 +230,17 @@ export class ActionRegistry {
 			return { success: false, error: "Publisher not available" };
 		}
 
-		if (!this.cachedStatus) {
+		const deleteCachedStatus =
+			this.plugin.statusCache.getCachedStatusEvenIfStale();
+
+		if (!deleteCachedStatus) {
 			return {
 				success: false,
 				error: "Publish status not loaded. Run status.refresh first.",
 			};
 		}
 
-		const paths = this.cachedStatus.deleted;
+		const paths = deleteCachedStatus.deleted;
 
 		if (paths.length === 0) {
 			return {
@@ -249,7 +251,6 @@ export class ActionRegistry {
 
 		try {
 			const result = await service.delete(paths);
-			this.statusStale = true;
 
 			return {
 				success: result.success,

@@ -24,6 +24,7 @@ export interface PublishStatus {
 	deleted: string[];
 	media: MediaEntry[];
 	arbitrary: ArbitraryFileEntry[];
+	mediaLinks?: Map<string, string[]>;
 }
 
 export interface PublishResult {

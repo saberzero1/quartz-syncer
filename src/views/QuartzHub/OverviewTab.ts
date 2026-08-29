@@ -24,6 +24,9 @@ type RepoValidation = {
 	message: string;
 };
 
+const VERSION_CACHE_TTL_MS = 60_000;
+const BINARY_CACHE_TTL_MS = 120_000;
+
 export function renderOverviewTab(
 	container: HTMLElement,
 	plugin: QuartzSyncer,
@@ -74,11 +77,28 @@ export function renderOverviewTab(
 			versionRow.valueEl.setText("Not detected");
 			return;
 		}
+
+		const versionCache = plugin.hubDetectionCache.quartzVersion;
+
+		if (
+			versionCache &&
+			Date.now() - versionCache.time < VERSION_CACHE_TTL_MS
+		) {
+			if (!container.isConnected) return;
+			versionRow.valueEl.setText(versionCache.data ?? "Not detected");
+			return;
+		}
+
 		try {
 			const repo = new LocalFileSource(resolvedRepoPath);
 			const version =
 				await QuartzVersionDetector.getQuartzPackageVersion(repo);
 			if (!container.isConnected) return;
+			plugin.hubDetectionCache.quartzVersion = {
+				data: version,
+				time: Date.now(),
+			};
+			plugin.hubDetectionCache.persist();
 			versionRow.valueEl.setText(version ?? "Not detected");
 		} catch (error) {
 			if (!container.isConnected) return;
@@ -95,9 +115,33 @@ export function renderOverviewTab(
 			binaryRow.valueEl.setText("Binary detection is unavailable.");
 			return;
 		}
+
+		const binaryCache = plugin.hubDetectionCache.binaryInfo;
+
+		if (
+			binaryCache &&
+			Date.now() - binaryCache.time < BINARY_CACHE_TTL_MS
+		) {
+			if (!container.isConnected) return;
+			binaryRow.valueEl.empty();
+			for (const entry of binaryCache.data) {
+				const status = entry.available ? "✓" : "✗";
+				const version = entry.version ? ` (${entry.version})` : "";
+				binaryRow.valueEl.createDiv({
+					text: `${entry.name}: ${status}${version}`,
+				});
+			}
+			return;
+		}
+
 		try {
 			const info = await plugin.binaryDetector.detectAll();
 			if (!container.isConnected) return;
+			plugin.hubDetectionCache.binaryInfo = {
+				data: info,
+				time: Date.now(),
+			};
+			plugin.hubDetectionCache.persist();
 			binaryRow.valueEl.empty();
 			for (const entry of info) {
 				const status = entry.available ? "✓" : "✗";
@@ -252,14 +296,20 @@ export function renderOverviewTab(
 		runTerminalAction(
 			"Update Quartz",
 			async ({ onStdout, onStderr, signal }) => {
-				const result = await plugin.quartzRunner?.update({
-					cwd: resolvedRepoPath,
-					signal,
-					onStdout,
-					onStderr,
-				});
-				if (!result?.ok) {
-					throw new Error(result?.error ?? "Quartz update failed");
+				try {
+					const result = await plugin.quartzRunner?.update({
+						cwd: resolvedRepoPath,
+						signal,
+						onStdout,
+						onStderr,
+					});
+					if (!result?.ok) {
+						throw new Error(
+							result?.error ?? "Quartz update failed",
+						);
+					}
+				} finally {
+					plugin.hubDetectionCache.clear();
 				}
 			},
 		);
@@ -273,14 +323,18 @@ export function renderOverviewTab(
 		runTerminalAction(
 			"Install dependencies",
 			async ({ onStdout, onStderr, signal }) => {
-				const result = await plugin.npmRunner?.install({
-					cwd: resolvedRepoPath,
-					signal,
-					onStdout,
-					onStderr,
-				});
-				if (!result?.ok) {
-					throw new Error(result?.error ?? "npm install failed");
+				try {
+					const result = await plugin.npmRunner?.install({
+						cwd: resolvedRepoPath,
+						signal,
+						onStdout,
+						onStderr,
+					});
+					if (!result?.ok) {
+						throw new Error(result?.error ?? "npm install failed");
+					}
+				} finally {
+					plugin.hubDetectionCache.clear();
 				}
 			},
 		);

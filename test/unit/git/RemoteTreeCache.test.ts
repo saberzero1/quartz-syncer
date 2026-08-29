@@ -161,4 +161,43 @@ describe("RemoteTreeCache", () => {
 		await vi.advanceTimersByTimeAsync(50_000);
 		expect(backend.readTree).toHaveBeenCalledTimes(3);
 	});
+
+	it("removeEntries filters matching paths from cache", async () => {
+		const entries = [
+			makeTreeEntry("content/a.md"),
+			makeTreeEntry("content/b.md"),
+			makeTreeEntry("content/c.md"),
+		];
+		const backend = makeGitBackend(entries);
+		const cache = new RemoteTreeCache(backend, "main");
+
+		await cache.get();
+		cache.removeEntries(["content/a.md", "content/c.md"]);
+
+		const result = await cache.get();
+		expect(result).toHaveLength(1);
+		expect(result[0]?.path).toBe("content/b.md");
+		expect(backend.readTree).toHaveBeenCalledTimes(1);
+	});
+
+	it("removeEntries is a no-op when cache is empty", () => {
+		const backend = makeGitBackend();
+		const cache = new RemoteTreeCache(backend, "main");
+
+		cache.removeEntries(["content/a.md"]);
+		expect(cache.isCached).toBe(false);
+	});
+
+	it("removeEntries with no matching paths leaves cache unchanged", async () => {
+		const entries = [makeTreeEntry("content/a.md")];
+		const backend = makeGitBackend(entries);
+		const cache = new RemoteTreeCache(backend, "main");
+
+		await cache.get();
+		cache.removeEntries(["content/nonexistent.md"]);
+
+		const result = await cache.get();
+		expect(result).toHaveLength(1);
+		expect(result[0]?.path).toBe("content/a.md");
+	});
 });
