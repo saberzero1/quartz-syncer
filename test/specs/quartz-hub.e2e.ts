@@ -40,13 +40,13 @@ describe("Quartz Hub", function () {
 		await closeHub();
 	});
 
-	it("shows two tabs", async function () {
+	it("shows all tabs", async function () {
 		await openHub();
 
 		const tabCount = await browser.executeObsidian(() => {
 			return document.querySelectorAll('[data-qs="hub-tab"]').length;
 		});
-		expect(tabCount).toBe(2);
+		expect(tabCount).toBe(6);
 
 		const tabValues = await browser.executeObsidian(() => {
 			return Array.from(
@@ -54,6 +54,10 @@ describe("Quartz Hub", function () {
 			).map((el) => el.getAttribute("data-qs-value"));
 		});
 		expect(tabValues).toContain("overview");
+		expect(tabValues).toContain("plugins");
+		expect(tabValues).toContain("config");
+		expect(tabValues).toContain("layout");
+		expect(tabValues).toContain("templates");
 		expect(tabValues).toContain("setup");
 
 		await closeHub();

@@ -9,13 +9,11 @@ const makeGitBackend = (overrides: Partial<GitBackend> = {}): GitBackend =>
 		writeFiles: vi.fn().mockResolvedValue({ sha: "abc123" }),
 		deleteFiles: vi.fn().mockResolvedValue({ sha: "def456" }),
 		getRemoteInfo: vi.fn().mockResolvedValue({}),
-		testConnection: vi
-			.fn()
-			.mockResolvedValue({
-				ok: true,
-				readAccess: true,
-				writeAccess: true,
-			}),
+		testConnection: vi.fn().mockResolvedValue({
+			ok: true,
+			readAccess: true,
+			writeAccess: true,
+		}),
 		listBranches: vi.fn().mockResolvedValue([]),
 		...overrides,
 	}) as unknown as GitBackend;
