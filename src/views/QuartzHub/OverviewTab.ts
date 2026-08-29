@@ -2,12 +2,8 @@ import { Notice, Platform } from "obsidian";
 import type QuartzSyncer from "src/main";
 import { qsDom } from "src/operability/DomContract";
 import type { IOperabilityEventSink } from "src/operability/types";
-import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { LocalFileSource } from "src/quartz/LocalFileSource";
-import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
-import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
-import { PluginBrowserModal } from "src/views/PluginBrowser/PluginBrowserModal";
 import { launchQuartzPreview } from "src/views/QuartzPreview/QuartzPreviewModal";
 import { TerminalOutputModal } from "src/views/TerminalOutput/TerminalOutputModal";
 import {
@@ -20,6 +16,7 @@ import {
 
 type OverviewTabOptions = {
 	onNavigateToSetup?: () => void;
+	onNavigateToPlugins?: () => void;
 };
 
 type RepoValidation = {
@@ -290,9 +287,7 @@ export function renderOverviewTab(
 	});
 
 	registerAction("Plugins", "plugins", () => {
-		const resolved = requireRepoPath();
-		if (!resolved) return;
-		void openPluginBrowser(plugin, resolved, eventSink);
+		options?.onNavigateToPlugins?.();
 	});
 
 	registerAction("Open folder", "open-folder", () => {
@@ -371,66 +366,4 @@ function validateRepoPath(repoPath: string): RepoValidation {
 	}
 
 	return { ok: true, message: "Quartz repo detected." };
-}
-
-async function openPluginBrowser(
-	plugin: QuartzSyncer,
-	repoPath: string,
-	eventSink: IOperabilityEventSink | undefined,
-): Promise<void> {
-	if (!plugin.settings.enableSystemCommands) {
-		new Notice("Enable system commands before browsing plugins.");
-		return;
-	}
-	if (!plugin.quartzRunner) {
-		new Notice("Quartz runner is unavailable.");
-		return;
-	}
-	const repo = new LocalFileSource(repoPath);
-	const version = await QuartzVersionDetector.detectQuartzVersion(repo);
-
-	if (version === "v4" || version === "unknown") {
-		new Notice(
-			"Quartz v5 configuration not detected. Configure quartz.config.yaml first.",
-		);
-		return;
-	}
-
-	let config;
-	const configService = new QuartzConfigService(repo);
-
-	try {
-		config = await configService.readConfig();
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		new Notice(`Failed to read Quartz config: ${message}`);
-		return;
-	}
-
-	const registry = new QuartzPluginRegistry();
-	const manager = new QuartzPluginManager();
-
-	const onInstall = async (source: string) => {
-		try {
-			await manager.installPlugin(config, source, {
-				runner: plugin.settings.enableSystemCommands
-					? plugin.quartzRunner
-					: null,
-				cwd: repoPath,
-			});
-			await configService.writeConfig(config);
-		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : String(error);
-			new Notice(`Failed to install plugin: ${message}`);
-		}
-	};
-
-	new PluginBrowserModal(
-		plugin.app,
-		registry,
-		config,
-		onInstall,
-		eventSink,
-	).open();
 }
