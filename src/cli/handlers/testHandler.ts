@@ -1,95 +1,118 @@
-import type QuartzSyncer from "main";
-import { CliData, CliFlags, RegisterFn } from "../types";
-import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
+import type QuartzSyncer from "src/main";
+import type { CliHandler, CliParams, CliResult } from "src/cli/types";
+import { createGitBackend } from "src/git/GitBackendFactory";
 import {
-	checkPreFlight,
-	createConnection,
-	getErrorMessage,
-	parseVerboseFlags,
-} from "../handlerUtils";
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+	externalFileExists,
+	externalIsDirectorySync,
+} from "src/utils/external-fs";
+import { LocalFileSource } from "src/quartz/LocalFileSource";
+import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 
-const COMMAND = "quartz-syncer:test";
+export function createTestHandler(_plugin: QuartzSyncer): CliHandler {
+	return async (params) => {
+		if (_plugin.settings.quartzRepoPath) {
+			return handleLocalTest(_plugin, params);
+		}
 
-const FLAGS: CliFlags = {
-	format: {
-		value: "<json|text>",
-		description: "Output format (default: text)",
-	},
-};
+		if (!_plugin.settings.gitRemoteUrl) {
+			return { success: false, error: "Repository not configured" };
+		}
 
-export function createTestHandler(
-	register: RegisterFn,
+		const gitSettings = _plugin.getGitSettingsWithSecret();
+		const backend = createGitBackend(
+			{
+				remoteUrl: gitSettings.remoteUrl,
+				branch: gitSettings.branch,
+				corsProxyUrl: gitSettings.corsProxyUrl,
+				auth: gitSettings.auth,
+			},
+			_plugin.app,
+		);
+
+		const result = await backend.testConnection();
+		if (!result.ok) {
+			return {
+				success: false,
+				error: result.error ?? "Connection failed",
+			};
+		}
+
+		return {
+			success: true,
+			data: {
+				...result,
+				...(params.verbose
+					? {
+							url: gitSettings.remoteUrl,
+							branch: gitSettings.branch,
+							authType: gitSettings.auth.type,
+							provider: gitSettings.providerHint ?? "unknown",
+						}
+					: {}),
+			},
+		};
+	};
+}
+
+async function handleLocalTest(
 	plugin: QuartzSyncer,
-): void {
-	register(
-		COMMAND,
-		"Test repository connection and credentials",
-		FLAGS,
-		async (params: CliData): Promise<string> => {
-			try {
-				const preFlightError = checkPreFlight(plugin, params, COMMAND);
+	params: CliParams,
+): Promise<CliResult> {
+	const repoPath = plugin.settings.quartzRepoPath;
+	const checks: Array<{ check: string; passed: boolean; detail?: string }> =
+		[];
 
-				if (preFlightError) return preFlightError;
+	const exists = await externalFileExists(repoPath);
+	checks.push({
+		check: "Path exists",
+		passed: exists,
+		detail: exists ? repoPath : `${repoPath} not found`,
+	});
 
-				const gitSettings = plugin.getGitSettingsWithSecret();
-				const { includeVerbose } = parseVerboseFlags(params);
+	if (!exists) {
+		return {
+			success: false,
+			data: { mode: "local", checks },
+			error: "Local repository path does not exist",
+		};
+	}
 
-				const connection = createConnection(plugin);
+	const isDir = externalIsDirectorySync(repoPath);
+	checks.push({
+		check: "Is directory",
+		passed: isDir,
+		detail: isDir ? undefined : "Path is not a directory",
+	});
 
-				const canRead = await connection.testConnection();
+	const source = new LocalFileSource(repoPath);
+	const version = await QuartzVersionDetector.detectQuartzVersion(source);
+	checks.push({
+		check: "Quartz config detected",
+		passed: version !== "unknown",
+		detail: version === "unknown" ? "No config files found" : version,
+	});
 
-				const canWrite = canRead
-					? await RepositoryConnection.checkWriteAccess(
-							gitSettings.remoteUrl,
-							gitSettings.auth,
-							gitSettings.corsProxyUrl,
-						)
-					: false;
-
-				const data = {
-					repository: connection.getRepositoryName(),
-					branch: gitSettings.branch,
-					readAccess: canRead,
-					writeAccess: canWrite,
-				};
-
-				const baseMessage = canRead
-					? `Connection OK (read: ${canRead ? "yes" : "no"}, write: ${
-							canWrite ? "yes" : "no"
-						}).`
-					: "Connection failed.";
-
-				const authParts = [
-					`type: ${gitSettings.auth?.type ?? "unknown"}`,
-				];
-
-				if (gitSettings.auth?.username) {
-					authParts.push(`username: ${gitSettings.auth.username}`);
-				}
-
-				const message =
-					includeVerbose && canRead
-						? [
-								baseMessage,
-								`Repository: ${data.repository}`,
-								`Branch: ${data.branch}`,
-								`Auth: ${authParts.join(", ")}`,
-							].join("\n")
-						: baseMessage;
-
-				return formatCliOutput(
-					params,
-					canRead
-						? cliSuccess(COMMAND, message, data)
-						: cliError(COMMAND, message),
-				);
-			} catch (error) {
-				return formatCliOutput(
-					params,
-					cliError(COMMAND, getErrorMessage(error)),
-				);
-			}
-		},
+	const contentFolder = plugin.settings.contentFolder || "content";
+	const contentExists = await externalFileExists(
+		`${repoPath}/${contentFolder}`,
 	);
+	checks.push({
+		check: "Content folder exists",
+		passed: contentExists,
+		detail: contentExists ? contentFolder : `${contentFolder} not found`,
+	});
+
+	const allPassed = checks.every((check) => check.passed);
+
+	return {
+		success: allPassed,
+		data: {
+			mode: "local",
+			path: repoPath,
+			quartzVersion: version !== "unknown" ? version : null,
+			checks,
+			...(params.verbose ? { contentFolder } : {}),
+		},
+		error: allPassed ? undefined : "Local repository validation failed",
+	};
 }

@@ -1,346 +1,618 @@
-import { App, MetadataCache, TFile, Vault } from "obsidian";
-import {
-	hasPublishFlag,
-	isPublishFrontmatterValid,
-} from "src/publishFile/Validator";
-import QuartzSyncerSettings from "src/models/settings";
+import type { App } from "obsidian";
+import type QuartzSyncer from "src/main";
+import type { FileChange } from "src/git/types";
+import type { PublishBackend } from "src/publisher/PublishBackend";
+import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
+import { PathMapper } from "src/git/PathMapper";
+import { getSpecialFileType, PublishFile } from "src/publishFile/PublishFile";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
-import {
-	CompiledPublishFile,
-	getSpecialFileType,
-	PublishFile,
-} from "src/publishFile/PublishFile";
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
-import { DataStore } from "src/publishFile/DataStore";
-import { AssetSyncer } from "src/compiler/integrations";
-import { ExtendedCacheService } from "src/services/ExtendedCacheService";
-import QuartzSyncer from "main";
+import { DataStore } from "src/cache/DataStore";
+import type {
+	PublishProgressCallback,
+	PublishResult,
+	PublishStatus,
+} from "src/publisher/types";
+import { categorizeFiles } from "src/publisher/PublishStatusManager";
+import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
+import type { CompilationQueue } from "src/services/CompilationQueue";
+import { isMediaFile } from "src/utils/mediaTypes";
+import type { IOperabilityEventSink } from "src/operability/types";
 
-/**
- * MarkedForPublishing interface.
- * Represents the files and blobs that are marked for publishing.
- */
-export interface MarkedForPublishing {
-	notes: PublishFile[];
-	blobs: string[];
-}
-
-/**
- * Publisher class.
- * Prepares files to be published and publishes them to Github
- */
-export default class Publisher {
-	app: App;
-	plugin: QuartzSyncer;
-	vault: Vault;
-	metadataCache: MetadataCache;
-	compiler: SyncerPageCompiler;
-	settings: QuartzSyncerSettings;
-	vaultPath: string;
-	datastore: DataStore;
-	extendedCache: ExtendedCacheService;
+export class Publisher {
+	private pathMapper: PathMapper;
 
 	constructor(
-		app: App,
-		plugin: QuartzSyncer,
-		vault: Vault,
-		metadataCache: MetadataCache,
-		settings: QuartzSyncerSettings,
-		datastore: DataStore,
-		extendedCache: ExtendedCacheService,
+		private app: App,
+		private plugin: QuartzSyncer,
+		private backend: PublishBackend,
+		private compiler: SyncerPageCompiler,
+		private dataStore: DataStore,
+		private compilationQueue?: CompilationQueue,
+		private eventSink?: IOperabilityEventSink,
 	) {
-		this.app = app;
-		this.plugin = plugin;
-		this.vault = vault;
-		this.metadataCache = metadataCache;
-		this.settings = settings;
-		this.vaultPath = settings.vaultPath;
-		this.datastore = datastore;
-		this.extendedCache = extendedCache;
-
-		this.compiler = new SyncerPageCompiler(
-			app,
-			vault,
-			settings,
-			metadataCache,
-			datastore,
-		);
+		this.pathMapper = new PathMapper(plugin.settings.contentFolder);
 	}
 
-	/**
-	 * Checks if the file should be published based on its frontmatter.
-	 *
-	 * @param file - The file to check.
-	 * @returns true if the file should be published, false otherwise.
-	 */
-	shouldPublish(file: TFile): boolean {
-		const specialType = getSpecialFileType(file);
-
-		if (specialType) {
-			return this.isSpecialTypeEnabled(specialType);
-		}
-
-		const frontMatter = this.metadataCache.getCache(file.path)?.frontmatter;
-
-		return hasPublishFlag(
-			this.settings.publishFrontmatterKey,
-			frontMatter,
-			this.settings.allNotesPublishableByDefault,
-		);
+	get isLocal(): boolean {
+		return this.backend.isLocal;
 	}
 
-	/**
-	 * Gets the files that are marked for publishing.
-	 *
-	 * @returns A promise that resolves to an object containing notes and blobs to be published.
-	 */
-	async getFilesMarkedForPublishing(): Promise<MarkedForPublishing> {
-		const vaultIsRoot = this.settings.vaultPath === "/";
+	startPeriodicFetch(intervalSeconds: number): void {
+		this.backend.startPeriodicFetch(intervalSeconds);
+	}
 
-		const isInVault = (path: string): boolean =>
-			vaultIsRoot || path.startsWith(this.settings.vaultPath);
+	stopPeriodicFetch(): void {
+		this.backend.stopPeriodicFetch();
+	}
 
-		let markdownPaths: Set<string>;
+	async refreshTreeCache(): Promise<void> {
+		await this.backend.refreshTreeCache();
+	}
 
-		if (this.settings.allNotesPublishableByDefault) {
-			markdownPaths = new Set(
-				this.vault
-					.getMarkdownFiles()
-					.filter((f) => isInVault(f.path))
-					.map((f) => f.path),
+	async getCachedTree(): Promise<import("src/git/types").TreeEntry[] | null> {
+		try {
+			return await this.backend.getCachedTree(
+				this.plugin.settings.gitBranch,
 			);
-		} else if (this.extendedCache.isReady) {
-			const candidates =
-				this.extendedCache.api.getFilesWithFrontmatterKey(
-					this.settings.publishFrontmatterKey,
-				);
+		} catch {
+			return null;
+		}
+	}
 
-			markdownPaths = new Set<string>();
+	getPathMapper(): PathMapper {
+		return this.pathMapper;
+	}
 
-			for (const path of candidates) {
-				if (!isInVault(path)) continue;
+	async getPublishStatus(): Promise<PublishStatus> {
+		const settings = this.plugin.settings;
+		const vaultFiles = this.app.vault.getFiles();
+		const publishFiles: PublishFile[] = [];
 
-				const fm = this.metadataCache.getCache(path)?.frontmatter;
+		const extCache = this.plugin.cacheHandle?.api;
+		const useAllDefault = settings.allNotesPublishableByDefault;
 
-				if (fm?.[this.settings.publishFrontmatterKey]) {
-					markdownPaths.add(path);
+		// Determine candidate file paths.
+		// When allNotesPublishableByDefault is true, ALL vault files are
+		// candidates — matching the current Validator.ts behavior where
+		// override=true bypasses the frontmatter check entirely.
+		// The fast-path (inverse-index lookup) only applies when
+		// allNotesPublishableByDefault is false (the default).
+		let candidatePaths: Set<string>;
+
+		if (useAllDefault) {
+			candidatePaths = new Set(vaultFiles.map((f) => f.path));
+		} else if (extCache?.isReady) {
+			candidatePaths = new Set(
+				extCache.getFilesWithFrontmatterValue(
+					settings.publishFrontmatterKey,
+					true,
+				),
+			);
+
+			for (const f of vaultFiles) {
+				const type = getSpecialFileType(f);
+
+				if (type === "base" && settings.useBases) {
+					candidatePaths.add(f.path);
+				} else if (type === "canvas" && settings.useCanvas) {
+					candidatePaths.add(f.path);
+				} else if (type === "excalidraw" && settings.useExcalidraw) {
+					candidatePaths.add(f.path);
 				}
 			}
 		} else {
-			markdownPaths = new Set(
-				this.vault
-					.getMarkdownFiles()
-					.filter((f) => {
-						if (!isInVault(f.path)) {
-							return false;
-						}
-
-						const fm = this.metadataCache.getCache(
-							f.path,
-						)?.frontmatter;
-
-						return hasPublishFlag(
-							this.settings.publishFrontmatterKey,
-							fm,
-							false,
-						);
-					})
-					.map((f) => f.path),
-			);
+			candidatePaths = new Set(vaultFiles.map((f) => f.path));
 		}
 
-		// Collect base and canvas files in a single vault pass
-		const baseFiles: TFile[] = [];
-		const canvasFiles: TFile[] = [];
+		for (const path of candidatePaths) {
+			const file = this.app.vault.getFileByPath(path);
 
-		if (this.settings.useBases || this.settings.useCanvas) {
-			for (const f of this.vault.getFiles()) {
-				if (!isInVault(f.path)) continue;
+			if (!file) continue;
 
-				if (this.settings.useBases && f.extension === "base") {
-					baseFiles.push(f);
-				} else if (
-					this.settings.useCanvas &&
-					f.extension === "canvas"
-				) {
-					canvasFiles.push(f);
-				}
+			const publishFile = new PublishFile({
+				file,
+				compiler: this.compiler,
+				metadataCache: this.app.metadataCache,
+				vault: this.app.vault,
+				settings,
+				datastore: this.dataStore,
+			});
+
+			if (useAllDefault || publishFile.shouldPublish()) {
+				publishFiles.push(publishFile);
 			}
 		}
 
-		const excalidrawFiles = this.settings.useExcalidraw
-			? this.vault
-					.getMarkdownFiles()
-					.filter(
-						(f) =>
-							(f.path.endsWith(".excalidraw") ||
-								f.path.endsWith(".excalidraw.md")) &&
-							isInVault(f.path),
-					)
-			: [];
+		this.compilationQueue?.pause();
 
-		for (const f of excalidrawFiles) {
-			markdownPaths.delete(f.path);
+		if (settings.useCache) {
+			await this.dataStore.preloadCache();
 		}
 
-		const mdFiles = [...markdownPaths]
-			.map((p) => this.vault.getFileByPath(p))
-			.filter((f): f is TFile => f !== null);
+		try {
+			const compiledFiles: PublishFile[] = [];
+			const trustDynamic = this.compilationQueue !== undefined;
 
-		const files = [
-			...mdFiles,
-			...baseFiles,
-			...canvasFiles,
-			...excalidrawFiles,
-		];
+			for (const file of publishFiles) {
+				const compiled = await file.compile(trustDynamic);
+				compiledFiles.push(compiled);
+			}
 
-		const notesToPublish: PublishFile[] = [];
-		const blobsToPublish: Set<string> = new Set();
+			const remoteTree = await this.backend.getCachedTree(
+				settings.gitBranch,
+			);
+			const linkedMedia = await resolveLinkedMedia(compiledFiles);
 
-		for (const file of files) {
-			try {
-				const publishFile = new PublishFile({
-					file,
-					compiler: this.compiler,
-					metadataCache: this.metadataCache,
-					vault: this.vault,
-					settings: this.settings,
-					datastore: this.datastore,
+			const mediaLinks = new Map<string, string[]>();
+
+			for (const file of compiledFiles) {
+				const links = await this.dataStore.loadMediaLinks(
+					file.file.path,
+				);
+
+				if (links.length > 0) {
+					mediaLinks.set(file.file.path, links);
+				}
+			}
+
+			const status = await categorizeFiles(
+				compiledFiles,
+				remoteTree,
+				this.dataStore,
+				this.pathMapper,
+				linkedMedia,
+				settings.allowArbitraryFilePublishing
+					? settings.arbitraryPublishPaths
+					: undefined,
+			);
+
+			status.mediaLinks = mediaLinks;
+
+			return status;
+		} finally {
+			if (settings.useCache) {
+				await this.dataStore.flushCache();
+				this.dataStore.clearMemoryCache();
+			}
+
+			this.compilationQueue?.resume();
+		}
+	}
+
+	async getRemoteFileContent(vaultPath: string): Promise<string | null> {
+		try {
+			const repoPath = this.pathMapper.toRepoPath(
+				this.toVaultRelativePath(vaultPath),
+			);
+			const tree = await this.backend.getCachedTree(
+				this.plugin.settings.gitBranch,
+			);
+			const entry = tree.find(
+				(item) => item.path === repoPath && item.type === "blob",
+			);
+
+			if (!entry) return null;
+
+			const blob = this.backend.isLocal
+				? await this.backend.readBlob(repoPath)
+				: await this.backend.readBlob(entry.sha);
+
+			return new TextDecoder().decode(blob);
+		} catch {
+			return null;
+		}
+	}
+
+	async getLocalCompiledContent(file: PublishFile): Promise<string | null> {
+		try {
+			const compiled = await this.dataStore.loadLocalFile(
+				file.file.path,
+				file.file.stat.mtime,
+			);
+
+			if (!compiled) return null;
+
+			return compiled[0];
+		} catch {
+			return null;
+		}
+	}
+
+	async publishBatch(
+		files: PublishFile[],
+		message?: string,
+		onProgress?: PublishProgressCallback,
+	): Promise<PublishResult> {
+		this.eventSink?.emit("publish.started", { fileCount: files.length });
+		const settings = this.plugin.settings;
+		const changes: FileChange[] = [];
+		const remoteHashes: Array<{
+			path: string;
+			timestamp: number;
+			hash: string;
+		}> = [];
+		const now = Date.now();
+		const commitMessage = message ?? "Publish notes";
+		const total = files.length;
+
+		try {
+			for (let index = 0; index < files.length; index += 1) {
+				const file = files[index];
+				if (!file) continue;
+
+				const compiled = await this.dataStore.loadLocalFile(
+					file.file.path,
+					file.file.stat.mtime,
+				);
+
+				if (!compiled) {
+					throw new Error(
+						`Missing cached content for ${file.file.path}`,
+					);
+				}
+
+				const [text, assets] = compiled;
+				const repoPath = this.pathMapper.toRepoPath(
+					file.getVaultPath(),
+				);
+
+				changes.push({
+					path: repoPath,
+					content: text,
+					encoding: "utf-8",
 				});
 
-				notesToPublish.push(publishFile);
+				for (const asset of assets.blobs) {
+					const assetPath = this.pathMapper.toRepoPath(
+						this.toVaultRelativePath(asset.path),
+					);
 
-				const blobs = await publishFile.getBlobLinks();
+					changes.push({
+						path: assetPath,
+						content: asset.content,
+						encoding: "base64",
+					});
+				}
 
-				blobs.forEach((i) => blobsToPublish.add(i));
-			} catch (e) {
-				console.error(e);
+				const localHash = await this.dataStore.loadLocalHash(
+					file.file.path,
+					file.file.stat.mtime,
+				);
+
+				if (localHash) {
+					remoteHashes.push({
+						path: file.file.path,
+						timestamp: now,
+						hash: localHash,
+					});
+				}
+
+				onProgress?.(index + 1, total);
 			}
-		}
 
-		return {
-			notes: notesToPublish.sort((a, b) => a.compare(b)),
-			blobs: Array.from(blobsToPublish),
-		};
-	}
-	/**
-	 * Creates a RepositoryConnection that can be shared across operations.
-	 * Reusing a connection avoids redundant clone/fetch cycles.
-	 */
-	public createConnection(): RepositoryConnection {
-		return new RepositoryConnection({
-			gitSettings: this.plugin.getGitSettingsWithSecret(),
-			contentFolder: this.settings.contentFolder,
-			vaultPath: this.settings.vaultPath,
-		});
-	}
+			const result = await this.backend.writeFiles(
+				settings.gitBranch,
+				commitMessage,
+				changes,
+			);
+			this.eventSink?.emit("publish.completed", {
+				fileCount: files.length,
+				commitSha: result.sha,
+			});
 
-	/**
-	 * Deletes a batch of files from the repository.
-	 *
-	 * @param filePaths - An array of file paths to delete.
-	 * @param connection - Optional shared RepositoryConnection to reuse.
-	 * @returns A promise that resolves to true if the deletion was successful, false otherwise.
-	 */
-	public async deleteBatch(
-		filePaths: string[],
-		connection?: RepositoryConnection,
-		onProgress?: (completed: number, total: number) => void | Promise<void>,
-	): Promise<boolean> {
-		if (filePaths.length === 0) {
-			return true;
-		}
+			for (const entry of remoteHashes) {
+				await this.dataStore.storeRemoteHash(
+					entry.path,
+					entry.timestamp,
+					entry.hash,
+				);
+			}
 
-		try {
-			const userQuartzConnection = connection ?? this.createConnection();
+			this.backend.invalidateTreeCache();
+			this.plugin.statusCache.patchPublished(
+				new Set(files.map((f) => f.getVaultPath())),
+			);
+			this.backend.refreshTreeCache().catch((error) => {
+				console.debug("Tree cache refresh failed:", error);
+				this.eventSink?.emit("tree.refresh.failed", {
+					error:
+						error instanceof Error ? error.message : String(error),
+				});
+			});
 
-			await userQuartzConnection.deleteFiles(filePaths, onProgress);
+			const publishResult: PublishResult = {
+				success: true,
+				commitSha: result.sha,
+				filesPublished: files.length,
+				filesDeleted: 0,
+			};
 
-			if (this.settings.useCache) {
-				// Update the remote files and hashes in the datastore
-				for (const filePath of filePaths) {
-					await this.datastore.dropFile(filePath);
+			if (settings.autoCleanOrphanedMedia) {
+				const cleanResult = await this.cleanOrphanedMedia();
+				if (cleanResult && !cleanResult.success) {
+					console.debug(
+						"Auto-clean orphaned media failed:",
+						cleanResult.error ?? "Unknown error",
+					);
 				}
 			}
 
-			return true;
+			return publishResult;
 		} catch (error) {
-			console.error(error);
-
-			return false;
+			this.eventSink?.emit("publish.failed", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return {
+				success: false,
+				filesPublished: 0,
+				filesDeleted: 0,
+				error: error instanceof Error ? error.message : String(error),
+			};
 		}
 	}
 
-	public async publishBatch(
-		files: CompiledPublishFile[],
-		connection?: RepositoryConnection,
-		onProgress?: (completed: number, total: number) => void | Promise<void>,
-	): Promise<boolean> {
-		const filesToPublish = files.filter((f) => {
-			const specialType = getSpecialFileType(f.file);
-
-			if (specialType) {
-				return this.isSpecialTypeEnabled(specialType);
-			}
-
-			return isPublishFrontmatterValid(
-				this.settings.publishFrontmatterKey,
-				f.frontmatter,
-				this.settings.allNotesPublishableByDefault,
-			);
-		});
-
-		if (filesToPublish.length === 0) {
-			return true;
-		}
+	async deleteBatch(
+		paths: string[],
+		message?: string,
+		onProgress?: PublishProgressCallback,
+	): Promise<PublishResult> {
+		this.eventSink?.emit("delete.started", { fileCount: paths.length });
+		const settings = this.plugin.settings;
+		const repoPaths = paths.map((path) =>
+			this.pathMapper.toRepoPath(this.toVaultRelativePath(path)),
+		);
+		const commitMessage = message ?? "Delete notes";
+		const total = paths.length;
 
 		try {
-			const userQuartzConnection = connection ?? this.createConnection();
-
-			const assetSyncer = new AssetSyncer(this.settings);
-
-			const assetResult =
-				await assetSyncer.collectAssets(userQuartzConnection);
-
-			await userQuartzConnection.updateFiles(
-				filesToPublish,
-				assetResult.filesToStage,
-				assetResult.filesToDelete,
-				onProgress,
+			const result = await this.backend.deleteFiles(
+				settings.gitBranch,
+				commitMessage,
+				repoPaths,
 			);
 
-			if (this.settings.useCache) {
-				for (const file of filesToPublish) {
-					const data = await this.datastore.loadFile(file.file.path);
+			for (let index = 0; index < paths.length; index += 1) {
+				const path = paths[index];
+				if (!path) continue;
+				await this.dataStore.dropFile(path);
+				onProgress?.(index + 1, total);
+			}
 
-					if (data && data.localData) {
-						await this.datastore.storeRemoteFile(
-							file.file.path,
-							file.file.stat.mtime,
-							data.localData,
-						);
-					}
+			if (this.backend instanceof RemotePublishBackend) {
+				this.backend.removeTreeEntries(repoPaths);
+			} else {
+				this.backend.invalidateTreeCache();
+			}
+			this.plugin.statusCache.patchDeleted(new Set(paths));
+			this.backend.refreshTreeCache().catch((error) => {
+				console.debug("Tree cache refresh failed:", error);
+				this.eventSink?.emit("tree.refresh.failed", {
+					error:
+						error instanceof Error ? error.message : String(error),
+				});
+			});
+
+			this.eventSink?.emit("delete.completed", {
+				fileCount: paths.length,
+				commitSha: result.sha,
+			});
+
+			const deleteResult: PublishResult = {
+				success: true,
+				commitSha: result.sha,
+				filesPublished: 0,
+				filesDeleted: paths.length,
+			};
+
+			if (settings.autoCleanOrphanedMedia) {
+				const cleanResult = await this.cleanOrphanedMedia();
+				if (cleanResult && !cleanResult.success) {
+					console.debug(
+						"Auto-clean orphaned media failed:",
+						cleanResult.error ?? "Unknown error",
+					);
 				}
 			}
 
-			return true;
+			return deleteResult;
 		} catch (error) {
-			console.error(error);
-
-			return false;
+			this.eventSink?.emit("delete.failed", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return {
+				success: false,
+				filesPublished: 0,
+				filesDeleted: 0,
+				error: error instanceof Error ? error.message : String(error),
+			};
 		}
 	}
 
-	private isSpecialTypeEnabled(
-		type: "base" | "canvas" | "excalidraw",
-	): boolean {
-		switch (type) {
-			case "base":
-				return this.settings.useBases;
-			case "canvas":
-				return this.settings.useCanvas;
-			case "excalidraw":
-				return this.settings.useExcalidraw;
+	private toVaultRelativePath(path: string): string {
+		const vaultPath = this.plugin.settings.vaultPath;
+		if (vaultPath !== "/" && path.startsWith(vaultPath)) {
+			return path.replace(vaultPath, "");
+		}
+		return path;
+	}
+
+	async deleteByRepoPaths(
+		repoPaths: string[],
+		message?: string,
+		onProgress?: PublishProgressCallback,
+	): Promise<PublishResult> {
+		this.eventSink?.emit("delete.started", {
+			fileCount: repoPaths.length,
+		});
+		const settings = this.plugin.settings;
+		const commitMessage = message ?? "Delete notes";
+		const total = repoPaths.length;
+
+		try {
+			const result = await this.backend.deleteFiles(
+				settings.gitBranch,
+				commitMessage,
+				repoPaths,
+			);
+
+			for (const repoPath of repoPaths) {
+				const vaultPath = this.pathMapper.toVaultPath(repoPath);
+				await this.dataStore.dropFile(vaultPath);
+			}
+
+			for (let index = 0; index < repoPaths.length; index += 1) {
+				onProgress?.(index + 1, total);
+			}
+
+			this.backend.invalidateTreeCache();
+			this.plugin.statusCache.invalidate();
+			this.backend.refreshTreeCache().catch((error) => {
+				console.debug("Tree cache refresh failed:", error);
+				this.eventSink?.emit("tree.refresh.failed", {
+					error:
+						error instanceof Error ? error.message : String(error),
+				});
+			});
+
+			this.eventSink?.emit("delete.completed", {
+				fileCount: repoPaths.length,
+				commitSha: result.sha,
+			});
+
+			return {
+				success: true,
+				commitSha: result.sha,
+				filesPublished: 0,
+				filesDeleted: repoPaths.length,
+			};
+		} catch (error) {
+			this.eventSink?.emit("delete.failed", {
+				error: error instanceof Error ? error.message : String(error),
+			});
+			return {
+				success: false,
+				filesPublished: 0,
+				filesDeleted: 0,
+				error: error instanceof Error ? error.message : String(error),
+			};
+		}
+	}
+
+	async publishArbitraryFiles(
+		files: Array<{
+			repoPath: string;
+			content: string | Uint8Array;
+			encoding: "utf-8" | "base64";
+		}>,
+		message?: string,
+	): Promise<PublishResult> {
+		const settings = this.plugin.settings;
+		const commitMessage = message ?? "Publish files";
+		const changes: FileChange[] = files.map((file) => ({
+			path: file.repoPath,
+			content: file.content,
+			encoding: file.encoding,
+		}));
+
+		try {
+			const result = await this.backend.writeFiles(
+				settings.gitBranch,
+				commitMessage,
+				changes,
+			);
+
+			this.backend.invalidateTreeCache();
+			this.plugin.statusCache.invalidate();
+			this.backend.refreshTreeCache().catch((error) => {
+				console.debug("Tree cache refresh failed:", error);
+				this.eventSink?.emit("tree.refresh.failed", {
+					error:
+						error instanceof Error ? error.message : String(error),
+				});
+			});
+
+			return {
+				success: true,
+				commitSha: result.sha,
+				filesPublished: files.length,
+				filesDeleted: 0,
+			};
+		} catch (error) {
+			return {
+				success: false,
+				filesPublished: 0,
+				filesDeleted: 0,
+				error: error instanceof Error ? error.message : String(error),
+			};
+		}
+	}
+
+	async cleanOrphanedMedia(): Promise<PublishResult | null> {
+		const settings = this.plugin.settings;
+		const vaultFiles = this.app.vault.getFiles();
+		const publishFiles: PublishFile[] = [];
+
+		for (const file of vaultFiles) {
+			const publishFile = new PublishFile({
+				file,
+				compiler: this.compiler,
+				metadataCache: this.app.metadataCache,
+				vault: this.app.vault,
+				settings,
+				datastore: this.dataStore,
+			});
+
+			if (publishFile.shouldPublish()) {
+				publishFiles.push(publishFile);
+			}
+		}
+
+		this.compilationQueue?.pause();
+
+		if (settings.useCache) {
+			await this.dataStore.preloadCache();
+		}
+
+		try {
+			const compiledFiles: PublishFile[] = [];
+			const trustDynamic = this.compilationQueue !== undefined;
+
+			for (const file of publishFiles) {
+				const compiled = await file.compile(trustDynamic);
+				compiledFiles.push(compiled);
+			}
+
+			const linkedMedia = await resolveLinkedMedia(compiledFiles);
+			const remoteTree = await this.backend.getCachedTree(
+				settings.gitBranch,
+			);
+			const orphanedRepoPaths: string[] = [];
+
+			for (const entry of remoteTree) {
+				if (entry.type !== "blob") continue;
+				if (!this.pathMapper.isInContentFolder(entry.path)) continue;
+				if (!isMediaFile(entry.path)) continue;
+				const vaultPath = this.pathMapper.toVaultPath(entry.path);
+				if (!linkedMedia.has(vaultPath)) {
+					orphanedRepoPaths.push(entry.path);
+				}
+			}
+
+			if (orphanedRepoPaths.length === 0) {
+				return null;
+			}
+
+			return await this.deleteByRepoPaths(
+				orphanedRepoPaths,
+				"Cleaned orphaned media",
+			);
+		} finally {
+			if (settings.useCache) {
+				await this.dataStore.flushCache();
+				this.dataStore.clearMemoryCache();
+			}
+
+			this.compilationQueue?.resume();
 		}
 	}
 }

@@ -1,170 +1,45 @@
-import type QuartzSyncer from "main";
-import { CliData, CliFlags, RegisterFn } from "../types";
-import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
-import {
-	buildVerboseMessage,
-	checkPreFlight,
-	createConnection,
-	getErrorMessage,
-	parseVerboseFlags,
-} from "../handlerUtils";
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
-import {
-	UPSTREAM_REPO_URL,
-	UPSTREAM_BRANCH,
-	UPSTREAM_AUTH,
-} from "src/quartz/QuartzUpgradeService";
+import type QuartzSyncer from "src/main";
+import type { CliHandler } from "src/cli/types";
+import { requireQuartzRunner } from "src/cli/handlers/guards";
 
-const COMMAND = "quartz-syncer:upgrade";
+export function createUpgradeHandler(plugin: QuartzSyncer): CliHandler {
+	return async (params) => {
+		const runnerCheck = requireQuartzRunner(plugin);
+		if (runnerCheck) {
+			return runnerCheck;
+		}
+		const quartzRunner = plugin.quartzRunner;
+		if (!quartzRunner) {
+			return {
+				success: false,
+				error: "System commands are not available. Enable them in settings and ensure Node.js is installed.",
+			};
+		}
 
-const FLAGS: CliFlags = {
-	force: {
-		description: "Apply upgrade (required)",
-	},
-	"dry-run": {
-		description: "Check for updates without applying",
-	},
-	format: {
-		value: "<json|text>",
-		description: "Output format (default: text)",
-	},
-};
+		const isDryRun = params.flags.has("dry-run");
 
-export function createUpgradeHandler(
-	register: RegisterFn,
-	plugin: QuartzSyncer,
-): void {
-	register(
-		COMMAND,
-		"Upgrade the Quartz repository from upstream",
-		FLAGS,
-		async (params: CliData): Promise<string> => {
-			try {
-				const preFlightError = checkPreFlight(plugin, params, COMMAND);
+		if (isDryRun) {
+			return {
+				success: true,
+				data: {
+					message:
+						"Dry run: would run 'npx quartz update' in local Quartz repository.",
+					quartzRepoPath: plugin.settings.quartzRepoPath,
+				},
+			};
+		}
 
-				if (preFlightError) return preFlightError;
+		const result = await quartzRunner.update({
+			cwd: plugin.settings.quartzRepoPath,
+		});
 
-				const gitSettings = plugin.getGitSettingsWithSecret();
+		if (!result.ok) {
+			return { success: false, error: result.error };
+		}
 
-				const connection = createConnection(plugin);
-
-				const dryRun = params["dry-run"] === "true";
-				const { includeVerbose } = parseVerboseFlags(params);
-
-				if (dryRun) {
-					const lastUpstream =
-						plugin.settings.lastUpstreamCommitSha || null;
-
-					const upstreamHead =
-						await RepositoryConnection.fetchRemoteHeadCommit(
-							UPSTREAM_REPO_URL,
-							UPSTREAM_AUTH,
-							UPSTREAM_BRANCH,
-							gitSettings.corsProxyUrl,
-						);
-
-					if (upstreamHead === null) {
-						return formatCliOutput(
-							params,
-							cliError(
-								COMMAND,
-								"Could not check upstream. The remote may be unreachable.",
-							),
-						);
-					}
-
-					const hasUpdate = upstreamHead !== lastUpstream;
-
-					const baseMessage = hasUpdate
-						? "Upstream updates available."
-						: "Already up to date.";
-
-					const shaLines = [
-						`Recorded SHA: ${lastUpstream ?? "none"}`,
-						`Upstream HEAD: ${upstreamHead}`,
-					];
-
-					const message = includeVerbose
-						? buildVerboseMessage(
-								includeVerbose,
-								[
-									{
-										label: baseMessage,
-										items: [
-											`Upstream: ${UPSTREAM_REPO_URL}#${UPSTREAM_BRANCH}`,
-											...shaLines,
-										],
-									},
-								],
-								baseMessage,
-							).replace(/\n\t/g, "\n")
-						: baseMessage;
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, message, {
-							lastUpstreamCommitSha: lastUpstream ?? null,
-							upstreamHead,
-							hasUpdate,
-						}),
-					);
-				}
-
-				const force = params.force === "true";
-
-				if (!force) {
-					return formatCliOutput(
-						params,
-						cliError(COMMAND, "Upgrade requires the 'force' flag."),
-					);
-				}
-
-				const result = await connection.upgradeFromUpstream(
-					UPSTREAM_REPO_URL,
-					UPSTREAM_BRANCH,
-				);
-
-				if (
-					result.oid &&
-					plugin.settings.lastUpstreamCommitSha !== result.oid
-				) {
-					plugin.settings.lastUpstreamCommitSha = result.oid;
-					await plugin.saveSettings();
-				}
-
-				const baseMessage = result.alreadyMerged
-					? "Already up to date."
-					: `Upgraded to ${result.oid}.`;
-
-				const message = includeVerbose
-					? buildVerboseMessage(
-							includeVerbose,
-							[
-								{
-									label: baseMessage,
-									items: [
-										`Upstream SHA: ${result.oid}`,
-										`Recorded SHA: ${
-											plugin.settings
-												.lastUpstreamCommitSha || "none"
-										}`,
-									],
-								},
-							],
-							baseMessage,
-						).replace(/\n\t/g, "\n")
-					: baseMessage;
-
-				return formatCliOutput(
-					params,
-					cliSuccess(COMMAND, message, result),
-				);
-			} catch (error) {
-				return formatCliOutput(
-					params,
-					cliError(COMMAND, getErrorMessage(error)),
-				);
-			}
-		},
-	);
+		return {
+			success: true,
+			data: { message: "Quartz updated successfully." },
+		};
+	};
 }

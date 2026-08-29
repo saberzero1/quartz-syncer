@@ -1,6 +1,9 @@
-import slugify from "@sindresorhus/slugify";
 import { sanitizeHTMLToDom, htmlToMarkdown } from "obsidian";
-import { PathRewriteRule } from "src/repositoryConnection/QuartzSyncerSiteManager";
+
+export interface PathRewriteRule {
+	from: string;
+	to: string;
+}
 
 /**
  * Generates a URL path from a file path.
@@ -16,7 +19,7 @@ function generateUrlPath(filePath: string, slugifyPath = true): string {
 		return filePath;
 	}
 
-	const extensionLessPath = filePath.contains(".")
+	const extensionLessPath = filePath.includes(".")
 		? filePath.substring(0, filePath.lastIndexOf("."))
 		: filePath;
 
@@ -27,14 +30,23 @@ function generateUrlPath(filePath: string, slugifyPath = true): string {
 	return (
 		extensionLessPath
 			.split("/")
-			.map((x) => slugify(x, { separator: "-", lowercase: false }))
+			.map((x) => slugifySegment(x))
 			.join("/") + "/"
 	);
 }
 
+function slugifySegment(value: string): string {
+	const normalized = value
+		.normalize("NFKD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.replace(/[^A-Za-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+	return normalized || value;
+}
+
 /**
  * Generates a SHA1 hash for a blob content.
- * The content is prefixed with the header "blob \{byteLength\}\\0".
+ * The content is prefixed with the header "blob \{byteLength\}\0".
  *
  * @param content - The content of the blob to hash.
  * @returns The SHA1 hash of the blob content.
@@ -120,8 +132,8 @@ export function removeLeadingSlash(path: string): string {
  * @param string - The string to escape.
  * @returns The escaped string.
  */
-function escapeRegExp(string: string) {
-	return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& means the whole matched string
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); // $& means the whole matched string
 }
 
 /**
@@ -136,7 +148,10 @@ function fixSvgForXmlSerializer(svgElement: SVGSVGElement): void {
 
 	if (styles.length > 0) {
 		for (let i = 0; i < styles.length; i++) {
-			const style = styles[i];
+			const style = styles.item(i);
+			if (!style) {
+				continue;
+			}
 
 			if (!style.textContent?.trim()) {
 				style.textContent = "/**/";
@@ -154,7 +169,7 @@ function fixSvgForXmlSerializer(svgElement: SVGSVGElement): void {
  */
 function sanitizePermalink(permalink: string): string {
 	if (permalink.endsWith("/")) {
-		permalink.slice(0, -1);
+		permalink = permalink.slice(0, -1);
 	}
 
 	if (!permalink.startsWith("/")) {
@@ -172,15 +187,17 @@ function sanitizePermalink(permalink: string): string {
  * @returns True if the plugin is enabled, false otherwise.
  */
 function isPluginEnabled(pluginId: string): boolean {
-	/* eslint-disable no-restricted-globals, no-undef, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return -- global app is only way to access internal plugins */
-	//@ts-expect-error global app is available in Obsidian
-	const plugins = app.plugins.enabledPlugins;
+	const plugins = (
+		window as {
+			app?: { plugins?: { enabledPlugins?: Set<string> } };
+		}
+	).app?.plugins?.enabledPlugins;
 
-	const isEnabled =
-		plugins.has(pluginId) || plugins.has(pluginId.toLowerCase());
+	if (!plugins) {
+		return false;
+	}
 
-	return isEnabled;
-	/* eslint-enable no-restricted-globals, no-undef, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return -- end global app plugin access */
+	return plugins.has(pluginId) || plugins.has(pluginId.toLowerCase());
 }
 
 /**
@@ -233,24 +250,22 @@ function renderPromise(
 	selector: string,
 	timeout: number = 5000,
 	interval: number = 500,
-) {
+): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
-		/* eslint-disable-next-line no-undef -- NodeJS.Timeout type for timer reference */
-		let intervalTimer: NodeJS.Timeout;
+		let intervalTimer: ReturnType<typeof setTimeout>;
 
 		const clearIntervalTimer = () => {
-			window.clearTimeout(intervalTimer as unknown as number);
+			window.clearTimeout(intervalTimer);
 		};
 
 		const observer = new MutationObserver(() => {
 			clearIntervalTimer();
 
-			/* eslint-disable no-undef -- NodeJS.Timeout type for timer reference */
+			// @ts-expect-error -- TypeScript is complaining about the type of intervalTimer, but we know it's a valid timer reference.
 			intervalTimer = window.setTimeout(() => {
 				cleanUp();
 				resolve();
-			}, interval) as unknown as NodeJS.Timeout;
-			/* eslint-enable no-undef -- end NodeJS.Timeout type reference */
+			}, interval);
 
 			/*
 			if (div.querySelector(selector)) {
@@ -305,7 +320,7 @@ function sanitizeQuery(query: string): {
 } {
 	let isInsideCalloutDepth = 0;
 	const parts = query.split("\n");
-	const sanitized = [];
+	const sanitized: string[] = [];
 
 	for (const part of parts) {
 		let depthPivot = 0;
@@ -351,8 +366,7 @@ function sanitizeHTMLToString(
 	// Let Obsidian handle the sanitization
 	const sanitizedHtml = sanitizeHTMLToDom(div.innerHTML);
 
-	// eslint-disable-next-line obsidianmd/prefer-create-el, obsidianmd/prefer-active-doc -- detached container for off-screen rendering
-	let container = document.createElement("div");
+	let container = createDiv();
 	container.appendChild(sanitizedHtml);
 
 	removeUnwantedElements(container, "link, meta, title");
@@ -373,6 +387,7 @@ function sanitizeHTMLToString(
 	container = unwrap(container);
 
 	const classes = container.classList;
+	const classList = Array.from(classes);
 
 	const markdownableClasses = ["datacore-table", "datacore-list"];
 
@@ -399,10 +414,8 @@ function sanitizeHTMLToString(
 	// Return markdown version if it contains any of the classes
 	// This is useful for HTML that has a markdown representation
 	if (
-		(classes.length > 0 &&
-			Array.from(classes).some((cls) =>
-				markdownableClasses.includes(cls),
-			)) ||
+		(classList.length > 0 &&
+			classList.some((cls) => markdownableClasses.includes(cls))) ||
 		markdownableTagNames.includes(container.tagName.toLowerCase())
 	) {
 		const result = htmlToMarkdown(container) || "";
@@ -444,8 +457,7 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 	}
 
 	callouts.forEach((callout) => {
-		// eslint-disable-next-line obsidianmd/prefer-create-el, obsidianmd/prefer-active-doc -- detached element within off-screen container
-		const blockquote = document.createElement("blockquote");
+		const blockquote = createEl("blockquote");
 
 		// Map 'data-callout-fold' to the proper Quartz class
 		if (callout.hasAttribute("data-callout-fold")) {
@@ -483,15 +495,13 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 		const calloutContent = blockquote.querySelector(".callout-content");
 
 		if (calloutContent) {
-			// eslint-disable-next-line obsidianmd/prefer-create-el, obsidianmd/prefer-active-doc -- detached element within off-screen container
-			const innerWrapper = document.createElement("div");
+			const innerWrapper = createDiv();
 			innerWrapper.classList.add("callout-content-inner");
 
-			innerWrapper.replaceChildren(
-				...Array.from(calloutContent.childNodes, (n) =>
-					n.cloneNode(true),
-				),
+			const clonedNodes = Array.from(calloutContent.childNodes).map(
+				(node) => node.cloneNode(true),
 			);
+			innerWrapper.replaceChildren(...clonedNodes);
 
 			calloutContent.replaceChildren();
 			calloutContent.appendChild(innerWrapper);
@@ -517,10 +527,16 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 		if (
 			calloutTitle &&
 			calloutTitle.children &&
-			!calloutTitle.children[0].classList.contains("callout-icon")
+			calloutTitle.children.length > 0
 		) {
-			// eslint-disable-next-line obsidianmd/prefer-create-el, obsidianmd/prefer-active-doc -- detached element within off-screen container
-			const icon = document.createElement("div");
+			const firstChild = calloutTitle.children[0];
+			if (!firstChild) {
+				return;
+			}
+			if (firstChild.classList.contains("callout-icon")) {
+				return;
+			}
+			const icon = createDiv();
 			icon.classList.add("callout-icon");
 			calloutTitle.prepend(icon);
 		}
@@ -569,7 +585,7 @@ function removeUnwantedElements(
 	});
 }
 
-function unwrap(container: HTMLDivElement) {
+function unwrap(container: HTMLDivElement): HTMLDivElement {
 	// Remove wrapper elements that might have been added by Obsidian
 	while (
 		container.attributes.length === 0 &&
@@ -598,7 +614,6 @@ function svgToData(svgElement: SVGSVGElement): string {
 	const serializer = new XMLSerializer();
 	const svgString = serializer.serializeToString(svgElement);
 
-	/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
 	const encodedData = Buffer.from(svgString).toString("base64");
 
 	return `data:image/svg+xml;base64,${encodedData}`;

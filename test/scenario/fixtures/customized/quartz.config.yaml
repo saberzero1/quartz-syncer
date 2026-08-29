@@ -1,0 +1,6 @@
+# User configuration overrides
+configuration:
+    pageTitle: My Custom Site
+    theme:
+        typography:
+            header: Georgia

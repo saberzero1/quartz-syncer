@@ -1,221 +1,60 @@
-import type QuartzSyncer from "main";
-import { CliData, CliFlags, RegisterFn } from "../types";
-import { formatCliOutput, cliError, cliSuccess } from "../formatOutput";
-import { flattenObject, getValueByPath, setValueByPath } from "../configUtils";
+import type QuartzSyncer from "src/main";
+import type { CliHandler } from "src/cli/types";
 import {
-	checkPreFlight,
-	createConnection,
-	getErrorMessage,
-	parseConfigValue,
-} from "../handlerUtils";
+	createRepositoryAdapter,
+	getValueByPath,
+	parseCliValue,
+	setValueByPath,
+} from "src/cli/handlers/cliUtils";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
+const DEFAULT_ACTION = "list";
 
-const COMMAND = "quartz-syncer:quartz-config";
+export function createQuartzConfigHandler(plugin: QuartzSyncer): CliHandler {
+	return async (params) => {
+		const action = params.args.action?.toLowerCase() ?? DEFAULT_ACTION;
+		const repo = createRepositoryAdapter(plugin);
+		if (!repo) {
+			return { success: false, error: "Repository not configured" };
+		}
 
-const FLAGS: CliFlags = {
-	action: {
-		value: "<list|get|set>",
-		description: "Config operation (default: list)",
-	},
-	key: {
-		value: "<config-path>",
-		description:
-			"Dot-notation config key (e.g., pageTitle, theme.typography.header)",
-	},
-	value: {
-		value: "<value>",
-		description: "New value for action=set",
-	},
-	format: {
-		value: "<json|text>",
-		description: "Output format (default: text)",
-	},
-};
+		const configService = new QuartzConfigService(repo);
+		const config = await configService.readConfig();
+		const configRecord = config as unknown as Record<string, unknown>;
 
-const WRITABLE_KEYS: Record<string, "string" | "boolean"> = {
-	pageTitle: "string",
-	pageTitleSuffix: "string",
-	enableSPA: "boolean",
-	enablePopovers: "boolean",
-	locale: "string",
-	baseUrl: "string",
-	"theme.fontOrigin": "string",
-	"theme.cdnCaching": "boolean",
-	"theme.typography.header": "string",
-	"theme.typography.body": "string",
-	"theme.typography.code": "string",
-	"theme.colors.lightMode.light": "string",
-	"theme.colors.lightMode.lightgray": "string",
-	"theme.colors.lightMode.gray": "string",
-	"theme.colors.lightMode.darkgray": "string",
-	"theme.colors.lightMode.dark": "string",
-	"theme.colors.lightMode.secondary": "string",
-	"theme.colors.lightMode.tertiary": "string",
-	"theme.colors.lightMode.highlight": "string",
-	"theme.colors.lightMode.textHighlight": "string",
-	"theme.colors.darkMode.light": "string",
-	"theme.colors.darkMode.lightgray": "string",
-	"theme.colors.darkMode.gray": "string",
-	"theme.colors.darkMode.darkgray": "string",
-	"theme.colors.darkMode.dark": "string",
-	"theme.colors.darkMode.secondary": "string",
-	"theme.colors.darkMode.tertiary": "string",
-	"theme.colors.darkMode.highlight": "string",
-	"theme.colors.darkMode.textHighlight": "string",
-};
+		if (action === "list") {
+			return { success: true, data: config };
+		}
 
-const FONT_ORIGINS = new Set(["googleFonts", "local"]);
-
-export function createQuartzConfigHandler(
-	register: RegisterFn,
-	plugin: QuartzSyncer,
-): void {
-	register(
-		COMMAND,
-		"Read or update Quartz v5 site configuration",
-		FLAGS,
-		async (params: CliData): Promise<string> => {
-			try {
-				const preFlightError = checkPreFlight(plugin, params, COMMAND);
-
-				if (preFlightError) return preFlightError;
-
-				const action =
-					typeof params.action === "string" ? params.action : "list";
-
-				const configService = new QuartzConfigService(
-					createConnection(plugin),
-				);
-
-				if (action === "list") {
-					const config = await configService.readConfig();
-					const flattened = flattenObject(config.configuration);
-
-					const message = Object.entries(flattened)
-						.map(([key, value]) => `${key}=${value}`)
-						.join("\n");
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, message, config.configuration),
-					);
-				}
-
-				const key = typeof params.key === "string" ? params.key : "";
-
-				if (!key) {
-					return formatCliOutput(
-						params,
-						cliError(COMMAND, "Missing required flag: key"),
-					);
-				}
-
-				if (action === "get") {
-					const config = await configService.readConfig();
-
-					const value = getValueByPath(config.configuration, key);
-
-					if (value === undefined) {
-						return formatCliOutput(
-							params,
-							cliError(COMMAND, "Unknown config key."),
-						);
-					}
-
-					const data = { key, value };
-					const message = `${key}=${JSON.stringify(value)}`;
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, message, data),
-					);
-				}
-
-				if (action === "set") {
-					const expectedType = WRITABLE_KEYS[key];
-
-					if (!expectedType) {
-						return formatCliOutput(
-							params,
-							cliError(
-								COMMAND,
-								"Config key is not writable via CLI.",
-							),
-						);
-					}
-
-					if (typeof params.value !== "string") {
-						return formatCliOutput(
-							params,
-							cliError(COMMAND, "Missing required flag: value"),
-						);
-					}
-
-					const parsed = parseConfigValue(expectedType, params.value);
-
-					if (parsed === null) {
-						return formatCliOutput(
-							params,
-							cliError(
-								COMMAND,
-								`Invalid value for ${key}. Expected ${expectedType}.`,
-							),
-						);
-					}
-
-					if (
-						key === "theme.fontOrigin" &&
-						typeof parsed === "string" &&
-						!FONT_ORIGINS.has(parsed)
-					) {
-						return formatCliOutput(
-							params,
-							cliError(
-								COMMAND,
-								"Invalid value for theme.fontOrigin. Expected googleFonts or local.",
-							),
-						);
-					}
-
-					const config = await configService.readConfig();
-
-					const setOk = setValueByPath(
-						config.configuration,
-						key,
-						parsed,
-					);
-
-					if (!setOk) {
-						return formatCliOutput(
-							params,
-							cliError(COMMAND, "Failed to set value."),
-						);
-					}
-
-					await configService.writeConfig(
-						config,
-						`Update Quartz config: ${key}`,
-					);
-
-					const data = { key, value: parsed };
-					const message = `Updated ${key}.`;
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, message, data),
-					);
-				}
-
-				return formatCliOutput(
-					params,
-					cliError(COMMAND, "Invalid action. Use get, set, or list."),
-				);
-			} catch (error) {
-				return formatCliOutput(
-					params,
-					cliError(COMMAND, getErrorMessage(error)),
-				);
+		if (action === "get") {
+			const key = params.args.key;
+			if (!key) {
+				return { success: false, error: "Missing key parameter" };
 			}
-		},
-	);
+			const value = getValueByPath(configRecord, key);
+			if (value === undefined) {
+				return {
+					success: false,
+					error: `Config key not found: ${key}`,
+				};
+			}
+			return { success: true, data: { key, value } };
+		}
+
+		if (action === "set") {
+			const key = params.args.key;
+			const rawValue = params.args.value;
+			if (!key) {
+				return { success: false, error: "Missing key parameter" };
+			}
+			if (rawValue === undefined) {
+				return { success: false, error: "Missing value parameter" };
+			}
+			const value = parseCliValue(rawValue);
+			setValueByPath(configRecord, key, value);
+			await configService.writeConfig(config);
+			return { success: true, data: { key, value } };
+		}
+
+		return { success: false, error: `Unknown action: ${action}` };
+	};
 }

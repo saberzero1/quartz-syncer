@@ -7,6 +7,7 @@ import {
 } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
 import { escapeRegExp } from "src/utils/utils";
+import { ASSET_EXTENSIONS } from "src/utils/mediaTypes";
 import {
 	FRONTMATTER_REGEX,
 	DATAVIEW_LINK_TARGET_BLANK_REGEX,
@@ -20,7 +21,7 @@ import type { Root, Link, Image } from "mdast";
 import { visit } from "unist-util-visit";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { PluginCompiler } from "src/compiler/PluginCompiler";
-import { DataStore } from "src/publishFile/DataStore";
+import { DataStore } from "src/cache/DataStore";
 
 /**
  * Interface for an asset that will be published.
@@ -198,7 +199,7 @@ export class SyncerPageCompiler {
 			text = text.replace(wikilinkRegex, "[[$1]]");
 			text = text.replace(markdownLinkRegex, "[$1]($2)");
 		} catch (e) {
-			console.error(
+			console.debug(
 				`Error while stripping vault path from text: ${String(e)}`,
 			);
 		}
@@ -294,21 +295,7 @@ export class SyncerPageCompiler {
 		return text.replace(DATAVIEW_LINK_TARGET_BLANK_REGEX, "");
 	};
 
-	private static readonly ASSET_EXTENSIONS = new Set([
-		"png",
-		"jpg",
-		"jpeg",
-		"gif",
-		"webp",
-		"mp4",
-		"mkv",
-		"mov",
-		"avi",
-		"mp3",
-		"wav",
-		"ogg",
-		"pdf",
-	]);
+	private static readonly ASSET_EXTENSIONS = ASSET_EXTENSIONS;
 
 	/**
 	 * Extracts blob links from the file using CachedMetadata.embeds.
@@ -319,7 +306,7 @@ export class SyncerPageCompiler {
 	 * @param file - The file to extract the blob links from.
 	 * @returns A promise that resolves to an array of asset paths.
 	 */
-	extractBlobLinks = async (file: PublishFile) => {
+	extractBlobLinks = async (file: PublishFile): Promise<string[]> => {
 		const assets: string[] = [];
 
 		// Canvas files are JSON, not markdown — keep JSON parsing
@@ -327,8 +314,9 @@ export class SyncerPageCompiler {
 			const text = await file.cachedRead();
 
 			try {
-				/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- canvas JSON nodes are untyped */
-				const canvasData = JSON.parse(text);
+				const canvasData = JSON.parse(text) as {
+					nodes?: Array<{ type?: string; file?: string }>;
+				};
 
 				if (Array.isArray(canvasData?.nodes)) {
 					for (const node of canvasData.nodes) {
@@ -353,7 +341,6 @@ export class SyncerPageCompiler {
 						}
 					}
 				}
-				/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- end canvas JSON parsing block */
 			} catch {
 				console.debug(`Failed to parse canvas file: ${file.getPath()}`);
 			}
@@ -459,13 +446,13 @@ export class SyncerPageCompiler {
 
 					const blobLinkText = this.metadataCache.fileToLinktext(
 						linkedFile,
-						this.settings.vaultPath,
+						filePath,
 					);
 
 					const blobFullPath =
 						this.metadataCache.getFirstLinkpathDest(
 							linkedFile.path,
-							this.settings.vaultPath,
+							filePath,
 						)?.path ?? blobLinkText;
 
 					assets.push({
@@ -530,6 +517,10 @@ export class SyncerPageCompiler {
 						"$1\\|$2",
 					);
 
+					// Single .replace() is correct here — Obsidian's cache.embeds
+					// is position-unique (EmbedCache has position: Pos), so the
+					// loop iterates each occurrence individually. Each .replace()
+					// consumes the next remaining match in the string.
 					if (blobText.includes(embed.original)) {
 						blobText = blobText.replace(
 							embed.original,

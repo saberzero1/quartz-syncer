@@ -1,4 +1,3 @@
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
 import type {
 	QuartzPluginManifest,
 	QuartzPluginSource,
@@ -9,15 +8,34 @@ import {
 	resolveSourceToGitUrl,
 } from "./QuartzPluginUtils";
 import type { GitAuth } from "src/models/settings";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
+import { fetchRemoteBranches } from "src/git/GitRemoteUtils";
+
+type RemoteFileSourceFactory = (options: {
+	remoteUrl: string;
+	branch: string;
+	auth: GitAuth;
+	corsProxyUrl?: string;
+}) => QuartzFileSource;
 
 export class QuartzPluginManifestService {
 	private auth: GitAuth;
 	private corsProxyUrl?: string;
 	private cache: Map<string, QuartzPluginManifest | null> = new Map();
+	private createRemoteFileSource: RemoteFileSourceFactory;
 
-	constructor(auth: GitAuth, corsProxyUrl?: string) {
+	constructor(
+		auth: GitAuth,
+		corsProxyUrl?: string,
+		createRemoteFileSource?: RemoteFileSourceFactory,
+	) {
 		this.auth = auth;
 		this.corsProxyUrl = corsProxyUrl;
+		this.createRemoteFileSource =
+			createRemoteFileSource ??
+			(() => {
+				throw new Error("Remote file source factory is not configured");
+			});
 	}
 
 	async fetchManifest(
@@ -37,12 +55,11 @@ export class QuartzPluginManifestService {
 			let ref = getSourceRef(source);
 
 			if (!ref) {
-				const { defaultBranch } =
-					await RepositoryConnection.fetchRemoteBranches(
-						url,
-						this.auth,
-						this.corsProxyUrl,
-					);
+				const { defaultBranch } = await fetchRemoteBranches(
+					url,
+					this.auth,
+					this.corsProxyUrl,
+				);
 				ref = defaultBranch ?? "main";
 			}
 
@@ -57,12 +74,11 @@ export class QuartzPluginManifestService {
 				return manifest;
 			}
 
-			const { defaultBranch } =
-				await RepositoryConnection.fetchRemoteBranches(
-					url,
-					this.auth,
-					this.corsProxyUrl,
-				);
+			const { defaultBranch } = await fetchRemoteBranches(
+				url,
+				this.auth,
+				this.corsProxyUrl,
+			);
 
 			if (defaultBranch && defaultBranch !== ref) {
 				const fallback = await this.fetchManifestFromRef(
@@ -95,33 +111,24 @@ export class QuartzPluginManifestService {
 		subdir?: string,
 	): Promise<QuartzPluginManifest | null | undefined> {
 		try {
-			const repo = new RepositoryConnection({
-				gitSettings: {
-					remoteUrl: url,
-					branch: ref,
-					auth: this.auth,
-					corsProxyUrl: this.corsProxyUrl,
-				},
-				contentFolder: "content",
-				vaultPath: "/",
+			const repo = this.createRemoteFileSource({
+				remoteUrl: url,
+				branch: ref,
+				auth: this.auth,
+				corsProxyUrl: this.corsProxyUrl,
 			});
 
 			const packageJsonPath = subdir
 				? `${subdir}/package.json`
 				: "package.json";
 
-			const file = await repo.getRawFile(packageJsonPath);
+			const content = await repo.readFile(packageJsonPath);
 
-			if (!file) {
+			if (!content) {
 				this.cache.set(cacheKey, null);
 
 				return null;
 			}
-
-			/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
-			const content = Buffer.from(file.content, "base64").toString(
-				"utf-8",
-			);
 
 			const packageJson = JSON.parse(content) as {
 				quartz?: QuartzPluginManifest;

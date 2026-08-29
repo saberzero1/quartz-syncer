@@ -1,4 +1,4 @@
-import { DATAVIEW_PLUGIN_ID } from "src/ui/suggest/constants";
+const DATAVIEW_PLUGIN_ID = "dataview";
 
 interface DataviewSettings {
 	dataviewJsKeyword?: string;
@@ -6,8 +6,14 @@ interface DataviewSettings {
 	inlineJsQueryPrefix?: string;
 }
 
+interface DataviewIndex {
+	initialized?: boolean;
+	revision?: number;
+}
+
 interface DataviewApi {
 	settings: DataviewSettings;
+	index?: DataviewIndex;
 	page(path: string): unknown;
 	tryEvaluate(
 		query: string,
@@ -25,12 +31,14 @@ interface DataviewApi {
 }
 
 function getDataviewApi(): DataviewApi | undefined {
-	/* eslint-disable no-restricted-globals, no-undef, @typescript-eslint/no-unsafe-member-access -- global app is required for Obsidian plugin API access */
-	//@ts-expect-error global app is available in Obsidian
-	const plugin = app.plugins.plugins[DATAVIEW_PLUGIN_ID] as
-		| { api?: DataviewApi }
-		| undefined;
-	/* eslint-enable no-restricted-globals, no-undef, @typescript-eslint/no-unsafe-member-access -- end global app plugin access */
+	const globalApp = (
+		window as {
+			app?: {
+				plugins?: { plugins?: Record<string, { api?: DataviewApi }> };
+			};
+		}
+	).app;
+	const plugin = globalApp?.plugins?.plugins?.[DATAVIEW_PLUGIN_ID];
 
 	return plugin?.api;
 }

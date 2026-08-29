@@ -1,8 +1,9 @@
 import { Document, parseDocument } from "yaml";
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 import type { QuartzV5Config, QuartzLockFile } from "./QuartzConfigTypes";
 
 const CONFIG_YAML_PATH = "quartz.config.yaml";
+const CONFIG_DEFAULT_YAML_PATH = "quartz.config.default.yaml";
 const CONFIG_JSON_PATH = "quartz.plugins.json";
 const LOCK_FILE_PATH = "quartz.lock.json";
 
@@ -11,12 +12,20 @@ const SCHEMA_COMMENT =
 
 type ConfigFormat = "yaml" | "json";
 
+interface YamlDocument {
+	set(key: string, value: unknown): void;
+	delete(key: string): void;
+	toString(): string;
+	toJSON(): unknown;
+	commentBefore: string | null;
+}
+
 export class QuartzConfigService {
-	private repo: RepositoryConnection;
-	private yamlDocument: Document | null = null;
+	private repo: QuartzFileSource;
+	private yamlDocument: YamlDocument | null = null;
 	private configFormat: ConfigFormat | null = null;
 
-	constructor(repo: RepositoryConnection) {
+	constructor(repo: QuartzFileSource) {
 		this.repo = repo;
 	}
 
@@ -28,11 +37,13 @@ export class QuartzConfigService {
 			return JSON.parse(content) as QuartzV5Config;
 		}
 
-		this.yamlDocument = parseDocument(content, {
+		const parsed = parseDocument(content, {
 			keepSourceTokens: true,
 		});
 
-		return this.yamlDocument.toJSON() as QuartzV5Config;
+		this.yamlDocument = parsed;
+
+		return parsed.toJSON() as QuartzV5Config;
 	}
 
 	/**
@@ -70,31 +81,20 @@ export class QuartzConfigService {
 		return doc.toString();
 	}
 
-	async writeConfig(
-		config: QuartzV5Config,
-		commitMessage = "Update Quartz configuration via Syncer",
-	): Promise<void> {
+	async writeConfig(config: QuartzV5Config): Promise<void> {
 		const serialized = this.serializeConfig(config);
 
 		const filePath =
 			this.configFormat === "json" ? CONFIG_JSON_PATH : CONFIG_YAML_PATH;
 
-		const files = new Map<string, string>();
-		files.set(filePath, serialized);
-
-		await this.repo.writeRawFiles(files, commitMessage);
+		await this.repo.writeFile(filePath, serialized);
 	}
 
 	async readLockFile(): Promise<QuartzLockFile | null> {
 		try {
-			const file = await this.repo.getRawFile(LOCK_FILE_PATH);
+			const content = await this.repo.readFile(LOCK_FILE_PATH);
 
-			if (!file) return null;
-
-			/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
-			const content = Buffer.from(file.content, "base64").toString(
-				"utf-8",
-			);
+			if (!content) return null;
 
 			return JSON.parse(content) as QuartzLockFile;
 		} catch (error) {
@@ -104,24 +104,14 @@ export class QuartzConfigService {
 		}
 	}
 
-	async writeLockFile(
-		lockFile: QuartzLockFile,
-		commitMessage = "Update plugin lock file via Syncer",
-	): Promise<void> {
+	async writeLockFile(lockFile: QuartzLockFile): Promise<void> {
 		const serialized = JSON.stringify(lockFile, null, 2) + "\n";
 
-		const files = new Map<string, string>();
-		files.set(LOCK_FILE_PATH, serialized);
-
-		await this.repo.writeRawFiles(files, commitMessage);
+		await this.repo.writeFile(LOCK_FILE_PATH, serialized);
 	}
 
 	getConfigFormat(): ConfigFormat | null {
 		return this.configFormat;
-	}
-
-	getRawYamlDocument(): Document | null {
-		return this.yamlDocument;
 	}
 
 	private async readRawConfig(): Promise<{
@@ -129,32 +119,32 @@ export class QuartzConfigService {
 		format: ConfigFormat;
 	}> {
 		try {
-			const yamlFile = await this.repo.getRawFile(CONFIG_YAML_PATH);
+			const yamlContent = await this.repo.readFile(CONFIG_YAML_PATH);
 
-			if (yamlFile) {
-				return {
-					/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
-					content: Buffer.from(yamlFile.content, "base64").toString(
-						"utf-8",
-					),
-					format: "yaml",
-				};
+			if (yamlContent) {
+				return { content: yamlContent, format: "yaml" };
 			}
 		} catch {
 			console.debug("No YAML config found, trying JSON fallback");
 		}
 
 		try {
-			const jsonFile = await this.repo.getRawFile(CONFIG_JSON_PATH);
+			const defaultYamlContent = await this.repo.readFile(
+				CONFIG_DEFAULT_YAML_PATH,
+			);
 
-			if (jsonFile) {
-				return {
-					/* eslint-disable-next-line no-undef -- Buffer polyfill available at runtime */
-					content: Buffer.from(jsonFile.content, "base64").toString(
-						"utf-8",
-					),
-					format: "json",
-				};
+			if (defaultYamlContent) {
+				return { content: defaultYamlContent, format: "yaml" };
+			}
+		} catch {
+			console.debug("No default YAML config found, trying JSON fallback");
+		}
+
+		try {
+			const jsonContent = await this.repo.readFile(CONFIG_JSON_PATH);
+
+			if (jsonContent) {
+				return { content: jsonContent, format: "json" };
 			}
 		} catch {
 			console.debug("No JSON config found either");
@@ -165,7 +155,7 @@ export class QuartzConfigService {
 		);
 	}
 
-	private ensureSchemaComment(doc: Document): void {
+	private ensureSchemaComment(doc: YamlDocument): void {
 		// The `yaml` library attaches a leading `# yaml-language-server: ...`
 		// line from a parsed document to the first key node's `commentBefore`,
 		// not to `doc.commentBefore` (which stays null). Checking only

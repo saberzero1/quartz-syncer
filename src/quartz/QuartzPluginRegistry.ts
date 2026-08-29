@@ -1,63 +1,130 @@
-import type { QuartzPluginSource } from "./QuartzConfigTypes";
 import { requestUrl } from "obsidian";
+import { createStore, type IndexedDBStore } from "src/cache/IndexedDBStore";
 
 const REGISTRY_URL =
-	"https://raw.githubusercontent.com/quartz-community/registry/main/registry.json";
+	"https://quartz-community.github.io/marketplace/static/plugins.json";
+
+const REGISTRY_TTL_MS = 3_600_000;
 
 /** A single plugin entry from the community registry. */
 export interface RegistryPluginEntry {
-	/** Human-readable plugin name. */
 	name: string;
-	/** Short description of what the plugin does. */
+	displayName: string;
 	description: string;
-	/** Plugin source — string shorthand or object for monorepo plugins. */
-	source: QuartzPluginSource;
-	/** Categorization tags (e.g. "component", "transformer", "navigation"). */
-	tags: string[];
-	/** Whether this is an official quartz-community plugin. */
+	version: string;
+	author: string;
+	homepage: string | null;
+	keywords: string[];
+	category: string | string[];
+	quartzVersion: string;
+	dependencies: string[];
+	defaultOrder: number | null;
+	defaultEnabled: boolean | null;
+	defaultOptions: Record<string, unknown> | null;
+	configSchema: Record<string, unknown> | null;
+	components: Record<
+		string,
+		{
+			displayName: string;
+			defaultPosition?: string;
+			defaultPriority?: number;
+		}
+	> | null;
+	frames: Record<string, { exportName: string }> | null;
+	requiresInstall: boolean;
+	source: string;
+	repo: string;
+	stars: number;
+	license: string;
 	official: boolean;
+	lastUpdated: string;
+	installCommand: string;
+	configureCommand: string;
 }
 
 /** Parsed registry response. */
 interface RegistryData {
-	version: string;
+	$schema?: string;
+	schemaVersion: number;
+	generatedAt: string;
 	plugins: RegistryPluginEntry[];
 }
 
-/**
- * Service for fetching and caching the community plugin registry.
- *
- * The registry is a single JSON file hosted in the
- * `quartz-community/registry` repository on GitHub.
- */
+interface PersistedRegistry {
+	plugins: RegistryPluginEntry[];
+	fetchedAt: number;
+}
+
 export class QuartzPluginRegistry {
 	private cache: RegistryPluginEntry[] | null = null;
 	private fetchPromise: Promise<RegistryPluginEntry[]> | null = null;
+	private store: IndexedDBStore | null = null;
 
-	/**
-	 * Fetch the plugin registry, returning cached data if available.
-	 * Concurrent calls share the same in-flight request.
-	 */
+	enablePersistence(vaultName: string, pluginId: string): void {
+		this.store = createStore(`${vaultName}-${pluginId}-registry`);
+	}
+
 	async getPlugins(): Promise<RegistryPluginEntry[]> {
 		if (this.cache) return this.cache;
 
 		if (this.fetchPromise) return this.fetchPromise;
 
-		this.fetchPromise = this.fetchRegistry();
+		this.fetchPromise = this.loadAndFetch();
 
 		try {
-			const plugins = await this.fetchPromise;
-			this.cache = plugins;
-
-			return plugins;
+			return await this.fetchPromise;
 		} finally {
 			this.fetchPromise = null;
 		}
 	}
 
-	/** Force a fresh fetch on next call. */
+	private async loadAndFetch(): Promise<RegistryPluginEntry[]> {
+		if (this.store) {
+			const persisted = await this.loadPersisted();
+
+			if (persisted) {
+				this.cache = persisted;
+				void this.fetchAndPersist();
+				return persisted;
+			}
+		}
+
+		return this.fetchAndPersist();
+	}
+
 	clearCache(): void {
 		this.cache = null;
+		this.store?.removeItem("registry").catch(() => {});
+	}
+
+	private async loadPersisted(): Promise<RegistryPluginEntry[] | null> {
+		if (!this.store) return null;
+
+		const data = await this.store
+			.getItem<PersistedRegistry>("registry")
+			.catch(() => null);
+
+		if (!data) return null;
+
+		if (Date.now() - data.fetchedAt > REGISTRY_TTL_MS) return null;
+
+		return data.plugins;
+	}
+
+	private async fetchAndPersist(): Promise<RegistryPluginEntry[]> {
+		const plugins = await this.fetchRegistry();
+		this.cache = plugins;
+
+		if (plugins.length > 0 && this.store) {
+			await this.store
+				.setItem<PersistedRegistry>("registry", {
+					plugins,
+					fetchedAt: Date.now(),
+				})
+				.catch(() => {});
+		}
+
+		return plugins;
 	}
 
 	private async fetchRegistry(): Promise<RegistryPluginEntry[]> {

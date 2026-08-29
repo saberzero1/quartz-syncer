@@ -20,7 +20,7 @@ export interface PatternDescriptor {
 export interface QuartzAssets {
 	/**
 	 * SCSS content for this integration.
-	 * Will be written to quartz/styles/syncer/_\{id\}.scss
+	 * Will be written to quartz/styles/syncer/_{id}.scss
 	 */
 	scss?: string;
 }

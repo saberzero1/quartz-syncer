@@ -139,17 +139,24 @@ Your site will be deployed to `<username>.github.io/<repository-name>`.
 2. Set a **Token name** (e.g., `Quartz Syncer`).
 3. Set an **Expiration** date.
 4. Under **Repository access**, select **Only select repositories** and choose your Quartz repository.
-5. Under **Permissions** > **Repository permissions**, set **Contents** to **Read and write**.
+5. Under **Permissions** > **Repository permissions**, set:
+   - **Contents** to **Read and write** (required for publishing notes)
+   - **Workflows** to **Read and write** (required for the deploy workflow that builds your Quartz site)
 6. Click **Generate token**.
 7. Copy the token immediately.
+
+> [!NOTE] Why is the Workflows permission needed?
+> Quartz uses a GitHub Actions workflow to build your site and deploy it to GitHub Pages. The setup wizard creates this workflow file automatically, which requires the Workflows permission. Without it, the wizard will create your repository but you'll need to add the deploy workflow manually.
 
 ### Classic Access Token
 
 > [!WARNING] Classic tokens have access to all your repositories. Use fine-grained tokens when possible.
 
-1. Go to [GitHub's Classic Token page](https://github.com/settings/tokens/new?scopes=repo).
+1. Go to [GitHub's Classic Token page](https://github.com/settings/tokens/new?scopes=repo,workflow).
 2. Add a **Note** and click **Generate token**.
 3. Copy the token immediately.
+
+> [!TIP] The `workflow` scope is included in the link above. This allows the setup wizard to create the deploy workflow that builds and deploys your Quartz site via GitHub Pages.
 
 ## Configure Quartz Syncer
 

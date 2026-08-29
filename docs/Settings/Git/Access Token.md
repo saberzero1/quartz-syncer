@@ -36,6 +36,26 @@ The token input field includes:
 
 If you're upgrading from a version prior to 1.9.1, your existing token will be automatically migrated to secure storage and removed from `data.json` on first load.
 
+## Required Permissions
+
+### GitHub
+
+**Fine-grained tokens** require the following repository permissions:
+
+| Permission | Access | Purpose |
+|---|---|---|
+| **Contents** | Read and write | Publishing notes and reading remote state |
+| **Workflows** | Read and write | Creating the deploy workflow that builds your Quartz site |
+
+**Classic tokens** require the `repo` and `workflow` scopes.
+
+> [!NOTE] Why is the Workflows permission needed?
+> Quartz uses a GitHub Actions workflow to build your site and deploy it to GitHub Pages. The setup wizard creates this workflow file (`.github/workflows/deploy.yml`) automatically. Without the Workflows permission, the wizard will create your repository but you'll need to add the deploy workflow manually.
+
+### Other providers
+
+For GitLab, Bitbucket, Codeberg, and other providers, refer to the [[Guides/GitHub Setup|setup guide for your Git provider]].
+
 ## Generating Tokens
 
-Refer to the [[Setup Guide#Choose Your Git Provider|setup guide for your Git provider]] for instructions on generating tokens for different Git providers.
+Refer to the [[Guides/GitHub Setup|GitHub setup guide]] or the setup guide for your Git provider for step-by-step token generation instructions.

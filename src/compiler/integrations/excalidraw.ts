@@ -1,6 +1,7 @@
 import { PluginIntegration, PatternDescriptor, PatternMatch } from "./types";
 import { isPluginEnabled } from "src/utils/utils";
-import { EXCALIDRAW_PLUGIN_ID } from "src/ui/suggest/constants";
+
+const EXCALIDRAW_PLUGIN_ID = "obsidian-excalidraw-plugin";
 
 export const ExcalidrawIntegration: PluginIntegration = {
 	id: "excalidraw",

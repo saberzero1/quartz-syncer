@@ -70,6 +70,9 @@ export class PluginCompiler {
 
 			let match;
 
+			// Match against the original text intentionally — not compiledText.
+			// This prevents cascading replacements where pattern A's output
+			// could trigger false matches in pattern B.
 			while ((match = regex.exec(text)) !== null) {
 				matches.push({
 					descriptor,

@@ -1,383 +1,261 @@
-import type QuartzSyncer from "main";
-import { CliData, CliFlags, RegisterFn } from "../types";
-import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
+import type QuartzSyncer from "src/main";
+import type { CliHandler } from "src/cli/types";
 import {
-	checkPreFlight,
-	createConnection,
-	getErrorMessage,
-	parseVerboseFlags,
-	pluralize,
-} from "../handlerUtils";
+	createRepositoryAdapter,
+	parseCliValue,
+} from "src/cli/handlers/cliUtils";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
-import {
-	QuartzPluginManager,
-	DEFAULT_ORDER,
-} from "src/quartz/QuartzPluginManager";
-import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
-import { QuartzPluginUpdateChecker } from "src/quartz/QuartzPluginUpdateChecker";
-import {
-	getPluginName,
-	getPluginSourceKey,
-	resolveSourceToGitUrl,
-} from "src/quartz/QuartzPluginUtils";
-import type { QuartzPluginEntry } from "src/quartz/QuartzConfigTypes";
-import type { RegistryPluginEntry } from "src/quartz/QuartzPluginRegistry";
-import type { PluginUpdateStatus } from "src/quartz/QuartzPluginUpdateChecker";
+import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
+import type { QuartzPluginSource } from "src/quartz/QuartzConfigTypes";
 
-const COMMAND = "quartz-syncer:plugin";
+import { requireQuartzRunner } from "src/cli/handlers/guards";
 
-const FLAGS: CliFlags = {
-	action: {
-		value: "<list|add|remove|updates|update|browse>",
-		description: "Plugin operation (default: list)",
-	},
-	source: {
-		value: "<github:org/repo>",
-		description: "Plugin source identifier",
-	},
-	force: {
-		description: "Required for plugin removal",
-	},
-	format: {
-		value: "<json|text>",
-		description: "Output format (default: text)",
-	},
-};
+const DEFAULT_ACTION = "list";
 
-function createConfigService(plugin: QuartzSyncer): QuartzConfigService {
-	return new QuartzConfigService(createConnection(plugin));
-}
-
-function formatPluginList(
-	plugins: QuartzPluginEntry[],
-	includeVerbose: boolean,
-): string {
-	const lines: string[] = [];
-
-	for (const plugin of plugins) {
-		const name = getPluginName(plugin.source);
-		const status = plugin.enabled ? "enabled" : "disabled";
-		const order = plugin.order ?? DEFAULT_ORDER;
-		lines.push(`${name} [${status}] (order: ${order})`);
-
-		if (includeVerbose) {
-			lines.push(`\tSource: ${getPluginSourceKey(plugin.source)}`);
-			lines.push(`\tOptions: ${JSON.stringify(plugin.options ?? {})}`);
+function parsePluginSource(rawSource: string): QuartzPluginSource {
+	const trimmed = rawSource.trim();
+	if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+		const parsed = parseCliValue(trimmed);
+		if (typeof parsed === "object" && parsed !== null) {
+			return parsed as QuartzPluginSource;
 		}
 	}
 
-	return lines.join("\n");
+	return rawSource;
 }
 
-function formatUpdateList(
-	statuses: PluginUpdateStatus[],
-	includeVerbose: boolean,
-): string {
-	const lines: string[] = [];
+export function createPluginHandler(plugin: QuartzSyncer): CliHandler {
+	return async (params) => {
+		const action = params.args.action?.toLowerCase() ?? DEFAULT_ACTION;
+		const repo = createRepositoryAdapter(plugin);
+		const manager = new QuartzPluginManager();
 
-	for (const status of statuses) {
-		const label = status.hasUpdate ? "update available" : "up to date";
-		lines.push(`${status.name} [${label}]`);
-
-		if (includeVerbose) {
-			lines.push(`\tLocked: ${status.lockedCommit ?? "none"}`);
-			lines.push(`\tRemote: ${status.remoteCommit ?? "unknown"}`);
-
-			if (status.error) {
-				lines.push(`\tError: ${status.error}`);
+		if (action === "list") {
+			if (!repo) {
+				return { success: false, error: "Repository not configured" };
 			}
+			const configService = new QuartzConfigService(repo);
+			const config = await configService.readConfig();
+			return { success: true, data: config.plugins };
 		}
-	}
 
-	return lines.join("\n");
-}
-
-function formatRegistryList(
-	plugins: RegistryPluginEntry[],
-	includeVerbose: boolean,
-): string {
-	const lines: string[] = [];
-
-	for (const plugin of plugins) {
-		const badge = plugin.official ? " [official]" : "";
-		lines.push(`${plugin.name} - ${plugin.description}${badge}`);
-
-		if (includeVerbose) {
-			lines.push(`\tSource: ${getPluginSourceKey(plugin.source)}`);
-			lines.push(`\tTags: ${plugin.tags.join(", ") || "none"}`);
-		}
-	}
-
-	return lines.join("\n");
-}
-
-export function createPluginHandler(
-	register: RegisterFn,
-	plugin: QuartzSyncer,
-): void {
-	register(
-		COMMAND,
-		"Manage Quartz v5 plugins",
-		FLAGS,
-		async (params: CliData): Promise<string> => {
-			try {
-				const { includeVerbose } = parseVerboseFlags(params);
-
-				const action =
-					typeof params.action === "string" ? params.action : "list";
-
-				if (action === "browse") {
-					const registry = new QuartzPluginRegistry();
-					const plugins = await registry.getPlugins();
-
-					const message = formatRegistryList(plugins, includeVerbose);
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, message, { plugins }),
-					);
-				}
-
-				const preFlightError = checkPreFlight(plugin, params, COMMAND);
-
-				if (preFlightError) return preFlightError;
-
-				const configService = createConfigService(plugin);
-				const config = await configService.readConfig();
-
-				if (action === "list") {
-					const message = formatPluginList(
-						config.plugins,
-						includeVerbose,
-					);
-
-					const data = {
-						plugins: config.plugins.map((pluginEntry) => ({
-							name: getPluginName(pluginEntry.source),
-							sourceKey: getPluginSourceKey(pluginEntry.source),
-							enabled: pluginEntry.enabled,
-							order: pluginEntry.order ?? DEFAULT_ORDER,
-							options: pluginEntry.options ?? {},
-							source: pluginEntry.source,
-						})),
-					};
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, message, data),
-					);
-				}
-
-				if (action === "updates") {
-					const lockFile = await configService.readLockFile();
-					const gitSettings = plugin.getGitSettingsWithSecret();
-
-					const checker = new QuartzPluginUpdateChecker(
-						gitSettings.auth,
-						gitSettings.corsProxyUrl || undefined,
-					);
-
-					const updates = await checker.checkUpdates(
-						config.plugins,
-						lockFile,
-					);
-
-					const updatable = updates.filter((u) => u.hasUpdate);
-					const displayList = includeVerbose ? updates : updatable;
-
-					const message =
-						displayList.length > 0
-							? formatUpdateList(displayList, includeVerbose)
-							: "All plugins are up to date.";
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, message, {
-							updates,
-							updatable: updatable.length,
-						}),
-					);
-				}
-
-				if (action === "update") {
-					const lockFile = await configService.readLockFile();
-					const gitSettings = plugin.getGitSettingsWithSecret();
-
-					const checker = new QuartzPluginUpdateChecker(
-						gitSettings.auth,
-						gitSettings.corsProxyUrl || undefined,
-					);
-
-					const updates = await checker.checkUpdates(
-						config.plugins,
-						lockFile,
-					);
-
-					const updatable = updates.filter(
-						(u) => u.hasUpdate && u.remoteCommit,
-					);
-
-					if (updatable.length === 0) {
-						return formatCliOutput(
-							params,
-							cliSuccess(COMMAND, "All plugins are up to date.", {
-								updated: 0,
-							}),
-						);
-					}
-
-					if (params.force !== "true") {
-						const names = updatable.map((u) => u.name).join(", ");
-
-						return formatCliOutput(
-							params,
-							cliError(
-								COMMAND,
-								`${updatable.length} ${pluralize(
-									updatable.length,
-									"plugin",
-								)} can be updated (${names}). Use 'force' to apply.`,
-							),
-						);
-					}
-
-					const newLockFile = lockFile ?? {
-						version: "1.0.0",
-						plugins: {},
-					};
-
-					for (const update of updatable) {
-						const pluginEntry = config.plugins.find(
-							(p) => getPluginName(p.source) === update.name,
-						);
-
-						if (newLockFile.plugins[update.name]) {
-							newLockFile.plugins[update.name].commit =
-								update.remoteCommit!;
-						} else if (pluginEntry) {
-							newLockFile.plugins[update.name] = {
-								source: pluginEntry.source,
-								resolved: resolveSourceToGitUrl(
-									pluginEntry.source,
-								),
-								commit: update.remoteCommit!,
-								installedAt: new Date().toISOString(),
-							};
-						}
-					}
-
-					await configService.writeLockFile(
-						newLockFile,
-						`Update ${updatable.length} ${pluralize(
-							updatable.length,
-							"plugin",
-						)}`,
-					);
-
-					const updatedNames = updatable.map((u) => u.name);
-
-					const message = `Updated ${updatable.length} ${pluralize(
-						updatable.length,
-						"plugin",
-					)}: ${updatedNames.join(", ")}.`;
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, message, {
-							updated: updatable.length,
-							plugins: updatable.map((u) => ({
-								name: u.name,
-								from: u.lockedCommit,
-								to: u.remoteCommit,
-							})),
-						}),
-					);
-				}
-
-				const source =
-					typeof params.source === "string" ? params.source : "";
-
-				if (action === "add") {
-					if (!source) {
-						return formatCliOutput(
-							params,
-							cliError(COMMAND, "Missing required flag: source"),
-						);
-					}
-
-					const pluginManager = new QuartzPluginManager();
-
-					const entry = pluginManager.addPlugin(config, source);
-					const name = getPluginName(entry.source);
-
-					await configService.writeConfig(
-						config,
-						`Add plugin: ${name}`,
-					);
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, `Added plugin ${name}.`, {
-							name,
-							source: entry.source,
-						}),
-					);
-				}
-
-				if (action === "remove") {
-					if (!source) {
-						return formatCliOutput(
-							params,
-							cliError(COMMAND, "Missing required flag: source"),
-						);
-					}
-
-					if (params.force !== "true") {
-						return formatCliOutput(
-							params,
-							cliError(
-								COMMAND,
-								"Removing a plugin requires the 'force' flag.",
-							),
-						);
-					}
-
-					const pluginManager = new QuartzPluginManager();
-					const sourceKey = getPluginSourceKey(source);
-
-					const removed = pluginManager.removePlugin(
-						config,
-						sourceKey,
-					);
-					const name = getPluginName(removed.source);
-
-					await configService.writeConfig(
-						config,
-						`Remove plugin: ${name}`,
-					);
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, `Removed plugin ${name}.`, {
-							name,
-							source: removed.source,
-						}),
-					);
-				}
-
-				return formatCliOutput(
-					params,
-					cliError(
-						COMMAND,
-						"Invalid action. Use list, add, remove, updates, update, or browse.",
-					),
-				);
-			} catch (error) {
-				return formatCliOutput(
-					params,
-					cliError(COMMAND, getErrorMessage(error)),
-				);
+		if (action === "add") {
+			if (!repo) {
+				return { success: false, error: "Repository not configured" };
 			}
-		},
-	);
+			const sourceArg = params.args.source;
+			if (!sourceArg) {
+				return { success: false, error: "Missing source parameter" };
+			}
+			const configService = new QuartzConfigService(repo);
+			const config = await configService.readConfig();
+			const source = parsePluginSource(sourceArg);
+
+			if (params.flags.has("dry-run")) {
+				const cloned = structuredClone(config);
+				const added = manager.addPlugin(cloned, source);
+				return { success: true, data: { dryRun: true, ...added } };
+			}
+
+			const added = manager.addPlugin(config, source);
+			await configService.writeConfig(config);
+			return { success: true, data: added };
+		}
+
+		if (action === "remove") {
+			if (!repo) {
+				return { success: false, error: "Repository not configured" };
+			}
+			const name = params.args.name;
+			if (!name) {
+				return { success: false, error: "Missing name parameter" };
+			}
+			const configService = new QuartzConfigService(repo);
+			const config = await configService.readConfig();
+
+			if (params.flags.has("dry-run")) {
+				const cloned = structuredClone(config);
+				const removed = manager.removePlugin(cloned, name);
+				return { success: true, data: { dryRun: true, ...removed } };
+			}
+
+			const removed = manager.removePlugin(config, name);
+			await configService.writeConfig(config);
+			return { success: true, data: removed };
+		}
+
+		if (action === "search") {
+			const allPlugins = await plugin.pluginRegistry.getPlugins();
+			const query = params.args.query?.toLowerCase();
+
+			if (!query) {
+				return {
+					success: true,
+					data: {
+						count: allPlugins.length,
+						plugins: allPlugins,
+					},
+				};
+			}
+
+			const filtered = allPlugins.filter((entry) => {
+				const nameMatch =
+					entry.displayName?.toLowerCase().includes(query) ?? false;
+				const descMatch =
+					entry.description?.toLowerCase().includes(query) ?? false;
+				const keywordMatch = (entry.keywords ?? []).some((kw) =>
+					kw.toLowerCase().includes(query),
+				);
+				const categoryMatch = Array.isArray(entry.category)
+					? entry.category.some((c) =>
+							c.toLowerCase().includes(query),
+						)
+					: (entry.category?.toLowerCase().includes(query) ?? false);
+
+				return nameMatch || descMatch || keywordMatch || categoryMatch;
+			});
+
+			return {
+				success: true,
+				data: {
+					query,
+					count: filtered.length,
+					plugins: filtered,
+				},
+			};
+		}
+
+		if (action === "install") {
+			const runnerCheck = requireQuartzRunner(plugin);
+			if (runnerCheck) {
+				return runnerCheck;
+			}
+			const quartzRunner = plugin.quartzRunner;
+			if (!quartzRunner) {
+				return {
+					success: false,
+					error: "System commands are not available. Enable them in settings and ensure Node.js is installed.",
+				};
+			}
+			const result = await quartzRunner.pluginInstall({
+				cwd: plugin.settings.quartzRepoPath,
+				fromConfig: params.flags.has("from-config"),
+				latest: params.flags.has("latest"),
+				clean: params.flags.has("clean"),
+				dryRun: params.flags.has("dry-run"),
+			});
+			if (!result.ok) {
+				return { success: false, error: result.error };
+			}
+			return { success: true, data: result.data };
+		}
+
+		if (action === "enable") {
+			const runnerCheck = requireQuartzRunner(plugin);
+			if (runnerCheck) {
+				return runnerCheck;
+			}
+			const quartzRunner = plugin.quartzRunner;
+			if (!quartzRunner) {
+				return {
+					success: false,
+					error: "System commands are not available. Enable them in settings and ensure Node.js is installed.",
+				};
+			}
+			const names = params.args.name;
+			if (!names) {
+				return { success: false, error: "Missing name parameter" };
+			}
+			const parsedNames = names
+				.split(",")
+				.map((name) => name.trim())
+				.filter(Boolean);
+			const result = await quartzRunner.pluginEnable(parsedNames, {
+				cwd: plugin.settings.quartzRepoPath,
+			});
+			if (!result.ok) {
+				return { success: false, error: result.error };
+			}
+			return { success: true, data: result.data };
+		}
+
+		if (action === "disable") {
+			const runnerCheck = requireQuartzRunner(plugin);
+			if (runnerCheck) {
+				return runnerCheck;
+			}
+			const quartzRunner = plugin.quartzRunner;
+			if (!quartzRunner) {
+				return {
+					success: false,
+					error: "System commands are not available. Enable them in settings and ensure Node.js is installed.",
+				};
+			}
+			const names = params.args.name;
+			if (!names) {
+				return { success: false, error: "Missing name parameter" };
+			}
+			const parsedNames = names
+				.split(",")
+				.map((name) => name.trim())
+				.filter(Boolean);
+			const result = await quartzRunner.pluginDisable(parsedNames, {
+				cwd: plugin.settings.quartzRepoPath,
+			});
+			if (!result.ok) {
+				return { success: false, error: result.error };
+			}
+			return { success: true, data: result.data };
+		}
+
+		if (action === "config") {
+			const runnerCheck = requireQuartzRunner(plugin);
+			if (runnerCheck) {
+				return runnerCheck;
+			}
+			const quartzRunner = plugin.quartzRunner;
+			if (!quartzRunner) {
+				return {
+					success: false,
+					error: "System commands are not available. Enable them in settings and ensure Node.js is installed.",
+				};
+			}
+			const name = params.args.name;
+			if (!name) {
+				return { success: false, error: "Missing name parameter" };
+			}
+			const result = await quartzRunner.pluginConfig(name, {
+				cwd: plugin.settings.quartzRepoPath,
+				set: params.args.set,
+			});
+			if (!result.ok) {
+				return { success: false, error: result.error };
+			}
+			return { success: true, data: result.data };
+		}
+
+		if (action === "prune") {
+			const runnerCheck = requireQuartzRunner(plugin);
+			if (runnerCheck) {
+				return runnerCheck;
+			}
+			const quartzRunner = plugin.quartzRunner;
+			if (!quartzRunner) {
+				return {
+					success: false,
+					error: "System commands are not available. Enable them in settings and ensure Node.js is installed.",
+				};
+			}
+			const result = await quartzRunner.pluginPrune({
+				cwd: plugin.settings.quartzRepoPath,
+				dryRun: params.flags.has("dry-run"),
+			});
+			if (!result.ok) {
+				return { success: false, error: result.error };
+			}
+			return { success: true, data: result.data };
+		}
+
+		return { success: false, error: `Unknown action: ${action}` };
+	};
 }

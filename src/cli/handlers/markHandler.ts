@@ -1,234 +1,148 @@
-import type QuartzSyncer from "main";
-import { CliData, CliFlags, RegisterFn } from "../types";
-import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
-import { resolvePathPattern } from "../pathResolver";
+import { TFile } from "obsidian";
+import type QuartzSyncer from "src/main";
+import type { CliHandler } from "src/cli/types";
 import ObsidianFrontMatterEngine from "src/publishFile/ObsidianFrontMatterEngine";
-import { getErrorMessage, parseVerboseFlags, pluralize } from "../handlerUtils";
 
-const COMMAND = "quartz-syncer:mark";
+export function createMarkHandler(_plugin: QuartzSyncer): CliHandler {
+	return async (params) => {
+		const pathArg = params.args.path;
+		if (!pathArg) {
+			return { success: false, error: "Missing path parameter" };
+		}
+		const rawState =
+			params.args.state ??
+			(params.flags.has("toggle") ? "toggle" : undefined);
+		const state = rawState?.toLowerCase();
+		const isToggle = !state || state === "toggle";
+		const trueStates = new Set([
+			"true",
+			"on",
+			"yes",
+			"1",
+			"set",
+			"publish",
+		]);
+		const falseStates = new Set(["false", "off", "no", "0", "unpublish"]);
+		const unsetStates = new Set(["unset", "remove", "clear"]);
 
-const FLAGS: CliFlags = {
-	path: {
-		value: "<vault-path|glob|~fuzzy>",
-		description: "File path, glob, or fuzzy query (prefix with ~)",
-	},
-	value: {
-		value: "<true|false|toggle>",
-		description: "Publish flag value (default: true)",
-	},
-	"dry-run": {
-		description: "Show matched files without modifying",
-	},
-	format: {
-		value: "<json|text>",
-		description: "Output format (default: text)",
-	},
-};
+		if (
+			state &&
+			!isToggle &&
+			!trueStates.has(state) &&
+			!falseStates.has(state) &&
+			!unsetStates.has(state)
+		) {
+			return { success: false, error: `Unknown state: ${rawState}` };
+		}
 
-type PublishFlagValue = true | false | "toggle";
+		let matched: TFile[] = [];
+		const isFuzzy = pathArg.startsWith("~");
+		const isGlob = pathArg.includes("*");
 
-function parseFlagValue(raw: string | undefined): PublishFlagValue | null {
-	if (!raw) return true;
-
-	if (raw === "true") return true;
-
-	if (raw === "false") return false;
-
-	if (raw === "toggle") return "toggle";
-
-	return null;
-}
-
-function getBooleanValue(value: string | number | boolean): boolean {
-	return value === true || value === "true" || value === 1;
-}
-
-export function createMarkHandler(
-	register: RegisterFn,
-	plugin: QuartzSyncer,
-): void {
-	register(
-		COMMAND,
-		"Set or toggle the publish flag for matching files",
-		FLAGS,
-		async (params: CliData): Promise<string> => {
-			try {
-				const pathPattern =
-					typeof params.path === "string" ? params.path : "";
-
-				if (!pathPattern) {
-					return formatCliOutput(
-						params,
-						cliError(COMMAND, "Missing required flag: path"),
-					);
-				}
-
-				const parsedValue = parseFlagValue(
-					typeof params.value === "string" ? params.value : undefined,
-				);
-
-				if (parsedValue === null) {
-					return formatCliOutput(
-						params,
-						cliError(
-							COMMAND,
-							"Invalid value. Use true, false, or toggle.",
-						),
-					);
-				}
-
-				const dryRun = params["dry-run"] === "true";
-				const { includeVerbose } = parseVerboseFlags(params);
-				const resolved = resolvePathPattern(plugin.app, pathPattern);
-
-				const vaultPath = plugin.settings.vaultPath;
-				const vaultIsRoot = vaultPath === "/";
-
-				const supportedExtensions = new Set([
-					"md",
-					...(plugin.settings.useBases ? ["base"] : []),
-					...(plugin.settings.useCanvas ? ["canvas"] : []),
-					...(plugin.settings.useExcalidraw ? ["excalidraw"] : []),
-				]);
-
-				const files = resolved.files.filter(
-					(f) =>
-						supportedExtensions.has(f.extension) &&
-						(vaultIsRoot || f.path.startsWith(vaultPath)),
-				);
-
-				if (files.length === 0) {
-					return formatCliOutput(
-						params,
-						cliError(
-							COMMAND,
-							"No publishable files matched the provided path.",
-						),
-					);
-				}
-
-				const updated: string[] = [];
-				const failed: Array<{ path: string; error: string }> = [];
-
-				const appliedValues: Array<{ path: string; value: boolean }> =
-					[];
-
-				for (const file of files) {
-					try {
-						const engine = new ObsidianFrontMatterEngine(
-							plugin.app.vault,
-							plugin.app.metadataCache,
-							file,
-							plugin.app.fileManager,
-						);
-
-						let nextValue: boolean;
-
-						if (parsedValue === "toggle") {
-							const current = engine.get(
-								plugin.settings.publishFrontmatterKey,
-							);
-							nextValue = !getBooleanValue(current);
-						} else {
-							nextValue = parsedValue;
-						}
-
-						if (!dryRun) {
-							await engine
-								.set(
-									plugin.settings.publishFrontmatterKey,
-									nextValue,
-								)
-								.apply();
-						}
-
-						updated.push(file.path);
-
-						appliedValues.push({
-							path: file.path,
-							value: nextValue,
-						});
-					} catch (error) {
-						failed.push({
-							path: file.path,
-							error: getErrorMessage(error),
-						});
-					}
-				}
-
-				const data = {
-					mode: resolved.mode,
-					pattern: resolved.pattern,
-					dryRun,
-					matched: files.map((f) => f.path),
-					updated,
-					failed,
-					appliedValues,
-				};
-
-				const messageParts = [
-					dryRun
-						? `Dry run: ${updated.length} ${pluralize(
-								updated.length,
-								"file",
-							)} matched`
-						: `Updated ${updated.length} ${pluralize(
-								updated.length,
-								"file",
-							)}`,
-					`Mode: ${resolved.mode}`,
-				];
-
-				if (failed.length > 0) {
-					messageParts.push(
-						`Failed: ${failed.length} ${pluralize(
-							failed.length,
-							"file",
-						)}`,
-					);
-				}
-
-				const baseMessage = messageParts.join(". ") + ".";
-
-				const verboseHeader = [
-					`Vault root: ${vaultIsRoot ? "/" : vaultPath}`,
-					`All notes publishable: ${
-						plugin.settings.allNotesPublishableByDefault
-							? "yes"
-							: "no"
-					}`,
-				];
-
-				const message = includeVerbose
-					? [
-							baseMessage,
-							...verboseHeader,
-							...(data.appliedValues.length > 0
-								? data.appliedValues.map(
-										(entry) =>
-											`\t${entry.path} → ${entry.value}`,
-									)
-								: []),
-						].join("\n")
-					: baseMessage;
-
-				const result =
-					failed.length > 0
-						? {
-								ok: false as const,
-								command: COMMAND,
-								error: message,
-								data,
-							}
-						: cliSuccess(COMMAND, message, data);
-
-				return formatCliOutput(params, result);
-			} catch (error) {
-				return formatCliOutput(
-					params,
-					cliError(COMMAND, getErrorMessage(error)),
-				);
+		if (isFuzzy) {
+			const query = pathArg.slice(1).trim();
+			if (!query) {
+				return { success: false, error: "Missing fuzzy search query" };
 			}
-		},
-	);
+			const normalizedQuery = normalizeFuzzy(query);
+			matched = _plugin.app.vault
+				.getMarkdownFiles()
+				.filter((file) =>
+					normalizeFuzzy(file.basename).includes(normalizedQuery),
+				);
+		} else if (isGlob) {
+			const unsupported = /[?{}[\]!]/.test(pathArg);
+			if (unsupported) {
+				return {
+					success: false,
+					error: `Unsupported glob pattern: ${pathArg}`,
+				};
+			}
+			matched = _plugin.app.vault
+				.getMarkdownFiles()
+				.filter((file) => matchGlob(pathArg, file.path));
+		} else {
+			const file = _plugin.app.vault.getFileByPath(pathArg);
+			if (!file || !(file instanceof TFile)) {
+				return { success: false, error: `File not found: ${pathArg}` };
+			}
+			if (file.extension !== "md") {
+				return {
+					success: false,
+					error: `File is not a markdown file: ${pathArg}`,
+				};
+			}
+			matched = [file];
+		}
+
+		if (matched.length === 0) {
+			return { success: false, error: `No files matched: ${pathArg}` };
+		}
+
+		const matchedPaths = matched.map((file) => file.path);
+		const key = _plugin.settings.publishFrontmatterKey;
+		const isDryRun = params.flags.has("dry-run");
+
+		if (isDryRun) {
+			return {
+				success: true,
+				data: {
+					matched: matchedPaths,
+					matchedCount: matchedPaths.length,
+				},
+			};
+		}
+
+		const modified: string[] = [];
+		for (const file of matched) {
+			const engine = new ObsidianFrontMatterEngine(
+				_plugin.app.vault,
+				_plugin.app.metadataCache,
+				file,
+				_plugin.app.fileManager,
+			);
+			const currentValue = Boolean(engine.get(key));
+
+			if (isToggle) {
+				engine.set(key, !currentValue);
+			} else if (state && trueStates.has(state)) {
+				engine.set(key, true);
+			} else if (state && falseStates.has(state)) {
+				engine.set(key, false);
+			} else if (state && unsetStates.has(state)) {
+				engine.remove(key);
+			}
+
+			await engine.apply();
+			modified.push(file.path);
+		}
+
+		return {
+			success: true,
+			data: {
+				matched: matchedPaths,
+				matchedCount: matchedPaths.length,
+				modified,
+			},
+		};
+	};
+}
+
+function normalizeFuzzy(input: string): string {
+	return input
+		.toLowerCase()
+		.replace(/\.md$/i, "")
+		.replace(/[-\s]+/g, "");
+}
+
+function matchGlob(pattern: string, path: string): boolean {
+	const normalizedPattern = pattern.replace(/\\/g, "/");
+	const normalizedPath = path.replace(/\\/g, "/");
+	const escaped = normalizedPattern.replace(/[.()+?^${}()|[\]\\]/g, "\\$&");
+	const placeholder = "__DOUBLE_STAR__";
+	const withDouble = escaped.replace(/\*\*/g, placeholder);
+	const withSingle = withDouble.replace(/\*/g, "[^/]*");
+	const regexSource =
+		"^" + withSingle.replace(new RegExp(placeholder, "g"), ".*") + "$";
+	return new RegExp(regexSource).test(normalizedPath);
 }

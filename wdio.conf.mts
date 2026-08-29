@@ -1,13 +1,13 @@
 import * as path from "path";
+import * as fs from "fs";
 
-const cacheDir = path.resolve(".obsidian-cache");
-
-export const config = {
+export const config: WebdriverIO.Config = {
 	runner: "local",
 	framework: "mocha",
-
-	specs: ["./test/e2e/**/*.e2e.ts"],
-
+	specs: [
+		"./test/specs/**/*.e2e.ts",
+		"./test/scenario/specs/**/*.scenario.ts",
+	],
 	maxInstances: 1,
 
 	capabilities: [
@@ -17,15 +17,15 @@ export const config = {
 			"wdio:obsidianOptions": {
 				installerVersion: "earliest",
 				plugins: ["."],
-				vault: "test/vaults/compile-test",
+				vault: "test-vault",
 			},
 		},
 	],
 
 	services: ["obsidian"],
 	reporters: ["obsidian"],
+	cacheDir: path.resolve(".obsidian-cache"),
 
-	cacheDir: cacheDir,
 	mochaOpts: {
 		ui: "bdd",
 		timeout: 60_000,
@@ -33,6 +33,14 @@ export const config = {
 	waitforInterval: 250,
 	waitforTimeout: 5_000,
 	logLevel: "warn",
-
 	injectGlobals: false,
+
+	onPrepare() {
+		const workspace = path.resolve("test-vault/.obsidian/workspace.json");
+		try {
+			fs.unlinkSync(workspace);
+		} catch {
+			/* may not exist */
+		}
+	},
 };

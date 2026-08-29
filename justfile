@@ -4,7 +4,7 @@ default:
 full: lint check prod test-full
 
 dev:
-	npm run dev
+	npm run build:dev
 	mkdir -p ./docs/.obsidian/plugins/quartz-syncer
 	cp main.js ./docs/.obsidian/plugins/quartz-syncer
 	cp manifest.json ./docs/.obsidian/plugins/quartz-syncer
@@ -19,6 +19,9 @@ prod:
 
 lint:
 	npm run format
+
+format:
+    npm run format
 
 test:
 	npm run test

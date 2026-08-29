@@ -1,0 +1,12 @@
+{
+	"settingsSchemaVersion": 2,
+	"gitRemoteUrl": "https://github.com/testuser/quartz.git",
+	"gitBranch": "v4",
+	"gitCorsProxyUrl": "",
+	"gitAuthType": "basic",
+	"gitAuthUsername": "testuser",
+	"gitProviderHint": "github",
+	"publishFrontmatterKey": "publish",
+	"contentFolder": "content",
+	"useDataview": true
+}

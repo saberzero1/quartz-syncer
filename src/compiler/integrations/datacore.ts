@@ -12,8 +12,9 @@ import {
 	surroundWithCalloutBlock,
 	sanitizeQuery,
 } from "src/utils/utils";
-import { DATACORE_PLUGIN_ID } from "src/ui/suggest/constants";
 import { type DatacoreApi } from "src/compiler/integrations/apis/datacore";
+
+const DATACORE_PLUGIN_ID = "datacore";
 
 const datacoreScss = `
 /* Card styles */
@@ -401,8 +402,8 @@ button.dc-paging-control-page[disabled]:hover {
 
 .block-language-datacore li.previous svg,
 .block-language-datacore li.next svg,
-.block-language-datacorejs li.previous svg,
-.block-language-datacorejs li.next svg {
+.block-language-datacorejs li.next svg,
+.block-language-datacorejs li.previous svg {
   color: currentColor;
   fill: currentColor !important;
 }
@@ -422,13 +423,13 @@ async function tryExecuteJs(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = activeDocument.createElement("div");
+	const div = createDiv();
 	const component = new Component();
 
 	try {
 		dcApi.executeJs(query, div, component, filePath);
 	} catch (error) {
-		console.error(error);
+		console.debug(error);
 
 		new Notice(
 			`Quartz Syncer: DatacoreJS execution error: ${String(
@@ -454,13 +455,13 @@ async function tryExecuteJsx(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = activeDocument.createElement("div");
+	const div = createDiv();
 	const component = new Component();
 
 	try {
 		dcApi.executeJsx(query, div, component, filePath);
 	} catch (error) {
-		console.error(error);
+		console.debug(error);
 
 		new Notice(
 			`Quartz Syncer: DatacoreJSX execution error: ${String(error)}`,
@@ -484,13 +485,13 @@ async function tryExecuteTs(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = activeDocument.createElement("div");
+	const div = createDiv();
 	const component = new Component();
 
 	try {
 		dcApi.executeTs(query, div, component, filePath);
 	} catch (error) {
-		console.error(error);
+		console.debug(error);
 
 		new Notice(
 			`Quartz Syncer: DatacoreTS execution error: ${String(
@@ -516,13 +517,13 @@ async function tryExecuteTsx(
 	filePath: string,
 	dcApi: DatacoreApi,
 ): Promise<HTMLDivElement> {
-	const div = activeDocument.createElement("div");
+	const div = createDiv();
 	const component = new Component();
 
 	try {
 		dcApi.executeTsx(query, div, component, filePath);
 	} catch (error) {
-		console.error(error);
+		console.debug(error);
 
 		new Notice(
 			`Quartz Syncer: DatacoreTSX execution error: ${String(error)}`,
@@ -590,7 +591,8 @@ export const DatacoreIntegration: PluginIntegration = {
 		if (!dcApi) return match.fullMatch;
 
 		const filePath = context.file.getPath();
-		const query = match.captures[0];
+		const query = match.captures[0] ?? "";
+		if (!query) return match.fullMatch;
 		const { isInsideCalloutDepth, finalQuery } = sanitizeQuery(query);
 		const serializer = new XMLSerializer();
 
@@ -638,7 +640,7 @@ export const DatacoreIntegration: PluginIntegration = {
 
 			return result;
 		} catch (error) {
-			console.error(error);
+			console.debug(error);
 
 			new Notice(`Quartz Syncer: Datacore query error: ${String(error)}`);
 

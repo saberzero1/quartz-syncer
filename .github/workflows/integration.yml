@@ -1,0 +1,25 @@
+name: Integration Tests
+
+on:
+    push:
+        branches: ["main", "master"]
+    pull_request:
+        branches: ["main", "master"]
+    workflow_dispatch:
+
+jobs:
+    integration:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v6
+            - name: Use Node.js 24.x
+              uses: actions/setup-node@v6
+              with:
+                  node-version: 24.x
+                  cache: "npm"
+            - run: npm ci
+            - run: npm run build
+            - name: Run integration tests
+              run: npm run test:integration
+              env:
+                  QUARTZ_TEST_TOKEN: ${{ secrets.QUARTZ_TEST_TOKEN }}

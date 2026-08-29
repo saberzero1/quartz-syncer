@@ -1,15 +1,16 @@
-import { type App, Modal, Notice } from "obsidian";
+import { type App, Modal, Notice, setIcon } from "obsidian";
 import type {
 	QuartzPluginRegistry,
 	RegistryPluginEntry,
 } from "src/quartz/QuartzPluginRegistry";
-import type {
-	QuartzPluginSource,
-	QuartzV5Config,
-} from "src/quartz/QuartzConfigTypes";
+import type { QuartzV5Config } from "src/quartz/QuartzConfigTypes";
 import { getPluginSourceKey } from "src/quartz/QuartzPluginUtils";
+import type { IOperabilityEventSink } from "src/operability/types";
 
-type InstallPluginFn = (source: QuartzPluginSource) => Promise<void>;
+type InstallPluginFn = (source: string) => Promise<void>;
+type ViewMode = "card" | "list";
+type SortOption = "stars" | "name" | "author" | "updated";
+type SourceFilter = "all" | "official" | "community";
 
 export class PluginBrowserModal extends Modal {
 	private registry: QuartzPluginRegistry;
@@ -17,7 +18,10 @@ export class PluginBrowserModal extends Modal {
 	private onInstall: InstallPluginFn;
 	private allPlugins: RegistryPluginEntry[] = [];
 	private searchQuery = "";
-	private selectedTag = "";
+	private selectedCategory = "";
+	private sourceFilter: SourceFilter = "all";
+	private sortBy: SortOption = "stars";
+	private viewMode: ViewMode = "card";
 	private isLoading = false;
 	private installingPlugins: Set<string> = new Set();
 
@@ -26,6 +30,7 @@ export class PluginBrowserModal extends Modal {
 		registry: QuartzPluginRegistry,
 		config: QuartzV5Config,
 		onInstall: InstallPluginFn,
+		private eventSink?: IOperabilityEventSink,
 	) {
 		super(app);
 		this.registry = registry;
@@ -34,12 +39,14 @@ export class PluginBrowserModal extends Modal {
 	}
 
 	async onOpen(): Promise<void> {
+		this.eventSink?.emit("ui.modal.opened", { name: "plugin-browser" });
 		this.modalEl.addClass("quartz-syncer-plugin-browser");
-		this.titleEl.setText("Community Plugin Browser");
+		this.titleEl.setText("Community plugin browser");
 		void this.loadAndRender();
 	}
 
 	onClose(): void {
+		this.eventSink?.emit("ui.modal.closed", { name: "plugin-browser" });
 		this.contentEl.empty();
 	}
 
@@ -62,11 +69,7 @@ export class PluginBrowserModal extends Modal {
 		this.contentEl.empty();
 
 		if (this.isLoading) {
-			this.contentEl.createEl("p", {
-				text: "Loading plugin registry...",
-				cls: "quartz-syncer-plugin-browser-loading",
-			});
-
+			this.renderLoadingState();
 			return;
 		}
 
@@ -96,8 +99,24 @@ export class PluginBrowserModal extends Modal {
 		}
 
 		for (const entry of filtered) {
-			this.renderPluginCard(listEl, entry);
+			if (this.viewMode === "list") {
+				this.renderPluginRow(listEl, entry);
+			} else {
+				this.renderPluginCard(listEl, entry);
+			}
 		}
+	}
+
+	private renderLoadingState(): void {
+		const wrapper = this.contentEl.createDiv({
+			cls: "quartz-syncer-plugin-browser-loading",
+		});
+		const spinner = wrapper.createSpan({
+			cls: "quartz-syncer-plugin-browser-spinner",
+		});
+		setIcon(spinner, "loader-2");
+		spinner.setAttribute("aria-label", "Loading");
+		wrapper.createSpan({ text: "Loading plugin registry\u2026" });
 	}
 
 	private renderControls(): void {
@@ -105,39 +124,113 @@ export class PluginBrowserModal extends Modal {
 			"quartz-syncer-plugin-browser-controls",
 		);
 
-		const searchInput = controlsEl.createEl("input", {
+		const topRow = controlsEl.createDiv(
+			"quartz-syncer-plugin-browser-controls-top",
+		);
+
+		const searchInput = topRow.createEl("input", {
 			type: "text",
-			placeholder: "Search plugins...",
+			placeholder: "Search plugins\u2026",
 			cls: "quartz-syncer-plugin-browser-search",
 		});
-
 		searchInput.value = this.searchQuery;
-
 		searchInput.addEventListener("input", () => {
 			this.searchQuery = searchInput.value;
 			this.renderList();
 		});
 
-		const allTags = this.getAllTags();
+		const viewToggle = topRow.createDiv(
+			"quartz-syncer-plugin-browser-view-toggle",
+		);
 
-		if (allTags.length > 0) {
-			const tagSelect = controlsEl.createEl("select", {
-				cls: "quartz-syncer-plugin-browser-tag-filter",
+		const cardBtn = viewToggle.createEl("button", {
+			cls: "quartz-syncer-plugin-browser-view-btn",
+		});
+		setIcon(cardBtn, "layout-grid");
+		cardBtn.setAttribute("aria-label", "Card view");
+		cardBtn.classList.toggle("is-active", this.viewMode === "card");
+		cardBtn.addEventListener("click", () => {
+			this.viewMode = "card";
+			cardBtn.classList.add("is-active");
+			listBtn.classList.remove("is-active");
+			this.renderList();
+		});
+
+		const listBtn = viewToggle.createEl("button", {
+			cls: "quartz-syncer-plugin-browser-view-btn",
+		});
+		setIcon(listBtn, "list");
+		listBtn.setAttribute("aria-label", "List view");
+		listBtn.classList.toggle("is-active", this.viewMode === "list");
+		listBtn.addEventListener("click", () => {
+			this.viewMode = "list";
+			listBtn.classList.add("is-active");
+			cardBtn.classList.remove("is-active");
+			this.renderList();
+		});
+
+		const bottomRow = controlsEl.createDiv(
+			"quartz-syncer-plugin-browser-controls-bottom",
+		);
+
+		const allCategories = this.getAllCategories();
+		if (allCategories.length > 0) {
+			const categorySelect = bottomRow.createEl("select", {
+				cls: "quartz-syncer-plugin-browser-category-filter",
 			});
-
-			tagSelect.createEl("option", { text: "All categories", value: "" });
-
-			for (const tag of allTags) {
-				tagSelect.createEl("option", { text: tag, value: tag });
+			categorySelect.createEl("option", {
+				text: "All categories",
+				value: "",
+			});
+			for (const category of allCategories) {
+				categorySelect.createEl("option", {
+					text: category,
+					value: category,
+				});
 			}
-
-			tagSelect.value = this.selectedTag;
-
-			tagSelect.addEventListener("change", () => {
-				this.selectedTag = tagSelect.value;
+			categorySelect.value = this.selectedCategory;
+			categorySelect.addEventListener("change", () => {
+				this.selectedCategory = categorySelect.value;
 				this.renderList();
 			});
 		}
+
+		const sourceSelect = bottomRow.createEl("select", {
+			cls: "quartz-syncer-plugin-browser-source-filter",
+		});
+		sourceSelect.createEl("option", {
+			text: "All sources",
+			value: "all",
+		});
+		sourceSelect.createEl("option", {
+			text: "Official",
+			value: "official",
+		});
+		sourceSelect.createEl("option", {
+			text: "Community",
+			value: "community",
+		});
+		sourceSelect.value = this.sourceFilter;
+		sourceSelect.addEventListener("change", () => {
+			this.sourceFilter = sourceSelect.value as SourceFilter;
+			this.renderList();
+		});
+
+		const sortSelect = bottomRow.createEl("select", {
+			cls: "quartz-syncer-plugin-browser-sort",
+		});
+		sortSelect.createEl("option", { text: "Stars", value: "stars" });
+		sortSelect.createEl("option", { text: "Name", value: "name" });
+		sortSelect.createEl("option", { text: "Author", value: "author" });
+		sortSelect.createEl("option", {
+			text: "Recently updated",
+			value: "updated",
+		});
+		sortSelect.value = this.sortBy;
+		sortSelect.addEventListener("change", () => {
+			this.sortBy = sortSelect.value as SortOption;
+			this.renderList();
+		});
 	}
 
 	private renderList(): void {
@@ -163,7 +256,11 @@ export class PluginBrowserModal extends Modal {
 		}
 
 		for (const entry of filtered) {
-			this.renderPluginCard(listEl, entry);
+			if (this.viewMode === "list") {
+				this.renderPluginRow(listEl, entry);
+			} else {
+				this.renderPluginCard(listEl, entry);
+			}
 		}
 	}
 
@@ -181,7 +278,7 @@ export class PluginBrowserModal extends Modal {
 		);
 
 		headerEl.createSpan({
-			text: entry.name,
+			text: entry.displayName,
 			cls: "quartz-syncer-plugin-browser-card-name",
 		});
 
@@ -197,29 +294,97 @@ export class PluginBrowserModal extends Modal {
 			cls: "quartz-syncer-plugin-browser-card-desc",
 		});
 
+		const metaEl = cardEl.createDiv(
+			"quartz-syncer-plugin-browser-card-meta",
+		);
+		metaEl.createSpan({ text: `by ${entry.author}` });
+		metaEl.createSpan({ text: `v${entry.version}` });
+		metaEl.createSpan({ text: `\u2605 ${entry.stars}` });
+
 		const footerEl = cardEl.createDiv(
 			"quartz-syncer-plugin-browser-card-footer",
 		);
 
-		const tagsEl = footerEl.createDiv(
+		const categoriesEl = footerEl.createDiv(
 			"quartz-syncer-plugin-browser-card-tags",
 		);
 
-		for (const tag of entry.tags) {
-			tagsEl.createSpan({
-				text: tag,
+		const categories = Array.isArray(entry.category)
+			? entry.category
+			: [entry.category];
+		for (const category of categories) {
+			categoriesEl.createSpan({
+				text: category,
 				cls: "quartz-syncer-plugin-browser-tag",
 			});
 		}
 
+		this.renderInstallStatus(footerEl, entry, isInstalled, isInstalling);
+	}
+
+	private renderPluginRow(
+		container: HTMLElement,
+		entry: RegistryPluginEntry,
+	): void {
+		const isInstalled = this.isPluginInstalled(entry);
+		const isInstalling = this.installingPlugins.has(entry.name);
+
+		const rowEl = container.createDiv("quartz-syncer-plugin-browser-row");
+
+		const nameEl = rowEl.createSpan({
+			cls: "quartz-syncer-plugin-browser-row-name",
+		});
+		nameEl.createSpan({ text: entry.displayName });
+		if (entry.official) {
+			nameEl.createSpan({
+				text: "official",
+				cls: "quartz-syncer-plugin-browser-badge-official",
+			});
+		}
+
+		rowEl.createSpan({
+			text: entry.author,
+			cls: "quartz-syncer-plugin-browser-row-author",
+		});
+		rowEl.createSpan({
+			text: `v${entry.version}`,
+			cls: "quartz-syncer-plugin-browser-row-version",
+		});
+		rowEl.createSpan({
+			text: `\u2605 ${entry.stars}`,
+			cls: "quartz-syncer-plugin-browser-row-stars",
+		});
+
+		const tagsEl = rowEl.createSpan({
+			cls: "quartz-syncer-plugin-browser-row-tags",
+		});
+		const categories = Array.isArray(entry.category)
+			? entry.category
+			: [entry.category];
+		for (const category of categories) {
+			tagsEl.createSpan({
+				text: category,
+				cls: "quartz-syncer-plugin-browser-tag",
+			});
+		}
+
+		this.renderInstallStatus(rowEl, entry, isInstalled, isInstalling);
+	}
+
+	private renderInstallStatus(
+		container: HTMLElement,
+		entry: RegistryPluginEntry,
+		isInstalled: boolean,
+		isInstalling: boolean,
+	): void {
 		if (isInstalled) {
-			footerEl.createSpan({
+			container.createSpan({
 				text: "Installed",
 				cls: "quartz-syncer-plugin-browser-installed",
 			});
 		} else {
-			const installBtn = footerEl.createEl("button", {
-				text: isInstalling ? "Installing..." : "Install",
+			const installBtn = container.createEl("button", {
+				text: isInstalling ? "Installing\u2026" : "Install",
 				cls: "quartz-syncer-plugin-browser-install-btn",
 			});
 
@@ -240,7 +405,7 @@ export class PluginBrowserModal extends Modal {
 		if (this.installingPlugins.has(entry.name)) return;
 
 		this.installingPlugins.add(entry.name);
-		button.textContent = "Installing...";
+		button.textContent = "Installing\u2026";
 		button.disabled = true;
 
 		try {
@@ -270,30 +435,78 @@ export class PluginBrowserModal extends Modal {
 	private getFilteredPlugins(): RegistryPluginEntry[] {
 		const query = this.searchQuery.toLowerCase().trim();
 
-		return this.allPlugins.filter((entry) => {
-			if (this.selectedTag && !entry.tags.includes(this.selectedTag)) {
+		const filtered = this.allPlugins.filter((entry) => {
+			if (this.sourceFilter === "official" && !entry.official) {
 				return false;
+			}
+			if (this.sourceFilter === "community" && entry.official) {
+				return false;
+			}
+
+			if (this.selectedCategory) {
+				const categories = Array.isArray(entry.category)
+					? entry.category
+					: [entry.category];
+				if (!categories.includes(this.selectedCategory)) {
+					return false;
+				}
 			}
 
 			if (!query) return true;
 
 			return (
-				entry.name.toLowerCase().includes(query) ||
+				entry.displayName.toLowerCase().includes(query) ||
 				entry.description.toLowerCase().includes(query) ||
-				entry.tags.some((t) => t.toLowerCase().includes(query))
+				(entry.keywords ?? []).some((kw) =>
+					kw.toLowerCase().includes(query),
+				)
 			);
 		});
+
+		return this.sortPlugins(filtered);
 	}
 
-	private getAllTags(): string[] {
-		const tagSet = new Set<string>();
+	private sortPlugins(plugins: RegistryPluginEntry[]): RegistryPluginEntry[] {
+		const sorted = [...plugins];
+
+		switch (this.sortBy) {
+			case "stars":
+				sorted.sort((a, b) => b.stars - a.stars);
+				break;
+			case "name":
+				sorted.sort((a, b) =>
+					a.displayName.localeCompare(b.displayName),
+				);
+				break;
+			case "author":
+				sorted.sort((a, b) => {
+					const authorCmp = a.author.localeCompare(b.author);
+					if (authorCmp !== 0) return authorCmp;
+					return a.displayName.localeCompare(b.displayName);
+				});
+				break;
+			case "updated":
+				sorted.sort((a, b) =>
+					b.lastUpdated.localeCompare(a.lastUpdated),
+				);
+				break;
+		}
+
+		return sorted;
+	}
+
+	private getAllCategories(): string[] {
+		const categorySet = new Set<string>();
 
 		for (const entry of this.allPlugins) {
-			for (const tag of entry.tags) {
-				tagSet.add(tag);
+			const categories = Array.isArray(entry.category)
+				? entry.category
+				: [entry.category];
+			for (const category of categories) {
+				categorySet.add(category);
 			}
 		}
 
-		return [...tagSet].sort();
+		return [...categorySet].sort();
 	}
 }

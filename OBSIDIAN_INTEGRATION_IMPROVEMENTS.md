@@ -1,5 +1,7 @@
 # Obsidian Integration Improvements
 
+> **Historical document** — This technical analysis was written during the v2.0 planning phase. The migration to `remark-obsidian` and AST-based transforms is complete as of v1.11.0/v2.0.
+
 Replace regex-based markdown parsing with Obsidian's `CachedMetadata` API and Quartz's `remark-obsidian` plugin. This eliminates an entire class of parsing bugs caused by regex pattern matching on raw text.
 
 ## Context

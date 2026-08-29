@@ -1,234 +1,90 @@
-import type QuartzSyncer from "main";
-import { CliData, CliFlags, RegisterFn } from "../types";
-import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
-import {
-	buildVerboseMessage,
-	checkPreFlight,
-	filterDeletedBlobs,
-	getErrorMessage,
-	initPublishStatus,
-	parseVerboseFlags,
-	pluralize,
-} from "../handlerUtils";
+import type QuartzSyncer from "src/main";
+import type { CliHandler } from "src/cli/types";
 
-const COMMAND = "quartz-syncer:sync";
+export function createSyncHandler(_plugin: QuartzSyncer): CliHandler {
+	return async (params) => {
+		const publisher = _plugin.getPublisher();
+		if (!publisher) {
+			return { success: false, error: "Repository not configured" };
+		}
 
-const FLAGS: CliFlags = {
-	force: {
-		description: "Apply deletions (required to delete remote files)",
-	},
-	"dry-run": {
-		description: "Show what would be published/deleted without changes",
-	},
-	format: {
-		value: "<json|text>",
-		description: "Output format (default: text)",
-	},
-};
+		const status = await publisher.getPublishStatus();
+		const publishFiles = [...status.unpublished, ...status.changed];
+		const publishPaths = publishFiles.map((file) => file.getVaultPath());
+		const deletePaths = status.deleted;
+		const includeDeletes = params.flags.has("force");
+		const warning = includeDeletes
+			? undefined
+			: "Skipped deletions. Use 'force' to include deletions.";
 
-export function createSyncHandler(
-	register: RegisterFn,
-	plugin: QuartzSyncer,
-): void {
-	register(
-		COMMAND,
-		"Publish pending notes and optionally delete removed notes",
-		FLAGS,
-		async (params: CliData): Promise<string> => {
-			try {
-				const preFlightError = checkPreFlight(plugin, params, COMMAND);
+		if (params.flags.has("dry-run")) {
+			return {
+				success: true,
+				data: {
+					published: publishPaths,
+					deleted: includeDeletes ? deletePaths : [],
+					...(warning ? { warning } : {}),
+				},
+			};
+		}
 
-				if (preFlightError) return preFlightError;
+		let published = 0;
+		let deleted = 0;
+		let publishSha: string | undefined;
+		let deleteSha: string | undefined;
+		const publishMessage =
+			params.args.message ?? "Published via Quartz Syncer CLI";
+		const deleteMessage = params.args.message
+			? `${params.args.message} (deletions)`
+			: "Deleted via Quartz Syncer CLI";
 
-				const startTime = Date.now();
-				const dryRun = params["dry-run"] === "true";
-				const force = params.force === "true";
-				const { includeVerbose } = parseVerboseFlags(params);
-
-				const { publisher, status } = await initPublishStatus(plugin);
-
-				const filesToPublish = [
-					...status.unpublishedNotes,
-					...status.changedNotes,
-				];
-
-				const filteredDeletedBlobs = filterDeletedBlobs(status);
-
-				const deletions = [
-					...status.deletedNotePaths.map((p) => p.path),
-					...filteredDeletedBlobs.map((p) => p.path),
-				];
-
-				const data = {
-					publish: filesToPublish.map((f) => f.getPath()),
-					delete: deletions,
-					skippedDeletes: [] as string[],
-					summary: {
-						published: filesToPublish.length,
-						deleted: 0,
-						skippedDeletes: 0,
-					},
+		if (publishFiles.length > 0) {
+			const publishResult = await publisher.publishBatch(
+				publishFiles,
+				publishMessage,
+			);
+			if (!publishResult.success) {
+				return {
+					success: false,
+					error: publishResult.error ?? "Publish failed",
 				};
-
-				if (dryRun) {
-					data.summary.deleted = deletions.length;
-
-					const baseMessage = `Dry run: ${data.summary.published} to publish, ${deletions.length} to delete.`;
-
-					const message = buildVerboseMessage(
-						includeVerbose,
-						[
-							{
-								label: `Published ${data.publish.length} ${pluralize(
-									data.publish.length,
-									"file",
-								)}:`,
-								items: data.publish,
-							},
-							{
-								label: `Deleted ${data.delete.length} ${pluralize(
-									data.delete.length,
-									"file",
-								)}:`,
-								items: data.delete,
-							},
-						],
-						baseMessage,
-					);
-
-					return formatCliOutput(
-						params,
-						cliSuccess(
-							COMMAND,
-							message,
-							data,
-							Date.now() - startTime,
-						),
-					);
-				}
-
-				if (filesToPublish.length === 0 && deletions.length === 0) {
-					return formatCliOutput(
-						params,
-						cliSuccess(
-							COMMAND,
-							buildVerboseMessage(
-								includeVerbose,
-								[
-									{
-										label: `Published 0 ${pluralize(0, "file")}:`,
-										items: [],
-									},
-									{
-										label: `Deleted 0 ${pluralize(0, "file")}:`,
-										items: [],
-									},
-									{
-										label: `Skipped 0 ${pluralize(0, "deletion")}:`,
-										items: [],
-									},
-								],
-								"Nothing to sync.",
-							),
-							data,
-							Date.now() - startTime,
-						),
-					);
-				}
-
-				const connection = publisher.createConnection();
-
-				const publishOk = await publisher.publishBatch(
-					filesToPublish,
-					connection,
-				);
-
-				if (!publishOk) {
-					throw new Error("Failed to publish files.");
-				}
-
-				let deletedCount = 0;
-				let skippedDeletes: string[] = [];
-
-				if (deletions.length > 0) {
-					if (force) {
-						const deleteOk = await publisher.deleteBatch(
-							deletions,
-							connection,
-						);
-
-						if (!deleteOk) {
-							throw new Error("Failed to delete files.");
-						}
-						deletedCount = deletions.length;
-					} else {
-						skippedDeletes = deletions;
-					}
-				}
-
-				data.skippedDeletes = skippedDeletes;
-				data.summary.deleted = deletedCount;
-				data.summary.skippedDeletes = skippedDeletes.length;
-
-				const messageParts = [
-					`Published ${filesToPublish.length} ${pluralize(
-						filesToPublish.length,
-						"file",
-					)}`,
-					`Deleted ${deletedCount} ${pluralize(deletedCount, "file")}`,
-				];
-
-				if (skippedDeletes.length > 0) {
-					messageParts.push(
-						`Skipped ${skippedDeletes.length} ${pluralize(
-							skippedDeletes.length,
-							"deletion",
-						)} (use force)`,
-					);
-				}
-
-				const baseMessage = messageParts.join(". ") + ".";
-
-				const actuallyDeleted = force ? deletions : [];
-
-				const message = buildVerboseMessage(
-					includeVerbose,
-					[
-						{
-							label: `Published ${data.publish.length} ${pluralize(
-								data.publish.length,
-								"file",
-							)}:`,
-							items: data.publish,
-						},
-						{
-							label: `Deleted ${actuallyDeleted.length} ${pluralize(
-								actuallyDeleted.length,
-								"file",
-							)}:`,
-							items: actuallyDeleted,
-						},
-						{
-							label: `Skipped ${skippedDeletes.length} ${pluralize(
-								skippedDeletes.length,
-								"deletion",
-							)}:`,
-							items: skippedDeletes,
-						},
-					],
-					baseMessage,
-				);
-
-				return formatCliOutput(
-					params,
-					cliSuccess(COMMAND, message, data, Date.now() - startTime),
-				);
-			} catch (error) {
-				return formatCliOutput(
-					params,
-					cliError(COMMAND, getErrorMessage(error)),
-				);
 			}
-		},
-	);
+			published = publishResult.filesPublished;
+			publishSha = publishResult.commitSha;
+		}
+
+		if (includeDeletes && deletePaths.length > 0) {
+			const deleteResult = await publisher.deleteBatch(
+				deletePaths,
+				deleteMessage,
+			);
+			if (!deleteResult.success) {
+				return {
+					success: false,
+					error: deleteResult.error ?? "Delete failed",
+				};
+			}
+			deleted = deleteResult.filesDeleted;
+			deleteSha = deleteResult.commitSha;
+		}
+
+		return {
+			success: true,
+			data: {
+				published,
+				deleted,
+				publishSha,
+				deleteSha,
+				...(warning ? { warning } : {}),
+				...(params.verbose
+					? {
+							files: {
+								published: publishPaths,
+								deleted: includeDeletes ? deletePaths : [],
+							},
+						}
+					: {}),
+			},
+		};
+	};
 }

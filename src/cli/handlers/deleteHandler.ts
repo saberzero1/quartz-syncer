@@ -1,164 +1,48 @@
-import type QuartzSyncer from "main";
-import { CliData, CliFlags, RegisterFn } from "../types";
-import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
-import {
-	buildVerboseMessage,
-	checkPreFlight,
-	filterDeletedBlobs,
-	getErrorMessage,
-	initPublishStatus,
-	parseVerboseFlags,
-	pluralize,
-} from "../handlerUtils";
+import type QuartzSyncer from "src/main";
+import type { CliHandler } from "src/cli/types";
 
-const COMMAND = "quartz-syncer:delete";
+export function createDeleteHandler(_plugin: QuartzSyncer): CliHandler {
+	return async (params) => {
+		const publisher = _plugin.getPublisher();
+		if (!publisher) {
+			return { success: false, error: "Repository not configured" };
+		}
 
-const FLAGS: CliFlags = {
-	force: {
-		description: "Apply deletions (required)",
-	},
-	"dry-run": {
-		description: "Show what would be deleted without changes",
-	},
-	format: {
-		value: "<json|text>",
-		description: "Output format (default: text)",
-	},
-};
+		if (!params.flags.has("force")) {
+			return {
+				success: false,
+				error: "Destructive operation requires the 'force' flag.",
+			};
+		}
 
-export function createDeleteHandler(
-	register: RegisterFn,
-	plugin: QuartzSyncer,
-): void {
-	register(
-		COMMAND,
-		"Delete removed notes from the remote repository",
-		FLAGS,
-		async (params: CliData): Promise<string> => {
-			try {
-				const preFlightError = checkPreFlight(plugin, params, COMMAND);
+		const status = await publisher.getPublishStatus();
+		const deletePaths = status.deleted;
 
-				if (preFlightError) return preFlightError;
+		if (params.flags.has("dry-run")) {
+			return {
+				success: true,
+				data: {
+					files: deletePaths,
+				},
+			};
+		}
+		const commitMessage =
+			params.args.message ?? "Deleted via Quartz Syncer CLI";
+		const result = await publisher.deleteBatch(deletePaths, commitMessage);
 
-				const startTime = Date.now();
-				const dryRun = params["dry-run"] === "true";
-				const force = params.force === "true";
-				const { includeVerbose } = parseVerboseFlags(params);
+		if (!result.success) {
+			return {
+				success: false,
+				error: result.error ?? "Delete failed",
+			};
+		}
 
-				const { publisher, status } = await initPublishStatus(plugin);
-				const filteredDeletedBlobs = filterDeletedBlobs(status);
-
-				const deletions = [
-					...status.deletedNotePaths.map((p) => p.path),
-					...filteredDeletedBlobs.map((p) => p.path),
-				];
-
-				const data = {
-					delete: deletions,
-					summary: {
-						deleted: deletions.length,
-					},
-				};
-
-				if (dryRun) {
-					const baseMessage = `Dry run: ${deletions.length} to delete.`;
-
-					const message = buildVerboseMessage(
-						includeVerbose,
-						[
-							{
-								label: `Deleted ${deletions.length} ${pluralize(
-									deletions.length,
-									"file",
-								)}:`,
-								items: deletions,
-							},
-						],
-						baseMessage,
-					);
-
-					return formatCliOutput(
-						params,
-						cliSuccess(
-							COMMAND,
-							message,
-							data,
-							Date.now() - startTime,
-						),
-					);
-				}
-
-				if (deletions.length === 0) {
-					return formatCliOutput(
-						params,
-						cliSuccess(
-							COMMAND,
-							buildVerboseMessage(
-								includeVerbose,
-								[
-									{
-										label: `Deleted 0 ${pluralize(0, "file")}:`,
-										items: [],
-									},
-								],
-								"Nothing to delete.",
-							),
-							data,
-							Date.now() - startTime,
-						),
-					);
-				}
-
-				if (!force) {
-					return formatCliOutput(
-						params,
-						cliError(
-							COMMAND,
-							"Deletion requires the 'force' flag.",
-						),
-					);
-				}
-
-				const connection = publisher.createConnection();
-
-				const deleteOk = await publisher.deleteBatch(
-					deletions,
-					connection,
-				);
-
-				if (!deleteOk) {
-					throw new Error("Failed to delete files.");
-				}
-
-				const baseMessage = `Deleted ${deletions.length} ${pluralize(
-					deletions.length,
-					"file",
-				)}.`;
-
-				const message = buildVerboseMessage(
-					includeVerbose,
-					[
-						{
-							label: `Deleted ${deletions.length} ${pluralize(
-								deletions.length,
-								"file",
-							)}:`,
-							items: deletions,
-						},
-					],
-					baseMessage,
-				);
-
-				return formatCliOutput(
-					params,
-					cliSuccess(COMMAND, message, data, Date.now() - startTime),
-				);
-			} catch (error) {
-				return formatCliOutput(
-					params,
-					cliError(COMMAND, getErrorMessage(error)),
-				);
-			}
-		},
-	);
+		return {
+			success: true,
+			data: {
+				...result,
+				...(params.verbose ? { files: deletePaths } : {}),
+			},
+		};
+	};
 }

@@ -1,4 +1,4 @@
-import { parseYaml, getLinkpath, Notice } from "obsidian";
+import { getLinkpath, Notice, parseYaml } from "obsidian";
 import {
 	PluginIntegration,
 	PatternDescriptor,
@@ -6,7 +6,8 @@ import {
 	CompileContext,
 } from "./types";
 import { isPluginEnabled, sanitizeHTMLToString } from "src/utils/utils";
-import { AUTO_CARD_LINK_PLUGIN_ID } from "src/ui/suggest/constants";
+
+const AUTO_CARD_LINK_PLUGIN_ID = "auto-card-link";
 
 const autoCardLinkScss = `
 .auto-card-link-container {
@@ -137,7 +138,7 @@ function parseLinkMetadataFromYaml(source: string): LinkMetadata {
 	try {
 		yaml = parseYaml(source) as Partial<LinkMetadata>;
 	} catch (error) {
-		console.error(error);
+		console.debug(error);
 		throw new YamlParseError(
 			"failed to parse yaml. Check debug console for more detail.",
 		);
@@ -161,10 +162,10 @@ function parseLinkMetadataFromYaml(source: string): LinkMetadata {
 }
 
 function genErrorEl(errorMsg: string): HTMLElement {
-	const containerEl = activeDocument.createElement("div");
-	containerEl.addClass("auto-card-link-error-container");
+	const containerEl = createDiv();
+	containerEl.classList.add("auto-card-link-error-container");
 
-	const spanEl = activeDocument.createElement("span");
+	const spanEl = createSpan();
 	spanEl.textContent = `cardlink error: ${errorMsg}`;
 	containerEl.appendChild(spanEl);
 
@@ -175,37 +176,37 @@ function genLinkEl(
 	data: LinkMetadata,
 	app: CompileContext["app"],
 ): HTMLElement {
-	const containerEl = activeDocument.createElement("div");
-	containerEl.addClass("auto-card-link-container");
-	containerEl.setAttr("data-auto-card-link-depth", data.indent);
+	const containerEl = createDiv();
+	containerEl.classList.add("auto-card-link-container");
+	containerEl.setAttribute("data-auto-card-link-depth", String(data.indent));
 
-	const cardEl = activeDocument.createElement("a");
-	cardEl.addClass("auto-card-link-card");
-	cardEl.setAttr("href", data.url);
+	const cardEl = createEl("a");
+	cardEl.classList.add("auto-card-link-card");
+	cardEl.setAttribute("href", data.url);
 	containerEl.appendChild(cardEl);
 
-	const mainEl = activeDocument.createElement("div");
-	mainEl.addClass("auto-card-link-main");
+	const mainEl = createDiv();
+	mainEl.classList.add("auto-card-link-main");
 	cardEl.appendChild(mainEl);
 
-	const titleEl = activeDocument.createElement("div");
-	titleEl.addClass("auto-card-link-title");
+	const titleEl = createDiv();
+	titleEl.classList.add("auto-card-link-title");
 	titleEl.textContent = data.title;
 	mainEl.appendChild(titleEl);
 
 	if (data.description) {
-		const descriptionEl = activeDocument.createElement("div");
-		descriptionEl.addClass("auto-card-link-description");
+		const descriptionEl = createDiv();
+		descriptionEl.classList.add("auto-card-link-description");
 		descriptionEl.textContent = data.description;
 		mainEl.appendChild(descriptionEl);
 	}
 
-	const hostEl = activeDocument.createElement("div");
-	hostEl.addClass("auto-card-link-host");
+	const hostEl = createDiv();
+	hostEl.classList.add("auto-card-link-host");
 	mainEl.appendChild(hostEl);
 
 	if (data.host) {
-		const hostNameEl = activeDocument.createElement("span");
+		const hostNameEl = createSpan();
 		hostNameEl.textContent = data.host;
 		hostEl.appendChild(hostNameEl);
 	}
@@ -226,10 +227,10 @@ function genLinkEl(
 			}
 		}
 
-		const thumbnailEl = activeDocument.createElement("img");
-		thumbnailEl.addClass("auto-card-link-thumbnail");
-		thumbnailEl.setAttr("src", imageSrc);
-		thumbnailEl.setAttr("draggable", "false");
+		const thumbnailEl = createEl("img");
+		thumbnailEl.classList.add("auto-card-link-thumbnail");
+		thumbnailEl.setAttribute("src", imageSrc);
+		thumbnailEl.setAttribute("draggable", "false");
 		cardEl.appendChild(thumbnailEl);
 	}
 
@@ -272,7 +273,7 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 		const serializer = new XMLSerializer();
 
 		try {
-			const div = activeDocument.createElement("div");
+			const div = createDiv();
 
 			try {
 				const data = parseLinkMetadataFromYaml(query);
@@ -288,9 +289,9 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 							"internal links must be surrounded by quotes.",
 						),
 					);
-					console.error(error);
+					console.debug(error);
 				} else {
-					console.error("Code Block: cardlink unknown error", error);
+					console.debug("Code Block: cardlink unknown error", error);
 				}
 
 				return sanitizeHTMLToString(div, serializer);
@@ -298,8 +299,11 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 
 			return sanitizeHTMLToString(div, serializer);
 		} catch (error) {
-			console.error(error);
-			new Notice(`Quartz Syncer: Auto Card Link error: ${String(error)}`);
+			console.debug(error);
+
+			new Notice(
+				"Quartz Syncer: Failed to render card link. Check console for details.",
+			);
 
 			return match.fullMatch;
 		}

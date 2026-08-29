@@ -1,7 +1,9 @@
-import { RepositoryConnection } from "src/repositoryConnection/RepositoryConnection";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 import { QuartzVersionDetector } from "./QuartzVersionDetector";
 import type { GitAuth } from "src/models/settings";
 import { requestUrl } from "obsidian";
+import type { QuartzRunner } from "src/process/runners/QuartzRunner";
+import { fetchRemoteHeadCommit } from "src/git/GitRemoteUtils";
 
 const UPSTREAM_PACKAGE_JSON_URL =
 	"https://raw.githubusercontent.com/jackyzha0/quartz/v5/package.json";
@@ -19,11 +21,27 @@ export interface QuartzUpgradeStatus {
 	error?: string;
 }
 
-export class QuartzUpgradeService {
-	private userRepo: RepositoryConnection;
+type QuartzUpgradeRuntime = {
+	enableSystemCommands: boolean;
+	quartzRepoPath: string;
+	quartzRunner: QuartzRunner | null;
+};
 
-	constructor(userRepo: RepositoryConnection) {
+type QuartzUpgradeRepo = QuartzFileSource & {
+	upgradeFromUpstream?: (
+		upstreamUrl: string,
+		upstreamBranch: string,
+	) => Promise<{ oid: string; alreadyMerged: boolean }>;
+	hasCommitInHistory?: (sha: string) => Promise<boolean>;
+};
+
+export class QuartzUpgradeService {
+	private userRepo: QuartzUpgradeRepo;
+	private runtime?: QuartzUpgradeRuntime;
+
+	constructor(userRepo: QuartzUpgradeRepo, runtime?: QuartzUpgradeRuntime) {
 		this.userRepo = userRepo;
+		this.runtime = runtime;
 	}
 
 	async checkForUpgrade(): Promise<QuartzUpgradeStatus> {
@@ -74,12 +92,11 @@ export class QuartzUpgradeService {
 		let latestUpstreamSha: string | null = null;
 
 		try {
-			latestUpstreamSha =
-				await RepositoryConnection.fetchRemoteHeadCommit(
-					UPSTREAM_REPO_URL,
-					UPSTREAM_AUTH,
-					UPSTREAM_BRANCH,
-				);
+			latestUpstreamSha = await fetchRemoteHeadCommit(
+				UPSTREAM_REPO_URL,
+				UPSTREAM_AUTH,
+				UPSTREAM_BRANCH,
+			);
 
 			console.debug(
 				`Upstream HEAD commit: ${latestUpstreamSha ?? "null"}`,
@@ -92,21 +109,24 @@ export class QuartzUpgradeService {
 
 		if (latestUpstreamSha) {
 			console.debug(
-				`Checking if ${latestUpstreamSha.slice(
-					0,
-					7,
-				)} exists in user repo history`,
+				`Checking if ${latestUpstreamSha.slice(0, 7)} exists in user repo history`,
 			);
 
-			const foundInHistory =
-				await this.userRepo.hasCommitInHistory(latestUpstreamSha);
-			hasNewerCommits = !foundInHistory;
+			if (this.userRepo.hasCommitInHistory) {
+				try {
+					const foundInHistory =
+						await this.userRepo.hasCommitInHistory(
+							latestUpstreamSha,
+						);
+					hasNewerCommits = !foundInHistory;
+				} catch {
+					hasNewerCommits = hasUpgrade;
+				}
+			} else {
+				hasNewerCommits = hasUpgrade;
+			}
 
-			console.debug(
-				`Commit ${latestUpstreamSha.slice(0, 7)} ${
-					foundInHistory ? "found" : "NOT found"
-				} in user repo`,
-			);
+			console.debug(`hasNewerCommits: ${hasNewerCommits}`);
 		} else {
 			console.debug(
 				"Could not determine upstream HEAD SHA, skipping commit check",
@@ -128,13 +148,27 @@ export class QuartzUpgradeService {
 		alreadyMerged?: boolean;
 		error?: string;
 	}> {
+		if (
+			this.runtime?.enableSystemCommands &&
+			this.runtime.quartzRepoPath &&
+			this.runtime.quartzRunner
+		) {
+			const result = await this.runtime.quartzRunner.update({
+				cwd: this.runtime.quartzRepoPath,
+			});
+			if (!result.ok) {
+				return { success: false, error: result.error };
+			}
+			return { success: true };
+		}
+
 		try {
 			console.debug("Starting Quartz upgrade from upstream");
 
-			const result = await this.userRepo.upgradeFromUpstream(
-				UPSTREAM_REPO_URL,
-				UPSTREAM_BRANCH,
-			);
+			const upgradeFromUpstream = this.userRepo.upgradeFromUpstream;
+			const result = upgradeFromUpstream
+				? await upgradeFromUpstream(UPSTREAM_REPO_URL, UPSTREAM_BRANCH)
+				: { oid: "", alreadyMerged: true };
 
 			if (result.alreadyMerged) {
 				console.debug("Quartz is already up to date with upstream");
@@ -167,7 +201,7 @@ export class QuartzUpgradeService {
 				};
 			}
 
-			console.error("Quartz upgrade failed", error);
+			console.debug("Quartz upgrade failed", error);
 
 			return {
 				success: false,

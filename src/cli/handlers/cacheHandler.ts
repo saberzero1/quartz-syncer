@@ -1,163 +1,124 @@
-import type QuartzSyncer from "main";
-import { normalizePath } from "obsidian";
-import { CliData, CliFlags, RegisterFn } from "../types";
-import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
-import {
-	getErrorMessage,
-	getStringParam,
-	parseVerboseFlags,
-	pluralize,
-} from "../handlerUtils";
+import type QuartzSyncer from "src/main";
+import type { CliHandler } from "src/cli/types";
+import type { QuartzSyncerCache } from "src/cache/DataStore";
 
-const COMMAND = "quartz-syncer:cache";
+const DEFAULT_ACTION = "status";
 
-const FLAGS: CliFlags = {
-	action: {
-		value: "<status|clear|clear-all>",
-		description: "Cache operation to perform",
-	},
-	path: {
-		value: "<vault-path>",
-		description: "File path (required for action=clear)",
-	},
-	force: {
-		description: "Skip confirmation for clear-all",
-	},
-	format: {
-		value: "<json|text>",
-		description: "Output format (default: text)",
-	},
-};
+export function createCacheHandler(plugin: QuartzSyncer): CliHandler {
+	return async (params) => {
+		const action = params.args.action?.toLowerCase() ?? DEFAULT_ACTION;
+		const dataStore = plugin.dataStore;
 
-export function createCacheHandler(
-	register: RegisterFn,
-	plugin: QuartzSyncer,
-): void {
-	register(
-		COMMAND,
-		"Manage the Quartz Syncer cache",
-		FLAGS,
-		async (params: CliData): Promise<string> => {
-			try {
-				if (!plugin.settings.useCache || !plugin.datastore) {
-					return formatCliOutput(
-						params,
-						cliError(COMMAND, "Cache is disabled."),
-					);
-				}
+		if (!dataStore) {
+			return { success: false, error: "Cache is not available" };
+		}
 
-				const { includeVerbose } = parseVerboseFlags(params);
+		if (action === "clear") {
+			await dataStore.dropAllFiles();
+			return { success: true, data: { cleared: true } };
+		}
 
-				const action = getStringParam(params, "action");
-
-				if (!action) {
-					return formatCliOutput(
-						params,
-						cliError(COMMAND, "Missing required flag: action"),
-					);
-				}
-
-				if (action === "status") {
-					const files = await plugin.datastore.allFiles();
-
-					const lastUpdated =
-						await plugin.datastore.getLastUpdateTimestamp();
-
-					const data = {
-						count: files.length,
-						files,
-						lastUpdated,
-					};
-
-					const baseMessage = `Cache contains ${files.length} ${pluralize(
-						files.length,
-						"file",
-					)}.`;
-
-					const message =
-						includeVerbose && files.length > 0
-							? [
-									baseMessage,
-									...files.map((path) => `\t${path}`),
-								].join("\n")
-							: baseMessage;
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, message, data),
-					);
-				}
-
-				if (action === "clear") {
-					const rawPath = getStringParam(params, "path");
-
-					if (!rawPath) {
-						return formatCliOutput(
-							params,
-							cliError(COMMAND, "Missing required flag: path"),
-						);
-					}
-
-					const path = normalizePath(rawPath);
-
-					await plugin.datastore.persister.removeItem(
-						plugin.datastore.fileKey(path),
-					);
-
-					await plugin.datastore.setLastUpdateTimestamp(
-						Date.now(),
-						plugin,
-					);
-
-					const message = `Cache cleared for ${path}.`;
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, message, { path }),
-					);
-				}
-
-				if (action === "clear-all") {
-					const force = params.force === "true";
-
-					if (!force) {
-						return formatCliOutput(
-							params,
-							cliError(
-								COMMAND,
-								"Clearing all cache requires the 'force' flag.",
-							),
-						);
-					}
-
-					await plugin.datastore.recreate();
-
-					await plugin.datastore.setLastUpdateTimestamp(
-						Date.now(),
-						plugin,
-					);
-
-					const message = "Cache cleared for all files.";
-
-					return formatCliOutput(
-						params,
-						cliSuccess(COMMAND, message, { cleared: true }),
-					);
-				}
-
-				return formatCliOutput(
-					params,
-					cliError(
-						COMMAND,
-						"Invalid action. Use status, clear, or clear-all.",
-					),
-				);
-			} catch (error) {
-				return formatCliOutput(
-					params,
-					cliError(COMMAND, getErrorMessage(error)),
-				);
+		if (action === "clear-file") {
+			const path = params.args.path;
+			if (!path) {
+				return { success: false, error: "Missing path parameter" };
 			}
-		},
-	);
+			await dataStore.dropFile(path);
+			return { success: true, data: { cleared: path } };
+		}
+
+		if (action === "export") {
+			const data = await dataStore.exportCache();
+			const entryCount = Object.keys(data).length;
+
+			return {
+				success: true,
+				data: { entries: entryCount, cache: data },
+			};
+		}
+
+		if (action === "import") {
+			const rawData = params.args.data;
+			if (!rawData) {
+				return { success: false, error: "Missing data parameter" };
+			}
+
+			let parsed: Record<string, unknown>;
+			try {
+				parsed = JSON.parse(rawData) as Record<string, unknown>;
+			} catch {
+				return {
+					success: false,
+					error: "Invalid JSON in data parameter",
+				};
+			}
+
+			const imported = await dataStore.importCache(
+				parsed as Record<string, QuartzSyncerCache>,
+			);
+
+			return {
+				success: true,
+				data: { imported },
+			};
+		}
+
+		if (action === "prune") {
+			if (typeof dataStore.dropOutdatedCache !== "function") {
+				return { success: false, error: `Unknown action: ${action}` };
+			}
+			await dataStore.dropOutdatedCache();
+
+			return {
+				success: true,
+				data: { pruned: true },
+			};
+		}
+
+		if (action === "status") {
+			const entryCount = (await dataStore.allFiles()).length;
+			let sizeEstimateBytes = 0;
+			const encoder = new TextEncoder();
+
+			await dataStore.persister.iterate((value, key) => {
+				const payload = JSON.stringify({ key, value });
+				sizeEstimateBytes += encoder.encode(payload).length;
+			});
+
+			return {
+				success: true,
+				data: {
+					entries: entryCount,
+					sizeEstimateBytes,
+				},
+			};
+		}
+
+		if (action === "tree-status") {
+			const publisher = plugin.getPublisher();
+			if (!publisher) {
+				return { success: false, error: "Publisher not configured" };
+			}
+			const tree = await publisher.getCachedTree();
+			return {
+				success: true,
+				data: { cached: !!tree, entries: tree?.length ?? 0 },
+			};
+		}
+
+		if (action === "tree-refresh") {
+			const publisher = plugin.getPublisher();
+			if (!publisher) {
+				return { success: false, error: "Publisher not configured" };
+			}
+			await publisher.refreshTreeCache();
+			const tree = await publisher.getCachedTree();
+			return {
+				success: true,
+				data: { refreshed: true, entries: tree?.length ?? 0 },
+			};
+		}
+
+		return { success: false, error: `Unknown action: ${action}` };
+	};
 }

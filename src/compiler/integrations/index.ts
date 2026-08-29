@@ -1,6 +1,7 @@
 export * from "./types";
 export { integrationRegistry, IntegrationRegistry } from "./registry";
-export { AssetSyncer, AssetSyncResult } from "./AssetSyncer";
+export { AssetSyncer } from "./AssetSyncer";
+export type { AssetSyncResult } from "./AssetSyncer";
 
 import { integrationRegistry } from "./registry";
 import { DataviewIntegration } from "./dataview";

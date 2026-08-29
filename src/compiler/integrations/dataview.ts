@@ -40,8 +40,8 @@ async function tryExecuteJs(
 	query: string,
 	filePath: string,
 	dvApi: DataviewApi,
-) {
-	const div = activeDocument.createElement("div");
+): Promise<string> {
+	const div = createDiv();
 	const component = new Component();
 	component.load();
 	await dvApi.executeJs(query, div, component, filePath);
@@ -122,7 +122,8 @@ export const DataviewIntegration: PluginIntegration = {
 		if (!dvApi) return match.fullMatch;
 
 		const filePath = context.file.getPath();
-		const query = match.captures[0];
+		const query = match.captures[0] ?? "";
+		if (!query) return match.fullMatch;
 		const { isInsideCalloutDepth, finalQuery } = sanitizeQuery(query);
 
 		try {
@@ -171,10 +172,10 @@ export const DataviewIntegration: PluginIntegration = {
 					return match.fullMatch;
 			}
 		} catch (e) {
-			console.error(e);
+			console.debug(e);
 
 			new Notice(
-				"Quartz Syncer: Unable to render dataview query. Please update the dataview plugin to the latest version.",
+				"Quartz Syncer: Unable to render Dataview query. Please update the Dataview plugin to the latest version.",
 			);
 
 			return match.fullMatch;

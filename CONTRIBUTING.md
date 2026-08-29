@@ -12,13 +12,13 @@ Before opening a pull request:
 - For large changes, consider opening an issue or starting a discussion first.
 - Keep changes focused and scoped to a single improvement when possible.
 
-## Development setup
+## Getting started
 
 ### Requirements
 
 - [Node.js](https://nodejs.org/) — use the version specified in `.nvmrc`
 - `npm`
-- Optional: [`just`](https://github.com/casey/just) for running common development tasks
+- Optional: `nix develop` for running E2E and integration test environments
 
 ### Install dependencies
 
@@ -26,173 +26,101 @@ Before opening a pull request:
 npm install
 ```
 
-## Project structure
-
-A few important files and directories:
-
-- `src/` — main source code
-- `main.ts` — plugin entry point
-- `test/` — tests
-- `docs/` — local documentation/plugin testing assets
-- `.github/workflows/` — CI workflows
-- `justfile` — shortcuts for common development tasks
-
-## Common commands
-
-You can run most tasks either directly with `npm` scripts or through the `justfile`.
-
-### Using npm
-
-#### Run development build
+### Run the development build
 
 ```bash
 npm run dev
 ```
 
-#### Build for production
+### Build for production
 
 ```bash
 npm run build
 ```
 
-#### Run tests
+## Codebase structure
 
-```bash
-npm run test
-```
+Quartz Syncer uses a feature-per-directory layout under `src/`. Key areas:
 
-#### Run end-to-end tests
+- `src/main.ts` — plugin entry point and lifecycle wiring
+- `src/cli/` — CLI handler registration, output formatting, and command handlers
+- `src/git/` — git backends, HTTP transport, and path mapping
+- `src/compiler/` — compilation pipeline and integration adapters
+- `src/cache/` — persisted compilation metadata
+- `src/services/` — background engine and orchestration services
+- `src/publisher/` — publish coordination and status management
+- `src/publishFile/` — file metadata, validation, and frontmatter handling
+- `src/quartz/` — Quartz config, plugin, and upgrade services
+- `src/views/` — settings UI, onboarding wizard, diff viewer, and publication center
+- `src/models/` and `src/utils/` — shared types and utilities
+- `test/` — unit + E2E specs and helpers
+- `e2e/` — Playwright Quartz integration configuration
 
-```bash
-npm run test:e2e
-```
+## Testing
 
-#### Run linting
+Quartz Syncer has three testing tiers:
 
-```bash
-npm run lint
-```
+1. **Unit (Vitest)**
+   ```bash
+   npm run test:unit
+   ```
+2. **E2E (WebdriverIO)**
+   ```bash
+   npx wdio wdio.conf.mts
+   ```
+3. **Quartz integration (Playwright)**
+   ```bash
+   npx playwright test -c e2e/playwright.config.ts
+   ```
 
-#### Auto-fix lint/style issues
+Shared helpers live in `test/helpers.ts`.
 
-```bash
-npm run lint-fix
-```
+## Adding features
 
-#### Check formatting
+### New git backend
 
-```bash
-npm run check-formatting
-```
+- Implement a backend under `src/git/backends/`.
+- Register it in `src/git/GitBackendFactory.ts`.
+- Update types in `src/git/types.ts` and add tests where applicable.
 
-#### Format the codebase
+### New compilation integration
 
-```bash
-npm run format
-```
+- Add the integration under `src/compiler/integrations/`.
+- Register it in `src/compiler/integrations/registry.ts` and export it from `src/compiler/integrations/index.ts`.
 
-#### Run type checking
+### New CLI command
 
-```bash
-npm run typecheck
-```
+- Add a handler in `src/cli/handlers/`.
+- Register it in `src/cli/registerCliHandlers.ts`.
+- Update the README command table to keep the CLI surface documented.
 
-### Using `just`
+### New settings
 
-If you have `just` installed, the repository provides shortcuts for common workflows:
+- Add definitions in `getSettingDefinitions()`.
+- Update the appropriate settings page under `src/views/settings/`.
+- Keep migrations in `src/main.ts`.
 
-```bash
-just
-```
+## Code conventions
 
-This lists the available recipes.
+- Strict TypeScript.
+- No `as any`, no `@ts-ignore`.
+- Tabs for indentation.
+- Sentence case for user-facing strings.
 
-Some useful examples:
+## PR requirements
 
-```bash
-just dev
-just prod
-just check
-just test
-just test-full
-```
-
-Notable recipes:
-- `just dev` — runs the development build and copies plugin files into the local `docs` plugin directory
-- `just prod` — builds for production and copies plugin files into the local `docs` plugin directory
-- `just check` — runs linting, tests, formatting checks, and typechecking
-- `just test-full` — runs unit and end-to-end tests
-
-## Coding conventions
-
-Please follow the conventions already used in the repository:
-
-- Use **tabs** for indentation.
-- Keep formatting consistent with **Prettier**.
-- Follow **ESLint** rules and fix warnings/errors before submitting.
-- Use TypeScript consistently and avoid introducing unnecessary `any` types.
-- Keep changes minimal and focused.
-
-If you are unsure about a pattern or convention, follow the surrounding code in the file you are editing.
-
-## Testing expectations
-
-Before submitting a pull request, please run the relevant checks locally.
-
-At minimum:
+At minimum, run:
 
 ```bash
 npm run lint
 npm run check-formatting
 npm run build
-npm run test
-npm run typecheck
+npm run test:unit
 ```
 
-Or, if you use `just`:
+If your change affects UI flows, CLI behavior, or Quartz publishing, also run the E2E and/or Playwright suites.
 
-```bash
-just check
-```
-
-If your change affects end-to-end behavior, also run:
-
-```bash
-npm run test:e2e
-```
-
-Or:
-
-```bash
-just test-full
-```
-
-## Continuous integration
-
-GitHub Actions runs checks on pull requests and pushes, including:
-
-- linting
-- formatting checks
-- build
-- tests
-- typechecking
-- end-to-end tests
-
-Please make sure your changes pass the relevant local checks before opening a pull request.
-
-## Pull request guidelines
-
-When opening a pull request:
-
-- Write a clear title and description.
-- Explain the problem being solved and your approach.
-- Link related issues when applicable.
-- Include screenshots or recordings for UI changes when helpful.
-- Keep pull requests reasonably small and easy to review.
-
-## Documentation
-
-If your change affects user-facing behavior, configuration, or workflow, please update relevant documentation as part of the same pull request.
+Please update documentation for user-facing changes.
 
 ## Questions
 

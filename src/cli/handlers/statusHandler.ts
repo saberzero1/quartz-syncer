@@ -1,113 +1,65 @@
-import type QuartzSyncer from "main";
-import { CliData, CliFlags, RegisterFn } from "../types";
-import { formatCliOutput, cliSuccess, cliError } from "../formatOutput";
-import {
-	checkPreFlight,
-	filterDeletedBlobs,
-	getErrorMessage,
-	initPublishStatus,
-	parseVerboseFlags,
-} from "../handlerUtils";
+import type QuartzSyncer from "src/main";
+import type { CliHandler } from "src/cli/types";
+import type { PublishFile } from "src/publishFile/PublishFile";
 
-const COMMAND = "quartz-syncer:status";
+export function createStatusHandler(_plugin: QuartzSyncer): CliHandler {
+	return async (params) => {
+		const publisher = _plugin.getPublisher();
+		if (!publisher) {
+			return { success: false, error: "Repository not configured" };
+		}
 
-const FLAGS: CliFlags = {
-	format: {
-		value: "<json|text>",
-		description: "Output format (default: text)",
-	},
-};
+		const status = await publisher.getPublishStatus();
+		if (params.verbose) {
+			const enrichFile = async (file: PublishFile) => {
+				const cached = await _plugin.dataStore.loadLocalFile(
+					file.file.path,
+				);
+				const blobCount = cached ? cached[1].blobs.length : 0;
 
-export function createStatusHandler(
-	register: RegisterFn,
-	plugin: QuartzSyncer,
-): void {
-	register(
-		COMMAND,
-		"Show the publish status of all marked notes",
-		FLAGS,
-		async (params: CliData): Promise<string> => {
-			try {
-				const preFlightError = checkPreFlight(plugin, params, COMMAND);
+				return {
+					path: file.getVaultPath(),
+					publishFlag: file.shouldPublish(),
+					hasMedia: blobCount > 0,
+				};
+			};
 
-				if (preFlightError) return preFlightError;
-
-				const startTime = Date.now();
-
-				const { status } = await initPublishStatus(plugin);
-				const filteredDeletedBlobs = filterDeletedBlobs(status);
-
-				const data = {
-					unpublished: status.unpublishedNotes.map((f) =>
-						f.getPath(),
-					),
-					changed: status.changedNotes.map((f) => f.getPath()),
-					published: status.publishedNotes.map((f) => f.getPath()),
-					deletedNotes: status.deletedNotePaths.map((p) => p.path),
-					deletedBlobs: filteredDeletedBlobs.map((p) => p.path),
-					summary: {
-						unpublished: status.unpublishedNotes.length,
-						changed: status.changedNotes.length,
-						published: status.publishedNotes.length,
-						deletedNotes: status.deletedNotePaths.length,
-						deletedBlobs: filteredDeletedBlobs.length,
+			return {
+				success: true,
+				data: {
+					unpublished: {
+						count: status.unpublished.length,
+						files: await Promise.all(
+							status.unpublished.map(enrichFile),
+						),
 					},
-				};
-
-				const { includeVerbose } = parseVerboseFlags(params);
-				const messageLines: string[] = [];
-
-				const appendSection = (
-					label: string,
-					paths: string[],
-				): void => {
-					messageLines.push(label);
-
-					if (!includeVerbose || paths.length === 0) {
-						return;
-					}
-					messageLines.push(...paths.map((path) => `\t${path}`));
-				};
-
-				const deletedPaths = [
-					...data.deletedNotes,
-					...data.deletedBlobs,
-				];
-
-				appendSection(
-					`Unpublished: ${data.summary.unpublished}`,
-					data.unpublished,
-				);
-
-				appendSection(
-					`Changed:     ${data.summary.changed}`,
-					data.changed,
-				);
-
-				appendSection(
-					`Published:   ${data.summary.published}`,
-					data.published,
-				);
-
-				appendSection(
-					`Deleted:     ${
-						data.summary.deletedNotes + data.summary.deletedBlobs
-					}`,
-					deletedPaths,
-				);
-
-				const message = messageLines.join("\n");
-
-				return formatCliOutput(
-					params,
-					cliSuccess(COMMAND, message, data, Date.now() - startTime),
-				);
-			} catch (error) {
-				return formatCliOutput(
-					params,
-					cliError(COMMAND, getErrorMessage(error)),
-				);
-			}
-		},
-	);
+					changed: {
+						count: status.changed.length,
+						files: await Promise.all(
+							status.changed.map(enrichFile),
+						),
+					},
+					published: {
+						count: status.published.length,
+						files: await Promise.all(
+							status.published.map(enrichFile),
+						),
+					},
+					deleted: {
+						count: status.deleted.length,
+						files: status.deleted,
+					},
+				},
+			};
+		}
+		return {
+			success: true,
+			data: {
+				unpublished: status.unpublished.length,
+				changed: status.changed.length,
+				published: status.published.length,
+				deleted: status.deleted.length,
+			},
+		};
+	};
 }

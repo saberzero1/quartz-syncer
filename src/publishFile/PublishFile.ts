@@ -10,7 +10,7 @@ import {
 import QuartzSyncerSettings from "src/models/settings";
 import { hasPublishFlag } from "src/publishFile/Validator";
 import { FileMetadataManager } from "src/publishFile/FileMetaDataManager";
-import { DataStore } from "src/publishFile/DataStore";
+import { DataStore } from "src/cache/DataStore";
 import { generateBlobHash } from "src/utils/utils";
 import {
 	DATAVIEW_FIELD_REGEX,
@@ -97,18 +97,22 @@ export class PublishFile {
 	 *
 	 * @returns A promise that resolves to a CompiledPublishFile instance.
 	 */
-	async compile(): Promise<CompiledPublishFile> {
+	async compile(trustDynamicCache = false): Promise<CompiledPublishFile> {
 		let compiledFile: TCompiledFile;
+		const sourceMtime = this.file.stat.mtime;
 
 		if (this.settings.useCache) {
 			const cachedFile = await this.datastore.loadLocalFile(
 				this.file.path,
+				sourceMtime,
+				trustDynamicCache,
 			);
 
 			const outdated = cachedFile
 				? await this.datastore.isLocalFileOutdated(
 						this.file.path,
-						this.file.stat.mtime,
+						sourceMtime,
+						trustDynamicCache,
 					)
 				: true;
 
@@ -129,18 +133,21 @@ export class PublishFile {
 				}
 
 				const localHash = await generateBlobHash(storedFile[0]);
+				const currentMtime = this.file.stat.mtime;
 
 				await this.datastore.storeLocalFile(
 					this.file.path,
-					this.file.stat.mtime,
+					sourceMtime,
 					storedFile,
 					isDynamic,
+					currentMtime,
 				);
 
 				await this.datastore.storeLocalHash(
 					this.file.path,
-					this.file.stat.mtime,
+					sourceMtime,
 					localHash,
+					currentMtime,
 				);
 			}
 
@@ -212,7 +219,7 @@ export class PublishFile {
 	 *
 	 * @returns An array of blob links.
 	 */
-	async getBlobLinks() {
+	async getBlobLinks(): Promise<string[]> {
 		return this.compiler.extractBlobLinks(this);
 	}
 
@@ -221,7 +228,7 @@ export class PublishFile {
 	 *
 	 * @returns The content of the file as a string.
 	 */
-	async cachedRead() {
+	async cachedRead(): Promise<string> {
 		return this.vault.cachedRead(this.file);
 	}
 

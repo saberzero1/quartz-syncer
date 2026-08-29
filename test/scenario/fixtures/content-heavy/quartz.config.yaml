@@ -1,0 +1,10 @@
+configuration:
+    pageTitle: Content Heavy Site
+    enableSPA: true
+    enablePopovers: false
+    locale: en-US
+    baseUrl: localhost
+    ignorePatterns:
+        - private
+        - .obsidian
+plugins: []
