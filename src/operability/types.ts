@@ -86,7 +86,8 @@ export type QSEventType =
 	| "connection.tested"
 	| "error.occurred"
 	| "ui.modal.opened"
-	| "ui.modal.closed";
+	| "ui.modal.closed"
+	| "tree.refresh.failed";
 
 export type Action =
 	| { name: "pub.open" }

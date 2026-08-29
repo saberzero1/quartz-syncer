@@ -32,6 +32,7 @@ type QuartzUpgradeRepo = QuartzFileSource & {
 		upstreamUrl: string,
 		upstreamBranch: string,
 	) => Promise<{ oid: string; alreadyMerged: boolean }>;
+	hasCommitInHistory?: (sha: string) => Promise<boolean>;
 };
 
 export class QuartzUpgradeService {
@@ -108,20 +109,24 @@ export class QuartzUpgradeService {
 
 		if (latestUpstreamSha) {
 			console.debug(
-				`Checking if ${latestUpstreamSha.slice(
-					0,
-					7,
-				)} exists in user repo history`,
+				`Checking if ${latestUpstreamSha.slice(0, 7)} exists in user repo history`,
 			);
 
-			const foundInHistory = false;
-			hasNewerCommits = !foundInHistory;
+			if (this.userRepo.hasCommitInHistory) {
+				try {
+					const foundInHistory =
+						await this.userRepo.hasCommitInHistory(
+							latestUpstreamSha,
+						);
+					hasNewerCommits = !foundInHistory;
+				} catch {
+					hasNewerCommits = hasUpgrade;
+				}
+			} else {
+				hasNewerCommits = hasUpgrade;
+			}
 
-			console.debug(
-				`Commit ${latestUpstreamSha.slice(0, 7)} ${
-					foundInHistory ? "found" : "NOT found"
-				} in user repo`,
-			);
+			console.debug(`hasNewerCommits: ${hasNewerCommits}`);
 		} else {
 			console.debug(
 				"Could not determine upstream HEAD SHA, skipping commit check",

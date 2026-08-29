@@ -59,9 +59,20 @@ export class BackgroundEngine {
 		const publisher = this.plugin.getPublisher();
 
 		if (publisher) {
-			void publisher.refreshTreeCache().then(() => {
-				void this.computeLightweightSummary();
-			});
+			void publisher
+				.refreshTreeCache()
+				.then(() => {
+					void this.computeLightweightSummary();
+				})
+				.catch((error) => {
+					console.debug("Initial tree cache fetch failed:", error);
+					this.eventSink?.emit("tree.refresh.failed", {
+						error:
+							error instanceof Error
+								? error.message
+								: String(error),
+					});
+				});
 		}
 	}
 

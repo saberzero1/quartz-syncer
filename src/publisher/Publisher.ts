@@ -314,6 +314,10 @@ export class Publisher {
 			);
 			this.backend.refreshTreeCache().catch((error) => {
 				console.debug("Tree cache refresh failed:", error);
+				this.eventSink?.emit("tree.refresh.failed", {
+					error:
+						error instanceof Error ? error.message : String(error),
+				});
 			});
 
 			const publishResult: PublishResult = {
@@ -382,6 +386,10 @@ export class Publisher {
 			this.plugin.statusCache.patchDeleted(new Set(paths));
 			this.backend.refreshTreeCache().catch((error) => {
 				console.debug("Tree cache refresh failed:", error);
+				this.eventSink?.emit("tree.refresh.failed", {
+					error:
+						error instanceof Error ? error.message : String(error),
+				});
 			});
 
 			this.eventSink?.emit("delete.completed", {
@@ -460,6 +468,10 @@ export class Publisher {
 			this.plugin.statusCache.invalidate();
 			this.backend.refreshTreeCache().catch((error) => {
 				console.debug("Tree cache refresh failed:", error);
+				this.eventSink?.emit("tree.refresh.failed", {
+					error:
+						error instanceof Error ? error.message : String(error),
+				});
 			});
 
 			this.eventSink?.emit("delete.completed", {
@@ -513,6 +525,10 @@ export class Publisher {
 			this.plugin.statusCache.invalidate();
 			this.backend.refreshTreeCache().catch((error) => {
 				console.debug("Tree cache refresh failed:", error);
+				this.eventSink?.emit("tree.refresh.failed", {
+					error:
+						error instanceof Error ? error.message : String(error),
+				});
 			});
 
 			return {

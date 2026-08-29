@@ -230,6 +230,36 @@ export class BundledGitBackend implements GitBackend {
 			});
 	}
 
+	async hasCommitInHistory(
+		targetSha: string,
+		depth: number = 100,
+	): Promise<boolean> {
+		try {
+			await this.ensureRepoReady(this.config.branch);
+
+			await git.fetch({
+				fs: this.fs,
+				dir: this.dir,
+				url: this.config.remoteUrl,
+				ref: this.config.branch,
+				singleBranch: true,
+				depth,
+				...this.networkOptions(),
+			});
+
+			const commits = await git.log({
+				fs: this.fs,
+				dir: this.dir,
+				ref: `origin/${this.config.branch}`,
+				depth,
+			});
+
+			return commits.some((entry) => entry.oid === targetSha);
+		} catch {
+			return false;
+		}
+	}
+
 	private networkOptions() {
 		const onProgress = this.config.onProgress
 			? (progress: { phase: string; loaded: number; total?: number }) => {

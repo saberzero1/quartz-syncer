@@ -154,7 +154,7 @@ describe("QuartzUpgradeService", () => {
 		assert.ok(status.error?.includes("Could not determine"));
 	});
 
-	it("detects newer commits when upstream SHA not in user's repo", async () => {
+	it("falls back to version comparison when hasCommitInHistory not available (versions match)", async () => {
 		mockPackageVersion("5.0.0");
 		mockUpstreamFetch("5.0.0");
 		mockRemoteHeadCommit("def5678");
@@ -162,11 +162,11 @@ describe("QuartzUpgradeService", () => {
 		const status = await makeService().checkForUpgrade();
 
 		assert.strictEqual(status.hasUpgrade, false);
-		assert.strictEqual(status.hasNewerCommits, true);
+		assert.strictEqual(status.hasNewerCommits, false);
 		assert.strictEqual(status.latestUpstreamSha, "def5678");
 	});
 
-	it("reports newer commits when upstream SHA is available", async () => {
+	it("falls back to hasUpgrade when no history checker (versions match)", async () => {
 		mockPackageVersion("5.0.0");
 		mockUpstreamFetch("5.0.0");
 		mockRemoteHeadCommit("def5678");
@@ -174,27 +174,98 @@ describe("QuartzUpgradeService", () => {
 		const status = await makeService().checkForUpgrade();
 
 		assert.strictEqual(status.hasUpgrade, false);
-		assert.strictEqual(status.hasNewerCommits, true);
+		assert.strictEqual(status.hasNewerCommits, false);
 	});
 
-	it("reports hasNewerCommits=true when commit history lookup is stubbed", async () => {
+	it("falls back to version comparison when hasCommitInHistory not provided", async () => {
 		mockPackageVersion("5.0.0");
 		mockUpstreamFetch("5.0.0");
 		mockRemoteHeadCommit("abc1234");
 
 		const status = await makeService().checkForUpgrade();
+
+		assert.strictEqual(status.hasNewerCommits, false);
+		assert.strictEqual(status.latestUpstreamSha, "abc1234");
+	});
+
+	it("hasNewerCommits matches hasUpgrade when no history checker", async () => {
+		mockPackageVersion("5.0.0");
+		mockUpstreamFetch("5.0.0");
+		mockRemoteHeadCommit("abc1234");
+
+		const status = await makeService().checkForUpgrade();
+
+		assert.strictEqual(status.hasNewerCommits, false);
+		assert.strictEqual(status.latestUpstreamSha, "abc1234");
+	});
+
+	it("reports hasNewerCommits=false when hasCommitInHistory finds the SHA", async () => {
+		const mockRepo = {
+			...makeMockRepo(),
+			hasCommitInHistory: async () => true,
+		} satisfies QuartzFileSource & {
+			hasCommitInHistory: (sha: string) => Promise<boolean>;
+		};
+		const service = new QuartzUpgradeService(mockRepo);
+
+		mockPackageVersion("5.0.0");
+		mockUpstreamFetch("5.0.0");
+		mockRemoteHeadCommit("abc1234");
+
+		const status = await service.checkForUpgrade();
+
+		assert.strictEqual(status.hasNewerCommits, false);
+		assert.strictEqual(status.latestUpstreamSha, "abc1234");
+	});
+
+	it("reports hasNewerCommits=true when hasCommitInHistory does not find the SHA", async () => {
+		const mockRepo = {
+			...makeMockRepo(),
+			hasCommitInHistory: async () => false,
+		} satisfies QuartzFileSource & {
+			hasCommitInHistory: (sha: string) => Promise<boolean>;
+		};
+		const service = new QuartzUpgradeService(mockRepo);
+
+		mockPackageVersion("5.0.0");
+		mockUpstreamFetch("5.0.0");
+		mockRemoteHeadCommit("abc1234");
+
+		const status = await service.checkForUpgrade();
 
 		assert.strictEqual(status.hasNewerCommits, true);
 		assert.strictEqual(status.latestUpstreamSha, "abc1234");
 	});
 
-	it("reports hasNewerCommits=true when commit not found in history", async () => {
+	it("falls back to hasUpgrade when hasCommitInHistory throws", async () => {
+		const mockRepo = {
+			...makeMockRepo(),
+			hasCommitInHistory: async () => {
+				throw new Error("fail");
+			},
+		} satisfies QuartzFileSource & {
+			hasCommitInHistory: (sha: string) => Promise<boolean>;
+		};
+		const service = new QuartzUpgradeService(mockRepo);
+
 		mockPackageVersion("5.0.0");
 		mockUpstreamFetch("5.0.0");
 		mockRemoteHeadCommit("abc1234");
 
+		const status = await service.checkForUpgrade();
+
+		assert.strictEqual(status.hasNewerCommits, false);
+		assert.strictEqual(status.latestUpstreamSha, "abc1234");
+	});
+
+	it("hasNewerCommits=true when versions differ and no hasCommitInHistory", async () => {
+		mockPackageVersion("5.0.0");
+		mockUpstreamFetch("5.1.0");
+		mockRemoteHeadCommit("abc1234");
+
 		const status = await makeService().checkForUpgrade();
 
+		assert.strictEqual(status.hasUpgrade, true);
 		assert.strictEqual(status.hasNewerCommits, true);
 		assert.strictEqual(status.latestUpstreamSha, "abc1234");
 	});

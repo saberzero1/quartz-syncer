@@ -94,6 +94,31 @@ export function createCacheHandler(plugin: QuartzSyncer): CliHandler {
 			};
 		}
 
+		if (action === "tree-status") {
+			const publisher = plugin.getPublisher();
+			if (!publisher) {
+				return { success: false, error: "Publisher not configured" };
+			}
+			const tree = await publisher.getCachedTree();
+			return {
+				success: true,
+				data: { cached: !!tree, entries: tree?.length ?? 0 },
+			};
+		}
+
+		if (action === "tree-refresh") {
+			const publisher = plugin.getPublisher();
+			if (!publisher) {
+				return { success: false, error: "Publisher not configured" };
+			}
+			await publisher.refreshTreeCache();
+			const tree = await publisher.getCachedTree();
+			return {
+				success: true,
+				data: { refreshed: true, entries: tree?.length ?? 0 },
+			};
+		}
+
 		return { success: false, error: `Unknown action: ${action}` };
 	};
 }

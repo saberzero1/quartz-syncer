@@ -83,7 +83,7 @@ export class GitHubApiService {
 		branch: string,
 	): Promise<void> {
 		this.assertToken();
-		const encoded = btoa(content);
+		const encoded = this.encodeBase64(content);
 		await this.client.put(
 			`${BASE_URL}/repos/${owner}/${repo}/contents/${path}`,
 			this.getHeaders(),
@@ -110,7 +110,7 @@ export class GitHubApiService {
 
 			const content =
 				response.data.encoding === "base64"
-					? atob(response.data.content.replace(/\n/g, ""))
+					? this.decodeBase64(response.data.content)
 					: response.data.content;
 
 			return { content, sha: response.data.sha };
@@ -129,7 +129,7 @@ export class GitHubApiService {
 		sha: string,
 	): Promise<void> {
 		this.assertToken();
-		const encoded = btoa(content);
+		const encoded = this.encodeBase64(content);
 		await this.client.put(
 			`${BASE_URL}/repos/${owner}/${repo}/contents/${path}`,
 			this.getHeaders(),
@@ -167,5 +167,20 @@ export class GitHubApiService {
 		if (!this.token) {
 			throw new Error("GitHub token is required");
 		}
+	}
+
+	private encodeBase64(content: string): string {
+		const bytes = new TextEncoder().encode(content);
+		let binary = "";
+		for (let i = 0; i < bytes.length; i++) {
+			binary += String.fromCharCode(bytes[i]!);
+		}
+		return btoa(binary);
+	}
+
+	private decodeBase64(encoded: string): string {
+		const binary = atob(encoded.replace(/\n/g, ""));
+		const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+		return new TextDecoder().decode(bytes);
 	}
 }

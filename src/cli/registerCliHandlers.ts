@@ -170,7 +170,7 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 			{
 				name: "action",
 				description:
-					"status, clear, clear-file, export, import, or prune.",
+					"status, clear, clear-file, export, import, prune, tree-status, or tree-refresh.",
 			},
 			{ name: "path", description: "File path for clear-file." },
 			{ name: "data", description: "JSON string for import action." },

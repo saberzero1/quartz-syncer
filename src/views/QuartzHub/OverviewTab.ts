@@ -3,6 +3,7 @@ import type QuartzSyncer from "src/main";
 import { qsDom } from "src/operability/DomContract";
 import type { IOperabilityEventSink } from "src/operability/types";
 import { LocalFileSource } from "src/quartz/LocalFileSource";
+import { QuartzUpgradeService } from "src/quartz/QuartzUpgradeService";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 import { launchQuartzPreview } from "src/views/QuartzPreview/QuartzPreviewModal";
 import { TerminalOutputModal } from "src/views/TerminalOutput/TerminalOutputModal";
@@ -105,6 +106,55 @@ export function renderOverviewTab(
 			const message =
 				error instanceof Error ? error.message : String(error);
 			versionRow.valueEl.setText(`Detection failed: ${message}`);
+		}
+	})();
+
+	void (async () => {
+		if (!container.isConnected) return;
+		if (!repoValidation.ok) return;
+
+		const upgradeCache = plugin.hubDetectionCache.upgradeStatus;
+		if (
+			upgradeCache &&
+			Date.now() - upgradeCache.time < VERSION_CACHE_TTL_MS
+		) {
+			if (!container.isConnected) return;
+			if (
+				upgradeCache.data?.hasUpgrade &&
+				upgradeCache.data.upstreamVersion
+			) {
+				versionRow.valueEl.createSpan({
+					text: ` (${upgradeCache.data.upstreamVersion} available)`,
+					cls: "qs-hub-upgrade-available",
+				});
+			}
+			return;
+		}
+
+		try {
+			const repo = new LocalFileSource(resolvedRepoPath);
+			const service = new QuartzUpgradeService(repo, {
+				enableSystemCommands: plugin.settings.enableSystemCommands,
+				quartzRepoPath: resolvedRepoPath,
+				quartzRunner: plugin.quartzRunner ?? null,
+			});
+			const status = await service.checkForUpgrade();
+			if (!container.isConnected) return;
+
+			plugin.hubDetectionCache.upgradeStatus = {
+				data: status,
+				time: Date.now(),
+			};
+			plugin.hubDetectionCache.persist();
+
+			if (status.hasUpgrade && status.upstreamVersion) {
+				versionRow.valueEl.createSpan({
+					text: ` (${status.upstreamVersion} available)`,
+					cls: "qs-hub-upgrade-available",
+				});
+			}
+		} catch {
+			// Upgrade check is best-effort — don't block the UI
 		}
 	})();
 

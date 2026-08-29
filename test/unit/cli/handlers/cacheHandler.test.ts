@@ -318,4 +318,124 @@ describe("cacheHandler", () => {
 			error: "Unknown action: unknown",
 		});
 	});
+
+	it("returns tree-status with cached tree entries", async () => {
+		const treeEntries = [
+			{ path: "notes/a.md", type: "blob" as const, sha: "abc" },
+			{ path: "notes/b.md", type: "blob" as const, sha: "def" },
+		];
+		const publisher = {
+			getCachedTree: vi.fn(async () => treeEntries),
+			refreshTreeCache: vi.fn(async () => undefined),
+		};
+		const dataStore = {
+			dropAllFiles: vi.fn(async () => undefined),
+			dropFile: vi.fn(async () => undefined),
+			allFiles: vi.fn(async () => []),
+			persister: { iterate: vi.fn(async () => undefined) },
+		} as unknown as DataStore;
+		const plugin = buildPlugin({
+			dataStore,
+			getPublisher: vi.fn(() => publisher),
+		});
+		const handler = createCacheHandler(plugin);
+
+		const result = await handler(buildParams({ action: "tree-status" }));
+		expect(result).toEqual({
+			success: true,
+			data: { cached: true, entries: 2 },
+		});
+	});
+
+	it("returns tree-status with no cached tree", async () => {
+		const publisher = {
+			getCachedTree: vi.fn(async () => null),
+			refreshTreeCache: vi.fn(async () => undefined),
+		};
+		const dataStore = {
+			dropAllFiles: vi.fn(async () => undefined),
+			dropFile: vi.fn(async () => undefined),
+			allFiles: vi.fn(async () => []),
+			persister: { iterate: vi.fn(async () => undefined) },
+		} as unknown as DataStore;
+		const plugin = buildPlugin({
+			dataStore,
+			getPublisher: vi.fn(() => publisher),
+		});
+		const handler = createCacheHandler(plugin);
+
+		const result = await handler(buildParams({ action: "tree-status" }));
+		expect(result).toEqual({
+			success: true,
+			data: { cached: false, entries: 0 },
+		});
+	});
+
+	it("returns an error for tree-status when publisher is not configured", async () => {
+		const dataStore = {
+			dropAllFiles: vi.fn(async () => undefined),
+			dropFile: vi.fn(async () => undefined),
+			allFiles: vi.fn(async () => []),
+			persister: { iterate: vi.fn(async () => undefined) },
+		} as unknown as DataStore;
+		const plugin = buildPlugin({
+			dataStore,
+			getPublisher: vi.fn(() => null),
+		});
+		const handler = createCacheHandler(plugin);
+
+		const result = await handler(buildParams({ action: "tree-status" }));
+		expect(result).toEqual({
+			success: false,
+			error: "Publisher not configured",
+		});
+	});
+
+	it("refreshes tree cache and returns entry count", async () => {
+		const treeEntries = [
+			{ path: "notes/a.md", type: "blob" as const, sha: "abc" },
+		];
+		const publisher = {
+			getCachedTree: vi.fn(async () => treeEntries),
+			refreshTreeCache: vi.fn(async () => undefined),
+		};
+		const dataStore = {
+			dropAllFiles: vi.fn(async () => undefined),
+			dropFile: vi.fn(async () => undefined),
+			allFiles: vi.fn(async () => []),
+			persister: { iterate: vi.fn(async () => undefined) },
+		} as unknown as DataStore;
+		const plugin = buildPlugin({
+			dataStore,
+			getPublisher: vi.fn(() => publisher),
+		});
+		const handler = createCacheHandler(plugin);
+
+		const result = await handler(buildParams({ action: "tree-refresh" }));
+		expect(result).toEqual({
+			success: true,
+			data: { refreshed: true, entries: 1 },
+		});
+		expect(publisher.refreshTreeCache).toHaveBeenCalledTimes(1);
+	});
+
+	it("returns an error for tree-refresh when publisher is not configured", async () => {
+		const dataStore = {
+			dropAllFiles: vi.fn(async () => undefined),
+			dropFile: vi.fn(async () => undefined),
+			allFiles: vi.fn(async () => []),
+			persister: { iterate: vi.fn(async () => undefined) },
+		} as unknown as DataStore;
+		const plugin = buildPlugin({
+			dataStore,
+			getPublisher: vi.fn(() => null),
+		});
+		const handler = createCacheHandler(plugin);
+
+		const result = await handler(buildParams({ action: "tree-refresh" }));
+		expect(result).toEqual({
+			success: false,
+			error: "Publisher not configured",
+		});
+	});
 });

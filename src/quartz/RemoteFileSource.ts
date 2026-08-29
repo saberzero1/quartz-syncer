@@ -129,6 +129,17 @@ export class RemoteFileSource implements QuartzFileSource {
 
 		return entries.some((entry) => entry.path === path);
 	}
+
+	async hasCommitInHistory(sha: string): Promise<boolean> {
+		if ("hasCommitInHistory" in this.backend) {
+			return (
+				this.backend as {
+					hasCommitInHistory(sha: string): Promise<boolean>;
+				}
+			).hasCommitInHistory(sha);
+		}
+		return false;
+	}
 }
 
 function uint8ArrayToBase64(data: Uint8Array): string {

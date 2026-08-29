@@ -12,6 +12,7 @@ describe("GitHubApiService", () => {
 			post: vi.fn(),
 			patch: vi.fn(),
 			delete: vi.fn(),
+			put: vi.fn(),
 			request: vi.fn(),
 		} as unknown as HttpClient;
 		service = new GitHubApiService("token", client);
@@ -65,6 +66,127 @@ describe("GitHubApiService", () => {
 			expect.objectContaining({ Authorization: "Bearer token" }),
 			{ owner: "octo", name: "quartz", private: false },
 		);
+	});
+
+	describe("base64 encoding", () => {
+		it("createFile() encodes ASCII content correctly", async () => {
+			vi.mocked(client.put).mockResolvedValue({
+				status: 201,
+				headers: {},
+				data: {},
+			});
+
+			await service.createFile(
+				"octo",
+				"quartz",
+				"test.md",
+				"Hello",
+				"add file",
+				"main",
+			);
+
+			expect(client.put).toHaveBeenCalledWith(
+				"https://api.github.com/repos/octo/quartz/contents/test.md",
+				expect.objectContaining({ Authorization: "Bearer token" }),
+				expect.objectContaining({ content: btoa("Hello") }),
+			);
+		});
+
+		it("createFile() encodes CJK content without throwing", async () => {
+			vi.mocked(client.put).mockResolvedValue({
+				status: 201,
+				headers: {},
+				data: {},
+			});
+
+			const cjk = "日本語テスト";
+			await expect(
+				service.createFile(
+					"octo",
+					"quartz",
+					"test.md",
+					cjk,
+					"add file",
+					"main",
+				),
+			).resolves.not.toThrow();
+
+			expect(client.put).toHaveBeenCalledWith(
+				"https://api.github.com/repos/octo/quartz/contents/test.md",
+				expect.objectContaining({ Authorization: "Bearer token" }),
+				expect.objectContaining({
+					content: "5pel5pys6Kqe44OG44K544OI",
+				}),
+			);
+		});
+
+		it("createFile() encodes emoji content without throwing", async () => {
+			vi.mocked(client.put).mockResolvedValue({
+				status: 201,
+				headers: {},
+				data: {},
+			});
+
+			await expect(
+				service.createFile(
+					"octo",
+					"quartz",
+					"test.md",
+					"Hello 🌍",
+					"add file",
+					"main",
+				),
+			).resolves.not.toThrow();
+		});
+
+		it("getFileContent() decodes non-ASCII base64 correctly", async () => {
+			// "日本語テスト" encoded as UTF-8 base64
+			const encoded = "5pel5pys6Kqe44OG44K544OI";
+			vi.mocked(client.get).mockResolvedValue({
+				status: 200,
+				headers: {},
+				data: {
+					content: encoded,
+					sha: "abc123",
+					encoding: "base64",
+				},
+			});
+
+			const result = await service.getFileContent(
+				"octo",
+				"quartz",
+				"test.md",
+				"main",
+			);
+			expect(result).not.toBeNull();
+			expect(result?.content).toBe("日本語テスト");
+			expect(result?.sha).toBe("abc123");
+		});
+
+		it("createFile() encodes empty string without throwing", async () => {
+			vi.mocked(client.put).mockResolvedValue({
+				status: 201,
+				headers: {},
+				data: {},
+			});
+
+			await expect(
+				service.createFile(
+					"octo",
+					"quartz",
+					"test.md",
+					"",
+					"add file",
+					"main",
+				),
+			).resolves.not.toThrow();
+
+			expect(client.put).toHaveBeenCalledWith(
+				"https://api.github.com/repos/octo/quartz/contents/test.md",
+				expect.objectContaining({ Authorization: "Bearer token" }),
+				expect.objectContaining({ content: "" }),
+			);
+		});
 	});
 
 	it("enables Pages on default branch", async () => {

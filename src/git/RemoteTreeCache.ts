@@ -83,10 +83,10 @@ export class RemoteTreeCache {
 		this.stopPeriodicFetch();
 		if (intervalSeconds < 1) return;
 
-		void this.refresh();
+		void this.refresh().catch(() => {});
 
 		this.timer = window.setInterval(() => {
-			void this.refresh();
+			void this.refresh().catch(() => {});
 		}, intervalSeconds * 1000);
 	}
 
