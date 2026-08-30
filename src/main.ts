@@ -26,6 +26,7 @@ import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { BackgroundEngine } from "src/services/BackgroundEngine";
 import { ProcessRunner } from "src/process/ProcessRunner";
 import { BinaryDetector } from "src/process/BinaryDetector";
+import type { AllowedBinary } from "src/process/types";
 import { GitRunner } from "src/process/runners/GitRunner";
 import { NpmRunner } from "src/process/runners/NpmRunner";
 import { QuartzRunner } from "src/process/runners/QuartzRunner";
@@ -322,6 +323,9 @@ export default class QuartzSyncer extends Plugin {
 		if (Platform.isDesktopApp) {
 			this.processRunner = new ProcessRunner();
 			this.binaryDetector = new BinaryDetector(this.processRunner);
+			this.processRunner.setPathResolver((binary) =>
+				this.binaryDetector?.getResolvedPath(binary as AllowedBinary),
+			);
 			this.gitRunner = new GitRunner(this.processRunner);
 			this.npmRunner = new NpmRunner(this.processRunner);
 			this.quartzRunner = new QuartzRunner(this.processRunner);
