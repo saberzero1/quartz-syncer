@@ -74,7 +74,10 @@ describe("QuartzRunner", () => {
 		}));
 		setChildProcess({ execFile });
 		const runner = new QuartzRunner(
-			{ run: vi.fn() } as unknown as ProcessRunner,
+			{
+				run: vi.fn(),
+				resolveBinaryName: (b: string) => b,
+			} as unknown as ProcessRunner,
 			"/repo",
 		);
 		runner.serve(8080);

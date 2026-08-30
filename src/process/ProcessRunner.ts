@@ -158,10 +158,22 @@ function attachLineListeners(
 	};
 }
 
+export type BinaryPathResolver = (binary: string) => string | null | undefined;
+
 export class ProcessRunner {
+	private pathResolver: BinaryPathResolver | null = null;
+
 	static resetChildProcessCache(): void {
 		childProcessCache = null;
 		pendingProcess = null;
+	}
+
+	setPathResolver(resolver: BinaryPathResolver): void {
+		this.pathResolver = resolver;
+	}
+
+	resolveBinaryName(binary: string): string {
+		return this.pathResolver?.(binary) ?? binary;
 	}
 
 	async run(config: ProcessConfig): Promise<ProcessResult> {
@@ -220,7 +232,7 @@ export class ProcessRunner {
 
 			try {
 				pendingProcess = childProcess.execFile(
-					config.binary,
+					this.resolveBinaryName(config.binary),
 					config.args,
 					{ timeout, killSignal: "SIGTERM", cwd: config.cwd },
 					(error, stdout, stderr) => {
@@ -359,7 +371,7 @@ export class ProcessRunner {
 
 			try {
 				pendingProcess = childProcess.execFile(
-					config.binary,
+					this.resolveBinaryName(config.binary),
 					config.args,
 					{ timeout, killSignal: "SIGTERM", cwd: config.cwd },
 					(error, stdout, stderr) => {

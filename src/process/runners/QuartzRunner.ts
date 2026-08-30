@@ -285,9 +285,10 @@ export class QuartzRunner {
 		let aborted = false;
 		let stdoutListener: { flush: () => void } = { flush: () => {} };
 		let stderrListener: { flush: () => void } = { flush: () => {} };
+		const resolvedNpx = this.runner.resolveBinaryName("npx");
 		const result = new Promise<ProcessResult>((resolve) => {
 			const process = childProcess.execFile(
-				"npx",
+				resolvedNpx,
 				args,
 				{ cwd, timeout },
 				(error, stdout, stderr) => {

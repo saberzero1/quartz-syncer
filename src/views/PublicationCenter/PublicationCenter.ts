@@ -1176,9 +1176,10 @@ export class PublicationCenter extends Modal {
 		}
 
 		const selected = this.treeState.getSelectedFiles();
-		const noteDeletions = selected.filter(
-			(path) => this.treeState.getCategory(path) === "deleted",
-		);
+		const noteDeletions = selected.filter((path) => {
+			const category = this.treeState.getCategory(path);
+			return category === "deleted" || category === "published";
+		});
 		const repoDeletions: string[] = [];
 
 		for (const path of selected) {
