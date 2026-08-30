@@ -16,6 +16,24 @@ tags: [guides]
 > [!IMPORTANT] Node.js v22 or later required
 > Quartz v5 requires **[Node.js](https://nodejs.org/) v22 or later** and **npm v10.9.2 or later**. Run `node -v` and `npm -v` to check your versions before continuing.
 
+## Quick Setup (GitHub)
+
+If you're using GitHub, the fastest way to get started is the **onboarding wizard**:
+
+1. Open Obsidian and go to **Settings** > **Community Plugins** > **Quartz Syncer**.
+2. Run the command `Quartz Syncer: Setup wizard` from the command palette.
+3. The wizard will guide you through creating a GitHub repository, enabling GitHub Pages, and configuring the plugin.
+
+> [!NOTE] Desktop only
+>
+> The setup wizard is only available on desktop. On mobile, use [[#Generic Setup|manual setup]] below.
+
+> [!TIP] Already have a Quartz repository?
+>
+> If you already have a Quartz v5 repository set up, skip the wizard and jump to [[#Generic Setup|step 5 of the generic setup]] to configure Quartz Syncer directly.
+
+For other Git providers (GitLab, Codeberg, Bitbucket), follow the provider-specific guides below.
+
 ## Choose Your Git Provider
 
 Quartz Syncer supports any Git provider. Choose your provider for complete setup instructions:

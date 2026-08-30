@@ -7,13 +7,22 @@ publish: true
 tags: [guides]
 ---
 
-Quartz Syncer supports the [Obsidian CLI](https://obsidian.md/cli) for automating publishing workflows from the terminal. This requires Obsidian v1.12 or later, and Obsidian must be running for CLI commands to work.
+Quartz Syncer supports the [Obsidian CLI](https://obsidian.md/cli) for automating publishing workflows from the terminal. This requires Obsidian v1.13 or later, and Obsidian must be running for CLI commands to work.
 
 > [!NOTE] Obsidian must be running
 >
 > The Obsidian CLI is a remote control for the desktop app — it does not run headless. Obsidian will launch automatically if it is not already running when you execute a CLI command.
 
 ## Commands
+
+### `quartz-syncer`
+
+Show available commands and usage information.
+
+```bash
+obsidian quartz-syncer
+obsidian quartz-syncer help
+```
 
 ### `quartz-syncer:status`
 
@@ -33,12 +42,14 @@ Full sync — publish all pending notes and delete removed notes in one operatio
 ```bash
 obsidian quartz-syncer:sync
 obsidian quartz-syncer:sync force
+obsidian quartz-syncer:sync message="Weekly update"
 obsidian quartz-syncer:sync dry-run format=json
 ```
 
 | Flag | Description |
 |------|-------------|
 | `force` | Also delete removed notes from the remote repository. Without `force`, only the publish phase runs and skipped deletions are reported. |
+| `message` | Custom commit message for the sync operation. |
 | `dry-run` | Preview what would happen without making changes. |
 | `format` | Output format: `json` or `text` (default). |
 
@@ -48,11 +59,16 @@ Publish pending notes only, without deleting anything. This is the safest way to
 
 ```bash
 obsidian quartz-syncer:publish
+obsidian quartz-syncer:publish action=arbitrary force
+obsidian quartz-syncer:publish message="New post"
 obsidian quartz-syncer:publish dry-run format=json
 ```
 
 | Flag | Description |
 |------|-------------|
+| `action` | `pending` (default) to publish marked notes, or `arbitrary` to publish all files in the vault. |
+| `message` | Custom commit message for the publish operation. |
+| `force` | **Required** for `action=arbitrary`. |
 | `dry-run` | Preview what would be published without making changes. |
 | `format` | Output format: `json` or `text` (default). |
 
@@ -62,12 +78,14 @@ Delete removed notes from the remote repository without publishing anything new.
 
 ```bash
 obsidian quartz-syncer:delete force
+obsidian quartz-syncer:delete message="Cleanup"
 obsidian quartz-syncer:delete dry-run format=json
 ```
 
 | Flag | Description |
 |------|-------------|
 | `force` | **Required.** Confirms the deletion. Without `force`, the command returns an error. |
+| `message` | Custom commit message for the deletion operation. |
 | `dry-run` | Preview what would be deleted without making changes. |
 | `format` | Output format: `json` or `text` (default). |
 
@@ -77,15 +95,16 @@ Set, unset, or toggle the publish flag on notes.
 
 ```bash
 obsidian quartz-syncer:mark path="notes/my-post.md"
-obsidian quartz-syncer:mark path="notes/**/*.md" value=true
-obsidian quartz-syncer:mark path="~my post" value=toggle
+obsidian quartz-syncer:mark path="notes/**/*.md" state=publish
+obsidian quartz-syncer:mark path="~my post" toggle
 obsidian quartz-syncer:mark path="blog/**/*.md" dry-run format=json
 ```
 
 | Flag | Description |
 |------|-------------|
 | `path` | **Required.** The note path, glob pattern, or fuzzy query (see [[Guides/CLI#Path patterns|path patterns]] below). |
-| `value` | `true` (default), `false`, or `toggle`. |
+| `state` | `publish` (default), `unpublish`, `toggle`, or `unset`. |
+| `toggle` | Toggle the publish state (alternative to `state=toggle`). |
 | `dry-run` | Show matched files without modifying them. Useful with glob and fuzzy patterns. |
 | `format` | Output format: `json` or `text` (default). |
 
@@ -121,15 +140,17 @@ Manage the plugin cache.
 
 ```bash
 obsidian quartz-syncer:cache action=status
-obsidian quartz-syncer:cache action=clear path="notes/my-post.md"
-obsidian quartz-syncer:cache action=clear-all force
+obsidian quartz-syncer:cache action=clear-file path="notes/my-post.md"
+obsidian quartz-syncer:cache action=clear
+obsidian quartz-syncer:cache action=export
+obsidian quartz-syncer:cache action=import data="..."
 ```
 
 | Flag | Description |
 |------|-------------|
-| `action` | **Required.** `status` (show cache info), `clear` (clear cache for a specific file), or `clear-all` (clear all cached data). |
-| `path` | File path for `action=clear`. |
-| `force` | Required for `action=clear-all`. |
+| `action` | **Required.** `status`, `clear-file`, `clear` (clear all), `export`, `import`, `prune`, `tree-status`, or `tree-refresh`. |
+| `path` | File path for `clear-file`. |
+| `data` | Cache data for `import`. |
 | `format` | Output format: `json` or `text` (default). |
 
 ### `quartz-syncer:config`
@@ -140,13 +161,15 @@ Read or write plugin settings from the CLI.
 obsidian quartz-syncer:config action=list
 obsidian quartz-syncer:config action=get key=git.branch
 obsidian quartz-syncer:config action=set key=git.branch value=main
+obsidian quartz-syncer:config action=reset force
 ```
 
 | Flag | Description |
 |------|-------------|
-| `action` | (default: `list`) `list` (show all settings), `get` (read a setting), or `set` (write a setting). |
+| `action` | (default: `list`) `list`, `get`, `set`, or `reset`. |
 | `key` | Dot-notation setting key (e.g., `git.branch`, `useDataview`). Required for `get` and `set`. |
 | `value` | New value for the setting. Required for `set`. |
+| `force` | **Required** for `action=reset`. |
 | `format` | Output format: `json` or `text` (default). |
 
 > [!WARNING] Secret redaction
@@ -158,13 +181,12 @@ obsidian quartz-syncer:config action=set key=git.branch value=main
 Pull upstream Quartz changes into your repository.
 
 ```bash
-obsidian quartz-syncer:upgrade force
+obsidian quartz-syncer:upgrade
 obsidian quartz-syncer:upgrade dry-run format=json
 ```
 
 | Flag | Description |
 |------|-------------|
-| `force` | **Required.** Confirms the upgrade. Without `force`, the command returns an error. |
 | `dry-run` | Check for available updates without applying them. |
 | `format` | Output format: `json` or `text` (default). |
 
@@ -194,23 +216,23 @@ Manage Quartz v5 plugins — list installed plugins, add or remove plugins, chec
 
 ```bash
 obsidian quartz-syncer:plugin
-obsidian quartz-syncer:plugin action=add source="github:org/repo"
-obsidian quartz-syncer:plugin action=remove source="github:org/repo" force
-obsidian quartz-syncer:plugin action=updates
-obsidian quartz-syncer:plugin action=update force
-obsidian quartz-syncer:plugin action=browse
+obsidian quartz-syncer:plugin action=add source="@jackyzha0/quartz"
+obsidian quartz-syncer:plugin action=remove name="my-plugin"
+obsidian quartz-syncer:plugin action=config name="my-plugin" set="key=value"
+obsidian quartz-syncer:plugin action=search query="theme"
+obsidian quartz-syncer:plugin action=install dry-run
 ```
 
 | Flag | Description |
 |------|-------------|
-| `action` | `list` (default), `add`, `remove`, `updates`, `update`, or `browse`. |
-| `source` | Plugin source identifier (e.g., `github:org/repo`). Required for `add` and `remove`. |
-| `force` | Required for `remove` and `update`. |
+| `action` | `list` (default), `add`, `remove`, `install`, `enable`, `disable`, `config`, `prune`, or `search`. |
+| `source` | Plugin source identifier (e.g., `@jackyzha0/quartz`). Required for `add`. |
+| `name` | Plugin name. Required for `remove`, `config`, `enable`, and `disable`. |
+| `set` | Configuration key-value pair (`key=value`) for `action=config`. |
+| `query` | Search query for `action=search`. |
+| `dry-run` | Preview changes without applying them. |
 | `format` | Output format: `json` or `text` (default). |
 | `verbose` | Show source keys, plugin options, and commit SHAs. |
-
-- `updates` shows only plugins with available updates (use `verbose` to see all).
-- `update` with `force` applies all pending plugin updates to the lock file.
 
 ### `quartz-syncer:quartz-config`
 
@@ -234,6 +256,158 @@ Values are validated against the Quartz v5 schema. Boolean keys (`enableSPA`, `e
 
 Note: `ignorePatterns` and `analytics` cannot be set via CLI due to their complex structure. Use the plugin settings UI for these.
 
+### `quartz-syncer:quartz-build`
+
+Run Quartz build.
+
+> [!NOTE] Desktop only
+>
+> This command requires a local Quartz repository and is only available on desktop.
+
+```bash
+obsidian quartz-syncer:quartz-build
+```
+
+| Flag | Description |
+|------|-------------|
+| `help` | Show command-specific help. |
+
+### `quartz-syncer:quartz-serve`
+
+Run Quartz dev server.
+
+> [!NOTE] Desktop only
+>
+> This command requires a local Quartz repository and is only available on desktop.
+
+```bash
+obsidian quartz-syncer:quartz-serve
+obsidian quartz-syncer:quartz-serve port=8081
+```
+
+| Flag | Description |
+|------|-------------|
+| `port` | Port number to serve on. |
+| `help` | Show command-specific help. |
+
+### `quartz-syncer:quartz-sync`
+
+Run Quartz git sync (pull/push/commit).
+
+> [!NOTE] Desktop only
+>
+> This command requires a local Quartz repository and is only available on desktop.
+
+```bash
+obsidian quartz-syncer:quartz-sync
+obsidian quartz-syncer:quartz-sync pull=false
+obsidian quartz-syncer:quartz-sync message="Manual sync"
+```
+
+| Flag | Description |
+|------|-------------|
+| `commit` | Whether to commit changes (`true`/`false`). |
+| `push` | Whether to push changes (`true`/`false`). |
+| `pull` | Whether to pull changes (`true`/`false`). |
+| `message` | Custom commit message. |
+| `help` | Show command-specific help. |
+
+### `quartz-syncer:quartz-restore`
+
+Restore Quartz content from cache.
+
+> [!NOTE] Desktop only
+>
+> This command requires a local Quartz repository and is only available on desktop.
+
+```bash
+obsidian quartz-syncer:quartz-restore force
+```
+
+| Flag | Description |
+|------|-------------|
+| `force` | **Required.** Confirms the restoration. |
+| `help` | Show command-specific help. |
+
+### `quartz-syncer:repo`
+
+Manage repository connection.
+
+```bash
+obsidian quartz-syncer:repo action=info
+obsidian quartz-syncer:repo action=set-local path=/path/to/quartz
+obsidian quartz-syncer:repo action=verify path=/path/to/quartz
+```
+
+| Flag | Description |
+|------|-------------|
+| `action` | `info`, `set-local`, `set-remote`, or `verify`. |
+| `path` | Path for `set-local` or `verify`. |
+| `format` | Output format: `json` or `text` (default). |
+| `help` | Show command-specific help. |
+
+### `quartz-syncer:media`
+
+Manage media files.
+
+```bash
+obsidian quartz-syncer:media action=orphaned
+obsidian quartz-syncer:media action=clean force
+```
+
+| Flag | Description |
+|------|-------------|
+| `action` | `list`, `orphaned`, or `clean`. |
+| `force` | **Required** for `action=clean`. |
+| `dry-run` | Preview changes without applying them. |
+| `format` | Output format: `json` or `text` (default). |
+| `help` | Show command-specific help. |
+
+### `quartz-syncer:diff`
+
+Show compiled diff between vault and repo.
+
+```bash
+obsidian quartz-syncer:diff
+obsidian quartz-syncer:diff path=notes/post.md
+```
+
+| Flag | Description |
+|------|-------------|
+| `path` | Specific file path to diff. |
+| `format` | Output format: `json` or `text` (default). |
+| `help` | Show command-specific help. |
+
+### `quartz-syncer:validate`
+
+Validate Quartz repo state.
+
+```bash
+obsidian quartz-syncer:validate
+```
+
+| Flag | Description |
+|------|-------------|
+| `format` | Output format: `json` or `text` (default). |
+| `help` | Show command-specific help. |
+
+### `quartz-syncer:inspect`
+
+Inspect internal state.
+
+```bash
+obsidian quartz-syncer:inspect target=hashes
+obsidian quartz-syncer:inspect target=queue
+obsidian quartz-syncer:inspect target=cache path=notes/post.md
+```
+
+| Flag | Description |
+|------|-------------|
+| `target` | `cache`, `hashes`, `compilation`, `queue`, or `all`. |
+| `path` | Specific file path to inspect. |
+| `format` | Output format: `json` or `text` (default). |
+| `help` | Show command-specific help. |
+
 ## Flags
 
 ### Global flags (all commands)
@@ -245,8 +419,8 @@ Note: `ignorePatterns` and `analytics` cannot be set via CLI due to their comple
 
 ### Command-specific flags
 
-- `dry-run` — Preview what would happen without making changes. Supported by `sync`, `publish`, `delete`, `mark`, and `upgrade`.
-- `force` — Required for destructive operations. Supported by `sync` (delete phase), `delete`, `upgrade`, and `plugin` (remove/update).
+- `dry-run` — Preview what would happen without making changes. Supported by `sync`, `publish`, `delete`, `mark`, `upgrade`, `plugin`, and `media`.
+- `force` — Required for destructive operations. Supported by `sync` (delete phase), `publish` (arbitrary action), `delete`, `config` (reset action), `media` (clean action), and `quartz-restore`.
 
 Long-running commands include timing information in the output (e.g., `Published 47 files. (23.4s)`).
 
@@ -276,10 +450,20 @@ obsidian quartz-syncer:sync force
 
 ```bash
 # Mark all notes in a folder for publishing
-obsidian quartz-syncer:mark path="blog/**/*.md" value=true
+obsidian quartz-syncer:mark path="blog/**/*.md" state=publish
 
 # Publish them
 obsidian quartz-syncer:publish
+```
+
+### Quartz management
+
+```bash
+# Run a local Quartz build
+obsidian quartz-syncer:quartz-build
+
+# Start the local preview server
+obsidian quartz-syncer:quartz-serve port=8080
 ```
 
 ### Scripting with JSON output

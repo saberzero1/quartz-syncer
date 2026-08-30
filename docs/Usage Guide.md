@@ -2,7 +2,7 @@
 title: Usage Guide
 description: Details on using Quartz Syncer.
 created: 2025-05-05T00:00:00Z+0200
-modified: 2026-04-24T19:37:00Z+0200
+modified: 2026-08-30T12:00:00Z+0200
 publish: true
 tags: [guides]
 ---
@@ -12,6 +12,21 @@ tags: [guides]
 > Quartz Syncer applies changes to your notes when they are pushed to your Quartz repository, like parsing [[Settings/Integrations/Dataview|Dataview]] queries and filtering [[Settings/Note properties/index|note properties]] to ensure your notes are fully Quartz-compatible. This means the notes in your Quartz repository should be considered a one-way sync (Obsidian to Quartz.)
 >
 > For syncing notes between devices, consider using [Obsidian Sync](https://obsidian.md/sync) or one of the many [community plugins](https://obsidian.md/plugins?search=sync).
+
+## What's new in v2
+
+Quartz Syncer v2 is a ground-up rewrite focused on performance and reliability. Key changes:
+
+- **Background compilation**: notes are compiled in the background as you edit. Opening the Publication Center is near-instant.
+- **Status bar**: shows real-time plugin state — "ready", "N compiling", or error status.
+- **Onboarding wizard**: first-time GitHub users can create a Quartz repository and configure everything directly from Obsidian (desktop only).
+- **Quartz Hub**: manage your local Quartz repository, preview your site, and manage plugins from within Obsidian (desktop only). See [[Guides/Quartz Hub|Quartz Hub guide]].
+- **Auto-publish**: automatically publish pending changes on a configurable timer (desktop only). See [[Settings/Performance/Auto-publish interval|auto-publish settings]].
+- **Diff viewer**: preview exact changes before publishing with split or unified view.
+- **22 CLI commands**: expanded from 12 to 22 commands for comprehensive automation. See the [[Guides/CLI|CLI guide]].
+- **Encrypted tokens**: access tokens are encrypted via `electron.safeStorage` on desktop.
+
+For the full list of changes, see the [[Changelog#Version 2.0.0|changelog]].
 
 ## Opening the publication center
 
@@ -47,13 +62,14 @@ Open the publication center (see above for instructions). Your eligible notes wi
 	- The diff viewer supports two modes: **Split view** (side-by-side comparison) and **Unified view** (interleaved changes). Toggle between them using the buttons at the top of the viewer.
 	- Configure the default view style in **Settings > UI > Diff view style**.
 - **Published notes (select to unpublished)**: notes that are in your in your Quartz repository. Any notes checked here will be unpublished and removed from your Quartz repository. Notes deleted from your vault need to be unpublished here to remove them from Quartz.
+- **Deleted notes**: notes that were published but have been deleted from your vault. Check these to remove them from your Quartz repository.
 - **Unchanged notes**: a list of all unchanged notes that are currently published in your Quartz repository. It includes only unchanged notes that are also in your vault.
 
 After you are satisfied with your selection, click the big button on the bottom left that says `PUBLISH SELECTED CHANGES` and watch the magic happen.
 
 ## CLI
 
-Quartz Syncer also supports the [Obsidian CLI](https://obsidian.md/cli) (v1.12+) for automating publishing from the terminal. See the [[Guides/CLI|CLI guide]] for the full command reference and example workflows.
+Quartz Syncer also supports the [Obsidian CLI](https://obsidian.md/cli) (v1.13+) for automating publishing from the terminal. See the [[Guides/CLI|CLI guide]] for the full command reference and example workflows.
 
 > [!INFO] Why does Quartz Syncer sometimes make two commits?
 >

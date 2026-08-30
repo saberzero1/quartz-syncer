@@ -24,11 +24,12 @@ Please ensure Dataviewjs syntax is enabled in the Dataview plugin settings.
 
 ## Dataview query results are outdated
 
-Files with Dataview queries are automatically detected and recompiled each time you open the Publication Center. If you're seeing stale results:
+Files with Dataview queries are automatically detected and recompiled in the background when the underlying data changes. Quartz Syncer tracks Dataview's revision numbers — when a revision changes, only the affected files are recompiled. If you're seeing stale results:
 
-1. Close and reopen the Publication Center
-2. Try clearing the cache for the affected file (`Quartz Syncer: Clear cache for current file`)
-3. Ensure the source data has been saved in Obsidian before opening the Publication Center
+1. Wait for background compilation to finish (the status bar shows "Quartz Syncer: ready" when done)
+2. Close and reopen the Publication Center
+3. Try clearing the cache for the affected file (`Quartz Syncer: Clear cache for current file`)
+4. Ensure the source data has been saved in Obsidian before publishing
 
 ## I have a different issue not listed here
 
