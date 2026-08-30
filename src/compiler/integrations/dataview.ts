@@ -46,7 +46,13 @@ async function tryExecuteJs(
 	component.load();
 	await dvApi.executeJs(query, div, component, filePath);
 
-	await renderPromise(div, "[data-tag-name]");
+	try {
+		await renderPromise(div, "[data-tag-name]");
+	} catch {
+		// Timeout is non-fatal: the view may render without observable
+		// DOM mutations (e.g. dv.view loading external JS files).
+		// Proceed with whatever HTML exists in the container.
+	}
 
 	const markdown = htmlToMarkdown(div) || "";
 

@@ -175,7 +175,7 @@ export class SyncerPageCompiler {
 
 		const [text, blobs] = await this.convertFileLinks(file)(compiledText);
 
-		return [text, { blobs }];
+		return [SyncerPageCompiler.escapeTableWikilinks(text), { blobs }];
 	}
 
 	private stripVaultPath(text: string): string {
@@ -252,10 +252,6 @@ export class SyncerPageCompiler {
 
 		result = result.replace(/\\\[(\^[\w-]+)\]/g, "[$1]");
 
-		result = result.replace(/^(\|.*)/gm, (line) =>
-			line.replace(/(!?\[\[[^\]]*?)(?<!\\)\|([^\]]*?\]\])/g, "$1\\|$2"),
-		);
-
 		return result;
 	};
 
@@ -296,6 +292,16 @@ export class SyncerPageCompiler {
 	};
 
 	private static readonly ASSET_EXTENSIONS = ASSET_EXTENSIONS;
+
+	/**
+	 * Escape unescaped pipes inside wikilinks on table rows so that
+	 * Quartz does not misinterpret them as cell separators.
+	 */
+	static escapeTableWikilinks(text: string): string {
+		return text.replace(/^(\|.*)/gm, (line) =>
+			line.replace(/(!?\[\[[^\]]*?)(?<!\\)\|([^\]]*?\]\])/g, "$1\\|$2"),
+		);
+	}
 
 	/**
 	 * Extracts blob links from the file using CachedMetadata.embeds.

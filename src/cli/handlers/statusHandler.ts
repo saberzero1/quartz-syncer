@@ -14,6 +14,8 @@ export function createStatusHandler(_plugin: QuartzSyncer): CliHandler {
 			const enrichFile = async (file: PublishFile) => {
 				const cached = await _plugin.dataStore.loadLocalFile(
 					file.file.path,
+					undefined,
+					true,
 				);
 				const blobCount = cached ? cached[1].blobs.length : 0;
 

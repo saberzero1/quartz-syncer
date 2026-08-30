@@ -155,7 +155,11 @@ async function inspectCompilation(
 	filePath?: string,
 ) {
 	if (filePath) {
-		const localFile = await dataStore.loadLocalFile(filePath);
+		const localFile = await dataStore.loadLocalFile(
+			filePath,
+			undefined,
+			true,
+		);
 
 		return {
 			success: true,

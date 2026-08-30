@@ -208,6 +208,7 @@ export class Publisher {
 			const compiled = await this.dataStore.loadLocalFile(
 				file.file.path,
 				file.file.stat.mtime,
+				true,
 			);
 
 			if (!compiled) return null;
@@ -243,6 +244,7 @@ export class Publisher {
 				const compiled = await this.dataStore.loadLocalFile(
 					file.file.path,
 					file.file.stat.mtime,
+					true,
 				);
 
 				if (!compiled) {

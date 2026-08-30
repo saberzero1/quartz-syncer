@@ -294,22 +294,76 @@ describe("SyncerPageCompiler", () => {
 		});
 	});
 
-	describe("astTransform — table wikilink escaping", () => {
-		it("escapes a wikilink with pipe inside a table row", async () => {
-			const { compiler } = makeCompiler();
-			const file = makeMockPublishFile();
-
-			const result =
-				await compiler.astTransform(file)("| [[Note|Label]] |");
-
-			expect(result).toContain("| [[Note\\|Label]] |");
-		});
-
-		it("escapes multiple wikilinks with pipes in one table row", async () => {
+	describe("astTransform — task list markers", () => {
+		it("preserves unchecked task list markers", async () => {
 			const { compiler } = makeCompiler();
 			const file = makeMockPublishFile();
 
 			const result = await compiler.astTransform(file)(
+				"- [ ] unchecked task",
+			);
+
+			expect(result.trim()).toBe("- [ ] unchecked task");
+		});
+
+		it("preserves checked task list markers", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result =
+				await compiler.astTransform(file)("- [x] checked task");
+
+			expect(result.trim()).toBe("- [x] checked task");
+		});
+
+		it("preserves mixed task and non-task items", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"- [ ] task one\n- regular item\n- [x] task two",
+			);
+
+			expect(result).toContain("- [ ] task one");
+			expect(result).toContain("- regular item");
+			expect(result).toContain("- [x] task two");
+		});
+
+		it("preserves custom task characters", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"- [/] in progress\n- [-] cancelled",
+			);
+
+			expect(result).toContain("[/] in progress");
+			expect(result).toContain("[-] cancelled");
+		});
+
+		it("preserves nested task lists", async () => {
+			const { compiler } = makeCompiler();
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"- [ ] parent\n    - [x] child",
+			);
+
+			expect(result).toContain("[ ] parent");
+			expect(result).toContain("[x] child");
+		});
+	});
+
+	describe("escapeTableWikilinks", () => {
+		it("escapes a wikilink with pipe inside a table row", () => {
+			const result =
+				SyncerPageCompiler.escapeTableWikilinks("| [[Note|Label]] |");
+
+			expect(result).toContain("| [[Note\\|Label]] |");
+		});
+
+		it("escapes multiple wikilinks with pipes in one table row", () => {
+			const result = SyncerPageCompiler.escapeTableWikilinks(
 				"| [[A|Alpha]] | [[B|Beta]] |",
 			);
 
@@ -317,14 +371,36 @@ describe("SyncerPageCompiler", () => {
 			expect(result).toContain("[[B\\|Beta]]");
 		});
 
-		it("does not escape wikilinks without pipes in table rows", async () => {
-			const { compiler } = makeCompiler();
-			const file = makeMockPublishFile();
-
-			const result = await compiler.astTransform(file)("| [[Note]] |");
+		it("does not escape wikilinks without pipes in table rows", () => {
+			const result =
+				SyncerPageCompiler.escapeTableWikilinks("| [[Note]] |");
 
 			expect(result).toContain("| [[Note]] |");
 			expect(result).not.toContain("\\|");
+		});
+
+		it("escapes embed wikilinks with pipes in table rows", () => {
+			const result = SyncerPageCompiler.escapeTableWikilinks(
+				"| ![[image.png|400]] |",
+			);
+
+			expect(result).toContain("![[image.png\\|400]]");
+		});
+
+		it("does not escape pipes outside table rows", () => {
+			const result =
+				SyncerPageCompiler.escapeTableWikilinks("![[image.png|400]]");
+
+			expect(result).toBe("![[image.png|400]]");
+		});
+
+		it("preserves already-escaped pipes", () => {
+			const result = SyncerPageCompiler.escapeTableWikilinks(
+				"| ![[image.png\\|400]] |",
+			);
+
+			expect(result).not.toContain("\\\\|");
+			expect(result).toContain("![[image.png\\|400]]");
 		});
 	});
 

@@ -743,6 +743,7 @@ describe("Publisher", () => {
 		expect(dataStore.loadLocalFile).toHaveBeenCalledWith(
 			"notes/a.md",
 			1000,
+			true,
 		);
 	});
 });

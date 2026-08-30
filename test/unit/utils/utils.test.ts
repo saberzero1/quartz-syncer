@@ -7,6 +7,7 @@ import {
 	generateBlobHash,
 	sanitizePermalink,
 	escapeRegExp,
+	cleanQueryResult,
 	type PathRewriteRule,
 } from "src/utils/utils";
 
@@ -204,6 +205,38 @@ describe("utils", () => {
 			const regex = new RegExp(escaped);
 			expect(regex.test("file[0].txt")).toBe(true);
 			expect(regex.test("fileX0Ytxt")).toBe(false);
+		});
+	});
+
+	describe("cleanQueryResult", () => {
+		it("strips leading YAML frontmatter", () => {
+			const input =
+				"---\ntitle: Test\npublish: true\n---\n# Hello\nContent here";
+
+			const result = cleanQueryResult(input);
+
+			expect(result).not.toContain("---");
+			expect(result).not.toContain("title: Test");
+			expect(result).toContain("Hello");
+			expect(result).toContain("Content here");
+		});
+
+		it("does not strip horizontal rules that are not frontmatter", () => {
+			const input = "Some text\n\n---\n\nMore text";
+
+			const result = cleanQueryResult(input);
+
+			expect(result).toContain("Some text");
+			expect(result).toContain("More text");
+		});
+
+		it("handles content without frontmatter", () => {
+			const input = "# Just a heading\nSome content";
+
+			const result = cleanQueryResult(input);
+
+			expect(result).toContain("Just a heading");
+			expect(result).toContain("Some content");
 		});
 	});
 

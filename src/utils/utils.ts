@@ -209,6 +209,10 @@ function isPluginEnabled(pluginId: string): boolean {
  * @returns The cleaned Markdown string.
  */
 function cleanQueryResult(markdown: string): string {
+	// Strip leading YAML frontmatter blocks that appear when dataview
+	// embeds render full notes (the frontmatter leaks into HTML output).
+	markdown = markdown.replace(/^---\n[\s\S]*?\n---\n?/, "");
+
 	// Replace URI escape characters with their actual characters
 	markdown = decodeURI(markdown);
 
