@@ -1,4 +1,4 @@
-import { Notice } from "obsidian";
+import { ConfirmationModal, Notice } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { IOperabilityEventSink } from "src/operability/types";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
@@ -89,38 +89,51 @@ export function renderTemplatesTab(
 		}
 	};
 
-	const applyTemplate = async (templateName: string): Promise<void> => {
+	const applyTemplate = (templateName: string): void => {
 		if (state.isApplying) return;
-		// eslint-disable-next-line no-alert -- intentional confirmation for destructive template application
-		const confirmed = window.confirm(
+
+		const modal = new ConfirmationModal(plugin.app);
+		modal.setContent(
 			"Applying this template will replace your current configuration, plugins, and layout. Continue?",
 		);
-		if (!confirmed) return;
+		modal.addButton((btn) =>
+			btn
+				.setButtonText("Apply")
+				.setDestructive()
+				.onClick(async () => {
+					setApplying(true);
 
-		setApplying(true);
+					try {
+						const repo = new LocalFileSource(resolvedRepoPath);
+						const configService = new QuartzConfigService(repo);
+						const templateService = new QuartzTemplateService(repo);
+						const config = await configService.readConfig();
+						const template =
+							await templateService.readTemplate(templateName);
 
-		try {
-			const repo = new LocalFileSource(resolvedRepoPath);
-			const configService = new QuartzConfigService(repo);
-			const templateService = new QuartzTemplateService(repo);
-			const config = await configService.readConfig();
-			const template = await templateService.readTemplate(templateName);
+						if (!template) {
+							new Notice(
+								`Template "${templateName}" could not be read.`,
+							);
+							return;
+						}
 
-			if (!template) {
-				new Notice(`Template "${templateName}" could not be read.`);
-				return;
-			}
-
-			templateService.applyTemplate(config, template);
-			await configService.writeConfig(config);
-			new Notice(`Applied template "${templateName}".`);
-		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : String(error);
-			new Notice(`Failed to apply template: ${message}`);
-		} finally {
-			setApplying(false);
-		}
+						templateService.applyTemplate(config, template);
+						await configService.writeConfig(config);
+						new Notice(`Applied template "${templateName}".`);
+					} catch (error) {
+						const message =
+							error instanceof Error
+								? error.message
+								: String(error);
+						new Notice(`Failed to apply template: ${message}`);
+					} finally {
+						setApplying(false);
+					}
+				}),
+		);
+		modal.addCancelButton();
+		modal.open();
 	};
 
 	const hasRepoPath = !!resolvedRepoPath;

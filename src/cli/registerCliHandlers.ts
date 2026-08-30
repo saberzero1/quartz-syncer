@@ -468,10 +468,7 @@ export function registerCliHandlers(
 			entry.description,
 			obsidianFlags,
 			async (data: ObsidianCliData) => {
-				return handleCommand(
-					entry.name,
-					data as Record<string, string>,
-				);
+				return handleCommand(entry.name, data);
 			},
 		);
 	}
