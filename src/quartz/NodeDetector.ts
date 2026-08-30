@@ -10,7 +10,7 @@ type ChildProcessModule = {
 	execFile(
 		file: string,
 		args: string[],
-		options: { timeout?: number; shell?: boolean },
+		options: { timeout?: number; shell?: boolean; windowsHide?: boolean },
 		callback: (
 			error: { code?: number; message?: string } | null,
 			stdout: string,
@@ -85,7 +85,7 @@ export class NodeDetector {
 			cp.execFile(
 				command,
 				args,
-				{ timeout: 10000, shell: true },
+				{ timeout: 10000, shell: true, windowsHide: true },
 				(error, stdout, stderr) => {
 					if (error) {
 						reject(new Error(error.message ?? "execFile failed"));

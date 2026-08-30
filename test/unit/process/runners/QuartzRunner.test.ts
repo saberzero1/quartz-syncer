@@ -74,10 +74,7 @@ describe("QuartzRunner", () => {
 		}));
 		setChildProcess({ execFile });
 		const runner = new QuartzRunner(
-			{
-				run: vi.fn(),
-				resolveBinaryName: (b: string) => b,
-			} as unknown as ProcessRunner,
+			{ run: vi.fn() } as unknown as ProcessRunner,
 			"/repo",
 		);
 		runner.serve(8080);
@@ -85,7 +82,12 @@ describe("QuartzRunner", () => {
 		expect(execFile).toHaveBeenCalledWith(
 			"npx",
 			["quartz", "build", "--serve", "--port", "8080"],
-			{ cwd: "/repo", timeout: undefined },
+			{
+				cwd: "/repo",
+				timeout: undefined,
+				shell: true,
+				windowsHide: true,
+			},
 			expect.any(Function),
 		);
 	});

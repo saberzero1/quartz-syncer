@@ -17,6 +17,8 @@ type ExecFileOptions = {
 	timeout?: number;
 	killSignal?: string | number;
 	cwd?: string;
+	shell?: boolean;
+	windowsHide?: boolean;
 };
 
 export type ChildProcessHandle = {
@@ -158,22 +160,10 @@ function attachLineListeners(
 	};
 }
 
-export type BinaryPathResolver = (binary: string) => string | null | undefined;
-
 export class ProcessRunner {
-	private pathResolver: BinaryPathResolver | null = null;
-
 	static resetChildProcessCache(): void {
 		childProcessCache = null;
 		pendingProcess = null;
-	}
-
-	setPathResolver(resolver: BinaryPathResolver): void {
-		this.pathResolver = resolver;
-	}
-
-	resolveBinaryName(binary: string): string {
-		return this.pathResolver?.(binary) ?? binary;
 	}
 
 	async run(config: ProcessConfig): Promise<ProcessResult> {
@@ -232,9 +222,15 @@ export class ProcessRunner {
 
 			try {
 				pendingProcess = childProcess.execFile(
-					this.resolveBinaryName(config.binary),
+					config.binary,
 					config.args,
-					{ timeout, killSignal: "SIGTERM", cwd: config.cwd },
+					{
+						timeout,
+						killSignal: "SIGTERM",
+						cwd: config.cwd,
+						shell: true,
+						windowsHide: true,
+					},
 					(error, stdout, stderr) => {
 						pendingProcess = null;
 						if (config.signal) {
@@ -371,9 +367,15 @@ export class ProcessRunner {
 
 			try {
 				pendingProcess = childProcess.execFile(
-					this.resolveBinaryName(config.binary),
+					config.binary,
 					config.args,
-					{ timeout, killSignal: "SIGTERM", cwd: config.cwd },
+					{
+						timeout,
+						killSignal: "SIGTERM",
+						cwd: config.cwd,
+						shell: true,
+						windowsHide: true,
+					},
 					(error, stdout, stderr) => {
 						pendingProcess = null;
 						if (config.signal) {

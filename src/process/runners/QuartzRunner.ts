@@ -40,7 +40,12 @@ type ChildProcessModule = {
 	execFile(
 		file: string,
 		args: readonly string[],
-		options: { cwd?: string; timeout?: number },
+		options: {
+			cwd?: string;
+			timeout?: number;
+			shell?: boolean;
+			windowsHide?: boolean;
+		},
 		callback: (
 			error: ExecFileError | null,
 			stdout: string,
@@ -285,12 +290,11 @@ export class QuartzRunner {
 		let aborted = false;
 		let stdoutListener: { flush: () => void } = { flush: () => {} };
 		let stderrListener: { flush: () => void } = { flush: () => {} };
-		const resolvedNpx = this.runner.resolveBinaryName("npx");
 		const result = new Promise<ProcessResult>((resolve) => {
 			const process = childProcess.execFile(
-				resolvedNpx,
+				"npx",
 				args,
-				{ cwd, timeout },
+				{ cwd, timeout, shell: true, windowsHide: true },
 				(error, stdout, stderr) => {
 					stdoutListener.flush();
 					stderrListener.flush();
