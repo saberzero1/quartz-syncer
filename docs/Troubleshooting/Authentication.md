@@ -15,6 +15,14 @@ publish: true
 > - [[Bitbucket Setup#Generate an App Password|Bitbucket]]
 > - [[Codeberg Setup#Generate an Access Token|Codeberg]]
 
+## Token migration from v1
+
+If you upgraded from Quartz Syncer v1, your access token has been migrated to secure storage (`electron.safeStorage` on desktop, `SecretStorage` on mobile). If you experience authentication issues after upgrading:
+
+1. Open Quartz Syncer settings
+2. Re-enter your access token in the **Access Token** field
+3. Test the connection with the connection indicator or via CLI: `obsidian quartz-syncer:test`
+
 ## My Authentication Token is correct, but I get an error when publishing
 
 Please ensure you have the proper rights to your Quartz repository. Your token needs write access to the repository.

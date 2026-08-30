@@ -2,11 +2,15 @@
 title: Apply embeds
 description: Whether to let Quartz Syncer should handle link embeddings.
 created: 2025-05-21T11:39:18Z+0200
-modified: 2026-04-01T17:15:09Z+0200
+modified: 2026-08-30T12:00:00Z+0200
 publish: true
 tags: [settings/quartz]
 default_value: "true"
 ---
+
+> [!WARNING] Removed in v2
+>
+> This setting has been removed in Quartz Syncer v2. Quartz v5 handles embed rendering natively. See the [[Changelog#Version 1.11.0|v1.11 changelog]] for details.
 
 When enabled, embed links are handled by Quartz Syncer.
 

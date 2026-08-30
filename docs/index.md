@@ -11,7 +11,7 @@ aliases: [home]
 
 Quartz Syncer supports multiple Git providers including GitHub, GitLab, Bitbucket, Codeberg, Gitea, and self-hosted instances.
 
-Quartz Syncer fully utilizes the capabilities of Obsidian to enable features that would otherwise be hard or impossible to replicate in Quartz, like [[Settings/Integrations/index|integrating Obsidian plugins]], such as [[Settings/Integrations/Dataview|Dataview]], [[Settings/Integrations/Datacore|Datacore]], and [[Fantasy Statblocks]], precompiling [[Apply embeds|embeddings]], or [[Configuring a specific folder for Quartz content|using a specific folder for Quartz content, instead of the entire vault]].
+Quartz Syncer fully utilizes the capabilities of Obsidian to enable features that would otherwise be hard or impossible to replicate in Quartz, like [[Settings/Integrations/index|integrating Obsidian plugins]], such as [[Settings/Integrations/Dataview|Dataview]], [[Settings/Integrations/Datacore|Datacore]], and [[Settings/Integrations/Fantasy Statblocks|Fantasy Statblocks]], or [[Configuring a specific folder for Quartz content|using a specific folder for Quartz content, instead of the entire vault]].
 
 ## Installation
 
@@ -34,6 +34,10 @@ For more advanced use-cases of Quartz Syncer, check the [[Guides/index|guides se
 ## CLI
 
 Quartz Syncer supports the [Obsidian CLI](https://obsidian.md/cli) for automating publishing workflows from the terminal. See the [[Guides/CLI|CLI guide]] for the full command reference.
+
+## Quartz Hub
+
+On desktop, the Quartz Hub lets you manage your local Quartz repository, preview your site, and manage plugins — all from within Obsidian. See the [[Guides/Quartz Hub|Quartz Hub guide]].
 
 ## Troubleshooting
 
