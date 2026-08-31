@@ -293,6 +293,14 @@ export class BackgroundEngine {
 			);
 			this.eventSink?.emit("compilation.completed", { path });
 		} catch (error) {
+			if (
+				error instanceof Error &&
+				"code" in error &&
+				error.code === "ENOENT"
+			) {
+				return;
+			}
+
 			this.eventSink?.emit("compilation.failed", {
 				path,
 				error: error instanceof Error ? error.message : String(error),
