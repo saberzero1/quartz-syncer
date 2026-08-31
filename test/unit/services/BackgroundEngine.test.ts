@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { App, TFile } from "obsidian";
 import { BackgroundEngine } from "src/services/BackgroundEngine";
+import type { Publisher } from "src/publisher/Publisher";
 import type QuartzSyncer from "src/main";
 
 const createPluginStub = (): QuartzSyncer => {
@@ -61,7 +62,9 @@ const createAutoPublishPluginStub = (
 	} as unknown as QuartzSyncer;
 };
 
-const createPublisherStub = (overrides: Record<string, unknown> = {}) => {
+const createPublisherStub = (
+	overrides: Record<string, unknown> = {},
+): Publisher => {
 	return {
 		getPublishStatus: vi.fn().mockResolvedValue({
 			unpublished: [],
@@ -74,7 +77,7 @@ const createPublisherStub = (overrides: Record<string, unknown> = {}) => {
 		cleanOrphanedMedia: vi.fn().mockResolvedValue(null),
 		refreshTreeCache: vi.fn().mockResolvedValue(undefined),
 		...overrides,
-	};
+	} as unknown as Publisher;
 };
 
 const createFile = (path: string, mtime: number): TFile => {
@@ -85,10 +88,19 @@ const createFile = (path: string, mtime: number): TFile => {
 	return file;
 };
 
+const createApp = (files: TFile[] = []): App => {
+	const app = new App();
+	const vaultStub = app.vault as typeof app.vault & {
+		getFiles?: () => TFile[];
+	};
+	vaultStub.getFiles = vi.fn().mockReturnValue(files);
+	return app;
+};
+
 describe("BackgroundEngine", () => {
 	it("starts and stops", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const engine = new BackgroundEngine(app, createPluginStub());
 
 		expect(engine.isRunning).toBe(false);
@@ -102,7 +114,7 @@ describe("BackgroundEngine", () => {
 	});
 
 	it("exposes compilationQueue", () => {
-		const app = new App();
+		const app = createApp();
 		const engine = new BackgroundEngine(app, createPluginStub());
 
 		expect(engine.compilationQueue).toBeDefined();
@@ -110,7 +122,7 @@ describe("BackgroundEngine", () => {
 	});
 
 	it("stop cancels compilation queue", () => {
-		const app = new App();
+		const app = createApp();
 		const engine = new BackgroundEngine(app, createPluginStub());
 
 		engine.compilationQueue.enqueue("notes/a.md");
@@ -121,7 +133,7 @@ describe("BackgroundEngine", () => {
 	});
 
 	it("pendingCount reflects compilation queue", () => {
-		const app = new App();
+		const app = createApp();
 		const plugin = createPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 
@@ -136,7 +148,7 @@ describe("BackgroundEngine", () => {
 
 	it("auto-publish runs on interval", async () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const publisher = createPublisherStub();
 		const plugin = createAutoPublishPluginStub();
 		plugin.getPublisher = () => publisher;
@@ -151,7 +163,7 @@ describe("BackgroundEngine", () => {
 
 	it("auto-publish publishes and deletes in one run", async () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const publisher = createPublisherStub({
 			getPublishStatus: vi.fn().mockResolvedValue({
 				unpublished: ["notes/a.md"],
@@ -180,7 +192,7 @@ describe("BackgroundEngine", () => {
 
 	it("auto-publish skips when paused", async () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const publisher = createPublisherStub();
 		const plugin = createAutoPublishPluginStub();
 		plugin.getPublisher = () => publisher;
@@ -196,7 +208,7 @@ describe("BackgroundEngine", () => {
 
 	it("auto-publish prevents re-entrant runs", async () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		let resolveStatus:
 			| ((value: {
 					unpublished: string[];
@@ -225,22 +237,29 @@ describe("BackgroundEngine", () => {
 		await vi.advanceTimersByTimeAsync(60_000);
 
 		expect(publisher.getPublishStatus).toHaveBeenCalledTimes(1);
-		if (!resolveStatus) {
-			throw new Error("Missing status resolver");
-		}
-		resolveStatus({
+		const statusResolver =
+			resolveStatus ??
+			((_: {
+				unpublished: string[];
+				changed: string[];
+				published: string[];
+				deleted: string[];
+			}) => {
+				throw new Error("Missing status resolver");
+			});
+		statusResolver({
 			unpublished: [],
 			changed: [],
 			published: [],
 			deleted: [],
 		});
-		await vi.runAllTicks();
+		vi.runAllTicks();
 		vi.useRealTimers();
 	});
 
 	it("auto-publish handles missing publisher", async () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		plugin.getPublisher = () => null;
 		const engine = new BackgroundEngine(app, plugin);
@@ -254,7 +273,7 @@ describe("BackgroundEngine", () => {
 
 	it("auto-publish resets flag after errors", async () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const publisher = createPublisherStub({
 			getPublishStatus: vi.fn().mockResolvedValue({
 				unpublished: ["notes/a.md"],
@@ -278,7 +297,7 @@ describe("BackgroundEngine", () => {
 
 	it("auto-publish exits early with no pending changes", async () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const publisher = createPublisherStub({
 			getPublishStatus: vi.fn().mockResolvedValue({
 				unpublished: [],
@@ -301,7 +320,7 @@ describe("BackgroundEngine", () => {
 
 	it("stopAutoPublish prevents future timer runs", async () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const publisher = createPublisherStub();
 		const plugin = createAutoPublishPluginStub();
 		plugin.getPublisher = () => publisher;
@@ -317,7 +336,7 @@ describe("BackgroundEngine", () => {
 
 	it("startAutoPublish clears previous timer", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 		const clearSpy = vi.spyOn(window, "clearInterval");
@@ -331,7 +350,7 @@ describe("BackgroundEngine", () => {
 
 	it("startAutoPublish ignores intervals less than one minute", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 		const intervalSpy = vi.spyOn(window, "setInterval");
@@ -345,7 +364,7 @@ describe("BackgroundEngine", () => {
 
 	it("vault modify enqueues markdown file", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 		const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
@@ -363,7 +382,7 @@ describe("BackgroundEngine", () => {
 
 	it("vault modify ignores non-markdown files", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 		const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
@@ -381,7 +400,7 @@ describe("BackgroundEngine", () => {
 
 	it("vault create enqueues new markdown file", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 		const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
@@ -399,7 +418,7 @@ describe("BackgroundEngine", () => {
 
 	it("vault delete drops cache", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 
@@ -418,7 +437,7 @@ describe("BackgroundEngine", () => {
 
 	it("vault rename drops old cache and enqueues new path", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 		const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
@@ -437,7 +456,7 @@ describe("BackgroundEngine", () => {
 
 	it("vault rename to non-markdown file drops old cache but does not enqueue", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 		const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
@@ -456,7 +475,7 @@ describe("BackgroundEngine", () => {
 
 	it("vault events during startup guard are ignored", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 		const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
@@ -474,7 +493,7 @@ describe("BackgroundEngine", () => {
 
 	it("vault events after startup guard are processed", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 		const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
@@ -492,7 +511,7 @@ describe("BackgroundEngine", () => {
 
 	it("vault delete marks statusCache stale for the file", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 
@@ -511,7 +530,7 @@ describe("BackgroundEngine", () => {
 
 	it("vault rename marks statusCache stale for both old and new paths", () => {
 		vi.useFakeTimers();
-		const app = new App();
+		const app = createApp();
 		const plugin = createAutoPublishPluginStub();
 		const engine = new BackgroundEngine(app, plugin);
 

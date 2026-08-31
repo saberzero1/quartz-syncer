@@ -2,7 +2,7 @@ import { debounce, Events, TFile, type App, type EventRef } from "obsidian";
 import type QuartzSyncer from "src/main";
 import { CompilationQueue } from "src/services/CompilationQueue";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
-import { PublishFile } from "src/publishFile/PublishFile";
+import { getSpecialFileType, PublishFile } from "src/publishFile/PublishFile";
 import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
 import type { IOperabilityEventSink } from "src/operability/types";
 import type { StatusSummary } from "src/services/StatusCacheService";
@@ -314,7 +314,7 @@ export class BackgroundEngine {
 
 		this.vaultEventRefs.push(
 			this.app.vault.on("modify", (file) => {
-				if (file instanceof TFile && file.extension === "md") {
+				if (file instanceof TFile && this.isPublishableFile(file)) {
 					if (this.isStartupNoise(file)) return;
 					debouncedEnqueue(file.path);
 				}
@@ -323,7 +323,7 @@ export class BackgroundEngine {
 
 		this.vaultEventRefs.push(
 			this.app.vault.on("create", (file) => {
-				if (file instanceof TFile && file.extension === "md") {
+				if (file instanceof TFile && this.isPublishableFile(file)) {
 					if (this.isStartupNoise(file)) return;
 					debouncedEnqueue(file.path);
 				}
@@ -332,7 +332,7 @@ export class BackgroundEngine {
 
 		this.vaultEventRefs.push(
 			this.app.vault.on("delete", (file) => {
-				if (file instanceof TFile && file.extension === "md") {
+				if (file instanceof TFile && this.isPublishableFile(file)) {
 					this.plugin.dataStore.dropFile(file.path).catch((error) => {
 						console.debug("Failed to drop cache entry:", error);
 					});
@@ -343,13 +343,13 @@ export class BackgroundEngine {
 
 		this.vaultEventRefs.push(
 			this.app.vault.on("rename", (file, oldPath) => {
-				if (oldPath.endsWith(".md")) {
+				if (this.isPublishablePath(oldPath)) {
 					this.plugin.dataStore.dropFile(oldPath).catch((error) => {
 						console.debug("Failed to drop cache entry:", error);
 					});
 					this.plugin.statusCache.markStaleFile(oldPath);
 				}
-				if (file instanceof TFile && file.path.endsWith(".md")) {
+				if (file instanceof TFile && this.isPublishableFile(file)) {
 					this.plugin.statusCache.markStaleFile(file.path);
 					if (!this.isStartupNoise(file)) {
 						debouncedEnqueue(file.path);
@@ -553,7 +553,9 @@ export class BackgroundEngine {
 	private prewarmCache(): void {
 		if (!this.running) return;
 
-		const files = this.app.vault.getMarkdownFiles();
+		const files = this.app.vault
+			.getFiles()
+			.filter((file) => this.isPublishableFile(file));
 		let index = 0;
 
 		const enqueueBatch = () => {
@@ -577,6 +579,19 @@ export class BackgroundEngine {
 		};
 
 		enqueueBatch();
+	}
+
+	private isPublishableFile(file: TFile): boolean {
+		if (file.extension === "md") return true;
+		const type = getSpecialFileType(file);
+		return type === "base" || type === "canvas" || type === "excalidraw";
+	}
+
+	private isPublishablePath(path: string): boolean {
+		if (path.endsWith(".md")) return true;
+		if (path.endsWith(".canvas")) return true;
+		if (path.endsWith(".base")) return true;
+		return path.endsWith(".excalidraw") || path.endsWith(".excalidraw.md");
 	}
 
 	// --- Startup noise guard ---

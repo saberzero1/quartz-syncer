@@ -1,5 +1,6 @@
-import type { App } from "obsidian";
+import { Platform, type App } from "obsidian";
 import type QuartzSyncer from "src/main";
+import type QuartzSyncerSettings from "src/models/settings";
 import type { FileChange } from "src/git/types";
 import type { PublishBackend } from "src/publisher/PublishBackend";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
@@ -12,10 +13,14 @@ import type {
 	PublishResult,
 	PublishStatus,
 } from "src/publisher/types";
-import { categorizeFiles } from "src/publisher/PublishStatusManager";
+import {
+	buildRemoteIndex,
+	classifyArbitrary,
+	classifyRemoteOnly,
+} from "src/publisher/PublishStatusManager";
 import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
 import type { CompilationQueue } from "src/services/CompilationQueue";
-import { isMediaFile } from "src/utils/mediaTypes";
+import { batchParallel, generateBlobHash } from "src/utils/utils";
 import type { IOperabilityEventSink } from "src/operability/types";
 
 export class Publisher {
@@ -63,8 +68,7 @@ export class Publisher {
 		return this.pathMapper;
 	}
 
-	async getPublishStatus(): Promise<PublishStatus> {
-		const settings = this.plugin.settings;
+	private collectCandidates(settings: QuartzSyncerSettings): PublishFile[] {
 		const vaultFiles = this.app.vault.getFiles();
 		const publishFiles: PublishFile[] = [];
 
@@ -123,58 +127,108 @@ export class Publisher {
 			}
 		}
 
-		this.compilationQueue?.pause();
+		return publishFiles;
+	}
 
-		if (settings.useCache) {
-			await this.dataStore.preloadCache();
-		}
+	private async compileAndHashSingle(file: PublishFile): Promise<string> {
+		const compiled = await file.compile(
+			this.compilationQueue !== undefined,
+		);
+		const hash = await generateBlobHash(compiled.getCompiledFile()[0]);
+		return hash;
+	}
 
-		try {
-			const compiledFiles: PublishFile[] = [];
-			const trustDynamic = this.compilationQueue !== undefined;
+	private async resolveMediaLinksIncremental(
+		files: PublishFile[],
+	): Promise<Map<string, string[]>> {
+		const mediaLinks = new Map<string, string[]>();
+		const concurrency = Platform.isMobileApp ? 2 : 5;
 
-			for (const file of publishFiles) {
-				const compiled = await file.compile(trustDynamic);
-				compiledFiles.push(compiled);
-			}
-
-			const remoteTree = await this.backend.getCachedTree(
-				settings.gitBranch,
-			);
-			const linkedMedia = await resolveLinkedMedia(compiledFiles);
-
-			const mediaLinks = new Map<string, string[]>();
-
-			for (const file of compiledFiles) {
+		await batchParallel(
+			files,
+			async (file) => {
 				const links = await this.dataStore.loadMediaLinks(
 					file.file.path,
 				);
-
 				if (links.length > 0) {
 					mediaLinks.set(file.file.path, links);
 				}
+				return undefined;
+			},
+			concurrency,
+		);
+
+		return mediaLinks;
+	}
+
+	async getPublishStatus(): Promise<PublishStatus> {
+		const settings = this.plugin.settings;
+		const candidates = this.collectCandidates(settings);
+
+		this.compilationQueue?.pause();
+
+		try {
+			const remoteTree = await this.backend.getCachedTree(
+				settings.gitBranch,
+			);
+			const remoteIndex = buildRemoteIndex(remoteTree, this.pathMapper);
+
+			const unpublished: PublishFile[] = [];
+			const changed: PublishFile[] = [];
+			const published: PublishFile[] = [];
+
+			for (const file of candidates) {
+				const vaultPath = file.getVaultPath();
+				const repoPath = this.pathMapper.toRepoPath(vaultPath);
+				const remote = remoteIndex.content.get(repoPath);
+
+				if (!remote) {
+					unpublished.push(file);
+					continue;
+				}
+
+				const localHash = settings.useCache
+					? await this.dataStore.loadLocalHash(
+							file.file.path,
+							file.file.stat.mtime,
+						)
+					: await this.compileAndHashSingle(file);
+
+				if (localHash && localHash === remote.sha) {
+					published.push(file);
+				} else {
+					changed.push(file);
+				}
 			}
 
-			const status = await categorizeFiles(
-				compiledFiles,
-				remoteTree,
-				this.dataStore,
+			const linkedMedia = await resolveLinkedMedia(candidates);
+			const { deleted, media } = classifyRemoteOnly(
+				remoteIndex,
+				candidates,
 				this.pathMapper,
 				linkedMedia,
+			);
+
+			const mediaLinks =
+				await this.resolveMediaLinksIncremental(candidates);
+
+			const arbitrary = classifyArbitrary(
+				remoteIndex,
 				settings.allowArbitraryFilePublishing
 					? settings.arbitraryPublishPaths
 					: undefined,
 			);
 
-			status.mediaLinks = mediaLinks;
-
-			return status;
+			return {
+				unpublished,
+				changed,
+				published,
+				deleted,
+				media,
+				arbitrary,
+				mediaLinks,
+			};
 		} finally {
-			if (settings.useCache) {
-				await this.dataStore.flushCache();
-				this.dataStore.clearMemoryCache();
-			}
-
 			this.compilationQueue?.resume();
 		}
 	}
@@ -241,19 +295,18 @@ export class Publisher {
 				const file = files[index];
 				if (!file) continue;
 
-				const compiled = await this.dataStore.loadLocalFile(
+				let storedFile = await this.dataStore.loadLocalFile(
 					file.file.path,
 					file.file.stat.mtime,
 					true,
 				);
 
-				if (!compiled) {
-					throw new Error(
-						`Missing cached content for ${file.file.path}`,
-					);
+				if (!storedFile) {
+					const compiled = await file.compile(true);
+					storedFile = compiled.getCompiledFile();
 				}
 
-				const [text, assets] = compiled;
+				const [text, assets] = storedFile;
 				const repoPath = this.pathMapper.toRepoPath(
 					file.getVaultPath(),
 				);
@@ -551,69 +604,44 @@ export class Publisher {
 
 	async cleanOrphanedMedia(): Promise<PublishResult | null> {
 		const settings = this.plugin.settings;
-		const vaultFiles = this.app.vault.getFiles();
-		const publishFiles: PublishFile[] = [];
-
-		for (const file of vaultFiles) {
-			const publishFile = new PublishFile({
-				file,
-				compiler: this.compiler,
-				metadataCache: this.app.metadataCache,
-				vault: this.app.vault,
-				settings,
-				datastore: this.dataStore,
-			});
-
-			if (publishFile.shouldPublish()) {
-				publishFiles.push(publishFile);
-			}
-		}
+		const candidates = this.collectCandidates(settings);
 
 		this.compilationQueue?.pause();
 
-		if (settings.useCache) {
-			await this.dataStore.preloadCache();
-		}
-
 		try {
-			const compiledFiles: PublishFile[] = [];
-			const trustDynamic = this.compilationQueue !== undefined;
-
-			for (const file of publishFiles) {
-				const compiled = await file.compile(trustDynamic);
-				compiledFiles.push(compiled);
-			}
-
-			const linkedMedia = await resolveLinkedMedia(compiledFiles);
+			const linkedMedia = await resolveLinkedMedia(candidates);
 			const remoteTree = await this.backend.getCachedTree(
 				settings.gitBranch,
 			);
-			const orphanedRepoPaths: string[] = [];
+			const remoteIndex = buildRemoteIndex(remoteTree, this.pathMapper);
+			const { media } = classifyRemoteOnly(
+				remoteIndex,
+				candidates,
+				this.pathMapper,
+				linkedMedia,
+			);
 
-			for (const entry of remoteTree) {
-				if (entry.type !== "blob") continue;
-				if (!this.pathMapper.isInContentFolder(entry.path)) continue;
-				if (!isMediaFile(entry.path)) continue;
-				const vaultPath = this.pathMapper.toVaultPath(entry.path);
-				if (!linkedMedia.has(vaultPath)) {
-					orphanedRepoPaths.push(entry.path);
-				}
-			}
+			const totalMedia = media.length;
+			const orphaned = media.filter((entry) => !entry.linked);
 
-			if (orphanedRepoPaths.length === 0) {
+			if (totalMedia > 5 && orphaned.length > totalMedia * 0.8) {
+				console.warn(
+					`Skipping orphan cleanup: ${orphaned.length}/${totalMedia} media files appear orphaned (>80% threshold).`,
+				);
 				return null;
 			}
+
+			if (orphaned.length === 0) {
+				return null;
+			}
+
+			const orphanedRepoPaths = orphaned.map((entry) => entry.repoPath);
 
 			return await this.deleteByRepoPaths(
 				orphanedRepoPaths,
 				"Cleaned orphaned media",
 			);
 		} finally {
-			if (settings.useCache) {
-				await this.dataStore.flushCache();
-				this.dataStore.clearMemoryCache();
-			}
-
 			this.compilationQueue?.resume();
 		}
 	}

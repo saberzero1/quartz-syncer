@@ -77,6 +77,7 @@ export class PublicationCenter extends Modal {
 	private diffMode: DiffViewMode = "split";
 	private inlineScrollSync: ReturnType<typeof renderDiffView> = null;
 	private diffStatsAbort: AbortController | null = null;
+	private refreshingEl: HTMLSpanElement | null = null;
 
 	constructor(
 		app: App,
@@ -132,6 +133,7 @@ export class PublicationCenter extends Modal {
 		this.overviewEl = null;
 		this.diffInlineEl = null;
 		this.diffContentEl = null;
+		this.refreshingEl = null;
 		this.searchInputEl = null;
 		this.publicationTree = null;
 		this.fileMap.clear();
@@ -275,6 +277,7 @@ export class PublicationCenter extends Modal {
 		publisher: ReturnType<QuartzSyncer["getPublisher"]> & object,
 	): Promise<void> {
 		this.isRefreshing = true;
+		this.refreshingEl?.removeClass("qs-hidden");
 		this.updateOperationButtons();
 
 		try {
@@ -303,6 +306,7 @@ export class PublicationCenter extends Modal {
 			new Notice(`Failed to refresh publish status: ${message}`);
 		} finally {
 			this.isRefreshing = false;
+			this.refreshingEl?.addClass("qs-hidden");
 			this.updateOperationButtons();
 		}
 	}
@@ -411,12 +415,14 @@ export class PublicationCenter extends Modal {
 			text: `Select notes to publish or delete with ${pluginName}.`,
 		});
 
-		if (this.isRefreshing) {
-			const refreshEl = header.createSpan({
-				cls: "pub-center-refreshing",
-			});
-			setIcon(refreshEl, "refresh-cw");
-			refreshEl.createSpan({ text: " Refreshing…" });
+		this.refreshingEl = header.createSpan({
+			cls: "pub-center-refreshing",
+		});
+		setIcon(this.refreshingEl, "refresh-cw");
+		this.refreshingEl.createSpan({ text: " Refreshing\u2026" });
+
+		if (!this.isRefreshing) {
+			this.refreshingEl.addClass("qs-hidden");
 		}
 
 		if (
