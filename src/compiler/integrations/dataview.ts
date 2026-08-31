@@ -100,7 +100,7 @@ export const DataviewIntegration: PluginIntegration = {
 				{
 					id: "dv-inline",
 					pattern: new RegExp(
-						"`" + escapeRegExp(inlinePrefix) + "(.+?)`",
+						"`" + escapeRegExp(inlinePrefix) + "(?!=)(.+?)`",
 						"gms",
 					),
 					type: "inline",

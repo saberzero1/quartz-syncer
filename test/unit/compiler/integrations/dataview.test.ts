@@ -151,6 +151,44 @@ describe("DataviewIntegration", () => {
 		).not.toBeNull();
 	});
 
+	it("inline pattern does not match highlight syntax adjacent to inline code", () => {
+		mockedGetDataviewApi.mockReturnValue(makeApi());
+
+		const patterns = DataviewIntegration.getPatterns();
+		const inlinePattern = patterns.find(
+			(pattern) => pattern.id === "dv-inline",
+		);
+
+		expect(inlinePattern).toBeDefined();
+		const regex = inlinePattern?.pattern ?? /$^/;
+
+		// These use Obsidian highlight ==text== adjacent to inline code `code`
+		// and must NOT be detected as Dataview inline expressions
+		expect(
+			"`IUnknown`==is the only COM interface==`IUnknown`".match(regex),
+		).toBeNull();
+		expect("`IUnknown`==or==`IUserInfo`".match(regex)).toBeNull();
+		expect("`IUnknown`==, ==`IUserInfo`".match(regex)).toBeNull();
+		expect("`QueryInterface` ==calls ==`AddRef`".match(regex)).toBeNull();
+	});
+
+	it("inline pattern still matches legitimate Dataview queries", () => {
+		mockedGetDataviewApi.mockReturnValue(makeApi());
+
+		const patterns = DataviewIntegration.getPatterns();
+		const inlinePattern = patterns.find(
+			(pattern) => pattern.id === "dv-inline",
+		);
+
+		expect(inlinePattern).toBeDefined();
+		const regex = inlinePattern?.pattern ?? /$^/;
+
+		expect("Value: `= this.file.name`".match(regex)).not.toBeNull();
+		expect("`= date(today)`".match(regex)).not.toBeNull();
+		expect("(`= this.field`)".match(regex)).not.toBeNull();
+		expect("`= 1 == 2`".match(regex)).not.toBeNull();
+	});
+
 	it("compile renders with mock Dataview API", async () => {
 		const api = makeApi();
 		api.tryQueryMarkdown = vi.fn().mockResolvedValue("Rendered markdown");

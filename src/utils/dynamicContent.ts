@@ -36,7 +36,7 @@ export function hasDynamicContent(text: string): boolean {
 		const inlineQueryPrefix = dvApi.settings.inlineQueryPrefix || "=";
 
 		const inlineDataViewRegex = new RegExp(
-			"`" + escapeRegExp(inlineQueryPrefix) + ".+?`",
+			"`" + escapeRegExp(inlineQueryPrefix) + "(?!=).+?`",
 			"ms",
 		);
 
