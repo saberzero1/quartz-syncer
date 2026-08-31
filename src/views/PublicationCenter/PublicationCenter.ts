@@ -296,8 +296,11 @@ export class PublicationCenter extends Modal {
 					this.treeState.selectFile(path);
 				}
 			}
-		} catch {
-			new Notice("Failed to refresh publish status.");
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			console.error("Failed to refresh publish status:", message);
+			new Notice(`Failed to refresh publish status: ${message}`);
 		} finally {
 			this.isRefreshing = false;
 			this.updateOperationButtons();
@@ -936,8 +939,11 @@ export class PublicationCenter extends Modal {
 						(await publisher.getRemoteFileContent(path)) ?? "";
 				}
 			}
-		} catch {
-			new Notice("Failed to load file content for diff.");
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+			console.error("Failed to load file content for diff:", message);
+			new Notice(`Failed to load file content for diff: ${message}`);
 			return null;
 		}
 

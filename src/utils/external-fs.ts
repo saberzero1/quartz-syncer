@@ -241,7 +241,11 @@ export async function readExternalDirRecursive(
 	const resolved = expandTilde(dirPath);
 	try {
 		const fs = getFsPromises();
-		return await fs.readdir(resolved, { recursive: true });
+		const entries = await fs.readdir(resolved, { recursive: true });
+
+		// Node's fs.readdir returns backslash-separated paths on Windows.
+		// Normalize to forward slashes for consistent cross-platform behavior.
+		return entries.map((e) => e.replace(/\\/g, "/"));
 	} catch {
 		return null;
 	}
