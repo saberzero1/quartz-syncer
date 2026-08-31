@@ -18,3 +18,18 @@ export function requireQuartzRunner(plugin: QuartzSyncer): CliResult | null {
 
 	return null;
 }
+
+export async function requireGit(
+	plugin: QuartzSyncer,
+): Promise<CliResult | null> {
+	if (plugin.binaryDetector) {
+		const gitPath = await plugin.binaryDetector.detect("git");
+		if (!gitPath) {
+			return {
+				success: false,
+				error: "Git is required for this command. Install Git and ensure it is on your system PATH.",
+			};
+		}
+	}
+	return null;
+}

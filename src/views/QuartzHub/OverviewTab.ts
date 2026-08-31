@@ -343,26 +343,37 @@ export function renderOverviewTab(
 			new Notice("Quartz runner is unavailable.");
 			return;
 		}
-		runTerminalAction(
-			"Update Quartz",
-			async ({ onStdout, onStderr, signal }) => {
-				try {
-					const result = await plugin.quartzRunner?.update({
-						cwd: resolvedRepoPath,
-						signal,
-						onStdout,
-						onStderr,
-					});
-					if (!result?.ok) {
-						throw new Error(
-							result?.error ?? "Quartz update failed",
-						);
-					}
-				} finally {
-					plugin.hubDetectionCache.clear();
+		void (async () => {
+			if (plugin.binaryDetector) {
+				const gitPath = await plugin.binaryDetector.detect("git");
+				if (!gitPath) {
+					new Notice(
+						"Git is required for Quartz updates. Install git and ensure it is on your system path.",
+					);
+					return;
 				}
-			},
-		);
+			}
+			runTerminalAction(
+				"Update Quartz",
+				async ({ onStdout, onStderr, signal }) => {
+					try {
+						const result = await plugin.quartzRunner?.update({
+							cwd: resolvedRepoPath,
+							signal,
+							onStdout,
+							onStderr,
+						});
+						if (!result?.ok) {
+							throw new Error(
+								result?.error ?? "Quartz update failed",
+							);
+						}
+					} finally {
+						plugin.hubDetectionCache.clear();
+					}
+				},
+			);
+		})();
 	});
 
 	registerAction("Install deps", "install-deps", () => {

@@ -1,6 +1,6 @@
 import type QuartzSyncer from "src/main";
 import type { CliHandler } from "src/cli/types";
-import { requireQuartzRunner } from "src/cli/handlers/guards";
+import { requireGit, requireQuartzRunner } from "src/cli/handlers/guards";
 
 export function createQuartzRestoreHandler(plugin: QuartzSyncer): CliHandler {
 	return async (params) => {
@@ -14,6 +14,11 @@ export function createQuartzRestoreHandler(plugin: QuartzSyncer): CliHandler {
 				success: false,
 				error: "System commands are not available. Enable them in settings and ensure Node.js is installed.",
 			};
+		}
+
+		const gitCheck = await requireGit(plugin);
+		if (gitCheck) {
+			return gitCheck;
 		}
 
 		if (!params.flags.has("force")) {
