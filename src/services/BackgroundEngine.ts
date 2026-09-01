@@ -13,7 +13,6 @@ const PRIORITY_VAULT_CHANGE = 5;
 const PRIORITY_ACTIVE_FILE = 10;
 
 const STARTUP_GUARD_MS = 30_000;
-const STARTUP_DELAY_MS = 10_000;
 
 export class BackgroundEngine {
 	private running = false;
@@ -182,14 +181,12 @@ export class BackgroundEngine {
 		this.running = true;
 
 		this.app.workspace.onLayoutReady(() => {
-			window.setTimeout(() => {
-				this.registerVaultListeners();
-				this.registerActiveLeafListener();
-				this.registerDataviewListeners();
-				this.registerDatacoreListeners();
-				this.registerExtCacheListener();
-				this.prewarmCache();
-			}, STARTUP_DELAY_MS);
+			this.registerVaultListeners();
+			this.registerActiveLeafListener();
+			this.registerDataviewListeners();
+			this.registerDatacoreListeners();
+			this.registerExtCacheListener();
+			this.prewarmCache();
 		});
 	}
 
