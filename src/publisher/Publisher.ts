@@ -22,7 +22,6 @@ import {
 import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
 import type { CompilationQueue } from "src/services/CompilationQueue";
 import { batchParallel, generateBlobHash } from "src/utils/utils";
-import { isMediaFile } from "src/utils/mediaTypes";
 import { isPathIgnored } from "src/utils/ignoredFolders";
 import type { IOperabilityEventSink } from "src/operability/types";
 import { AssetSyncer } from "src/compiler/integrations/AssetSyncer";
