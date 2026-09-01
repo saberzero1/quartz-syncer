@@ -2,6 +2,7 @@ import {
 	Platform,
 	PluginSettingTab,
 	App,
+	normalizePath,
 	type SettingDefinitionItem,
 } from "obsidian";
 import type QuartzSyncer from "src/main";
@@ -11,8 +12,20 @@ import { QuartzPluginUpdateChecker } from "src/quartz/QuartzPluginUpdateChecker"
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 import { RemoteFileSource } from "src/quartz/RemoteFileSource";
 import { frontmatterSettingDefinitions } from "src/views/settings/FrontmatterSettings";
-import { integrationSettingDefinitions } from "src/views/settings/IntegrationSettings";
-import { performanceSettingDefinitions } from "src/views/settings/PerformanceSettings";
+import {
+	CSS_SNIPPET_CONTROL_PREFIX,
+	integrationSettingDefinitions,
+} from "src/views/settings/IntegrationSettings";
+import {
+	IGNORED_FOLDER_CONTROL_PREFIX,
+	performanceSettingDefinitions,
+} from "src/views/settings/PerformanceSettings";
+import {
+	applyDynamicToggleValue,
+	DynamicOptionListCache,
+	resolveDynamicToggleValue,
+	type DynamicToggleSetBinding,
+} from "src/views/settings/DynamicToggleSet";
 import { uiSettingDefinitions } from "src/views/settings/UISettings";
 import { GitSettingsPage } from "src/views/settings/GitSettingsPage";
 import { ManualSetupModal } from "src/views/ManualSetupModal";
@@ -44,13 +57,89 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 	private pluginUpdateStatus: PluginUpdateCache = {
 		state: "not-checked",
 	};
+	private cssSnippetCache = new DynamicOptionListCache(
+		() => this.listCssSnippetFiles(),
+		() => this.update(),
+	);
+	private ignoredFolderCache = new DynamicOptionListCache(
+		() => this.listVaultFolders(),
+		() => this.update(),
+	);
+	private readonly dynamicToggleBindings: DynamicToggleSetBinding[] = [
+		{
+			prefix: CSS_SNIPPET_CONTROL_PREFIX,
+			getSelected: () => this.plugin.settings.copyCssSnippets,
+			setSelected: async (values) => {
+				this.plugin.settings.copyCssSnippets = values;
+				await this.plugin.saveSettings();
+			},
+		},
+		{
+			prefix: IGNORED_FOLDER_CONTROL_PREFIX,
+			getSelected: () => this.plugin.settings.ignoredFolders,
+			setSelected: async (values) => {
+				this.plugin.settings.ignoredFolders = values;
+				await this.plugin.saveSettings();
+			},
+		},
+	];
 
 	constructor(app: App, plugin: QuartzSyncer) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
+	getControlValue(key: string): unknown {
+		const resolved = resolveDynamicToggleValue(
+			this.dynamicToggleBindings,
+			key,
+		);
+		if (resolved !== undefined) return resolved;
+		return super.getControlValue(key);
+	}
+
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		const handled = await applyDynamicToggleValue(
+			this.dynamicToggleBindings,
+			key,
+			value,
+		);
+		if (handled) return;
+		await super.setControlValue(key, value);
+	}
+
+	private listCssSnippetFiles(): Promise<string[]> {
+		const snippetsDir = normalizePath(
+			`${this.app.vault.configDir}/snippets`,
+		);
+
+		return this.app.vault.adapter.list(snippetsDir).then(({ files }) =>
+			files
+				.map((path) => path.split("/").pop() ?? "")
+				.filter((name) => name.endsWith(".css"))
+				.sort(),
+		);
+	}
+
+	private listVaultFolders(): string[] {
+		return this.app.vault
+			.getAllFolders()
+			.map((folder) => folder.path)
+			.sort();
+	}
+
+	/** Top-level folders only — keeps the list short for vaults with deep nesting. */
+	private listTopLevelVaultFolders(): string[] {
+		return this.app.vault
+			.getAllFolders()
+			.map((folder) => folder.path)
+			.filter((path) => !path.includes("/"))
+			.sort();
+	}
+
 	getSettingDefinitions(): SettingDefinitionItem[] {
+		this.cssSnippetCache.ensureLoaded();
+
 		return [
 			...this.buildOverviewItems(),
 			{
@@ -80,13 +169,22 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 				type: "page",
 				name: "Integration",
 				desc: "Plugin integrations for Dataview, Excalidraw, and more.",
-				items: integrationSettingDefinitions(),
+				items: integrationSettingDefinitions(
+					this.plugin,
+					this.cssSnippetCache.state,
+				),
 			},
 			{
 				type: "page",
 				name: "Performance",
 				desc: "Caching and performance optimization.",
-				items: performanceSettingDefinitions(this.plugin),
+				items: performanceSettingDefinitions(this.plugin, {
+					...this.ignoredFolderCache.state,
+					refreshTopLevel: () =>
+						this.ignoredFolderCache.refresh(() =>
+							this.listTopLevelVaultFolders(),
+						),
+				}),
 			},
 			{
 				type: "page",

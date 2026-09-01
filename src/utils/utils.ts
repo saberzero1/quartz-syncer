@@ -463,12 +463,14 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 	callouts.forEach((callout) => {
 		const blockquote = createEl("blockquote");
 
+		// Track this separately: copying callout's own `class` attribute
+		// onto blockquote below would otherwise clobber it, since the source
+		// callout element doesn't itself carry the `is-collapsed` class.
+		const shouldCollapse =
+			callout.getAttribute("data-callout-fold") === "-";
+
 		// Map 'data-callout-fold' to the proper Quartz class
 		if (callout.hasAttribute("data-callout-fold")) {
-			if (callout.getAttribute("data-callout-fold") === "-") {
-				blockquote.classList.add("is-collapsed");
-			}
-
 			callout.setAttribute("data-callout-fold", "");
 		}
 
@@ -486,6 +488,10 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 					callout.attributes.item(index)!.value || "",
 				);
 			}
+		}
+
+		if (shouldCollapse) {
+			blockquote.classList.add("is-collapsed");
 		}
 
 		blockquote.replaceChildren(
@@ -509,6 +515,13 @@ function convertCallouts(container: HTMLDivElement): HTMLDivElement {
 
 			calloutContent.replaceChildren();
 			calloutContent.appendChild(innerWrapper);
+
+			// Obsidian's live collapse animation freezes `display: none` and
+			// `grid-template-rows` inline styles onto a collapsed callout's
+			// content. Quartz's own fold script only toggles the
+			// `is-collapsed` class on click, so this leftover inline style
+			// would keep the content hidden forever even after expanding.
+			calloutContent.removeAttribute("style");
 		}
 
 		// Replace 'div.callout-fold' with 'div.callout-fold-icon'

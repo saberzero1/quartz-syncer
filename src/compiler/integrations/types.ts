@@ -45,6 +45,12 @@ export interface CompileContext {
 	app: App;
 	/** The file being compiled */
 	file: PublishFile;
+	/**
+	 * Mutable collector for CSS discovered while compiling this file
+	 * (e.g. Dataview's `dv.view()` folder-based `view.css`), which
+	 * would otherwise be lost during HTML-to-Markdown conversion.
+	 */
+	styles?: string[];
 }
 
 export type IntegrationCategory = "core" | "community";

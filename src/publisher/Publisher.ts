@@ -1,4 +1,5 @@
 import { Platform, type App } from "obsidian";
+import { arrayBufferToBase64, getIcon, normalizePath } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type QuartzSyncerSettings from "src/models/settings";
 import type { FileChange } from "src/git/types";
@@ -21,7 +22,10 @@ import {
 import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
 import type { CompilationQueue } from "src/services/CompilationQueue";
 import { batchParallel, generateBlobHash } from "src/utils/utils";
+import { isPathIgnored } from "src/utils/ignoredFolders";
 import type { IOperabilityEventSink } from "src/operability/types";
+import { AssetSyncer } from "src/compiler/integrations/AssetSyncer";
+import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 
 export class Publisher {
 	private pathMapper: PathMapper;
@@ -34,6 +38,7 @@ export class Publisher {
 		private dataStore: DataStore,
 		private compilationQueue?: CompilationQueue,
 		private eventSink?: IOperabilityEventSink,
+		private quartzFileSource?: QuartzFileSource,
 	) {
 		this.pathMapper = new PathMapper(plugin.settings.contentFolder);
 	}
@@ -109,6 +114,8 @@ export class Publisher {
 		}
 
 		for (const path of candidatePaths) {
+			if (isPathIgnored(path, settings.ignoredFolders)) continue;
+
 			const file = this.app.vault.getFileByPath(path);
 
 			if (!file) continue;
@@ -289,6 +296,9 @@ export class Publisher {
 		const now = Date.now();
 		const commitMessage = message ?? "Publish notes";
 		const total = files.length;
+		// CSS discovered dynamically while compiling notes (e.g. Dataview's
+		// dv.view() view.css), not tied to any single integration.
+		const discoveredStyles = new Set<string>();
 
 		try {
 			for (let index = 0; index < files.length; index += 1) {
@@ -329,6 +339,10 @@ export class Publisher {
 					});
 				}
 
+				for (const style of assets.styles ?? []) {
+					discoveredStyles.add(style);
+				}
+
 				const localHash = await this.dataStore.loadLocalHash(
 					file.file.path,
 					file.file.stat.mtime,
@@ -343,6 +357,37 @@ export class Publisher {
 				}
 
 				onProgress?.(index + 1, total);
+			}
+
+			if (this.quartzFileSource) {
+				const assetSyncer = new AssetSyncer(settings);
+				const { textFiles, binaryAssets } = await this.resolveCssSnippets();
+				const assetResult = await assetSyncer.collectAssets(
+					this.quartzFileSource,
+					textFiles,
+					binaryAssets,
+					Array.from(discoveredStyles),
+				);
+
+				for (const [path, content] of assetResult.filesToStage) {
+					changes.push({ path, content, encoding: "utf-8" });
+				}
+
+				for (const [path, data] of assetResult.binaryFilesToStage) {
+					changes.push({
+						path,
+						content: arrayBufferToBase64(data),
+						encoding: "base64",
+					});
+				}
+
+				if (assetResult.filesToDelete.length > 0) {
+					await this.backend.deleteFiles(
+						settings.gitBranch,
+						"Clean up syncer styles",
+						assetResult.filesToDelete,
+					);
+				}
 			}
 
 			const result = await this.backend.writeFiles(
@@ -489,6 +534,141 @@ export class Publisher {
 			return path.replace(vaultPath, "");
 		}
 		return path;
+	}
+
+	/**
+	 * Reads the user-selected CSS snippets from the vault's config directory,
+	 * plus any local files they reference via url() (e.g. fonts). These live
+	 * outside the indexed vault (Vault API can't see them), so the raw
+	 * adapter is used instead of app.vault.
+	 */
+	private async resolveCssSnippets(): Promise<{
+		textFiles: Map<string, string>;
+		binaryAssets: Map<string, ArrayBuffer>;
+	}> {
+		const textFiles = new Map<string, string>();
+		const binaryAssets = new Map<string, ArrayBuffer>();
+		const settings = this.plugin.settings;
+
+		if (!settings.useCssSnippets) {
+			return { textFiles, binaryAssets };
+		}
+
+		const wantedNames = new Set(
+			settings.copyCssSnippets.filter((name) => name.length > 0),
+		);
+
+		if (wantedNames.size === 0) {
+			return { textFiles, binaryAssets };
+		}
+
+		const snippetsDir = normalizePath(
+			`${this.app.vault.configDir}/snippets`,
+		);
+
+		try {
+			const { files } = await this.app.vault.adapter.list(snippetsDir);
+
+			for (const filePath of files) {
+				const fileName = filePath.split("/").pop();
+				if (!fileName || !wantedNames.has(fileName)) continue;
+
+				const content = await this.app.vault.adapter.read(filePath);
+				textFiles.set(fileName, this.rewriteLucideCalloutIcons(content));
+
+				for (const relativePath of this.resolveCssUrlPaths(content)) {
+					if (binaryAssets.has(relativePath)) continue;
+
+					const assetPath = normalizePath(
+						`${snippetsDir}/${relativePath}`,
+					);
+
+					try {
+						const exists =
+							await this.app.vault.adapter.exists(assetPath);
+						if (!exists) continue;
+
+						const data =
+							await this.app.vault.adapter.readBinary(assetPath);
+						binaryAssets.set(relativePath, data);
+					} catch (error) {
+						console.debug(
+							`Failed to read snippet asset ${relativePath}:`,
+							error,
+						);
+					}
+				}
+			}
+		} catch (error) {
+			console.debug("Failed to read CSS snippets:", error);
+		}
+
+		return { textFiles, binaryAssets };
+	}
+
+	/**
+	 * Rewrites Obsidian's `--callout-icon` shorthand — a bare Lucide icon ID
+	 * (e.g. `lucide-package-open`) or a quoted inline `<svg>` literal — into
+	 * the `url("data:image/svg+xml...")` form Quartz's `mask-image` expects.
+	 * Declarations already using `url(...)` are left untouched.
+	 */
+	private rewriteLucideCalloutIcons(cssContent: string): string {
+		const pattern =
+			/(--callout-icon\s*:\s*)(?:(['"])(<svg[\s\S]*?<\/svg>)\2|([A-Za-z][\w-]*))(\s*;)/g;
+
+		return cssContent.replace(
+			pattern,
+			(
+				fullMatch,
+				prefix: string,
+				_quote: string | undefined,
+				svgLiteral: string | undefined,
+				iconName: string | undefined,
+				suffix: string,
+			) => {
+				const svg = svgLiteral ?? getIcon(iconName!)?.outerHTML;
+				if (!svg) return fullMatch;
+
+				const encoded = this.encodeSvgForDataUri(svg);
+
+				return `${prefix}url("data:image/svg+xml;utf8,${encoded}")${suffix}`;
+			},
+		);
+	}
+
+	/**
+	 * Minimal SVG-in-CSS escaping (per Quartz docs): swap double quotes for
+	 * single so they don't collide with the surrounding url("...") quotes,
+	 * and percent-encode characters that would otherwise break the URI.
+	 */
+	private encodeSvgForDataUri(svg: string): string {
+		return svg
+			.replace(/"/g, "'")
+			.replace(/%/g, "%25")
+			.replace(/#/g, "%23")
+			.replace(/\r?\n/g, "")
+			.trim();
+	}
+
+	/**
+	 * Extracts relative url(...) references from CSS (e.g. @font-face src),
+	 * skipping absolute URLs, protocol-relative URLs, and data URIs.
+	 */
+	private resolveCssUrlPaths(cssContent: string): string[] {
+		const paths = new Set<string>();
+		const urlPattern = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
+		let match: RegExpExecArray | null;
+
+		while ((match = urlPattern.exec(cssContent)) !== null) {
+			const rawPath = match[2]?.trim();
+			if (!rawPath) continue;
+			if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(rawPath)) continue;
+			if (rawPath.startsWith("/")) continue;
+
+			paths.add(rawPath.split("?")[0]!.split("#")[0]!);
+		}
+
+		return [...paths];
 	}
 
 	async deleteByRepoPaths(

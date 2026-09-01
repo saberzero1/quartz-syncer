@@ -7,6 +7,7 @@ import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
 import type { IOperabilityEventSink } from "src/operability/types";
 import type { StatusSummary } from "src/services/StatusCacheService";
 import { isMediaFile } from "src/utils/mediaTypes";
+import { isPathIgnored } from "src/utils/ignoredFolders";
 
 const PRIORITY_PREWARM = 0;
 const PRIORITY_VAULT_CHANGE = 5;
@@ -117,6 +118,8 @@ export class BackgroundEngine {
 			const localRepoPaths = new Set<string>();
 
 			for (const filePath of candidatePaths) {
+				if (isPathIgnored(filePath, settings.ignoredFolders)) continue;
+
 				const file = this.app.vault.getFileByPath(filePath);
 				if (!file) continue;
 

@@ -1,8 +1,22 @@
-import { Platform, type SettingDefinitionItem } from "obsidian";
+import {
+	Platform,
+	type SettingDefinitionItem,
+	type SettingGroupItem,
+} from "obsidian";
 import type QuartzSyncer from "src/main";
+import type { DynamicOptionListState } from "src/views/settings/DynamicToggleSet";
+
+/** Prefix for the synthetic per-folder toggle keys read by QuartzSyncerSettingTab. */
+export const IGNORED_FOLDER_CONTROL_PREFIX = "ignoredFolder::";
+
+/** Ignored-folders list also supports a top-level-only population action. */
+export interface IgnoredFolderListState extends DynamicOptionListState {
+	refreshTopLevel: () => void;
+}
 
 export function performanceSettingDefinitions(
 	plugin: QuartzSyncer,
+	ignoredFolders: IgnoredFolderListState,
 ): SettingDefinitionItem[] {
 	const settings = plugin.settings;
 
@@ -100,5 +114,55 @@ export function performanceSettingDefinitions(
 				},
 			],
 		},
+		{
+			type: "group",
+			heading: "Ignored folders",
+			extraButtons: [
+				(button) =>
+					button
+						.setIcon("folder")
+						.setTooltip("List top-level folders")
+						.onClick(() => ignoredFolders.refreshTopLevel()),
+				(button) =>
+					button
+						.setIcon("folder-tree")
+						.setTooltip("List all folders (including subfolders)")
+						.onClick(() => ignoredFolders.refresh()),
+			],
+			items: buildIgnoredFolderItems(ignoredFolders),
+		},
 	];
+}
+
+function buildIgnoredFolderItems(
+	ignoredFolders: IgnoredFolderListState,
+): SettingGroupItem[] {
+	if (ignoredFolders.options === null) {
+		return [
+			{
+				name: ignoredFolders.loading
+					? "Loading folders…"
+					: "Click a button above to list vault folders.",
+			},
+		];
+	}
+
+	if (ignoredFolders.options.length === 0) {
+		return [
+			{
+				name: "No folders found",
+				desc: "This vault has no subfolders to exclude.",
+			},
+		];
+	}
+
+	return ignoredFolders.options.map((folderPath) => ({
+		name: folderPath,
+		desc: "Excludes this folder (and its subfolders) from publish scanning and the Publication Center.",
+		control: {
+			type: "toggle",
+			key: `${IGNORED_FOLDER_CONTROL_PREFIX}${folderPath}`,
+			defaultValue: false,
+		},
+	}));
 }
