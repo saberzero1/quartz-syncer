@@ -1,7 +1,7 @@
-import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { App } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
+import type { TStyledCompilerStep } from "src/compiler/SyncerPageCompiler";
 import {
 	integrationRegistry,
 	PatternMatch,
@@ -18,7 +18,11 @@ export class PluginCompiler {
 		this.settings = settings;
 	}
 
-	compile: TCompilerStep = (file: PublishFile) => {
+	/**
+	 * @param styles - Optional mutable collector for CSS discovered while
+	 * compiling this file (e.g. Dataview's `dv.view()` `view.css`).
+	 */
+	compile: TStyledCompilerStep = (file: PublishFile, styles?: string[]) => {
 		return async (text: string) => {
 			let compiledText = text;
 
@@ -29,6 +33,7 @@ export class PluginCompiler {
 			const context: CompileContext = {
 				app: this.app,
 				file,
+				styles,
 			};
 
 			for (const integration of enabledIntegrations) {

@@ -11,6 +11,7 @@ const SYNCER_IMPORT = '@use "./syncer";';
 export interface AssetSyncResult {
 	success: boolean;
 	filesToStage: Map<string, string>;
+	binaryFilesToStage: Map<string, ArrayBuffer>;
 	filesToDelete: string[];
 }
 
@@ -23,10 +24,14 @@ export class AssetSyncer {
 
 	async collectAssets(
 		connection: QuartzFileSource,
+		snippetFiles?: Map<string, string>,
+		snippetAssets?: Map<string, ArrayBuffer>,
+		discoveredStyles?: string[],
 	): Promise<AssetSyncResult> {
 		const result: AssetSyncResult = {
 			success: false,
 			filesToStage: new Map(),
+			binaryFilesToStage: new Map(),
 			filesToDelete: [],
 		};
 
@@ -56,12 +61,24 @@ export class AssetSyncer {
 				return result;
 			}
 
-			const scssFiles = this.getScssFiles();
+			const scssFiles = this.getScssFiles(snippetFiles, discoveredStyles);
+			const binaryFiles = this.getBinaryAssetFiles(snippetAssets);
+			const expectedFiles = new Set([
+				...scssFiles.keys(),
+				...binaryFiles.keys(),
+			]);
 
-			if (scssFiles.size > 0) {
+			result.filesToDelete = await this.collectOrphanedStyleFiles(
+				connection,
+				expectedFiles,
+			);
+
+			if (scssFiles.size > 0 || binaryFiles.size > 0) {
 				for (const [path, content] of scssFiles) {
 					result.filesToStage.set(path, content);
 				}
+
+				result.binaryFilesToStage = binaryFiles;
 
 				const customScssUpdate =
 					await this.getCustomScssUpdate(connection);
@@ -90,6 +107,35 @@ export class AssetSyncer {
 		return result;
 	}
 
+	/**
+	 * Finds files already staged in the syncer directory that are no longer
+	 * produced this run (e.g. a deselected snippet, a disabled integration,
+	 * or a stale file left behind by a previous filename/extension scheme).
+	 */
+	private async collectOrphanedStyleFiles(
+		connection: QuartzFileSource,
+		expectedFiles: Set<string>,
+	): Promise<string[]> {
+		const orphaned: string[] = [];
+
+		try {
+			const existing = await connection.listAllFiles(SYNCER_STYLES_DIR);
+
+			for (const filepath of existing) {
+				if (!expectedFiles.has(filepath)) {
+					orphaned.push(filepath);
+				}
+			}
+		} catch (error) {
+			console.debug(
+				"Could not list syncer style files for orphan cleanup",
+				error,
+			);
+		}
+
+		return orphaned;
+	}
+
 	private async collectCleanup(connection: QuartzFileSource): Promise<{
 		filesToDelete: string[];
 		customScssUpdate: string | null;
@@ -98,12 +144,8 @@ export class AssetSyncer {
 		let customScssUpdate: string | null = null;
 
 		try {
-			const entries = await connection.listDirectory(SYNCER_STYLES_DIR);
-
-			for (const entry of entries) {
-				if (entry.type !== "blob") continue;
-				filesToDelete.push(`${SYNCER_STYLES_DIR}/${entry.name}`);
-			}
+			const entries = await connection.listAllFiles(SYNCER_STYLES_DIR);
+			filesToDelete.push(...entries);
 		} catch (error) {
 			console.debug(
 				"Could not list syncer style files for cleanup",
@@ -180,7 +222,18 @@ export class AssetSyncer {
 		return content.replace(importPattern, "\n").replace(/^\n+/, "");
 	}
 
-	getScssFiles(): Map<string, string> {
+	/**
+	 * Builds the SCSS files to stage: known-integration styles plus any
+	 * pre-resolved Obsidian CSS snippets (read from the vault by the caller,
+	 * since this class only has access to the Quartz repo, not the vault),
+	 * plus CSS discovered dynamically while compiling notes — content that
+	 * isn't tied to a fixed integration stylesheet because it varies per
+	 * note (e.g. Dataview's `dv.view()` folder-based `view.css`).
+	 */
+	getScssFiles(
+		snippetFiles?: Map<string, string>,
+		discoveredStyles?: string[],
+	): Map<string, string> {
 		const files = new Map<string, string>();
 		const assets = integrationRegistry.getCollectedAssets(this.settings);
 		const indexImports: string[] = [];
@@ -194,6 +247,22 @@ export class AssetSyncer {
 			}
 		}
 
+		if (this.settings.useCssSnippets && snippetFiles) {
+			for (const [fileName, content] of snippetFiles) {
+				const baseName = fileName.replace(/\.css$/, "");
+				const filepath = `${SYNCER_STYLES_DIR}/_${baseName}.scss`;
+				files.set(filepath, content);
+				indexImports.push(`@use "./${baseName}";`);
+			}
+		}
+
+		if (discoveredStyles && discoveredStyles.length > 0) {
+			const uniqueStyles = Array.from(new Set(discoveredStyles));
+			const filepath = `${SYNCER_STYLES_DIR}/_discovered-styles.scss`;
+			files.set(filepath, uniqueStyles.join("\n\n"));
+			indexImports.push('@use "./discovered-styles";');
+		}
+
 		if (indexImports.length > 0) {
 			const indexContent = `// Quartz Syncer Integration Styles
 // This file is auto-generated. Do not edit manually.
@@ -201,6 +270,25 @@ export class AssetSyncer {
 ${indexImports.join("\n")}
 `;
 			files.set(`${SYNCER_STYLES_DIR}/${INDEX_FILE}`, indexContent);
+		}
+
+		return files;
+	}
+
+	/**
+	 * Maps resolved binary snippet assets (e.g. fonts referenced by url() in
+	 * a snippet's CSS) to their staged repo paths, preserving the relative
+	 * path they were referenced by so the copied CSS needs no rewriting.
+	 */
+	private getBinaryAssetFiles(
+		snippetAssets?: Map<string, ArrayBuffer>,
+	): Map<string, ArrayBuffer> {
+		const files = new Map<string, ArrayBuffer>();
+
+		if (this.settings.useCssSnippets && snippetAssets) {
+			for (const [relativePath, data] of snippetAssets) {
+				files.set(`${SYNCER_STYLES_DIR}/${relativePath}`, data);
+			}
 		}
 
 		return files;

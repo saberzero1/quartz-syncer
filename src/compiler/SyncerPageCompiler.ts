@@ -40,6 +40,12 @@ export interface Asset {
  */
 export interface Assets {
 	blobs: Array<Asset>;
+	/**
+	 * CSS discovered while compiling this file that isn't tied to a fixed
+	 * integration stylesheet (e.g. Dataview's `dv.view()` folder-based
+	 * `view.css`, which htmlToMarkdown would otherwise discard).
+	 */
+	styles?: string[];
 }
 
 /**
@@ -60,6 +66,23 @@ export type TCompiledFile = [string, Assets];
  */
 export type TCompilerStep = (
 	publishFile: PublishFile,
+) =>
+	| ((partiallyCompiledContent: string) => Promise<string>)
+	| ((partiallyCompiledContent: string) => string);
+
+/**
+ * Like TCompilerStep, but also accepts a mutable collector for CSS
+ * discovered while compiling an integration's output (e.g. Dataview's
+ * `dv.view()` folder-based `view.css`), which would otherwise be lost
+ * when that output is converted to Markdown.
+ *
+ * @param publishFile - The file that is being published.
+ * @param styles - Mutable collector for discovered CSS.
+ * @returns A function that takes the partially compiled content and returns the compiled content.
+ */
+export type TStyledCompilerStep = (
+	publishFile: PublishFile,
+	styles?: string[],
 ) =>
 	| ((partiallyCompiledContent: string) => Promise<string>)
 	| ((partiallyCompiledContent: string) => string);
@@ -160,10 +183,14 @@ export class SyncerPageCompiler {
 			return [vaultFileText, { blobs }];
 		}
 
+		// Local to this call so concurrent compiles of other files (sharing
+		// this SyncerPageCompiler instance) never cross-contaminate.
+		const collectedStyles: string[] = [];
+
 		// ORDER MATTERS!
 		const COMPILE_STEPS: TCompilerStep[] = [
 			this.convertFrontMatter,
-			this.convertIntegrations,
+			this.convertIntegrations(collectedStyles),
 			this.linkTargeting,
 			this.astTransform,
 		];
@@ -175,7 +202,15 @@ export class SyncerPageCompiler {
 
 		const [text, blobs] = await this.convertFileLinks(file)(compiledText);
 
-		return [SyncerPageCompiler.escapeTableWikilinks(text), { blobs }];
+		return [
+			SyncerPageCompiler.escapeTableWikilinks(text),
+			{
+				blobs,
+				...(collectedStyles.length > 0
+					? { styles: collectedStyles }
+					: {}),
+			},
+		];
 	}
 
 	private stripVaultPath(text: string): string {
@@ -271,15 +306,18 @@ export class SyncerPageCompiler {
 	/**
 	 * Converts plugin integrations in the text to their results.
 	 *
-	 * @returns A function that takes the text to compile and returns the compiled text.
+	 * @param styles - Mutable collector for CSS discovered by integrations
+	 * while compiling this file (e.g. Dataview's `dv.view()` `view.css`).
+	 * @returns A compiler step that takes the text to compile and returns the compiled text.
 	 */
-	convertIntegrations: TCompilerStep = (file) => async (text) => {
-		const pluginCompiler = new PluginCompiler(this.app, this.settings);
+	convertIntegrations =
+		(styles: string[]): TCompilerStep =>
+		(file) =>
+		async (text) => {
+			const pluginCompiler = new PluginCompiler(this.app, this.settings);
 
-		text = await pluginCompiler.compile(file)(text);
-
-		return text;
-	};
+			return await pluginCompiler.compile(file, styles)(text);
+		};
 
 	/**
 	 * Removes the target="_blank" attribute from Dataview links in the text.

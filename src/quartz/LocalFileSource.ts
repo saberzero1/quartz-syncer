@@ -89,7 +89,8 @@ export class LocalFileSource implements QuartzFileSource {
 			const fullPath = joinPath(dirPath, entry);
 
 			if (!this.isDirectory(fullPath)) {
-				files.push(basePath ? joinPath(basePath, entry) : entry);
+				// Repo-relative paths must stay forward-slash even on Windows.
+				files.push(basePath ? `${basePath}/${entry}` : entry);
 			}
 		}
 

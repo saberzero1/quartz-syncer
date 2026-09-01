@@ -22,6 +22,8 @@ import { DataStore } from "src/cache/DataStore";
 import { Publisher } from "src/publisher/Publisher";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import { LocalPublishBackend } from "src/publisher/LocalPublishBackend";
+import { LocalFileSource } from "src/quartz/LocalFileSource";
+import { RemoteFileSource } from "src/quartz/RemoteFileSource";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { BackgroundEngine } from "src/services/BackgroundEngine";
 import { ProcessRunner } from "src/process/ProcessRunner";
@@ -92,6 +94,7 @@ export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	/** Performance settings */
 	useCache: true,
 	autoCleanOrphanedMedia: false,
+	ignoredFolders: [],
 	syncCache: true,
 	persistCache: false,
 	cacheTimestamp: 0,
@@ -149,6 +152,9 @@ export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	 * Canvas documentation: {@link https://jsoncanvas.org/}
 	 */
 	useCanvas: false,
+
+	useCssSnippets: false,
+	copyCssSnippets: [],
 
 	manageSyncerStyles: true,
 
@@ -595,6 +601,7 @@ export default class QuartzSyncer extends Plugin {
 			const backend = new LocalPublishBackend(
 				this.settings.quartzRepoPath,
 			);
+			const fileSource = new LocalFileSource(this.settings.quartzRepoPath);
 
 			this.publisher = new Publisher(
 				this.app,
@@ -604,6 +611,7 @@ export default class QuartzSyncer extends Plugin {
 				this.dataStore,
 				this.backgroundEngine?.compilationQueue,
 				this.eventSink ?? undefined,
+				fileSource,
 			);
 
 			return this.publisher;
@@ -633,6 +641,10 @@ export default class QuartzSyncer extends Plugin {
 				this.app.vault.getName(),
 				this.manifest.id,
 			);
+			const fileSource = new RemoteFileSource(
+				gitBackend,
+				this.settings.gitBranch,
+			);
 
 			this.publisher = new Publisher(
 				this.app,
@@ -642,6 +654,7 @@ export default class QuartzSyncer extends Plugin {
 				this.dataStore,
 				this.backgroundEngine?.compilationQueue,
 				this.eventSink ?? undefined,
+				fileSource,
 			);
 
 			if (this.settings.remoteFetchInterval > 0) {

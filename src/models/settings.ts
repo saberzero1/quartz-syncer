@@ -127,6 +127,8 @@ export default interface QuartzSyncerSettings {
 	useCache: boolean;
 	/** Automatically remove orphaned media after publishing */
 	autoCleanOrphanedMedia: boolean;
+	/** Vault folder paths excluded from publish scanning and the Publication Center */
+	ignoredFolders: string[];
 	/**
 	 * @deprecated Deprecated in 2.0. Removed in 2.1.
 	 */
@@ -190,6 +192,17 @@ export default interface QuartzSyncerSettings {
 	 * Canvas documentation: {@link https://jsoncanvas.org/}
 	 */
 	useCanvas: boolean;
+
+	/**
+	 * Enable Obsidian CSS Snippets integration.
+	 * This will copy the selected CSS snippets from the
+	 * <vault>/.obsidian/snippets folder to the Quartz ensuring the styles work.
+	 */
+	useCssSnippets: boolean;
+	/**
+	 * Filenames (including `.css`) of snippets to copy to Quartz.
+	 */
+	copyCssSnippets: string[];
 
 	/** Manage integration styles in Quartz (writes SCSS files and updates custom.scss) */
 	manageSyncerStyles: boolean;
