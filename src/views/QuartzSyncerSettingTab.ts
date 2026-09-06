@@ -20,11 +20,7 @@ import { OnboardingWizard } from "src/views/OnboardingWizard/OnboardingWizard";
 import { QuartzSettingsPage } from "src/views/settings/QuartzSettingsPage";
 
 type PluginUpdateState =
-	| "not-checked"
-	| "checking"
-	| "failed"
-	| "v5-required"
-	| "complete";
+	"not-checked" | "checking" | "failed" | "v5-required" | "complete";
 
 type PluginUpdateCache = {
 	state: PluginUpdateState;

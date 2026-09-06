@@ -14,6 +14,9 @@ const createPluginStub = (): QuartzSyncer => {
 			dropFile: vi.fn().mockResolvedValue(undefined),
 			isLocalFileOutdated: vi.fn().mockResolvedValue(true),
 			hasDynamicContentFlag: vi.fn().mockResolvedValue(false),
+			getDynamicContentPaths: vi
+				.fn()
+				.mockResolvedValue(new Set<string>()),
 			loadCompilationRevisions: vi.fn().mockResolvedValue({}),
 			storeCompilationRevisions: vi.fn().mockResolvedValue(undefined),
 		},
@@ -22,6 +25,7 @@ const createPluginStub = (): QuartzSyncer => {
 			markStaleFile: vi.fn(),
 			invalidate: vi.fn(),
 			clearDiffCache: vi.fn(),
+			getSummary: vi.fn().mockReturnValue(null),
 		},
 		cacheHandle: null,
 	} as unknown as QuartzSyncer;
@@ -49,6 +53,9 @@ const createAutoPublishPluginStub = (
 			dropFile: vi.fn().mockResolvedValue(undefined),
 			isLocalFileOutdated: vi.fn().mockResolvedValue(true),
 			hasDynamicContentFlag: vi.fn().mockResolvedValue(false),
+			getDynamicContentPaths: vi
+				.fn()
+				.mockResolvedValue(new Set<string>()),
 			loadCompilationRevisions: vi.fn().mockResolvedValue({}),
 			storeCompilationRevisions: vi.fn().mockResolvedValue(undefined),
 		},
@@ -57,6 +64,7 @@ const createAutoPublishPluginStub = (
 			markStaleFile: vi.fn(),
 			invalidate: vi.fn(),
 			clearDiffCache: vi.fn(),
+			getSummary: vi.fn().mockReturnValue(null),
 		},
 		cacheHandle: null,
 	} as unknown as QuartzSyncer;
@@ -547,6 +555,126 @@ describe("BackgroundEngine", () => {
 		expect(plugin.statusCache.markStaleFile).toHaveBeenCalledWith(
 			"notes/new-name.md",
 		);
+		vi.useRealTimers();
+	});
+
+	it("does not enqueue anything into the compilation queue when useCache is false", () => {
+		vi.useFakeTimers();
+		const app = createApp([
+			createFile("notes/a.md", 1000),
+			createFile("notes/b.md", 1000),
+		]);
+		const plugin = createAutoPublishPluginStub();
+		plugin.settings = { ...plugin.settings, useCache: false };
+		const engine = new BackgroundEngine(app, plugin);
+		const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
+
+		engine.start();
+		vi.advanceTimersByTime(40_001);
+
+		expect(enqueueSpy).not.toHaveBeenCalled();
+		expect(engine.compilationQueue.pendingCount).toBe(0);
+		vi.useRealTimers();
+	});
+
+	it("does not call dataStore.dropFile per-file during startup when useCache is false", () => {
+		vi.useFakeTimers();
+		const files = [
+			createFile("notes/a.md", 1000),
+			createFile("notes/b.md", 1000),
+		];
+		const app = createApp(files);
+		const plugin = createAutoPublishPluginStub();
+		plugin.settings = { ...plugin.settings, useCache: false };
+
+		const engine = new BackgroundEngine(app, plugin);
+		engine.start();
+		vi.advanceTimersByTime(40_001);
+
+		expect(plugin.dataStore.dropFile).not.toHaveBeenCalled();
+		vi.useRealTimers();
+	});
+
+	it("does not call hasDynamicContentFlag when useCache is false and a dataview-like event would fire", async () => {
+		vi.useFakeTimers();
+		const app = createApp();
+		const plugin = createAutoPublishPluginStub();
+		plugin.settings = { ...plugin.settings, useCache: false };
+
+		const engine = new BackgroundEngine(app, plugin);
+		engine.start();
+		vi.advanceTimersByTime(40_001);
+
+		await vi.runAllTimersAsync();
+
+		expect(plugin.dataStore.hasDynamicContentFlag).not.toHaveBeenCalled();
+		vi.useRealTimers();
+	});
+
+	it("does not call vault.getMarkdownFiles during the dynamic-requeue path when getDynamicContentPaths returns known paths", async () => {
+		vi.useFakeTimers();
+		const app = createApp();
+		const plugin = createAutoPublishPluginStub();
+		plugin.settings = { ...plugin.settings, useCache: true };
+
+		const knownDynamicPaths = new Set(["notes/dynamic.md"]);
+		plugin.dataStore.getDynamicContentPaths = vi
+			.fn()
+			.mockResolvedValue(knownDynamicPaths);
+
+		const engine = new BackgroundEngine(app, plugin);
+
+		const getMarkdownSpy = vi.spyOn(app.vault, "getMarkdownFiles");
+
+		await vi.runAllTimersAsync();
+
+		expect(getMarkdownSpy).not.toHaveBeenCalled();
+		vi.useRealTimers();
+	});
+
+	it("prewarm enqueues only publishable candidates when useCache is true", () => {
+		vi.useFakeTimers();
+
+		const publishedFile = createFile("notes/published.md", 1000);
+		const draftFile = createFile("notes/draft.md", 2000);
+		const app = createApp([publishedFile, draftFile]);
+
+		const vaultStub = app.vault as typeof app.vault & {
+			getMarkdownFiles?: () => ReturnType<typeof createFile>[];
+			getFiles?: () => ReturnType<typeof createFile>[];
+		};
+		vaultStub.getMarkdownFiles = vi
+			.fn()
+			.mockReturnValue([publishedFile, draftFile]);
+		vaultStub.getFiles = vi
+			.fn()
+			.mockReturnValue([publishedFile, draftFile]);
+
+		const metaStub = app.metadataCache as typeof app.metadataCache & {
+			getFileCache?: (
+				file: TFile,
+			) => { frontmatter: Record<string, unknown> } | null;
+		};
+		metaStub.getFileCache = vi
+			.fn()
+			.mockImplementation((file: TFile) =>
+				file.path === "notes/published.md"
+					? { frontmatter: { publish: true } }
+					: null,
+			);
+
+		const plugin = createAutoPublishPluginStub();
+		plugin.settings = { ...plugin.settings, useCache: true };
+
+		const engine = new BackgroundEngine(app, plugin);
+		const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
+
+		engine.compilationQueue.pause();
+		engine.start();
+		vi.advanceTimersByTime(40_001);
+
+		const enqueued = enqueueSpy.mock.calls.map((c) => c[0]);
+		expect(enqueued).not.toContain("notes/draft.md");
 		vi.useRealTimers();
 	});
 });

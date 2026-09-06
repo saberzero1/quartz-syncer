@@ -40,11 +40,7 @@ export type QuartzPluginSource = string | QuartzPluginObjectSource;
 
 /** Valid layout positions for component-providing plugins. */
 export type QuartzLayoutPosition =
-	| "left"
-	| "right"
-	| "beforeBody"
-	| "afterBody"
-	| "body";
+	"left" | "right" | "beforeBody" | "afterBody" | "body";
 
 /** Display modifier controlling viewport visibility. */
 export type QuartzDisplayMode = "all" | "mobile-only" | "desktop-only";
@@ -93,10 +89,7 @@ export interface QuartzPluginEntry {
 
 /** Flex direction for layout groups. */
 export type QuartzFlexDirection =
-	| "row"
-	| "row-reverse"
-	| "column"
-	| "column-reverse";
+	"row" | "row-reverse" | "column" | "column-reverse";
 
 /** Flex wrap for layout groups. */
 export type QuartzFlexWrap = "nowrap" | "wrap" | "wrap-reverse";
@@ -121,12 +114,7 @@ export interface QuartzPageTypeOverride {
 
 /** Valid page type identifiers for layout overrides. */
 export type QuartzPageType =
-	| "content"
-	| "folder"
-	| "tag"
-	| "canvas"
-	| "bases"
-	| "404";
+	"content" | "folder" | "tag" | "canvas" | "bases" | "404";
 
 /** Global layout configuration. */
 export interface QuartzGlobalLayout {
@@ -246,11 +234,7 @@ export interface QuartzManifestFrame {
 
 /** Plugin category. */
 export type QuartzPluginCategory =
-	| "transformer"
-	| "filter"
-	| "emitter"
-	| "pageType"
-	| "component";
+	"transformer" | "filter" | "emitter" | "pageType" | "component";
 
 /** The `quartz` field from a plugin's `package.json`. */
 export interface QuartzPluginManifest {

@@ -199,6 +199,7 @@ export default class QuartzSyncer extends Plugin {
 	statusCache = new StatusCacheService("", "");
 	pluginRegistry = new QuartzPluginRegistry();
 	hubDetectionCache = new HubDetectionCache();
+	private lastUseCache: boolean | null = null;
 
 	async onload() {
 		this.appVersion = this.manifest.version;
@@ -545,6 +546,21 @@ export default class QuartzSyncer extends Plugin {
 		this.invalidateCachedInstances();
 		this.statusCache?.invalidate();
 		this.hubDetectionCache.clear();
+		this.clearCacheOnDisable();
+	}
+
+	private clearCacheOnDisable(): void {
+		const wasEnabled = this.lastUseCache;
+		this.lastUseCache = this.settings.useCache;
+
+		if (wasEnabled !== true || this.settings.useCache) return;
+
+		// Cache validity keys on plugin version and mtime, not on compilation
+		// settings, so entries left behind here would be served again if the
+		// cache is re-enabled after unrelated settings changed.
+		void this.dataStore?.dropAllFiles().catch((error) => {
+			console.debug("Failed to clear cache after disabling it:", error);
+		});
 	}
 
 	getSecretStorageService(): SecretStorageService {

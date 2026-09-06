@@ -5,7 +5,8 @@ import type { FileChange } from "src/git/types";
 import type { PublishBackend } from "src/publisher/PublishBackend";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import { PathMapper } from "src/git/PathMapper";
-import { getSpecialFileType, PublishFile } from "src/publishFile/PublishFile";
+import { PublishFile } from "src/publishFile/PublishFile";
+import { collectCandidatePaths } from "src/publishFile/PublishCandidates";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { DataStore } from "src/cache/DataStore";
 import type {
@@ -69,44 +70,14 @@ export class Publisher {
 	}
 
 	private collectCandidates(settings: QuartzSyncerSettings): PublishFile[] {
-		const vaultFiles = this.app.vault.getFiles();
 		const publishFiles: PublishFile[] = [];
-
-		const extCache = this.plugin.cacheHandle?.api;
 		const useAllDefault = settings.allNotesPublishableByDefault;
 
-		// Determine candidate file paths.
-		// When allNotesPublishableByDefault is true, ALL vault files are
-		// candidates — matching the current Validator.ts behavior where
-		// override=true bypasses the frontmatter check entirely.
-		// The fast-path (inverse-index lookup) only applies when
-		// allNotesPublishableByDefault is false (the default).
-		let candidatePaths: Set<string>;
-
-		if (useAllDefault) {
-			candidatePaths = new Set(vaultFiles.map((f) => f.path));
-		} else if (extCache?.isReady) {
-			candidatePaths = new Set(
-				extCache.getFilesWithFrontmatterValue(
-					settings.publishFrontmatterKey,
-					true,
-				),
-			);
-
-			for (const f of vaultFiles) {
-				const type = getSpecialFileType(f);
-
-				if (type === "base" && settings.useBases) {
-					candidatePaths.add(f.path);
-				} else if (type === "canvas" && settings.useCanvas) {
-					candidatePaths.add(f.path);
-				} else if (type === "excalidraw" && settings.useExcalidraw) {
-					candidatePaths.add(f.path);
-				}
-			}
-		} else {
-			candidatePaths = new Set(vaultFiles.map((f) => f.path));
-		}
+		const candidatePaths = collectCandidatePaths(
+			this.app,
+			this.plugin,
+			settings,
+		);
 
 		for (const path of candidatePaths) {
 			const file = this.app.vault.getFileByPath(path);
@@ -177,6 +148,8 @@ export class Publisher {
 			const changed: PublishFile[] = [];
 			const published: PublishFile[] = [];
 
+			const remoteBacked: { file: PublishFile; sha: string }[] = [];
+
 			for (const file of candidates) {
 				const vaultPath = file.getVaultPath();
 				const repoPath = this.pathMapper.toRepoPath(vaultPath);
@@ -187,19 +160,38 @@ export class Publisher {
 					continue;
 				}
 
-				const localHash = settings.useCache
-					? await this.dataStore.loadLocalHash(
-							file.file.path,
-							file.file.stat.mtime,
-						)
-					: await this.compileAndHashSingle(file);
+				remoteBacked.push({ file, sha: remote.sha });
+			}
 
-				if (localHash && localHash === remote.sha) {
+			// Uncached status has to compile each note to hash its output, so
+			// keep concurrency low; cached lookups are cheap IndexedDB reads.
+			const hashConcurrency = settings.useCache
+				? 5
+				: Platform.isMobileApp
+					? 1
+					: 2;
+
+			const hashes = await batchParallel(
+				remoteBacked,
+				async ({ file }) =>
+					settings.useCache
+						? await this.dataStore.loadLocalHash(
+								file.file.path,
+								file.file.stat.mtime,
+							)
+						: await this.compileAndHashSingle(file),
+				hashConcurrency,
+			);
+
+			remoteBacked.forEach(({ file, sha }, index) => {
+				const localHash = hashes[index];
+
+				if (localHash && localHash === sha) {
 					published.push(file);
 				} else {
 					changed.push(file);
 				}
-			}
+			});
 
 			const linkedMedia = await resolveLinkedMedia(candidates);
 			const { deleted, media } = classifyRemoteOnly(

@@ -746,4 +746,287 @@ describe("Publisher", () => {
 			true,
 		);
 	});
+
+	it("getPublishStatus classifies published vs changed correctly with useCache true", async () => {
+		const app = new App();
+		const settings = makeSettings({ useCache: true });
+		const plugin = makePlugin(settings);
+
+		const gitBackend = makeGitBackend({
+			readTree: vi.fn().mockResolvedValue([
+				{ path: "content/notes/a.md", type: "blob", sha: "hash-a" },
+				{ path: "content/notes/b.md", type: "blob", sha: "hash-b" },
+			]),
+		});
+		const compiler = {} as SyncerPageCompiler;
+
+		const dataStore = {
+			preloadCache: vi.fn().mockResolvedValue(undefined),
+			flushCache: vi.fn().mockResolvedValue(undefined),
+			clearMemoryCache: vi.fn(),
+			loadLocalHash: vi.fn().mockImplementation((path: string) => {
+				if (path === "notes/a.md") return Promise.resolve("hash-a");
+				if (path === "notes/b.md")
+					return Promise.resolve("hash-different");
+				return Promise.resolve(null);
+			}),
+			loadMediaLinks: vi.fn().mockResolvedValue([]),
+		} as unknown as DataStore;
+
+		const metaStub = app.metadataCache as typeof app.metadataCache & {
+			getCache?: (path: string) => {
+				frontmatter: Record<string, unknown>;
+			};
+			getFileCache?: (
+				file: import("obsidian").TFile,
+			) => { frontmatter: Record<string, unknown> } | null;
+		};
+		metaStub.getCache = vi
+			.fn()
+			.mockReturnValue({ frontmatter: { publish: true } });
+		metaStub.getFileCache = vi
+			.fn()
+			.mockReturnValue({ frontmatter: { publish: true } });
+
+		const vaultStub = app.vault as typeof app.vault & {
+			getFiles?: () => Array<{
+				path: string;
+				name: string;
+				extension: string;
+				stat: { mtime: number };
+			}>;
+			getMarkdownFiles?: () => Array<{
+				path: string;
+				name: string;
+				extension: string;
+				stat: { mtime: number };
+			}>;
+			getFileByPath?: (path: string) => import("obsidian").TFile | null;
+		};
+		const files = [
+			{
+				path: "notes/a.md",
+				name: "a.md",
+				extension: "md",
+				stat: { mtime: 1000 },
+			},
+			{
+				path: "notes/b.md",
+				name: "b.md",
+				extension: "md",
+				stat: { mtime: 1000 },
+			},
+		];
+		vaultStub.getFiles = vi.fn().mockReturnValue(files);
+		vaultStub.getMarkdownFiles = vi.fn().mockReturnValue(files);
+		vaultStub.getFileByPath = vi
+			.fn()
+			.mockImplementation(
+				(path: string) => files.find((f) => f.path === path) ?? null,
+			);
+
+		vi.mocked(resolveLinkedMedia).mockResolvedValue(new Set());
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		const status = await publisher.getPublishStatus();
+
+		const publishedPaths = status.published.map((f) => f.file.path);
+		const changedPaths = status.changed.map((f) => f.file.path);
+
+		expect(publishedPaths).toContain("notes/a.md");
+		expect(changedPaths).toContain("notes/b.md");
+		expect(status.unpublished).toHaveLength(0);
+	});
+
+	it("getPublishStatus puts files without remote counterpart into unpublished with useCache false", async () => {
+		const app = new App();
+		const settings = makeSettings({ useCache: false });
+		const plugin = makePlugin(settings);
+
+		const gitBackend = makeGitBackend({
+			readTree: vi.fn().mockResolvedValue([]),
+		});
+		const compiler = {
+			generateMarkdown: vi
+				.fn()
+				.mockResolvedValue(["compiled", { blobs: [] }]),
+		} as unknown as SyncerPageCompiler;
+
+		const dataStore = {
+			preloadCache: vi.fn().mockResolvedValue(undefined),
+			flushCache: vi.fn().mockResolvedValue(undefined),
+			clearMemoryCache: vi.fn(),
+			loadLocalHash: vi.fn(),
+			loadMediaLinks: vi.fn().mockResolvedValue([]),
+		} as unknown as DataStore;
+
+		const metaStub = app.metadataCache as typeof app.metadataCache & {
+			getCache?: (path: string) => {
+				frontmatter: Record<string, unknown>;
+			};
+			getFileCache?: (
+				file: import("obsidian").TFile,
+			) => { frontmatter: Record<string, unknown> } | null;
+		};
+		metaStub.getCache = vi
+			.fn()
+			.mockReturnValue({ frontmatter: { publish: true } });
+		metaStub.getFileCache = vi
+			.fn()
+			.mockReturnValue({ frontmatter: { publish: true } });
+
+		const vaultStub = app.vault as typeof app.vault & {
+			getFiles?: () => Array<{
+				path: string;
+				name: string;
+				extension: string;
+				stat: { mtime: number };
+			}>;
+			getMarkdownFiles?: () => Array<{
+				path: string;
+				name: string;
+				extension: string;
+				stat: { mtime: number };
+			}>;
+			getFileByPath?: (path: string) => import("obsidian").TFile | null;
+		};
+		const files = [
+			{
+				path: "notes/new.md",
+				name: "new.md",
+				extension: "md",
+				stat: { mtime: 1000 },
+			},
+		];
+		vaultStub.getFiles = vi.fn().mockReturnValue(files);
+		vaultStub.getMarkdownFiles = vi.fn().mockReturnValue(files);
+		vaultStub.getFileByPath = vi
+			.fn()
+			.mockImplementation(
+				(path: string) => files.find((f) => f.path === path) ?? null,
+			);
+
+		vi.mocked(resolveLinkedMedia).mockResolvedValue(new Set());
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		const status = await publisher.getPublishStatus();
+
+		const unpublishedPaths = status.unpublished.map((f) => f.file.path);
+		expect(unpublishedPaths).toContain("notes/new.md");
+		expect(dataStore.loadLocalHash).not.toHaveBeenCalled();
+	});
+
+	it("getPublishStatus with useCache false does not read hashes from dataStore.loadLocalHash for remote-backed files", async () => {
+		const app = new App();
+		const settings = makeSettings({ useCache: false });
+		const plugin = makePlugin(settings);
+
+		const gitBackend = makeGitBackend({
+			readTree: vi
+				.fn()
+				.mockResolvedValue([
+					{
+						path: "content/notes/a.md",
+						type: "blob",
+						sha: "remote-hash",
+					},
+				]),
+		});
+
+		const loadLocalHashSpy = vi.fn();
+		const dataStore = {
+			preloadCache: vi.fn().mockResolvedValue(undefined),
+			flushCache: vi.fn().mockResolvedValue(undefined),
+			clearMemoryCache: vi.fn(),
+			loadLocalHash: loadLocalHashSpy,
+			loadLocalFile: vi.fn().mockResolvedValue(null),
+			storeLocalFile: vi.fn().mockResolvedValue(undefined),
+			storeLocalHash: vi.fn().mockResolvedValue(undefined),
+			isLocalFileOutdated: vi.fn().mockResolvedValue(true),
+			loadMediaLinks: vi.fn().mockResolvedValue([]),
+		} as unknown as DataStore;
+
+		const compiler = {
+			generateMarkdown: vi
+				.fn()
+				.mockResolvedValue(["compiled-text", { blobs: [] }]),
+		} as unknown as SyncerPageCompiler;
+
+		const metaStub = app.metadataCache as typeof app.metadataCache & {
+			getCache?: (path: string) => {
+				frontmatter: Record<string, unknown>;
+			};
+			getFileCache?: (
+				file: import("obsidian").TFile,
+			) => { frontmatter: Record<string, unknown> } | null;
+		};
+		metaStub.getCache = vi
+			.fn()
+			.mockReturnValue({ frontmatter: { publish: true } });
+		metaStub.getFileCache = vi
+			.fn()
+			.mockReturnValue({ frontmatter: { publish: true } });
+
+		const vaultStub = app.vault as typeof app.vault & {
+			getFiles?: () => Array<{
+				path: string;
+				name: string;
+				extension: string;
+				stat: { mtime: number };
+			}>;
+			getMarkdownFiles?: () => Array<{
+				path: string;
+				name: string;
+				extension: string;
+				stat: { mtime: number };
+			}>;
+			getFileByPath?: (path: string) => import("obsidian").TFile | null;
+		};
+		const files = [
+			{
+				path: "notes/a.md",
+				name: "a.md",
+				extension: "md",
+				stat: { mtime: 1000 },
+			},
+		];
+		vaultStub.getFiles = vi.fn().mockReturnValue(files);
+		vaultStub.getMarkdownFiles = vi.fn().mockReturnValue(files);
+		vaultStub.getFileByPath = vi
+			.fn()
+			.mockImplementation(
+				(path: string) => files.find((f) => f.path === path) ?? null,
+			);
+
+		vi.mocked(resolveLinkedMedia).mockResolvedValue(new Set());
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		await publisher.getPublishStatus();
+
+		expect(loadLocalHashSpy).not.toHaveBeenCalled();
+	});
 });

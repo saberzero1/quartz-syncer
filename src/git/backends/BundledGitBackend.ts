@@ -173,8 +173,7 @@ export class BundledGitBackend implements GitBackend {
 			...this.networkOptions(),
 		});
 		const refs = info.refs as
-			| { heads?: Record<string, string> }
-			| undefined;
+			{ heads?: Record<string, string> } | undefined;
 		return {
 			capabilities: info.capabilities ? [...info.capabilities] : [],
 			refs: refs?.heads,
@@ -293,6 +292,9 @@ export class BundledGitBackend implements GitBackend {
 		if (!this.initialized) {
 			const hasRepo = await this.pathExists(`${this.dir}/.git`);
 			if (!hasRepo) {
+				// Skip materializing the working tree: reads go through
+				// readTree/readBlob (object-level), and both write paths call
+				// resetToCommit(), which checks out before staging.
 				await git.clone({
 					fs: this.fs,
 					dir: this.dir,
@@ -300,7 +302,7 @@ export class BundledGitBackend implements GitBackend {
 					ref: branch,
 					singleBranch: true,
 					depth: 1,
-					noCheckout: false,
+					noCheckout: true,
 					...this.networkOptions(),
 				});
 				this.initialized = true;

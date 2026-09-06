@@ -276,6 +276,36 @@ export class DataStore {
 	}
 
 	/**
+	 * Collect every cached path flagged as containing dynamic content.
+	 *
+	 * Single cursor pass, not one round-trip per path: callers hold the result
+	 * in memory rather than probing IndexedDB for never-flagged files.
+	 *
+	 * @returns A promise that resolves to the set of vault paths with dynamic content.
+	 */
+	public async getDynamicContentPaths(): Promise<Set<string>> {
+		const paths = new Set<string>();
+
+		if (this.memoryCache) {
+			for (const [key, value] of this.memoryCache) {
+				if (!key.startsWith("file:")) continue;
+				if (value.hasDynamicContent) paths.add(key.substring(5));
+			}
+
+			return paths;
+		}
+
+		await this.persister.iterate<QuartzSyncerCache>(
+			(value: QuartzSyncerCache, key: string) => {
+				if (!key.startsWith("file:")) return;
+				if (value?.hasDynamicContent) paths.add(key.substring(5));
+			},
+		);
+
+		return paths;
+	}
+
+	/**
 	 * Check if the remote file is outdated compared to the current version.
 	 *
 	 * @param path - The file path to check for outdated status.

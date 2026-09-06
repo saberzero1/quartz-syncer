@@ -32,8 +32,7 @@ export class FileMetadataManager {
 
 		for (const key of createdKeys) {
 			const customCreatedDate = this.frontmatter[key.trim()] as
-				| string
-				| undefined;
+				string | undefined;
 
 			if (customCreatedDate) {
 				return customCreatedDate;
@@ -55,8 +54,7 @@ export class FileMetadataManager {
 
 		for (const key of updatedKeys) {
 			const customUpdatedDate = this.frontmatter[key.trim()] as
-				| string
-				| undefined;
+				string | undefined;
 
 			if (customUpdatedDate) {
 				return customUpdatedDate;
@@ -78,8 +76,7 @@ export class FileMetadataManager {
 
 		for (const key of publishedKeys) {
 			const customPublishedDate = this.frontmatter[key.trim()] as
-				| string
-				| undefined;
+				string | undefined;
 
 			if (customPublishedDate) {
 				return customPublishedDate;
