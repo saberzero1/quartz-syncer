@@ -1,4 +1,30 @@
-import { shouldShowMigrationNotice } from "src/views/MigrationNotice";
+import { App } from "obsidian";
+import {
+	MigrationNotice,
+	shouldShowMigrationNotice,
+} from "src/views/MigrationNotice";
+
+describe("MigrationNotice", () => {
+	it("explains v4 publishing support without offering database cleanup", () => {
+		const modal = new MigrationNotice(new App());
+		modal.onOpen();
+
+		expect(modal.titleEl.setText).toHaveBeenCalledWith(
+			"Welcome to Quartz Syncer v2",
+		);
+		expect(modal.contentEl.createEl).toHaveBeenCalledWith("p", {
+			text: "Publishing notes and media to Quartz v4 is supported and continues to work.",
+		});
+		expect(modal.contentEl.createEl).toHaveBeenCalledWith("p", {
+			text: "Quartz site management (config editing, plugin management, upgrades) requires Quartz v5.",
+		});
+		const calls = vi.mocked(modal.contentEl.createEl).mock.calls;
+		expect(calls.filter(([tag]) => tag === "button")).toEqual([
+			["button", { text: "Close", cls: "qs-migration-close-btn" }],
+		]);
+		expect(JSON.stringify(calls)).not.toContain("Clean up");
+	});
+});
 
 describe("shouldShowMigrationNotice", () => {
 	it("returns true when upgrading from v1.x to v2.x", () => {
