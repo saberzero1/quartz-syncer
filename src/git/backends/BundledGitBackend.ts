@@ -20,6 +20,9 @@ const COMMIT_AUTHOR = {
 	email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
 };
 
+// Bump to orphan every existing clone when the on-disk layout changes.
+const GIT_FS_GENERATION = 2;
+
 export class BundledGitBackend implements GitBackend {
 	private config: GitBackendConfig;
 	private fs: LightningFS;
@@ -28,10 +31,13 @@ export class BundledGitBackend implements GitBackend {
 	private dir: string;
 	private initialized = false;
 
-	constructor(config: GitBackendConfig, _app: App) {
+	constructor(config: GitBackendConfig, app: App) {
 		this.config = config;
 		this.dir = "/repo";
-		this.fs = new LightningFS(buildFsName(config.remoteUrl, config.branch));
+
+		this.fs = new LightningFS(
+			buildFsName(app.appId, config.remoteUrl, config.branch),
+		);
 		this.http = new HttpClient();
 		this.cache = {};
 	}
@@ -403,7 +409,19 @@ export class BundledGitBackend implements GitBackend {
 	}
 }
 
-function buildFsName(remoteUrl: string, branch: string): string {
+/**
+ * Build the LightningFS database name for a repository clone.
+ *
+ * IndexedDB is scoped per Obsidian installation, not per vault, so `appId` is
+ * required: without it two vaults sharing a remote and branch would share one
+ * working tree and could clobber each other's staged commits.
+ *
+ * @param appId - Obsidian's per-vault identifier.
+ * @param remoteUrl - The Git remote URL.
+ * @param branch - The Git branch name.
+ * @returns The IndexedDB database name.
+ */
+function buildFsName(appId: string, remoteUrl: string, branch: string): string {
 	let hash = 0;
 	const str = remoteUrl + branch;
 	for (let i = 0; i < str.length; i++) {
@@ -411,7 +429,8 @@ function buildFsName(remoteUrl: string, branch: string): string {
 		hash = (hash << 5) - hash + char;
 		hash = hash & hash;
 	}
-	return `quartz-syncer-${Math.abs(hash).toString(36)}`;
+
+	return `quartz-syncer-${GIT_FS_GENERATION}-${appId}-${Math.abs(hash).toString(36)}`;
 }
 
 function formatError(error: unknown): string {

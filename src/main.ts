@@ -223,10 +223,15 @@ export default class QuartzSyncer extends Plugin {
 		}
 
 		this.dataStore = new DataStore(
-			this.app.vault.getName(),
+			this.app.appId,
 			this.manifest.id,
 			this.appVersion,
 		);
+
+		void this.dataStore.dropOutdatedCache().catch((error) => {
+			console.debug("Failed to prune outdated caches:", error);
+		});
+
 		this.statusCache = new StatusCacheService(
 			this.app.vault.getName(),
 			this.manifest.id,
@@ -648,6 +653,7 @@ export default class QuartzSyncer extends Plugin {
 			backend.enableTreePersistence(
 				this.app.vault.getName(),
 				this.manifest.id,
+				this.settings.gitRemoteUrl,
 			);
 
 			this.publisher = new Publisher(

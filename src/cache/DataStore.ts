@@ -60,18 +60,24 @@ export class DataStore {
 	/**
 	 * Create a new DataStore instance for caching metadata about files and sections.
 	 *
-	 * @param vaultName - The name of the vault to use for the cache instance.
-	 * @param appId - The application ID to use for the cache instance.
-	 * @param version - The version of the application to use for the cache instance.
+	 * IndexedDB is scoped per Obsidian installation, so the vault is identified
+	 * by `appId` rather than its name: two vaults can share a folder name, and
+	 * a shared cache would serve one vault's compiled output to the other.
+	 *
+	 * @param appId - Obsidian's per-vault identifier.
+	 * @param pluginId - The plugin ID to namespace the cache under.
+	 * @param version - The plugin version the cached data was written with.
 	 */
 	public constructor(
-		public vaultName: string,
 		public appId: string,
+		public pluginId: string,
 		public version: string,
 	) {
-		this.persister = createStore(
-			`quartz-syncer/cache/${vaultName}/${appId}/${version}`,
-		);
+		this.persister = createStore(this.storeName(version));
+	}
+
+	private storeName(version: string): string {
+		return `quartz-syncer/cache/${this.appId}/${this.pluginId}/${version}`;
 	}
 
 	/**
@@ -199,8 +205,11 @@ export class DataStore {
 	 * @returns A promise that resolves when the cache is recreated.
 	 */
 	public async recreate() {
-		const storeName = `quartz-syncer/cache/${this.vaultName}/${this.appId}/${this.version}`;
-		dropStore(storeName);
+		const storeName = this.storeName(this.version);
+		this.memoryCache = null;
+		this.dirtyKeys.clear();
+		this.persister.close();
+		await dropStore(storeName);
 		await this.dropOutdatedCache();
 		this.persister = createStore(storeName);
 	}
@@ -218,20 +227,30 @@ export class DataStore {
 		const instances = await indexedDB.databases();
 
 		// Filter instances that match the current vault and app ID
+		const prefix = `quartz-syncer/cache/${this.appId}/${this.pluginId}/`;
+		const current = this.storeName(this.version);
+
 		const matchingInstances = instances.filter(
 			(instance) =>
 				instance.name &&
-				instance.name.startsWith(
-					`quartz-syncer/cache/${this.vaultName}/${this.appId}/`,
-				) &&
-				instance.name !==
-					`quartz-syncer/cache/${this.vaultName}/${this.appId}/${this.version}`,
+				instance.name.startsWith(prefix) &&
+				instance.name !== current,
 		);
 
-		// Drop each matching instance
+		// Sequential: concurrent deletions make blocked/error reporting
+		// non-deterministic, and each request must be awaited to completion.
 		for (const instance of matchingInstances) {
 			// instance.name is guaranteed to be non-null due to the filter above
-			indexedDB.deleteDatabase(instance.name!);
+			const name = instance.name!;
+
+			try {
+				await dropStore(name);
+			} catch (error) {
+				console.debug(
+					`Failed to drop outdated cache "${name}":`,
+					error,
+				);
+			}
 		}
 	}
 

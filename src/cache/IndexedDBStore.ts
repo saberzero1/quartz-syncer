@@ -4,7 +4,10 @@ export interface IndexedDBStore {
 	removeItem(key: string): Promise<void>;
 	keys(): Promise<string[]>;
 	iterate<T>(callback: (value: T, key: string) => void): Promise<void>;
+	close(): void;
 }
+
+const DELETE_BLOCKED_TIMEOUT_MS = 10_000;
 
 export function createStore(name: string): IndexedDBStore {
 	let dbPromise: Promise<IDBDatabase> | null = null;
@@ -22,6 +25,15 @@ export function createStore(name: string): IndexedDBStore {
 			};
 			request.onsuccess = () => {
 				const db = request.result;
+
+				// Without this, our own long-lived connection blocks any
+				// deleteDatabase() on this name — the request then stays
+				// pending forever rather than erroring.
+				db.onversionchange = () => {
+					db.close();
+					dbPromise = null;
+				};
+
 				if (!db.objectStoreNames.contains(STORE_NAME)) {
 					db.close();
 					const upgradeRequest = indexedDB.open(name, db.version + 1);
@@ -80,6 +92,17 @@ export function createStore(name: string): IndexedDBStore {
 			const result = await wrap(store.getAllKeys());
 			return result.map(String);
 		},
+		close(): void {
+			const pending = dbPromise;
+			dbPromise = null;
+
+			if (!pending) return;
+
+			void pending.then(
+				(db) => db.close(),
+				() => undefined,
+			);
+		},
 		async iterate<T>(
 			callback: (value: T, key: string) => void,
 		): Promise<void> {
@@ -108,6 +131,56 @@ export function createStore(name: string): IndexedDBStore {
 	};
 }
 
-export function dropStore(name: string): void {
-	indexedDB.deleteDatabase(name);
+/**
+ * Delete an IndexedDB database.
+ *
+ * A blocked request stays pending indefinitely per spec, so the timeout is the
+ * only available bound; it resolves rather than rejects because cleanup is
+ * best-effort and the deletion may still land once the blocker closes.
+ *
+ * @param name - The database name to delete.
+ * @returns A promise that settles when the deletion completes or times out.
+ */
+export function dropStore(name: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		let request: IDBOpenDBRequest;
+
+		try {
+			request = indexedDB.deleteDatabase(name);
+		} catch (error) {
+			reject(error instanceof Error ? error : new Error(String(error)));
+
+			return;
+		}
+
+		let settled = false;
+		let timer: number | null = null;
+
+		const settle = (action: () => void): void => {
+			if (settled) return;
+			settled = true;
+
+			if (timer !== null) window.clearTimeout(timer);
+			action();
+		};
+
+		request.onsuccess = () => settle(resolve);
+
+		request.onerror = () =>
+			settle(() =>
+				reject(
+					request.error ??
+						new Error(`Failed to delete database: ${name}`),
+				),
+			);
+
+		request.onblocked = () => {
+			if (settled || timer !== null) return;
+
+			timer = window.setTimeout(
+				() => settle(resolve),
+				DELETE_BLOCKED_TIMEOUT_MS,
+			);
+		};
+	});
 }

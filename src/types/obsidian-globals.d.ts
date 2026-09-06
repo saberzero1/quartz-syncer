@@ -1,3 +1,7 @@
+// Anchors the `declare module "obsidian"` augmentation (App.appId) project-wide
+// so it does not depend on an incidental import elsewhere.
+/// <reference types="obsidian-typings" />
+
 declare function createDiv(o?: DomElementInfo | string): HTMLDivElement;
 declare function createSpan(o?: DomElementInfo | string): HTMLSpanElement;
 declare function createEl<K extends keyof HTMLElementTagNameMap>(
