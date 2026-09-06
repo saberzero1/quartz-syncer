@@ -18,7 +18,11 @@ export interface GitAuth {
  * Used to provide provider-specific guidance in the settings UI.
  */
 export type GitProviderHint =
-	"github" | "gitlab" | "bitbucket" | "gitea" | "custom";
+	| "github"
+	| "gitlab"
+	| "bitbucket"
+	| "gitea"
+	| "custom";
 
 export type DiffViewStyle = "split" | "unified" | "auto";
 

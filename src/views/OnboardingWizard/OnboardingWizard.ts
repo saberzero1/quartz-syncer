@@ -90,7 +90,12 @@ Edit this note in Obsidian, then publish it with Quartz Syncer.
 `;
 
 type WizardStep =
-	"method" | "token" | "create" | "connect" | "configure" | "success";
+	| "method"
+	| "token"
+	| "create"
+	| "connect"
+	| "configure"
+	| "success";
 
 const REPO_NAME_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9._-]{0,98}[a-zA-Z0-9])?$/;
 const REPO_NAME_CHARS = /^[a-zA-Z0-9._-]+$/;

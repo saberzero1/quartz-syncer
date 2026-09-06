@@ -306,8 +306,9 @@ export class ActionRegistry {
 		}
 
 		const trimmed = path.trim();
-		const { QuartzHubService } =
-			await import("src/services/QuartzHubService");
+		const { QuartzHubService } = await import(
+			"src/services/QuartzHubService"
+		);
 		const service = new QuartzHubService(this.plugin);
 		const validation = service.validateRepoPath(trimmed);
 

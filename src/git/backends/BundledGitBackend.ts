@@ -179,7 +179,8 @@ export class BundledGitBackend implements GitBackend {
 			...this.networkOptions(),
 		});
 		const refs = info.refs as
-			{ heads?: Record<string, string> } | undefined;
+			| { heads?: Record<string, string> }
+			| undefined;
 		return {
 			capabilities: info.capabilities ? [...info.capabilities] : [],
 			refs: refs?.heads,
