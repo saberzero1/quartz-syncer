@@ -18,7 +18,7 @@ prod:
 	cp styles.css ./docs/.obsidian/plugins/quartz-syncer
 
 lint:
-	npm run format
+	npm run lint
 
 format:
     npm run format
