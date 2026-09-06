@@ -37,7 +37,8 @@ vi.mock("src/publisher/MediaLinkResolver", async (importOriginal) => {
 		// so flattenLinkedMedia() still yields the set they set up.
 		resolveLinkedMediaByFile: vi.fn(async (files: unknown) => {
 			const links = (await resolveLinkedMediaMock(files)) as
-				Set<string> | undefined;
+				| Set<string>
+				| undefined;
 
 			return links && links.size > 0
 				? new Map([["__mocked__", [...links]]])
@@ -90,6 +91,7 @@ const makeSettings = (
 	lastUpstreamCommitSha: "",
 	upgradeCheckStrategy: "version",
 	diffViewStyle: "auto",
+	diffContextLines: 3,
 	allowArbitraryFilePublishing: false,
 	arbitraryPublishPaths: [],
 	autoPublishInterval: 0,
@@ -468,13 +470,17 @@ describe("Publisher", () => {
 
 		await publisher.getPublishStatus();
 
-		expect(mockQueue.pause).toHaveBeenCalled();
-		expect(mockQueue.resume).toHaveBeenCalled();
+		expect(mockQueue.pause).toHaveBeenCalledTimes(1);
+		expect(mockQueue.resume).toHaveBeenCalledTimes(1);
 
 		const pauseOrder = mockQueue.pause.mock.invocationCallOrder[0]!;
 		const resumeOrder = mockQueue.resume.mock.invocationCallOrder[0]!;
+		const readOrder = vi.mocked(gitBackend.readTree).mock
+			.invocationCallOrder[0]!;
 
 		expect(pauseOrder).toBeLessThan(resumeOrder);
+		expect(pauseOrder).toBeLessThan(readOrder);
+		expect(readOrder).toBeLessThan(resumeOrder);
 	});
 
 	it("resumes compilationQueue even when getPublishStatus throws", async () => {
@@ -517,7 +523,16 @@ describe("Publisher", () => {
 			"network error",
 		);
 
-		expect(mockQueue.resume).toHaveBeenCalled();
+		expect(mockQueue.resume).toHaveBeenCalledTimes(1);
+		expect(mockQueue.pause).toHaveBeenCalledTimes(1);
+		const readOrder = vi.mocked(gitBackend.readTree).mock
+			.invocationCallOrder[0]!;
+		expect(mockQueue.pause.mock.invocationCallOrder[0]).toBeLessThan(
+			readOrder,
+		);
+		expect(readOrder).toBeLessThan(
+			mockQueue.resume.mock.invocationCallOrder[0]!,
+		);
 	});
 
 	it("cleanOrphanedMedia deletes only unlinked media files in content folder", async () => {

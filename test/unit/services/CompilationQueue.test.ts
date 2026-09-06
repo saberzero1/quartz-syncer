@@ -177,14 +177,26 @@ describe("CompilationQueue", () => {
 		const queue = new CompilationQueue({
 			concurrency: 1,
 			processor: async () => {},
-			onStatusChange,
+			onStatusChange: () => {
+				onStatusChange({
+					pendingCount: queue.pendingCount,
+					inFlightCount: queue.inFlightCount,
+					isProcessing: queue.isProcessing,
+				});
+			},
 		});
 
 		queue.enqueue("a.md");
 		await vi.advanceTimersByTimeAsync(100);
 		await queue.onIdle();
 
-		expect(onStatusChange).toHaveBeenCalled();
+		expect(onStatusChange).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				pendingCount: 0,
+				inFlightCount: 0,
+				isProcessing: false,
+			}),
+		);
 	});
 
 	it("onIdle resolves after paused items are processed", async () => {

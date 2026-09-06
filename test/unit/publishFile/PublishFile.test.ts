@@ -4,6 +4,7 @@ import { PublishFile, getSpecialFileType } from "src/publishFile/PublishFile";
 import type QuartzSyncerSettings from "src/models/settings";
 import type { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import type { DataStore } from "src/cache/DataStore";
+import { generateBlobHash } from "src/utils/utils";
 
 const baseSettings: QuartzSyncerSettings = {
 	settingsSchemaVersion: 2,
@@ -31,6 +32,7 @@ const baseSettings: QuartzSyncerSettings = {
 	publishedTimestampKey: "published, publishDate, date",
 	timestampFormat: "MMM dd, yyyy h:mm a",
 	useCache: true,
+	autoCleanOrphanedMedia: false,
 	syncCache: true,
 	persistCache: false,
 	cacheTimestamp: 0,
@@ -49,6 +51,9 @@ const baseSettings: QuartzSyncerSettings = {
 	lastUpstreamCommitSha: "",
 	upgradeCheckStrategy: "version",
 	diffViewStyle: "auto",
+	diffContextLines: 3,
+	allowArbitraryFilePublishing: false,
+	arbitraryPublishPaths: [],
 	autoPublishInterval: 0,
 	remoteFetchInterval: 60,
 	quartzRepoPath: "",
@@ -410,8 +415,19 @@ describe("PublishFile", () => {
 
 		await publishFile.compile();
 
-		expect(datastore.storeLocalFile).toHaveBeenCalled();
-		expect(datastore.storeLocalHash).toHaveBeenCalled();
+		expect(datastore.storeLocalFile).toHaveBeenCalledWith(
+			"notes/test.md",
+			2000,
+			compiledFile,
+			false,
+			2000,
+		);
+		expect(datastore.storeLocalHash).toHaveBeenCalledWith(
+			"notes/test.md",
+			2000,
+			await generateBlobHash("compiled"),
+			2000,
+		);
 	});
 
 	it("extracts blob links from compiler", async () => {

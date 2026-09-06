@@ -171,7 +171,7 @@ describe("ProcessRunner", () => {
 		});
 
 		expect(result.exitCode).toBe(1);
-		expect(result.error).toBeDefined();
+		expect(result.error).toBe("Not allowed");
 	});
 
 	it("returns error on mobile", async () => {
@@ -183,6 +183,6 @@ describe("ProcessRunner", () => {
 		});
 
 		expect(result.exitCode).toBe(1);
-		expect(result.error).toBeDefined();
+		expect(result.error).toBe("Desktop only");
 	});
 });

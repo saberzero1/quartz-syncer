@@ -48,6 +48,7 @@ const makeSettings = (
 	lastUpstreamCommitSha: "",
 	upgradeCheckStrategy: "version",
 	diffViewStyle: "auto",
+	diffContextLines: 3,
 	allowArbitraryFilePublishing: false,
 	arbitraryPublishPaths: [],
 	autoPublishInterval: 0,
@@ -250,11 +251,14 @@ describe("collectCandidatePaths", () => {
 			useExcalidraw: false,
 		});
 
-		collectCandidatePaths(app, plugin, settings);
+		const result = collectCandidatePaths(app, plugin, settings);
 
 		expect(
 			(app.vault as { getFiles?: () => TFile[] }).getFiles,
-		).toHaveBeenCalled();
+		).toHaveBeenCalledTimes(1);
+		expect(result).toEqual(
+			new Set(["notes/a.md", "diagrams/board.canvas"]),
+		);
 	});
 
 	it("calls app.vault.getFiles when useBases is true", () => {
@@ -270,11 +274,12 @@ describe("collectCandidatePaths", () => {
 			useExcalidraw: false,
 		});
 
-		collectCandidatePaths(app, plugin, settings);
+		const result = collectCandidatePaths(app, plugin, settings);
 
 		expect(
 			(app.vault as { getFiles?: () => TFile[] }).getFiles,
-		).toHaveBeenCalled();
+		).toHaveBeenCalledTimes(1);
+		expect(result).toEqual(new Set(["notes/a.md", "db/table.base"]));
 	});
 
 	it("calls app.vault.getFiles when useExcalidraw is true", () => {
@@ -295,11 +300,14 @@ describe("collectCandidatePaths", () => {
 			useExcalidraw: true,
 		});
 
-		collectCandidatePaths(app, plugin, settings);
+		const result = collectCandidatePaths(app, plugin, settings);
 
 		expect(
 			(app.vault as { getFiles?: () => TFile[] }).getFiles,
-		).toHaveBeenCalled();
+		).toHaveBeenCalledTimes(1);
+		expect(result).toEqual(
+			new Set(["notes/a.md", "drawings/sketch.excalidraw.md"]),
+		);
 	});
 
 	it("includes .canvas file in results only when useCanvas is true", () => {

@@ -110,10 +110,27 @@ describe("BundledGitBackend", () => {
 			{ path: "content/test.md", content: "hello" },
 		]);
 
-		expect(gitMock.clone).toHaveBeenCalled();
-		expect(gitMock.add).toHaveBeenCalled();
-		expect(gitMock.commit).toHaveBeenCalled();
-		expect(gitMock.push).toHaveBeenCalled();
+		expect(gitMock.clone).toHaveBeenCalledWith(
+			expect.objectContaining({ url: baseConfig.remoteUrl, ref: "main" }),
+		);
+		expect(gitMock.add).toHaveBeenCalledWith(
+			expect.objectContaining({ filepath: ["content/test.md"] }),
+		);
+		expect(gitMock.commit).toHaveBeenCalledWith(
+			expect.objectContaining({ message: "Update files" }),
+		);
+		expect(gitMock.push).toHaveBeenCalledWith(
+			expect.objectContaining({ remote: "origin", ref: "main" }),
+		);
+		expect(gitMock.clone.mock.invocationCallOrder[0]).toBeLessThan(
+			gitMock.add.mock.invocationCallOrder[0]!,
+		);
+		expect(gitMock.add.mock.invocationCallOrder[0]).toBeLessThan(
+			gitMock.commit.mock.invocationCallOrder[0]!,
+		);
+		expect(gitMock.commit.mock.invocationCallOrder[0]).toBeLessThan(
+			gitMock.push.mock.invocationCallOrder[0]!,
+		);
 	});
 
 	it("readTree resolves ref and walks tree", async () => {
@@ -133,7 +150,9 @@ describe("BundledGitBackend", () => {
 		const backend = new BundledGitBackend(baseConfig, mockApp);
 		const entries = await backend.readTree("main");
 
-		expect(gitMock.resolveRef).toHaveBeenCalled();
+		expect(gitMock.resolveRef).toHaveBeenCalledWith(
+			expect.objectContaining({ ref: "origin/main" }),
+		);
 		expect(entries).toEqual([
 			{ path: "notes/test.md", sha: "blob-sha", type: "blob" },
 		]);
@@ -147,8 +166,18 @@ describe("BundledGitBackend", () => {
 		]);
 
 		expect(gitMock.remove).toHaveBeenCalledTimes(2);
-		expect(gitMock.commit).toHaveBeenCalled();
-		expect(gitMock.push).toHaveBeenCalled();
+		expect(gitMock.commit).toHaveBeenCalledWith(
+			expect.objectContaining({ message: "Remove files" }),
+		);
+		expect(gitMock.push).toHaveBeenCalledWith(
+			expect.objectContaining({ remote: "origin", ref: "main" }),
+		);
+		expect(gitMock.remove.mock.invocationCallOrder[1]).toBeLessThan(
+			gitMock.commit.mock.invocationCallOrder[0]!,
+		);
+		expect(gitMock.commit.mock.invocationCallOrder[0]).toBeLessThan(
+			gitMock.push.mock.invocationCallOrder[0]!,
+		);
 	});
 
 	it("auth callback returns correct credentials", () => {
@@ -243,8 +272,20 @@ describe("BundledGitBackend", () => {
 		]);
 
 		expect(gitMock.remove).toHaveBeenCalledTimes(2);
-		expect(gitMock.commit).toHaveBeenCalled();
-		expect(gitMock.push).toHaveBeenCalled();
+		expect(gitMock.commit).toHaveBeenCalledTimes(1);
+		expect(gitMock.commit).toHaveBeenCalledWith(
+			expect.objectContaining({ message: "Remove files" }),
+		);
+		expect(gitMock.push).toHaveBeenCalledTimes(1);
+		expect(gitMock.push).toHaveBeenCalledWith(
+			expect.objectContaining({ remote: "origin", ref: "main" }),
+		);
+		expect(gitMock.remove.mock.invocationCallOrder[1]).toBeLessThan(
+			gitMock.commit.mock.invocationCallOrder[0]!,
+		);
+		expect(gitMock.commit.mock.invocationCallOrder[0]).toBeLessThan(
+			gitMock.push.mock.invocationCallOrder[0]!,
+		);
 	});
 
 	it("deleteFiles throws when clone fails", async () => {

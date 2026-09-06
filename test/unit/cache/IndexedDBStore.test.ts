@@ -112,6 +112,8 @@ describe("dropStore()", () => {
 			throw "string-error";
 		});
 
-		await expect(dropStore("test-db")).rejects.toBeInstanceOf(Error);
+		const promise = dropStore("test-db");
+		await expect(promise).rejects.toBeInstanceOf(Error);
+		await expect(promise).rejects.toHaveProperty("message", "string-error");
 	});
 });
