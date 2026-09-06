@@ -22,6 +22,7 @@ import {
 import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
 import type { CompilationQueue } from "src/services/CompilationQueue";
 import { batchParallel, generateBlobHash } from "src/utils/utils";
+import { V4_ARBITRARY_PUBLISH_BLOCKED } from "src/quartz/QuartzCompatibility";
 import type { IOperabilityEventSink } from "src/operability/types";
 
 export class Publisher {
@@ -554,7 +555,20 @@ export class Publisher {
 		message?: string,
 	): Promise<PublishResult> {
 		const settings = this.plugin.settings;
+
+		// Arbitrary publishing is the only core path that bypasses PathMapper
+		// and can therefore write outside the content folder.
+		if (await this.plugin.quartzCompatibility.isConfirmedV4()) {
+			return {
+				success: false,
+				filesPublished: 0,
+				filesDeleted: 0,
+				error: V4_ARBITRARY_PUBLISH_BLOCKED,
+			};
+		}
+
 		const commitMessage = message ?? "Publish files";
+
 		const changes: FileChange[] = files.map((file) => ({
 			path: file.repoPath,
 			content: file.content,

@@ -4,6 +4,7 @@ import { qsDom } from "src/operability/DomContract";
 import type { IOperabilityEventSink } from "src/operability/types";
 import { LocalFileSource } from "src/quartz/LocalFileSource";
 import { QuartzUpgradeService } from "src/quartz/QuartzUpgradeService";
+import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 import { launchQuartzPreview } from "src/views/QuartzPreview/QuartzPreviewModal";
 import { TerminalOutputModal } from "src/views/TerminalOutput/TerminalOutputModal";
@@ -133,11 +134,15 @@ export function renderOverviewTab(
 
 		try {
 			const repo = new LocalFileSource(resolvedRepoPath);
-			const service = new QuartzUpgradeService(repo, {
-				enableSystemCommands: plugin.settings.enableSystemCommands,
-				quartzRepoPath: resolvedRepoPath,
-				quartzRunner: plugin.quartzRunner ?? null,
-			});
+			const service = new QuartzUpgradeService(
+				repo,
+				plugin.quartzCompatibility,
+				{
+					enableSystemCommands: plugin.settings.enableSystemCommands,
+					quartzRepoPath: resolvedRepoPath,
+					quartzRunner: plugin.quartzRunner ?? null,
+				},
+			);
 			const status = await service.checkForUpgrade();
 			if (!container.isConnected) return;
 
@@ -344,6 +349,11 @@ export function renderOverviewTab(
 			return;
 		}
 		void (async () => {
+			if (!(await plugin.quartzCompatibility.supportsV5Management())) {
+				new Notice(V4_MANAGEMENT_UNSUPPORTED);
+				return;
+			}
+
 			if (plugin.binaryDetector) {
 				const gitPath = await plugin.binaryDetector.detect("git");
 				if (!gitPath) {

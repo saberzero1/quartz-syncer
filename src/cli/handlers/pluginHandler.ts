@@ -6,6 +6,7 @@ import {
 } from "src/cli/handlers/cliUtils";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
+import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
 import type { QuartzPluginSource } from "src/quartz/QuartzConfigTypes";
 
 import { requireQuartzRunner } from "src/cli/handlers/guards";
@@ -26,6 +27,10 @@ function parsePluginSource(rawSource: string): QuartzPluginSource {
 
 export function createPluginHandler(plugin: QuartzSyncer): CliHandler {
 	return async (params) => {
+		if (!(await plugin.quartzCompatibility.supportsV5Management())) {
+			return { success: false, error: V4_MANAGEMENT_UNSUPPORTED };
+		}
+
 		const action = params.args.action?.toLowerCase() ?? DEFAULT_ACTION;
 		const repo = createRepositoryAdapter(plugin);
 		const manager = new QuartzPluginManager();

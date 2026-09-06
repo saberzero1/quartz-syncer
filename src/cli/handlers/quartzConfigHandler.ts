@@ -7,6 +7,7 @@ import {
 	setValueByPath,
 } from "src/cli/handlers/cliUtils";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
+import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
 const DEFAULT_ACTION = "list";
 
 export function createQuartzConfigHandler(plugin: QuartzSyncer): CliHandler {
@@ -15,6 +16,10 @@ export function createQuartzConfigHandler(plugin: QuartzSyncer): CliHandler {
 		const repo = createRepositoryAdapter(plugin);
 		if (!repo) {
 			return { success: false, error: "Repository not configured" };
+		}
+
+		if (!(await plugin.quartzCompatibility.supportsV5Management())) {
+			return { success: false, error: V4_MANAGEMENT_UNSUPPORTED };
 		}
 
 		const configService = new QuartzConfigService(repo);

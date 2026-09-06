@@ -41,6 +41,9 @@ export const buildPlugin = (
 		dataStore: null,
 		secretStorageService: {},
 		quartzRunner: null,
+		quartzCompatibility: {
+			supportsV5Management: vi.fn().mockResolvedValue(true),
+		},
 		processRunner: null,
 		statusCache: {
 			invalidate: vi.fn(),

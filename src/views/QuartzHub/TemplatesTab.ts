@@ -2,6 +2,7 @@ import { ConfirmationModal, Notice } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { IOperabilityEventSink } from "src/operability/types";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
+import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
 import { QuartzTemplateService } from "src/quartz/QuartzTemplateService";
 import { LocalFileSource } from "src/quartz/LocalFileSource";
 import {
@@ -152,6 +153,11 @@ export function renderTemplatesTab(
 		setLoading(true);
 		setError(null);
 		try {
+			if (!(await plugin.quartzCompatibility.supportsV5Management())) {
+				setError(V4_MANAGEMENT_UNSUPPORTED);
+				return;
+			}
+
 			const repo = new LocalFileSource(resolvedRepoPath);
 			const templateService = new QuartzTemplateService(repo);
 			state.templates = await templateService.listTemplateNames();

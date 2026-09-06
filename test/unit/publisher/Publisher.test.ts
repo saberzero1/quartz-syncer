@@ -938,15 +938,13 @@ describe("Publisher", () => {
 		const plugin = makePlugin(settings);
 
 		const gitBackend = makeGitBackend({
-			readTree: vi
-				.fn()
-				.mockResolvedValue([
-					{
-						path: "content/notes/a.md",
-						type: "blob",
-						sha: "remote-hash",
-					},
-				]),
+			readTree: vi.fn().mockResolvedValue([
+				{
+					path: "content/notes/a.md",
+					type: "blob",
+					sha: "remote-hash",
+				},
+			]),
 		});
 
 		const loadLocalHashSpy = vi.fn();

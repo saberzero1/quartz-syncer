@@ -1,9 +1,14 @@
 import type QuartzSyncer from "src/main";
 import type { CliHandler } from "src/cli/types";
 import { requireGit, requireQuartzRunner } from "src/cli/handlers/guards";
+import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
 
 export function createUpgradeHandler(plugin: QuartzSyncer): CliHandler {
 	return async (params) => {
+		if (!(await plugin.quartzCompatibility.supportsV5Management())) {
+			return { success: false, error: V4_MANAGEMENT_UNSUPPORTED };
+		}
+
 		const runnerCheck = requireQuartzRunner(plugin);
 		if (runnerCheck) {
 			return runnerCheck;

@@ -75,6 +75,9 @@ const buildPlugin = (overrides: Partial<QuartzSyncer> = {}): QuartzSyncer => {
 		app: { version: "1.6.0" },
 		manifest: { version: "9.9.9" },
 		saveSettings: vi.fn(),
+		quartzCompatibility: {
+			supportsV5Management: vi.fn().mockResolvedValue(true),
+		},
 	} as unknown as QuartzSyncer;
 
 	return Object.assign(plugin, overrides);

@@ -2,6 +2,7 @@ import { Notice } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { IOperabilityEventSink } from "src/operability/types";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
+import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
 import type { QuartzV5Config } from "src/quartz/QuartzConfigTypes";
 import { LocalFileSource } from "src/quartz/LocalFileSource";
 import {
@@ -200,6 +201,11 @@ export function renderConfigTab(
 	void (async () => {
 		setLoading(true);
 		try {
+			if (!(await plugin.quartzCompatibility.supportsV5Management())) {
+				state.errorMessage = V4_MANAGEMENT_UNSUPPORTED;
+				return;
+			}
+
 			const repo = new LocalFileSource(resolvedRepoPath);
 			const configService = new QuartzConfigService(repo);
 			const config = await configService.readConfig();

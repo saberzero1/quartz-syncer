@@ -41,6 +41,7 @@ import {
 import { StatusCacheService } from "src/services/StatusCacheService";
 import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
 import { HubDetectionCache } from "src/services/HubDetectionCache";
+import { QuartzCompatibility } from "src/quartz/QuartzCompatibility";
 
 /**
  * QuartzSyncer plugin settings.
@@ -199,6 +200,7 @@ export default class QuartzSyncer extends Plugin {
 	statusCache = new StatusCacheService("", "");
 	pluginRegistry = new QuartzPluginRegistry();
 	hubDetectionCache = new HubDetectionCache();
+	quartzCompatibility = new QuartzCompatibility(this);
 	private lastUseCache: boolean | null = null;
 
 	async onload() {
@@ -551,6 +553,7 @@ export default class QuartzSyncer extends Plugin {
 		this.invalidateCachedInstances();
 		this.statusCache?.invalidate();
 		this.hubDetectionCache.clear();
+		this.quartzCompatibility.invalidate();
 		this.clearCacheOnDisable();
 	}
 
