@@ -383,8 +383,35 @@ describe("BackgroundEngine", () => {
 
 		const file = createFile("notes/test.md", Date.now());
 		app.vault.trigger("modify", file);
+		vi.advanceTimersByTime(2_001);
 
 		expect(enqueueSpy).toHaveBeenCalledWith("notes/test.md", 5);
+		vi.useRealTimers();
+	});
+
+	it("enqueues every file changed within one coalescing window", () => {
+		vi.useFakeTimers();
+		const app = createApp();
+		const plugin = createAutoPublishPluginStub();
+		const engine = new BackgroundEngine(app, plugin);
+		const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
+
+		engine.compilationQueue.pause();
+		engine.start();
+		vi.advanceTimersByTime(40_001);
+
+		const now = Date.now();
+		app.vault.trigger("modify", createFile("notes/a.md", now));
+		vi.advanceTimersByTime(200);
+		app.vault.trigger("modify", createFile("notes/b.md", now));
+		vi.advanceTimersByTime(200);
+		app.vault.trigger("modify", createFile("notes/c.md", now));
+		vi.advanceTimersByTime(2_001);
+
+		const enqueued = enqueueSpy.mock.calls.map((call) => call[0]);
+		expect(enqueued).toContain("notes/a.md");
+		expect(enqueued).toContain("notes/b.md");
+		expect(enqueued).toContain("notes/c.md");
 		vi.useRealTimers();
 	});
 
@@ -401,6 +428,7 @@ describe("BackgroundEngine", () => {
 
 		const file = createFile("notes/test.txt", Date.now());
 		app.vault.trigger("modify", file);
+		vi.advanceTimersByTime(2_001);
 
 		expect(enqueueSpy).not.toHaveBeenCalled();
 		vi.useRealTimers();
@@ -419,6 +447,7 @@ describe("BackgroundEngine", () => {
 
 		const file = createFile("notes/new.md", Date.now());
 		app.vault.trigger("create", file);
+		vi.advanceTimersByTime(2_001);
 
 		expect(enqueueSpy).toHaveBeenCalledWith("notes/new.md", 5);
 		vi.useRealTimers();
@@ -456,6 +485,7 @@ describe("BackgroundEngine", () => {
 
 		const file = createFile("notes/renamed.md", Date.now());
 		app.vault.trigger("rename", file, "notes/old.md");
+		vi.advanceTimersByTime(2_001);
 
 		expect(plugin.dataStore.dropFile).toHaveBeenCalledWith("notes/old.md");
 		expect(enqueueSpy).toHaveBeenCalledWith("notes/renamed.md", 5);
@@ -475,6 +505,7 @@ describe("BackgroundEngine", () => {
 
 		const file = createFile("notes/renamed.txt", Date.now());
 		app.vault.trigger("rename", file, "notes/old.md");
+		vi.advanceTimersByTime(2_001);
 
 		expect(plugin.dataStore.dropFile).toHaveBeenCalledWith("notes/old.md");
 		expect(enqueueSpy).not.toHaveBeenCalled();
@@ -494,6 +525,7 @@ describe("BackgroundEngine", () => {
 
 		const file = createFile("notes/startup.md", -1000);
 		app.vault.trigger("modify", file);
+		vi.advanceTimersByTime(2_001);
 
 		expect(enqueueSpy).not.toHaveBeenCalled();
 		vi.useRealTimers();
@@ -512,6 +544,7 @@ describe("BackgroundEngine", () => {
 
 		const file = createFile("notes/after-guard.md", Date.now());
 		app.vault.trigger("modify", file);
+		vi.advanceTimersByTime(2_001);
 
 		expect(enqueueSpy).toHaveBeenCalledWith("notes/after-guard.md", 5);
 		vi.useRealTimers();
@@ -548,6 +581,7 @@ describe("BackgroundEngine", () => {
 
 		const file = createFile("notes/new-name.md", Date.now());
 		app.vault.trigger("rename", file, "notes/old-name.md");
+		vi.advanceTimersByTime(2_001);
 
 		expect(plugin.statusCache.markStaleFile).toHaveBeenCalledWith(
 			"notes/old-name.md",

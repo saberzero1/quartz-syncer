@@ -15,6 +15,7 @@ const PRIORITY_ACTIVE_FILE = 10;
 
 const STARTUP_GUARD_MS = 30_000;
 const DYNAMIC_REQUEUE_DEBOUNCE_MS = 1_000;
+const VAULT_CHANGE_DEBOUNCE_MS = 2_000;
 
 type DynamicSource = "dataview" | "datacore";
 
@@ -36,6 +37,8 @@ export class BackgroundEngine {
 		number | undefined
 	>();
 	private dynamicRequeueInFlight = false;
+	private pendingVaultChanges = new Set<string>();
+	private vaultChangeTimer: number | null = null;
 
 	readonly compilationQueue: CompilationQueue;
 	private initialFetchDone = false;
@@ -198,6 +201,12 @@ export class BackgroundEngine {
 		this.pendingDynamicRevisions.clear();
 		this.dynamicPaths = null;
 		this.dynamicPathsPromise = null;
+		this.pendingVaultChanges.clear();
+
+		if (this.vaultChangeTimer !== null) {
+			window.clearTimeout(this.vaultChangeTimer);
+			this.vaultChangeTimer = null;
+		}
 		this.updateStatusBar();
 		this.cleanupListeners();
 	}
@@ -320,11 +329,8 @@ export class BackgroundEngine {
 	private registerVaultListeners(): void {
 		if (!this.running) return;
 
-		const debouncedEnqueue = debounce(
-			(path: string) => this.enqueue(path, PRIORITY_VAULT_CHANGE),
-			2000,
-			true,
-		);
+		const debouncedEnqueue = (path: string) =>
+			this.scheduleVaultChange(path);
 
 		this.vaultEventRefs.push(
 			this.app.vault.on("modify", (file) => {
@@ -711,6 +717,35 @@ export class BackgroundEngine {
 		if (Date.now() - this.startupTime > STARTUP_GUARD_MS) return false;
 
 		return file.stat.mtime < this.startupTime;
+	}
+
+	// --- Vault change coalescing ---
+
+	/**
+	 * Collect changed paths and flush them once the vault goes quiet.
+	 *
+	 * A single shared debouncer cannot be used here: it fires with only the
+	 * last arguments, so editing several notes inside one window would enqueue
+	 * only the last of them and silently skip precompiling the rest.
+	 */
+	private scheduleVaultChange(path: string): void {
+		this.pendingVaultChanges.add(path);
+
+		if (this.vaultChangeTimer !== null) {
+			window.clearTimeout(this.vaultChangeTimer);
+		}
+
+		this.vaultChangeTimer = window.setTimeout(() => {
+			this.vaultChangeTimer = null;
+			const paths = [...this.pendingVaultChanges];
+			this.pendingVaultChanges.clear();
+
+			if (!this.running) return;
+
+			for (const pending of paths) {
+				this.enqueue(pending, PRIORITY_VAULT_CHANGE);
+			}
+		}, VAULT_CHANGE_DEBOUNCE_MS);
 	}
 
 	// --- Enqueue ---

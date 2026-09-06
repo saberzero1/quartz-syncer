@@ -208,4 +208,61 @@ describe("CompilationQueue", () => {
 
 		expect(completed).toBe(3);
 	});
+
+	it("does not process a path again while it is still in flight", async () => {
+		let release: (() => void) | undefined;
+		const started: string[] = [];
+
+		const queue = new CompilationQueue({
+			concurrency: 1,
+			processor: async (path) => {
+				started.push(path);
+				await new Promise<void>((resolve) => {
+					release = resolve;
+				});
+			},
+		});
+
+		queue.enqueue("notes/a.md");
+		await vi.advanceTimersByTimeAsync(10);
+		expect(started).toEqual(["notes/a.md"]);
+
+		queue.enqueue("notes/a.md");
+		expect(queue.pendingCount).toBe(0);
+		expect(queue.has("notes/a.md")).toBe(true);
+
+		release?.();
+		await vi.advanceTimersByTimeAsync(100);
+
+		expect(started).toEqual(["notes/a.md"]);
+	});
+
+	it("keeps priority-then-sequence ordering when sorting lazily", async () => {
+		const processed: string[] = [];
+
+		const queue = new CompilationQueue({
+			concurrency: 1,
+			processor: async (path) => {
+				processed.push(path);
+			},
+		});
+
+		queue.pause();
+		queue.enqueue("low-first", 0);
+		queue.enqueue("high-first", 10);
+		queue.enqueue("low-second", 0);
+		queue.enqueue("high-second", 10);
+
+		const idlePromise = queue.onIdle();
+		queue.resume();
+		await vi.advanceTimersByTimeAsync(100);
+		await idlePromise;
+
+		expect(processed).toEqual([
+			"high-first",
+			"high-second",
+			"low-first",
+			"low-second",
+		]);
+	});
 });

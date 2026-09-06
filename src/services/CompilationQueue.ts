@@ -12,6 +12,9 @@ type CompilationQueueOptions = {
 
 export class CompilationQueue {
 	private queue: QueueItem[] = [];
+	private queued = new Map<string, QueueItem>();
+	private inFlightPaths = new Set<string>();
+	private needsSort = false;
 	private inFlight = 0;
 	private sequence = 0;
 	private processing = false;
@@ -34,29 +37,49 @@ export class CompilationQueue {
 	}
 
 	enqueue(path: string, priority = 0): void {
-		const existing = this.queue.find((item) => item.path === path);
+		const existing = this.queued.get(path);
 
 		if (existing) {
-			existing.priority = Math.max(existing.priority, priority);
-			this.queue.sort(
-				(a, b) => b.priority - a.priority || a.sequence - b.sequence,
-			);
+			if (priority > existing.priority) {
+				existing.priority = priority;
+				this.needsSort = true;
+			}
+
 			return;
 		}
 
-		this.queue.push({ path, priority, sequence: this.sequence++ });
-		this.queue.sort(
-			(a, b) => b.priority - a.priority || a.sequence - b.sequence,
-		);
+		// Re-queueing a path that is mid-compile would run the processor twice
+		// for it concurrently.
+		if (this.inFlightPaths.has(path)) return;
+
+		const item = { path, priority, sequence: this.sequence++ };
+		this.queue.push(item);
+		this.queued.set(path, item);
+		this.needsSort = true;
 		this.schedule();
 	}
 
 	has(path: string): boolean {
-		return this.queue.some((item) => item.path === path);
+		return this.queued.has(path) || this.inFlightPaths.has(path);
 	}
 
 	get queuedPaths(): string[] {
 		return this.queue.map((item) => item.path);
+	}
+
+	private takeNext(): QueueItem | undefined {
+		if (this.needsSort) {
+			this.queue.sort(
+				(a, b) => b.priority - a.priority || a.sequence - b.sequence,
+			);
+			this.needsSort = false;
+		}
+
+		const item = this.queue.shift();
+
+		if (item) this.queued.delete(item.path);
+
+		return item;
 	}
 
 	pause(): void {
@@ -91,6 +114,8 @@ export class CompilationQueue {
 
 	cancel(): void {
 		this.queue = [];
+		this.queued.clear();
+		this.needsSort = false;
 		this.abortController?.abort();
 	}
 
@@ -127,9 +152,10 @@ export class CompilationQueue {
 		if (this.paused) return;
 
 		while (this.inFlight < this.concurrency && this.queue.length > 0) {
-			const item = this.queue.shift();
+			const item = this.takeNext();
 			if (!item) break;
 			this.inFlight += 1;
+			this.inFlightPaths.add(item.path);
 			void this.runItem(item);
 		}
 
@@ -152,6 +178,7 @@ export class CompilationQueue {
 			console.debug("Compilation failed for", item.path, error);
 		} finally {
 			this.inFlight -= 1;
+			this.inFlightPaths.delete(item.path);
 			this.onStatusChange?.();
 			this.schedule();
 		}

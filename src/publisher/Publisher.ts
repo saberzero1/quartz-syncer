@@ -19,7 +19,11 @@ import {
 	classifyArbitrary,
 	classifyRemoteOnly,
 } from "src/publisher/PublishStatusManager";
-import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
+import {
+	flattenLinkedMedia,
+	resolveLinkedMedia,
+	resolveLinkedMediaByFile,
+} from "src/publisher/MediaLinkResolver";
 import type { CompilationQueue } from "src/services/CompilationQueue";
 import { batchParallel, generateBlobHash } from "src/utils/utils";
 import { V4_ARBITRARY_PUBLISH_BLOCKED } from "src/quartz/QuartzCompatibility";
@@ -122,6 +126,7 @@ export class Publisher {
 				const links = await this.dataStore.loadMediaLinks(
 					file.file.path,
 				);
+
 				if (links.length > 0) {
 					mediaLinks.set(file.file.path, links);
 				}
@@ -194,7 +199,11 @@ export class Publisher {
 				}
 			});
 
-			const linkedMedia = await resolveLinkedMedia(candidates);
+			// One walk feeds both the orphan-media union and the per-file map,
+			// so getBlobLinks() is not paid for twice per candidate.
+			const linkedByFile = await resolveLinkedMediaByFile(candidates);
+			const linkedMedia = flattenLinkedMedia(linkedByFile);
+
 			const { deleted, media } = classifyRemoteOnly(
 				remoteIndex,
 				candidates,
@@ -202,8 +211,9 @@ export class Publisher {
 				linkedMedia,
 			);
 
-			const mediaLinks =
-				await this.resolveMediaLinksIncremental(candidates);
+			const mediaLinks = settings.useCache
+				? await this.resolveMediaLinksIncremental(candidates)
+				: linkedByFile;
 
 			const arbitrary = classifyArbitrary(
 				remoteIndex,
@@ -288,11 +298,13 @@ export class Publisher {
 				const file = files[index];
 				if (!file) continue;
 
-				let storedFile = await this.dataStore.loadLocalFile(
-					file.file.path,
-					file.file.stat.mtime,
-					true,
-				);
+				let storedFile = settings.useCache
+					? await this.dataStore.loadLocalFile(
+							file.file.path,
+							file.file.stat.mtime,
+							true,
+						)
+					: null;
 
 				if (!storedFile) {
 					const compiled = await file.compile(true);
@@ -322,10 +334,12 @@ export class Publisher {
 					});
 				}
 
-				const localHash = await this.dataStore.loadLocalHash(
-					file.file.path,
-					file.file.stat.mtime,
-				);
+				const localHash = settings.useCache
+					? await this.dataStore.loadLocalHash(
+							file.file.path,
+							file.file.stat.mtime,
+						)
+					: null;
 
 				if (localHash) {
 					remoteHashes.push({

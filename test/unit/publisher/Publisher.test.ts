@@ -10,9 +10,30 @@ import type { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import type { DataStore } from "src/cache/DataStore";
 import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
 
-vi.mock("src/publisher/MediaLinkResolver", () => ({
-	resolveLinkedMedia: vi.fn(),
-}));
+const resolveLinkedMediaMock = vi.hoisted(() => vi.fn());
+
+vi.mock("src/publisher/MediaLinkResolver", async (importOriginal) => {
+	const actual =
+		await importOriginal<
+			typeof import("src/publisher/MediaLinkResolver")
+		>();
+
+	return {
+		...actual,
+		resolveLinkedMedia: resolveLinkedMediaMock,
+		// Keep the per-file walk driven by the same stub the tests configure,
+		// so flattenLinkedMedia() still yields the set they set up.
+		resolveLinkedMediaByFile: vi.fn(async (files: unknown) => {
+			const links = (await resolveLinkedMediaMock(files)) as
+				| Set<string>
+				| undefined;
+
+			return links && links.size > 0
+				? new Map([["__mocked__", [...links]]])
+				: new Map<string, string[]>();
+		}),
+	};
+});
 
 const makeSettings = (
 	overrides: Partial<QuartzSyncerSettings> = {},
@@ -109,7 +130,7 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
@@ -148,7 +169,7 @@ describe("Publisher", () => {
 		const gitBackend = makeGitBackend({
 			writeFiles: vi.fn().mockRejectedValue(new Error("push failed")),
 		});
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
@@ -176,7 +197,7 @@ describe("Publisher", () => {
 		const gitBackend = makeGitBackend({
 			writeFiles: vi.fn().mockResolvedValue({ sha: "abc" }),
 		});
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
@@ -215,7 +236,7 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
@@ -241,7 +262,7 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
@@ -269,7 +290,7 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			dropFile: vi.fn(),
 		} as unknown as DataStore;
@@ -298,7 +319,7 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			dropFile: vi.fn(),
 		} as unknown as DataStore;
@@ -322,7 +343,7 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			dropFile: vi.fn(),
 		} as unknown as DataStore;
@@ -348,7 +369,7 @@ describe("Publisher", () => {
 		const settings = makeSettings({ contentFolder: "content" });
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			dropFile: vi.fn(),
 		} as unknown as DataStore;
@@ -376,7 +397,7 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			preloadCache: vi.fn().mockResolvedValue(undefined),
 			flushCache: vi.fn().mockResolvedValue(undefined),
@@ -421,7 +442,7 @@ describe("Publisher", () => {
 		const gitBackend = makeGitBackend({
 			readTree: vi.fn().mockRejectedValue(new Error("network error")),
 		});
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			preloadCache: vi.fn().mockResolvedValue(undefined),
 			flushCache: vi.fn().mockResolvedValue(undefined),
@@ -672,7 +693,7 @@ describe("Publisher", () => {
 				.fn()
 				.mockResolvedValue(new TextEncoder().encode("hello remote")),
 		});
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {} as DataStore;
 
 		const backend = new RemotePublishBackend(gitBackend, "main");
@@ -697,7 +718,7 @@ describe("Publisher", () => {
 		const gitBackend = makeGitBackend({
 			readTree: vi.fn().mockResolvedValue([]),
 		});
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {} as DataStore;
 
 		const backend = new RemotePublishBackend(gitBackend, "main");
@@ -720,7 +741,7 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi
 				.fn()
@@ -758,7 +779,7 @@ describe("Publisher", () => {
 				{ path: "content/notes/b.md", type: "blob", sha: "hash-b" },
 			]),
 		});
-		const compiler = {} as SyncerPageCompiler;
+		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
 
 		const dataStore = {
 			preloadCache: vi.fn().mockResolvedValue(undefined),
