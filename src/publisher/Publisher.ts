@@ -27,6 +27,11 @@ import {
 import type { CompilationQueue } from "src/services/CompilationQueue";
 import { batchParallel, generateBlobHash } from "src/utils/utils";
 import { V4_ARBITRARY_PUBLISH_BLOCKED } from "src/quartz/QuartzCompatibility";
+import {
+	AssetSyncer,
+	type AssetSyncResult,
+} from "src/compiler/integrations/AssetSyncer";
+import { createRepositoryAdapter } from "src/cli/handlers/cliUtils";
 import type { IOperabilityEventSink } from "src/operability/types";
 
 export class Publisher {
@@ -104,6 +109,29 @@ export class Publisher {
 		}
 
 		return publishFiles;
+	}
+
+	/**
+	 * Collect integration stylesheets to publish alongside the notes.
+	 *
+	 * Gated on v5 because these paths live outside the content folder. The
+	 * `quartz/styles` layout happens to be identical in v4 today, but writing
+	 * there is only sanctioned for repositories we manage.
+	 */
+	private async collectIntegrationAssets(
+		settings: QuartzSyncerSettings,
+	): Promise<AssetSyncResult | null> {
+		if (!(await this.plugin.quartzCompatibility.supportsV5Management())) {
+			return null;
+		}
+
+		const repo = createRepositoryAdapter(this.plugin);
+
+		if (!repo) return null;
+
+		const result = await new AssetSyncer(settings).collectAssets(repo);
+
+		return result.success ? result : null;
 	}
 
 	private async compileAndHashSingle(file: PublishFile): Promise<string> {
@@ -352,11 +380,28 @@ export class Publisher {
 				onProgress?.(index + 1, total);
 			}
 
+			const assets = await this.collectIntegrationAssets(settings);
+
+			if (assets) {
+				for (const [path, content] of assets.filesToStage) {
+					changes.push({ path, content, encoding: "utf-8" });
+				}
+			}
+
 			const result = await this.backend.writeFiles(
 				settings.gitBranch,
 				commitMessage,
 				changes,
 			);
+
+			if (assets && assets.filesToDelete.length > 0) {
+				await this.backend.deleteFiles(
+					settings.gitBranch,
+					"Remove Quartz Syncer integration styles",
+					assets.filesToDelete,
+				);
+			}
+
 			this.eventSink?.emit("publish.completed", {
 				fileCount: files.length,
 				commitSha: result.sha,

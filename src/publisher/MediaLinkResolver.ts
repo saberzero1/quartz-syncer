@@ -16,9 +16,7 @@ export async function resolveLinkedMediaByFile(
 	return byFile;
 }
 
-export function flattenLinkedMedia(
-	byFile: Map<string, string[]>,
-): Set<string> {
+export function flattenLinkedMedia(byFile: Map<string, string[]>): Set<string> {
 	const linkedPaths = new Set<string>();
 
 	for (const links of byFile.values()) {

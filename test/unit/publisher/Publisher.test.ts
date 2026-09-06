@@ -8,9 +8,21 @@ import type QuartzSyncerSettings from "src/models/settings";
 import type QuartzSyncer from "src/main";
 import type { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import type { DataStore } from "src/cache/DataStore";
+import type { AssetSyncResult } from "src/compiler/integrations/AssetSyncer";
 import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
 
 const resolveLinkedMediaMock = vi.hoisted(() => vi.fn());
+const collectAssetsMock = vi.hoisted(() => vi.fn());
+
+vi.mock("src/cli/handlers/cliUtils", () => ({
+	createRepositoryAdapter: () => ({}),
+}));
+
+vi.mock("src/compiler/integrations/AssetSyncer", () => ({
+	AssetSyncer: class {
+		collectAssets = collectAssetsMock;
+	},
+}));
 
 vi.mock("src/publisher/MediaLinkResolver", async (importOriginal) => {
 	const actual =
@@ -25,8 +37,7 @@ vi.mock("src/publisher/MediaLinkResolver", async (importOriginal) => {
 		// so flattenLinkedMedia() still yields the set they set up.
 		resolveLinkedMediaByFile: vi.fn(async (files: unknown) => {
 			const links = (await resolveLinkedMediaMock(files)) as
-				| Set<string>
-				| undefined;
+				Set<string> | undefined;
 
 			return links && links.size > 0
 				? new Map([["__mocked__", [...links]]])
@@ -88,10 +99,21 @@ const makeSettings = (
 	...overrides,
 });
 
-const makePlugin = (settings: QuartzSyncerSettings): QuartzSyncer =>
+const makePlugin = (
+	settings: QuartzSyncerSettings,
+	supportsV5Management = false,
+): QuartzSyncer =>
 	({
 		settings,
 		saveSettings: vi.fn(),
+		quartzCompatibility: {
+			supportsV5Management: vi
+				.fn()
+				.mockResolvedValue(supportsV5Management),
+			isConfirmedV4: vi.fn().mockResolvedValue(false),
+			getVersion: vi.fn().mockResolvedValue("unknown"),
+			invalidate: vi.fn(),
+		},
 		statusCache: {
 			invalidate: vi.fn(),
 			markStale: vi.fn(),
@@ -130,7 +152,9 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
@@ -169,7 +193,9 @@ describe("Publisher", () => {
 		const gitBackend = makeGitBackend({
 			writeFiles: vi.fn().mockRejectedValue(new Error("push failed")),
 		});
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
@@ -197,7 +223,9 @@ describe("Publisher", () => {
 		const gitBackend = makeGitBackend({
 			writeFiles: vi.fn().mockResolvedValue({ sha: "abc" }),
 		});
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
@@ -236,7 +264,9 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
@@ -262,7 +292,9 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
@@ -290,7 +322,9 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			dropFile: vi.fn(),
 		} as unknown as DataStore;
@@ -319,7 +353,9 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			dropFile: vi.fn(),
 		} as unknown as DataStore;
@@ -343,7 +379,9 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			dropFile: vi.fn(),
 		} as unknown as DataStore;
@@ -369,7 +407,9 @@ describe("Publisher", () => {
 		const settings = makeSettings({ contentFolder: "content" });
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			dropFile: vi.fn(),
 		} as unknown as DataStore;
@@ -397,7 +437,9 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			preloadCache: vi.fn().mockResolvedValue(undefined),
 			flushCache: vi.fn().mockResolvedValue(undefined),
@@ -442,7 +484,9 @@ describe("Publisher", () => {
 		const gitBackend = makeGitBackend({
 			readTree: vi.fn().mockRejectedValue(new Error("network error")),
 		});
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			preloadCache: vi.fn().mockResolvedValue(undefined),
 			flushCache: vi.fn().mockResolvedValue(undefined),
@@ -693,7 +737,9 @@ describe("Publisher", () => {
 				.fn()
 				.mockResolvedValue(new TextEncoder().encode("hello remote")),
 		});
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {} as DataStore;
 
 		const backend = new RemotePublishBackend(gitBackend, "main");
@@ -718,7 +764,9 @@ describe("Publisher", () => {
 		const gitBackend = makeGitBackend({
 			readTree: vi.fn().mockResolvedValue([]),
 		});
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {} as DataStore;
 
 		const backend = new RemotePublishBackend(gitBackend, "main");
@@ -741,7 +789,9 @@ describe("Publisher", () => {
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
 		const gitBackend = makeGitBackend();
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 		const dataStore = {
 			loadLocalFile: vi
 				.fn()
@@ -779,7 +829,9 @@ describe("Publisher", () => {
 				{ path: "content/notes/b.md", type: "blob", sha: "hash-b" },
 			]),
 		});
-		const compiler = { extractBlobLinks: async () => [] } as unknown as SyncerPageCompiler;
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
 
 		const dataStore = {
 			preloadCache: vi.fn().mockResolvedValue(undefined),
@@ -1047,5 +1099,87 @@ describe("Publisher", () => {
 		await publisher.getPublishStatus();
 
 		expect(loadLocalHashSpy).not.toHaveBeenCalled();
+	});
+
+	describe("integration stylesheets", () => {
+		beforeEach(() => {
+			collectAssetsMock.mockReset();
+
+			collectAssetsMock.mockImplementation(
+				async (): Promise<AssetSyncResult> => ({
+					success: true,
+					filesToStage: new Map([
+						["quartz/styles/syncer/_index.scss", "@use './x';"],
+					]),
+					filesToDelete: [],
+				}),
+			);
+		});
+
+		const setup = async (
+			supportsV5Management: boolean,
+			manageSyncerStyles = true,
+		) => {
+			const app = new App();
+			const settings = makeSettings({ manageSyncerStyles });
+			const plugin = makePlugin(settings, supportsV5Management);
+			const gitBackend = makeGitBackend();
+			const backend = new RemotePublishBackend(gitBackend, "main");
+
+			const compiler = {
+				extractBlobLinks: async () => [],
+			} as unknown as SyncerPageCompiler;
+
+			const dataStore = {
+				loadLocalFile: vi
+					.fn()
+					.mockResolvedValue(["hello", { blobs: [] }]),
+				loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
+				storeRemoteHash: vi.fn(),
+			} as unknown as DataStore;
+
+			const publisher = new Publisher(
+				app,
+				plugin,
+				backend,
+				compiler,
+				dataStore,
+			);
+
+			await publisher.publishBatch([makePublishFile("note.md")]);
+
+			const written = vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2];
+
+			return (written ?? []).map((change) => change.path);
+		};
+
+		it("publishes integration styles on a Quartz v5 repository", async () => {
+			const paths = await setup(true);
+
+			expect(
+				paths.some((path) => path.startsWith("quartz/styles/syncer/")),
+			).toBe(true);
+		});
+
+		it("writes nothing outside the content folder on a non-v5 repository", async () => {
+			const paths = await setup(false);
+
+			expect(paths.every((path) => path.startsWith("content/"))).toBe(
+				true,
+			);
+		});
+
+		it("stages no syncer styles when the setting is disabled", async () => {
+			collectAssetsMock.mockResolvedValue({
+				success: true,
+				filesToStage: new Map(),
+				filesToDelete: [],
+			});
+			const paths = await setup(true, false);
+
+			expect(
+				paths.some((path) => path.startsWith("quartz/styles/syncer/")),
+			).toBe(false);
+		});
 	});
 });
