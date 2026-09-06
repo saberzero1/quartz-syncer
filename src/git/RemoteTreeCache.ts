@@ -20,6 +20,7 @@ export class RemoteTreeCache {
 	private store: IndexedDBStore | null = null;
 	private remoteUrl = "";
 	private loadPromise: Promise<void> | null = null;
+	private epoch = 0;
 
 	constructor(
 		private gitBackend: GitBackend,
@@ -92,24 +93,38 @@ export class RemoteTreeCache {
 	async refresh(): Promise<TreeEntry[]> {
 		if (this.fetchPromise) return this.fetchPromise;
 
-		this.fetchPromise = this.gitBackend
+		const epoch = this.epoch;
+
+		const promise = this.gitBackend
 			.readTree(this.branch)
 			.then((entries) => {
-				this.cache = entries;
-				this.cacheTime = Date.now();
-				void this.persist();
+				// A write invalidated the cache while this read was in flight,
+				// so these entries predate it. Returning them is fine; storing
+				// them would resurrect a tree without the just-published files.
+				if (epoch === this.epoch) {
+					this.cache = entries;
+					this.cacheTime = Date.now();
+					void this.persist();
+				}
+
 				return entries;
 			})
 			.finally(() => {
-				this.fetchPromise = null;
+				if (this.fetchPromise === promise) {
+					this.fetchPromise = null;
+				}
 			});
 
-		return this.fetchPromise;
+		this.fetchPromise = promise;
+
+		return promise;
 	}
 
 	invalidate(): void {
+		this.epoch += 1;
 		this.cache = null;
 		this.cacheTime = 0;
+		this.fetchPromise = null;
 		this.store?.removeItem("tree").catch(() => {});
 	}
 

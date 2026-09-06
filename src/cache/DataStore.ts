@@ -377,6 +377,10 @@ export class DataStore {
 			return null;
 		}
 
+		if (data.version !== this.version) {
+			return null;
+		}
+
 		if (data.hasDynamicContent && !trustDynamicCache) {
 			return null;
 		}
@@ -397,7 +401,13 @@ export class DataStore {
 	public async loadRemoteFile(
 		path: string,
 	): Promise<TCompiledFile | null | undefined> {
-		return this.getCacheProperty(path, "remoteData");
+		const data = await this.getCacheEntry(path);
+
+		if (!data || data.version !== this.version) {
+			return null;
+		}
+
+		return data.remoteData;
 	}
 
 	/**

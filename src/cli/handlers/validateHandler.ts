@@ -117,29 +117,33 @@ export function createValidateHandler(plugin: QuartzSyncer): CliHandler {
 				: `${contentFolder} not found`,
 		});
 
-		const configService = new QuartzConfigService(repo);
-		const lockFile = await configService.readLockFile();
-
-		checks.push({
-			check: "Plugin lockfile present",
-			passed: lockFile !== null,
-			detail: lockFile
-				? `${Object.keys(lockFile.plugins).length} plugin(s) locked`
-				: "quartz.lock.json not found (optional)",
-		});
-
-		if (lockFile) {
-			const hasPluginsKey =
-				lockFile.plugins !== undefined &&
-				typeof lockFile.plugins === "object";
+		// quartz.lock.json is a Quartz v5 concept; reporting it missing on a
+		// v4 repository is noise, not a finding.
+		if (version !== "v4") {
+			const configService = new QuartzConfigService(repo);
+			const lockFile = await configService.readLockFile();
 
 			checks.push({
-				check: "Plugin lockfile valid",
-				passed: hasPluginsKey,
-				detail: hasPluginsKey
-					? undefined
-					: "Missing plugins key in lockfile",
+				check: "Plugin lockfile present",
+				passed: lockFile !== null,
+				detail: lockFile
+					? `${Object.keys(lockFile.plugins).length} plugin(s) locked`
+					: "quartz.lock.json not found (optional)",
 			});
+
+			if (lockFile) {
+				const hasPluginsKey =
+					lockFile.plugins !== undefined &&
+					typeof lockFile.plugins === "object";
+
+				checks.push({
+					check: "Plugin lockfile valid",
+					passed: hasPluginsKey,
+					detail: hasPluginsKey
+						? undefined
+						: "Missing plugins key in lockfile",
+				});
+			}
 		}
 
 		const lockfileChecks = ["Plugin lockfile present"];

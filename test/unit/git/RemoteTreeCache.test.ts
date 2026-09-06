@@ -499,4 +499,42 @@ describe("RemoteTreeCache", () => {
 			expect(cache.isCached).toBe(false);
 		});
 	});
+
+	describe("invalidation during an in-flight fetch", () => {
+		it("does not cache entries from a fetch that a write superseded", async () => {
+			let releaseRead: ((entries: TreeEntry[]) => void) | undefined;
+
+			const backend = {
+				readTree: vi.fn(
+					() =>
+						new Promise<TreeEntry[]>((resolve) => {
+							releaseRead = resolve;
+						}),
+				),
+			} as unknown as GitBackend;
+
+			const cache = new RemoteTreeCache(backend, "v5");
+			const inFlight = cache.refresh();
+
+			cache.invalidate();
+
+			releaseRead?.([makeTreeEntry("content/stale.md")]);
+			await inFlight;
+
+			expect(cache.isCached).toBe(false);
+		});
+
+		it("starts a fresh read after invalidation instead of reusing the superseded one", async () => {
+			const backend = makeGitBackend([makeTreeEntry("content/a.md")]);
+			const cache = new RemoteTreeCache(backend, "v5");
+
+			const first = cache.refresh();
+			cache.invalidate();
+			const second = cache.refresh();
+
+			await Promise.all([first, second]);
+
+			expect(backend.readTree).toHaveBeenCalledTimes(2);
+		});
+	});
 });
