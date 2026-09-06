@@ -25,4 +25,12 @@ jobs:
             - run: npm run build
             - run: npm run typecheck
             - run: npm run lint
+            - run: npm run test:unit
+            # v8 coverage instrumentation differs by Node version. The same tree
+            # reports 46.98% statements on 24.x but 45.47% on 20.x and 22.x, and
+            # 56.23% functions on 24.x against 68.46% on the others, because the
+            # function and branch denominators themselves change. A threshold is
+            # only meaningful against one runtime, so the ratchet runs on a single
+            # version. Every version still runs the full suite on the line above.
             - run: npm run test:coverage
+              if: matrix.node-version == '24.x'
