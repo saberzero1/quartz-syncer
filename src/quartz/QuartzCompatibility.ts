@@ -40,7 +40,7 @@ export class QuartzCompatibility {
 
 				return version;
 			})
-			.catch(() => "unknown" as QuartzVersion)
+			.catch((): QuartzVersion => "unknown")
 			.finally(() => {
 				this.inflight = null;
 			});
