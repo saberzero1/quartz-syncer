@@ -53,7 +53,7 @@ const baseConfig: GitBackendConfig = {
 	auth: { type: "none" },
 };
 
-const mockApp = {} as App;
+const mockApp = { appId: "test-vault-id" } as App;
 
 describe("BundledGitBackend", () => {
 	beforeEach(() => {

@@ -14,10 +14,18 @@ export async function invokeCliHandler(
 						getPlugin: (id: string) => unknown;
 					};
 				};
+				type CliPluginHost = {
+					cliHandlers?: Record<
+						string,
+						((args: unknown) => unknown) | undefined
+					>;
+				};
+
 				const pluginHost = app as unknown as AppWithPlugins;
+
 				const plugin = pluginHost.plugins.getPlugin(
 					"quartz-syncer",
-				) as any;
+				) as CliPluginHost | null;
 				const handler = plugin?.cliHandlers?.[command];
 				if (!handler) {
 					return {

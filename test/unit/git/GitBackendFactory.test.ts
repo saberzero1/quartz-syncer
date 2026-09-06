@@ -26,7 +26,7 @@ const mockConfig: GitBackendConfig = {
 	auth: { type: "bearer", secret: "token" },
 };
 
-const mockApp = {} as App;
+const mockApp = { appId: "test-vault-id" } as App;
 
 describe("GitBackendFactory", () => {
 	beforeEach(() => {
