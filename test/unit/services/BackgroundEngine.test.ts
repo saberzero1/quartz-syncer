@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App, TFile } from "obsidian";
 import { BackgroundEngine } from "src/services/BackgroundEngine";
+import * as dataview from "src/compiler/integrations/apis/dataview";
+import type { DatacoreApi } from "src/compiler/integrations/apis/datacore";
 import type { Publisher } from "src/publisher/Publisher";
 import type QuartzSyncer from "src/main";
 
@@ -106,6 +108,10 @@ const createApp = (files: TFile[] = []): App => {
 };
 
 describe("BackgroundEngine", () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
 	it("starts and stops", () => {
 		vi.useFakeTimers();
 		const app = createApp();
@@ -645,6 +651,163 @@ describe("BackgroundEngine", () => {
 		vi.useRealTimers();
 	});
 
+	describe("dynamic cache guards", () => {
+		let app: App;
+		let plugin: QuartzSyncer;
+		let engine: BackgroundEngine;
+
+		beforeEach(() => {
+			vi.useFakeTimers();
+			app = createApp();
+			plugin = createPluginStub();
+			engine = new BackgroundEngine(app, plugin);
+			engine.compilationQueue.pause();
+		});
+
+		afterEach(() => {
+			engine.stop();
+			vi.restoreAllMocks();
+			vi.unstubAllGlobals();
+			vi.useRealTimers();
+		});
+
+		const installDataview = (initialized = true) => {
+			const api: dataview.DataviewApi = {
+				settings: {},
+				index: { initialized, revision: 2 },
+				page: vi.fn(),
+				tryEvaluate: vi.fn(),
+				executeJs: vi.fn().mockResolvedValue(undefined),
+				tryQueryMarkdown: vi.fn().mockResolvedValue(""),
+			};
+			vi.spyOn(dataview, "getDataviewApi").mockReturnValue(api);
+			// MetadataCache lacks events in the shared mock; reuse its Workspace emitter.
+			const on = vi.fn(app.workspace.on.bind(app.workspace));
+			app.metadataCache.on = on;
+			app.metadataCache.offref = app.workspace.offref.bind(app.workspace);
+			return on;
+		};
+
+		const installDatacore = () => {
+			const on = vi.fn(
+				(
+					event: "update" | "initialized",
+					callback: (revision: number) => void,
+				) =>
+					app.workspace.on(event, (...args: unknown[]) => {
+						if (typeof args[0] === "number") callback(args[0]);
+					}),
+			);
+			const api: DatacoreApi = {
+				core: {
+					revision: 2,
+					on,
+					offref: app.workspace.offref.bind(app.workspace),
+				},
+				executeJs: vi.fn(),
+				executeJsx: vi.fn(),
+				executeTs: vi.fn(),
+				executeTsx: vi.fn(),
+			};
+			vi.stubGlobal("datacore", api);
+			return on;
+		};
+
+		it.each([true, false])(
+			"does not register dataview listeners when useCache is false (initialized=%s)",
+			(initialized) => {
+				const on = installDataview(initialized);
+				plugin.settings.useCache = false;
+
+				engine.start();
+
+				expect(on.mock.calls.map(([event]) => event)).toEqual([]);
+			},
+		);
+
+		it.each([
+			[true, "dataview:metadata-change"],
+			[false, "dataview:index-ready"],
+		] as const)(
+			"registers dataview listeners when useCache is true (initialized=%s)",
+			(initialized, event) => {
+				const on = installDataview(initialized);
+
+				engine.start();
+
+				expect(on).toHaveBeenCalledTimes(1);
+				expect(on).toHaveBeenCalledWith(event, expect.any(Function));
+			},
+		);
+
+		it("does not register datacore listeners when useCache is false", () => {
+			const on = installDatacore();
+			plugin.settings.useCache = false;
+
+			engine.start();
+
+			expect(on.mock.calls.map(([event]) => event)).toEqual([]);
+		});
+
+		it("registers datacore listeners when useCache is true", () => {
+			const on = installDatacore();
+
+			engine.start();
+
+			expect(on).toHaveBeenCalledTimes(1);
+			expect(on).toHaveBeenCalledWith("update", expect.any(Function));
+		});
+
+		it.each([
+			["dataview", false],
+			["dataview", true],
+			["datacore", false],
+			["datacore", true],
+		] as const)(
+			"%s dynamic requeue honors useCache=%s after listener registration",
+			async (source, useCache) => {
+				if (source === "dataview") installDataview();
+				else installDatacore();
+				vi.mocked(
+					plugin.dataStore.getDynamicContentPaths,
+				).mockResolvedValue(new Set(["notes/dynamic.md"]));
+				vi.mocked(
+					plugin.dataStore.hasDynamicContentFlag,
+				).mockResolvedValue(true);
+				vi.mocked(
+					plugin.dataStore.loadCompilationRevisions,
+				).mockResolvedValue({
+					dataviewRevision: 1,
+					datacoreRevision: 1,
+				});
+				const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
+				engine.start();
+				await vi.advanceTimersByTimeAsync(30_001);
+				expect(enqueueSpy).toHaveBeenCalledTimes(0);
+
+				// Keep the installed listener alive so the requeue guard is reachable.
+				plugin.settings.useCache = useCache;
+				if (source === "dataview") {
+					app.workspace.trigger(
+						"dataview:metadata-change",
+						"update",
+						createFile("notes/changed.md", Date.now()),
+					);
+				} else {
+					app.workspace.trigger("update", 2);
+				}
+				await vi.advanceTimersByTimeAsync(1_001);
+
+				expect(enqueueSpy.mock.calls).toEqual(
+					useCache ? [["notes/dynamic.md", 5]] : [],
+				);
+				expect(
+					plugin.dataStore.getDynamicContentPaths,
+				).toHaveBeenCalledTimes(useCache ? 1 : 0);
+			},
+		);
+	});
+
 	it("does not call vault.getMarkdownFiles during the dynamic-requeue path when getDynamicContentPaths returns known paths", async () => {
 		vi.useFakeTimers();
 		const app = createApp();
@@ -665,6 +828,41 @@ describe("BackgroundEngine", () => {
 		expect(getMarkdownSpy).not.toHaveBeenCalled();
 		vi.useRealTimers();
 	});
+
+	it.each([false, true])(
+		"prewarm with publishable metadata candidates honors useCache=%s across batches",
+		async (useCache) => {
+			vi.useFakeTimers();
+			const files = Array.from({ length: 11 }, (_, index) =>
+				createFile(`notes/published-${index}.md`, 1000),
+			);
+			const app = createApp(files);
+			app.vault.getMarkdownFiles = vi.fn().mockReturnValue(files);
+			app.metadataCache.getFileCache = vi.fn().mockReturnValue({
+				frontmatter: { publish: true },
+			});
+			const plugin = createPluginStub();
+			plugin.settings = {
+				...plugin.settings,
+				useCache,
+				publishFrontmatterKey: "publish",
+			};
+			const engine = new BackgroundEngine(app, plugin);
+			const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
+			engine.compilationQueue.pause();
+
+			try {
+				engine.start();
+				await vi.advanceTimersByTimeAsync(51);
+
+				expect(enqueueSpy.mock.calls).toEqual(
+					useCache ? files.map((file) => [file.path, 0]) : [],
+				);
+			} finally {
+				engine.stop();
+			}
+		},
+	);
 
 	it("prewarm enqueues only publishable candidates when useCache is true", () => {
 		vi.useFakeTimers();
