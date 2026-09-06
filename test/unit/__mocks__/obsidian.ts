@@ -134,9 +134,27 @@ export class Modal {
 	close = vi.fn();
 }
 
-export const Platform = {
+const PLATFORM_DEFAULTS = {
 	isDesktopApp: true,
+	isMobileApp: false,
 };
+
+export const Platform = { ...PLATFORM_DEFAULTS };
+
+/**
+ * Switch the emulated platform for a test.
+ *
+ * Production reads both flags, so leaving isMobileApp undefined silently
+ * routes every mobile branch down the desktop path. Tests that exercise
+ * mobile behaviour must set both.
+ */
+export function setPlatform(next: Partial<typeof PLATFORM_DEFAULTS>): void {
+	Object.assign(Platform, next);
+}
+
+export function resetPlatform(): void {
+	Object.assign(Platform, PLATFORM_DEFAULTS);
+}
 
 export const setIcon = vi.fn();
 

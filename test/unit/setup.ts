@@ -1,3 +1,10 @@
+import { afterEach } from "vitest";
+import { resetPlatform } from "./__mocks__/obsidian";
+
+afterEach(() => {
+	resetPlatform();
+});
+
 if (typeof globalThis.window === "undefined") {
 	Object.defineProperty(globalThis, "window", {
 		value: globalThis,

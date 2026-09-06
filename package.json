@@ -13,6 +13,7 @@
 		"lint": "eslint .",
 		"test": "npm run test:unit && npm run test:integration",
 		"test:unit": "vitest run",
+		"test:coverage": "vitest run --coverage",
 		"test:integration": "vitest run --config vitest.integration.config.ts",
 		"test:e2e:build": "vitest run --config vitest.e2e.config.ts",
 		"typecheck": "tsc --noEmit",
@@ -22,6 +23,7 @@
 	"devDependencies": {
 		"@types/diff": "^7.0.2",
 		"@types/node": "^20.19.43",
+		"@vitest/coverage-v8": "^2.1.9",
 		"@wdio/cli": "^9.30.0",
 		"@wdio/globals": "^9.29.1",
 		"@wdio/local-runner": "^9.30.0",
