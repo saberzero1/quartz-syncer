@@ -115,8 +115,13 @@ describe("DataStore.getDynamicContentPaths", () => {
 
 		await store.preloadCache();
 
+		// spyOn reuses an existing mock rather than creating a fresh one, so
+		// these inherit the calls preloadCache() just made. Clear them so the
+		// assertions below measure only getDynamicContentPaths().
 		const iterateSpy = vi.spyOn(store.persister, "iterate");
 		const getItemSpy = vi.spyOn(store.persister, "getItem");
+		iterateSpy.mockClear();
+		getItemSpy.mockClear();
 
 		const result = await store.getDynamicContentPaths();
 
