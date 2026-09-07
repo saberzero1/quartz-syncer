@@ -19,8 +19,13 @@ export class HubDetectionCache {
 
 	private store: IndexedDBStore | null = null;
 
-	enablePersistence(vaultName: string, pluginId: string): void {
-		this.store = createStore(`${vaultName}-${pluginId}-hub`);
+	/**
+	 * IndexedDB is shared across vaults in one Obsidian installation, so use
+	 * `appId`: vault names are neither unique nor stable. A name-keyed cache
+	 * could serve another vault's detection results or be orphaned on rename.
+	 */
+	enablePersistence(appId: string, pluginId: string): void {
+		this.store = createStore(`${appId}-${pluginId}-hub`);
 	}
 
 	async loadPersisted(): Promise<void> {

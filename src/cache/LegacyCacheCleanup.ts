@@ -20,10 +20,10 @@ const SCOPED_CACHE_SUFFIXES = ["status", "hub", "tree", "registry"];
 /**
  * Protect the databases still read and written by this plugin scope.
  *
- * The db9905f rename moved DataStore to appId, but status, hub, tree and
- * registry caches still use the vault name. Those are live, not migration
- * leftovers. LightningFS names depend on remote and branch, so their live
- * clones are protected by generation instead of this enumerable set.
+ * DataStore and the status, hub, tree and registry caches now all use appId;
+ * their vault-name copies are migration leftovers, not live data.
+ * LightningFS names depend on remote and branch, so their live clones are
+ * protected by generation instead of this enumerable set.
  *
  * @param scope - The current vault identities and plugin version.
  * @returns The live database names that cleanup must leave intact.
@@ -32,7 +32,7 @@ export function liveCacheNames(scope: CacheScope): Set<string> {
 	return new Set([
 		`quartz-syncer/cache/${scope.appId}/${scope.pluginId}/${scope.version}`,
 		...SCOPED_CACHE_SUFFIXES.map(
-			(suffix) => `${scope.vaultName}-${scope.pluginId}-${suffix}`,
+			(suffix) => `${scope.appId}-${scope.pluginId}-${suffix}`,
 		),
 	]);
 }
@@ -43,6 +43,9 @@ export function liveCacheNames(scope: CacheScope): Set<string> {
  * Matching only the post-db9905f appId prefix orphaned the older vault-name
  * DataStore caches. Both identities are needed, but a plugin-wide prefix
  * would delete other vaults' live caches in the shared IndexedDB origin.
+ * Service caches have also moved to appId, leaving vault-name copies behind.
+ * Only this vault's non-empty name is reclaimable: other vaults may still
+ * use their name-keyed caches with an older plugin build.
  * Hash-only LightningFS clones have no vault identity and no current reader;
  * current and future generations must survive regardless of their appId.
  * Empty-scope service databases are placeholder junk, not scoped caches.
@@ -66,7 +69,12 @@ export function isStaleCacheName(name: string, scope: CacheScope): boolean {
 	const generation = parseGitFsGeneration(name);
 	if (generation !== null && generation < GIT_FS_GENERATION) return true;
 
-	return SCOPED_CACHE_SUFFIXES.some((suffix) => name === `--${suffix}`);
+	return SCOPED_CACHE_SUFFIXES.some(
+		(suffix) =>
+			name === `--${suffix}` ||
+			(scope.vaultName !== "" &&
+				name === `${scope.vaultName}-${scope.pluginId}-${suffix}`),
+	);
 }
 
 /**

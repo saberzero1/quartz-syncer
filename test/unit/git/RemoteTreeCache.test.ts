@@ -257,14 +257,23 @@ describe("RemoteTreeCache", () => {
 
 	describe("persistence", () => {
 		const REMOTE_URL = "https://github.com/user/repo.git";
-		const VAULT = "my-vault";
+		const APP_ID = "319a0eefd0e81b84";
 		const PLUGIN_ID = "quartz-syncer";
+
+		it("keys persistence by appId", () => {
+			const cache = new RemoteTreeCache(makeGitBackend(), "main");
+			cache.enablePersistence(APP_ID, PLUGIN_ID, REMOTE_URL);
+
+			expect(mockCreateStore).toHaveBeenCalledExactlyOnceWith(
+				"319a0eefd0e81b84-quartz-syncer-tree",
+			);
+		});
 
 		it("refresh() persists a record with generation, remoteUrl, branch, entries, and time; subsequent get() does not call readTree again", async () => {
 			const entries = [makeTreeEntry("content/a.md")];
 			const backend = makeGitBackend(entries);
 			const cache = new RemoteTreeCache(backend, "main");
-			cache.enablePersistence(VAULT, PLUGIN_ID, REMOTE_URL);
+			cache.enablePersistence(APP_ID, PLUGIN_ID, REMOTE_URL);
 
 			await cache.refresh();
 
@@ -281,7 +290,7 @@ describe("RemoteTreeCache", () => {
 			);
 
 			const fresh = new RemoteTreeCache(makeGitBackend(entries), "main");
-			fresh.enablePersistence(VAULT, PLUGIN_ID, REMOTE_URL);
+			fresh.enablePersistence(APP_ID, PLUGIN_ID, REMOTE_URL);
 			await fresh.loadPersisted();
 
 			const result = await fresh.get();
@@ -306,7 +315,7 @@ describe("RemoteTreeCache", () => {
 
 			const backend = makeGitBackend(entries);
 			const cache = new RemoteTreeCache(backend, "main");
-			cache.enablePersistence(VAULT, PLUGIN_ID, REMOTE_URL);
+			cache.enablePersistence(APP_ID, PLUGIN_ID, REMOTE_URL);
 
 			await cache.loadPersisted();
 
@@ -334,7 +343,7 @@ describe("RemoteTreeCache", () => {
 
 			const backend = makeGitBackend(entries);
 			const cache = new RemoteTreeCache(backend, "main");
-			cache.enablePersistence(VAULT, PLUGIN_ID, REMOTE_URL);
+			cache.enablePersistence(APP_ID, PLUGIN_ID, REMOTE_URL);
 
 			await cache.loadPersisted();
 
@@ -356,7 +365,7 @@ describe("RemoteTreeCache", () => {
 
 			const backend = makeGitBackend(entries);
 			const cache = new RemoteTreeCache(backend, "main");
-			cache.enablePersistence(VAULT, PLUGIN_ID, REMOTE_URL);
+			cache.enablePersistence(APP_ID, PLUGIN_ID, REMOTE_URL);
 
 			await cache.loadPersisted();
 
@@ -383,7 +392,7 @@ describe("RemoteTreeCache", () => {
 			);
 
 			const cache = new RemoteTreeCache(makeGitBackend(entries), "main");
-			cache.enablePersistence(VAULT, PLUGIN_ID, REMOTE_URL);
+			cache.enablePersistence(APP_ID, PLUGIN_ID, REMOTE_URL);
 
 			await cache.loadPersisted();
 
@@ -412,7 +421,7 @@ describe("RemoteTreeCache", () => {
 				makeGitBackend(entries),
 				"main",
 			);
-			cacheExpired.enablePersistence(VAULT, PLUGIN_ID, REMOTE_URL);
+			cacheExpired.enablePersistence(APP_ID, PLUGIN_ID, REMOTE_URL);
 			await cacheExpired.loadPersisted();
 
 			expect(cacheExpired.isCached).toBe(false);
@@ -437,7 +446,7 @@ describe("RemoteTreeCache", () => {
 				makeGitBackend(entries),
 				"main",
 			);
-			cacheFresh.enablePersistence(VAULT, PLUGIN_ID, REMOTE_URL);
+			cacheFresh.enablePersistence(APP_ID, PLUGIN_ID, REMOTE_URL);
 			await cacheFresh.loadPersisted();
 
 			expect(cacheFresh.isCached).toBe(true);
@@ -457,7 +466,7 @@ describe("RemoteTreeCache", () => {
 			);
 
 			const cache = new RemoteTreeCache(makeGitBackend(), "main");
-			cache.enablePersistence(VAULT, PLUGIN_ID, REMOTE_URL);
+			cache.enablePersistence(APP_ID, PLUGIN_ID, REMOTE_URL);
 
 			await expect(cache.loadPersisted()).resolves.toBeUndefined();
 			expect(cache.isCached).toBe(false);
@@ -481,7 +490,7 @@ describe("RemoteTreeCache", () => {
 
 			const backend = makeGitBackend(entries);
 			const cache = new RemoteTreeCache(backend, "main");
-			cache.enablePersistence(VAULT, PLUGIN_ID, REMOTE_URL);
+			cache.enablePersistence(APP_ID, PLUGIN_ID, REMOTE_URL);
 
 			const loadPromise = cache.loadPersisted();
 			const getPromise = cache.get();

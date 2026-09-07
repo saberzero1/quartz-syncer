@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import type { GitBackend, TreeEntry, FileChange } from "src/git/types";
+import { createStore } from "src/cache/IndexedDBStore";
+
+const { getItem } = vi.hoisted(() => ({
+	getItem: vi.fn(),
+}));
+
+vi.mock("src/cache/IndexedDBStore", () => ({
+	createStore: vi.fn(() => ({ getItem })),
+}));
 
 const makeGitBackend = (overrides: Partial<GitBackend> = {}): GitBackend =>
 	({
@@ -23,12 +32,38 @@ describe("RemotePublishBackend", () => {
 	let backend: RemotePublishBackend;
 
 	beforeEach(() => {
+		vi.mocked(createStore).mockClear();
+		getItem.mockReset();
 		gitBackend = makeGitBackend();
 		backend = new RemotePublishBackend(gitBackend, "main");
 	});
 
 	it("isLocal returns false", () => {
 		expect(backend.isLocal).toBe(false);
+	});
+
+	it("forwards appId and remote identity to tree persistence and loads the cached tree", async () => {
+		const appId = "319a0eefd0e81b84";
+		const remoteUrl = "https://github.com/user/repo.git";
+		const entries: TreeEntry[] = [
+			{ path: "content/cached.md", sha: "cached-sha", type: "blob" },
+		];
+		getItem.mockResolvedValue({
+			generation: 1,
+			remoteUrl,
+			branch: "main",
+			entries,
+			time: Date.now(),
+		});
+
+		backend.enableTreePersistence(appId, "quartz-syncer", remoteUrl);
+
+		expect(createStore).toHaveBeenCalledExactlyOnceWith(
+			"319a0eefd0e81b84-quartz-syncer-tree",
+		);
+		await expect(backend.getCachedTree("main")).resolves.toEqual(entries);
+		expect(getItem).toHaveBeenCalledExactlyOnceWith("tree");
+		expect(gitBackend.readTree).not.toHaveBeenCalled();
 	});
 
 	it("writeFiles delegates to gitBackend.writeFiles with same args", async () => {

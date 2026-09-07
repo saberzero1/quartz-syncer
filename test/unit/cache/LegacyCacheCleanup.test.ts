@@ -68,14 +68,14 @@ describe("legacy cache cleanup", () => {
 	});
 
 	describe("liveCacheNames", () => {
-		it("protects the appId DataStore and all still-live vault-name-scoped services", () => {
+		it("protects the appId DataStore and all appId-scoped services", () => {
 			expect(liveCacheNames(scope)).toEqual(
 				new Set([
 					CURRENT_DB,
-					"myvault-quartz-syncer-status",
-					"myvault-quartz-syncer-hub",
-					"myvault-quartz-syncer-tree",
-					"myvault-quartz-syncer-registry",
+					"319a0eefd0e81b84-quartz-syncer-status",
+					"319a0eefd0e81b84-quartz-syncer-hub",
+					"319a0eefd0e81b84-quartz-syncer-tree",
+					"319a0eefd0e81b84-quartz-syncer-registry",
 				]),
 			);
 		});
@@ -122,6 +122,10 @@ describe("legacy cache cleanup", () => {
 			"--hub",
 			"--tree",
 			"--registry",
+			"myvault-quartz-syncer-status",
+			"myvault-quartz-syncer-hub",
+			"myvault-quartz-syncer-tree",
+			"myvault-quartz-syncer-registry",
 		])("recognizes abandoned cache %s", (name) => {
 			expect(isStaleCacheName(name, scope)).toBe(true);
 		});
@@ -140,11 +144,21 @@ describe("legacy cache cleanup", () => {
 			CURRENT_FS,
 			"quartz-syncer-2-other-vault-abc",
 			"quartz-syncer-3-319a0eefd0e81b84-abc",
-			"myvault-quartz-syncer-status",
-			"myvault-quartz-syncer-hub",
-			"myvault-quartz-syncer-tree",
-			"myvault-quartz-syncer-registry",
+			"319a0eefd0e81b84-quartz-syncer-status",
+			"319a0eefd0e81b84-quartz-syncer-hub",
+			"319a0eefd0e81b84-quartz-syncer-tree",
+			"319a0eefd0e81b84-quartz-syncer-registry",
+			// Another vault may still read its name-keyed caches on an older build.
 			"other-vault-quartz-syncer-status",
+			"other-vault-quartz-syncer-hub",
+			"other-vault-quartz-syncer-tree",
+			"other-vault-quartz-syncer-registry",
+			"other-app-id-quartz-syncer-status",
+			"other-app-id-quartz-syncer-hub",
+			"other-app-id-quartz-syncer-tree",
+			"other-app-id-quartz-syncer-registry",
+			"myvault-other-plugin-status",
+			"myvault-quartz-syncer-status-extra",
 			"dataview/cache/319a0eefd0e81b84",
 			"319a0eefd0e81b84-backup",
 			"unrelated-database",
@@ -155,6 +169,38 @@ describe("legacy cache cleanup", () => {
 				expect(isStaleCacheName(name, scope)).toBe(false);
 			},
 		);
+
+		it.each(["status", "hub", "tree", "registry"])(
+			"does not classify scoped %s caches as stale when vaultName is empty",
+			(suffix) => {
+				const emptyScope = { ...scope, vaultName: "" };
+				for (const prefix of [
+					"",
+					"myvault",
+					"other-vault",
+					scope.appId,
+				]) {
+					expect(
+						isStaleCacheName(
+							`${prefix}-quartz-syncer-${suffix}`,
+							emptyScope,
+						),
+					).toBe(false);
+				}
+				expect(isStaleCacheName(`--${suffix}`, emptyScope)).toBe(true);
+			},
+		);
+
+		it("protects live service caches even when the appId and vault name coincide", () => {
+			for (const name of liveCacheNames(scope)) {
+				expect(
+					isStaleCacheName(name, {
+						...scope,
+						vaultName: scope.appId,
+					}),
+				).toBe(false);
+			}
+		});
 
 		it("protects a live DataStore even when the appId and vault name coincide", () => {
 			expect(
@@ -236,13 +282,17 @@ describe("legacy cache cleanup", () => {
 				"quartz-syncer/cache/myvault/quartz-syncer/2.0.10",
 				"quartz-syncer-s2q7m9",
 				"--status",
+				"myvault-quartz-syncer-hub",
+				"myvault-quartz-syncer-status",
+				"myvault-quartz-syncer-tree",
 			];
 			const survivors = [
 				"quartz-syncer/cache/319a0eefd0e81b84/quartz-syncer/2.0.11",
 				"quartz-syncer-2-319a0eefd0e81b84-s2q7m9",
-				"myvault-quartz-syncer-hub",
-				"myvault-quartz-syncer-status",
-				"myvault-quartz-syncer-tree",
+				"319a0eefd0e81b84-quartz-syncer-hub",
+				"319a0eefd0e81b84-quartz-syncer-status",
+				"319a0eefd0e81b84-quartz-syncer-tree",
+				"319a0eefd0e81b84-quartz-syncer-registry",
 				"dataview/cache/319a0eefd0e81b84",
 				"319a0eefd0e81b84-backup",
 				"319a0eefd0e81b84-cache",

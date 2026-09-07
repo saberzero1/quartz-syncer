@@ -60,8 +60,13 @@ export class QuartzPluginRegistry {
 	private fetchPromise: Promise<RegistryPluginEntry[]> | null = null;
 	private store: IndexedDBStore | null = null;
 
-	enablePersistence(vaultName: string, pluginId: string): void {
-		this.store = createStore(`${vaultName}-${pluginId}-registry`);
+	/**
+	 * IndexedDB is shared across vaults in one Obsidian installation, so use
+	 * `appId`: vault names are neither unique nor stable. A name-keyed cache
+	 * could be shared by unrelated vaults or orphaned after a vault rename.
+	 */
+	enablePersistence(appId: string, pluginId: string): void {
+		this.store = createStore(`${appId}-${pluginId}-registry`);
 	}
 
 	async getPlugins(): Promise<RegistryPluginEntry[]> {

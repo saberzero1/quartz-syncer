@@ -244,17 +244,14 @@ export default class QuartzSyncer extends Plugin {
 		});
 
 		this.statusCache = new StatusCacheService(
-			this.app.vault.getName(),
+			this.app.appId,
 			this.manifest.id,
 		);
 		this.syncStatusCacheDestination();
 		void this.statusCache.loadPersistedSnapshot();
-		this.pluginRegistry.enablePersistence(
-			this.app.vault.getName(),
-			this.manifest.id,
-		);
+		this.pluginRegistry.enablePersistence(this.app.appId, this.manifest.id);
 		this.hubDetectionCache.enablePersistence(
-			this.app.vault.getName(),
+			this.app.appId,
 			this.manifest.id,
 		);
 		void this.hubDetectionCache.loadPersisted();
@@ -702,7 +699,7 @@ export default class QuartzSyncer extends Plugin {
 				this.settings.gitBranch,
 			);
 			backend.enableTreePersistence(
-				this.app.vault.getName(),
+				this.app.appId,
 				this.manifest.id,
 				this.settings.gitRemoteUrl,
 			);

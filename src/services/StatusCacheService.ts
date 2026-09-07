@@ -48,9 +48,14 @@ export class StatusCacheService {
 		{ local: string; remote: string }
 	>();
 
-	constructor(vaultName: string, pluginId: string) {
+	/**
+	 * IndexedDB is shared across vaults in one Obsidian installation, so use
+	 * `appId`: vault names are neither unique nor stable. A name-keyed cache
+	 * could serve another vault's status or be orphaned after a vault rename.
+	 */
+	constructor(appId: string, pluginId: string) {
 		this.storeName =
-			vaultName && pluginId ? `${vaultName}-${pluginId}-status` : null;
+			appId && pluginId ? `${appId}-${pluginId}-status` : null;
 	}
 
 	private getStore(): IndexedDBStore | null {
