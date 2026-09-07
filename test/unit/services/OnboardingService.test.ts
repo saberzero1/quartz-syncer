@@ -16,7 +16,9 @@ const { mockService, GitHubApiServiceMock } = vi.hoisted(() => {
 
 	return {
 		mockService,
-		GitHubApiServiceMock: vi.fn(() => mockService),
+		GitHubApiServiceMock: vi.fn(function () {
+			return mockService;
+		}),
 	};
 });
 

@@ -2,11 +2,47 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createUpgradeHandler } from "src/cli/handlers/upgradeHandler";
 import type { QuartzRunner } from "src/process/runners/QuartzRunner";
 import { buildParams, buildPlugin } from "./helpers";
+import {
+	QuartzCompatibility,
+	V4_MANAGEMENT_UNSUPPORTED,
+} from "src/quartz/QuartzCompatibility";
+import type { QuartzVersion } from "src/quartz/QuartzConfigTypes";
 
 describe("upgradeHandler", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
+
+	it.each<QuartzVersion>(["v4", "unknown"])(
+		"blocks updates for %s",
+		async (version) => {
+			const update = vi.fn();
+			const plugin = buildPlugin({
+				settings: {
+					...buildPlugin().settings,
+					enableSystemCommands: true,
+					quartzRepoPath: "/repo",
+				},
+				quartzRunner: { update } as unknown as QuartzRunner,
+			});
+			plugin.quartzCompatibility = new QuartzCompatibility(plugin);
+			vi.spyOn(
+				plugin.quartzCompatibility,
+				"getVersion",
+			).mockResolvedValue(version);
+			const handler = createUpgradeHandler(plugin);
+
+			expect(await handler(buildParams())).toEqual({
+				success: false,
+				error: V4_MANAGEMENT_UNSUPPORTED,
+			});
+			expect(await handler(buildParams({}, ["dry-run"]))).toEqual({
+				success: false,
+				error: V4_MANAGEMENT_UNSUPPORTED,
+			});
+			expect(update).not.toHaveBeenCalled();
+		},
+	);
 
 	it("runs the local quartz update when system commands are enabled", async () => {
 		const quartzRunner = {

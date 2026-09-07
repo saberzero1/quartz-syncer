@@ -14,6 +14,16 @@ Quartz Syncer is an [Obsidian](https://obsidian.md/) plugin for managing and pub
 ## Requirements
 
 - Obsidian v1.13.0 or later
+- Quartz v5 for full functionality
+
+### Quartz v4 support
+
+Publishing notes and media to a Quartz v4 repository is supported and continues to work. Quartz site management — configuration editing, plugin management, and upgrades — requires Quartz v5 and is disabled when a v4 repository is detected.
+
+Two rendering differences are worth knowing if you stay on v4:
+
+- **Custom task characters** such as `- [/]`, `- [?]`, and `- [!]` are a Quartz v5 feature. Quartz Syncer publishes them unchanged, so v4 renders them literally rather than as styled tasks.
+- **URL casing** differs between versions. Quartz v4 preserves the original casing of file and folder names, while v5 lowercases and hyphenates generated URLs. This affects how existing links resolve if you migrate.
 
 ## Installation
 

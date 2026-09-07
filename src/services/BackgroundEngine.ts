@@ -3,6 +3,7 @@ import type QuartzSyncer from "src/main";
 import { CompilationQueue } from "src/services/CompilationQueue";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { getSpecialFileType, PublishFile } from "src/publishFile/PublishFile";
+import { collectCandidatePaths } from "src/publishFile/PublishCandidates";
 import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
 import type { IOperabilityEventSink } from "src/operability/types";
 import type { StatusSummary } from "src/services/StatusCacheService";
@@ -14,6 +15,10 @@ const PRIORITY_VAULT_CHANGE = 5;
 const PRIORITY_ACTIVE_FILE = 10;
 
 const STARTUP_GUARD_MS = 30_000;
+const DYNAMIC_REQUEUE_DEBOUNCE_MS = 1_000;
+const VAULT_CHANGE_DEBOUNCE_MS = 2_000;
+
+type DynamicSource = "dataview" | "datacore";
 
 export class BackgroundEngine {
 	private running = false;
@@ -25,6 +30,16 @@ export class BackgroundEngine {
 	private compiler: SyncerPageCompiler | null = null;
 	private lastActiveFilePath: string | null = null;
 	private readonly startupTime = Date.now();
+
+	private dynamicPaths: Set<string> | null = null;
+	private dynamicPathsPromise: Promise<Set<string>> | null = null;
+	private pendingDynamicRevisions = new Map<
+		DynamicSource,
+		number | undefined
+	>();
+	private dynamicRequeueInFlight = false;
+	private pendingVaultChanges = new Set<string>();
+	private vaultChangeTimer: number | null = null;
 
 	readonly compilationQueue: CompilationQueue;
 	private initialFetchDone = false;
@@ -82,23 +97,12 @@ export class BackgroundEngine {
 
 		try {
 			const settings = this.plugin.settings;
-			const extCache = this.plugin.cacheHandle?.api;
-			const vaultFiles = this.app.vault.getFiles();
 
-			let candidatePaths: Set<string>;
-
-			if (settings.allNotesPublishableByDefault) {
-				candidatePaths = new Set(vaultFiles.map((f) => f.path));
-			} else if (extCache?.isReady) {
-				candidatePaths = new Set(
-					extCache.getFilesWithFrontmatterValue(
-						settings.publishFrontmatterKey,
-						true,
-					),
-				);
-			} else {
-				candidatePaths = new Set(vaultFiles.map((f) => f.path));
-			}
+			const candidatePaths = collectCandidatePaths(
+				this.app,
+				this.plugin,
+				settings,
+			);
 
 			const remoteTree = await publisher.getCachedTree();
 			if (!remoteTree) return;
@@ -197,6 +201,15 @@ export class BackgroundEngine {
 		this.eventSink?.emit("engine.stopped", {});
 		this.running = false;
 		this.compilationQueue.cancel();
+		this.pendingDynamicRevisions.clear();
+		this.dynamicPaths = null;
+		this.dynamicPathsPromise = null;
+		this.pendingVaultChanges.clear();
+
+		if (this.vaultChangeTimer !== null) {
+			window.clearTimeout(this.vaultChangeTimer);
+			this.vaultChangeTimer = null;
+		}
 		this.updateStatusBar();
 		this.cleanupListeners();
 	}
@@ -280,6 +293,11 @@ export class BackgroundEngine {
 		try {
 			await publishFile.compile();
 
+			this.setDynamicFlag(
+				path,
+				await this.plugin.dataStore.hasDynamicContentFlag(path),
+			);
+
 			const blobLinks = await publishFile.getBlobLinks();
 			await this.plugin.dataStore.storeMediaLinks(path, blobLinks);
 
@@ -314,11 +332,8 @@ export class BackgroundEngine {
 	private registerVaultListeners(): void {
 		if (!this.running) return;
 
-		const debouncedEnqueue = debounce(
-			(path: string) => this.enqueue(path, PRIORITY_VAULT_CHANGE),
-			2000,
-			true,
-		);
+		const debouncedEnqueue = (path: string) =>
+			this.scheduleVaultChange(path);
 
 		this.vaultEventRefs.push(
 			this.app.vault.on("modify", (file) => {
@@ -341,6 +356,8 @@ export class BackgroundEngine {
 		this.vaultEventRefs.push(
 			this.app.vault.on("delete", (file) => {
 				if (file instanceof TFile && this.isPublishableFile(file)) {
+					this.dynamicPaths?.delete(file.path);
+
 					this.plugin.dataStore.dropFile(file.path).catch((error) => {
 						console.debug("Failed to drop cache entry:", error);
 					});
@@ -352,6 +369,8 @@ export class BackgroundEngine {
 		this.vaultEventRefs.push(
 			this.app.vault.on("rename", (file, oldPath) => {
 				if (this.isPublishablePath(oldPath)) {
+					this.dynamicPaths?.delete(oldPath);
+
 					this.plugin.dataStore.dropFile(oldPath).catch((error) => {
 						console.debug("Failed to drop cache entry:", error);
 					});
@@ -400,6 +419,7 @@ export class BackgroundEngine {
 
 	private registerDataviewListeners(): void {
 		if (!this.running) return;
+		if (!this.plugin.settings.useCache) return;
 
 		const dvApi = getDataviewApi();
 
@@ -409,6 +429,16 @@ export class BackgroundEngine {
 			dvApi.index !== undefined &&
 			typeof dvApi.index.revision === "number";
 
+		const debouncedRequeue = debounce(
+			() =>
+				this.requeueDynamicFiles(
+					hasRevisionApi ? dvApi.index?.revision : undefined,
+					"dataview",
+				),
+			DYNAMIC_REQUEUE_DEBOUNCE_MS,
+			true,
+		);
+
 		const onMetadataChange = (...args: unknown[]) => {
 			const type = args[0];
 			const file = args[1];
@@ -417,10 +447,7 @@ export class BackgroundEngine {
 			if (!(file instanceof TFile)) return;
 			if (this.isStartupNoise(file)) return;
 
-			this.requeueDynamicFiles(
-				hasRevisionApi ? dvApi.index?.revision : undefined,
-				"dataview",
-			);
+			debouncedRequeue();
 		};
 
 		const cacheEvents = this.app.metadataCache as Events;
@@ -444,14 +471,24 @@ export class BackgroundEngine {
 
 	private registerDatacoreListeners(): void {
 		if (!this.running) return;
+		if (!this.plugin.settings.useCache) return;
 
 		const dcApi = this.getDatacoreApi();
 		const core = dcApi?.core;
 
 		if (!core?.on || !core.offref) return;
 
+		let latestRevision: number | undefined;
+
+		const debouncedRequeue = debounce(
+			() => this.requeueDynamicFiles(latestRevision, "datacore"),
+			DYNAMIC_REQUEUE_DEBOUNCE_MS,
+			true,
+		);
+
 		const onUpdate = (revision: number) => {
-			this.requeueDynamicFiles(revision, "datacore");
+			latestRevision = revision;
+			debouncedRequeue();
 		};
 
 		const ref = core.on("update", onUpdate);
@@ -513,30 +550,95 @@ export class BackgroundEngine {
 
 	// --- Dynamic file re-enqueue ---
 
+	private async getDynamicPaths(): Promise<Set<string>> {
+		if (this.dynamicPaths) return this.dynamicPaths;
+
+		if (!this.dynamicPathsPromise) {
+			this.dynamicPathsPromise = this.plugin.dataStore
+				.getDynamicContentPaths()
+				.then((paths) => {
+					this.dynamicPaths = paths;
+
+					return paths;
+				})
+				.catch((error) => {
+					console.debug(
+						"Failed to load dynamic content paths:",
+						error,
+					);
+					this.dynamicPathsPromise = null;
+
+					return new Set<string>();
+				});
+		}
+
+		return this.dynamicPathsPromise;
+	}
+
+	private setDynamicFlag(path: string, hasDynamic: boolean): void {
+		void this.getDynamicPaths().then((paths) => {
+			if (hasDynamic) {
+				paths.add(path);
+			} else {
+				paths.delete(path);
+			}
+		});
+	}
+
 	private requeueDynamicFiles(
 		currentRevision: number | undefined,
-		source: "dataview" | "datacore",
+		source: DynamicSource,
 	): void {
-		const files = this.app.vault.getMarkdownFiles();
+		if (!this.plugin.settings.useCache) return;
+		if (!this.running) return;
 
-		for (const file of files) {
-			void this.checkAndRequeueDynamic(
-				file.path,
-				currentRevision,
-				source,
-			);
+		this.pendingDynamicRevisions.set(source, currentRevision);
+		void this.drainDynamicRequeues();
+	}
+
+	private async drainDynamicRequeues(): Promise<void> {
+		if (this.dynamicRequeueInFlight) return;
+		this.dynamicRequeueInFlight = true;
+
+		try {
+			while (this.running && this.pendingDynamicRevisions.size > 0) {
+				const pending = [...this.pendingDynamicRevisions];
+				this.pendingDynamicRevisions.clear();
+
+				const paths = await this.getDynamicPaths();
+
+				if (paths.size === 0) continue;
+
+				for (const [source, revision] of pending) {
+					for (const path of [...paths]) {
+						if (!this.running) return;
+
+						await this.checkAndRequeueDynamic(
+							path,
+							revision,
+							source,
+						);
+					}
+				}
+			}
+		} finally {
+			this.dynamicRequeueInFlight = false;
 		}
 	}
 
 	private async checkAndRequeueDynamic(
 		path: string,
 		currentRevision: number | undefined,
-		source: "dataview" | "datacore",
+		source: DynamicSource,
 	): Promise<void> {
 		const hasDynamic =
 			await this.plugin.dataStore.hasDynamicContentFlag(path);
 
-		if (!hasDynamic) return;
+		if (!hasDynamic) {
+			this.dynamicPaths?.delete(path);
+
+			return;
+		}
 
 		if (currentRevision === undefined) {
 			this.enqueue(path, PRIORITY_VAULT_CHANGE);
@@ -560,10 +662,20 @@ export class BackgroundEngine {
 
 	private prewarmCache(): void {
 		if (!this.running) return;
+		if (!this.plugin.settings.useCache) return;
+
+		const candidates = collectCandidatePaths(
+			this.app,
+			this.plugin,
+			this.plugin.settings,
+		);
 
 		const files = this.app.vault
 			.getFiles()
-			.filter((file) => this.isPublishableFile(file));
+			.filter(
+				(file) =>
+					this.isPublishableFile(file) && candidates.has(file.path),
+			);
 		let index = 0;
 
 		const enqueueBatch = () => {
@@ -608,6 +720,35 @@ export class BackgroundEngine {
 		if (Date.now() - this.startupTime > STARTUP_GUARD_MS) return false;
 
 		return file.stat.mtime < this.startupTime;
+	}
+
+	// --- Vault change coalescing ---
+
+	/**
+	 * Collect changed paths and flush them once the vault goes quiet.
+	 *
+	 * A single shared debouncer cannot be used here: it fires with only the
+	 * last arguments, so editing several notes inside one window would enqueue
+	 * only the last of them and silently skip precompiling the rest.
+	 */
+	private scheduleVaultChange(path: string): void {
+		this.pendingVaultChanges.add(path);
+
+		if (this.vaultChangeTimer !== null) {
+			window.clearTimeout(this.vaultChangeTimer);
+		}
+
+		this.vaultChangeTimer = window.setTimeout(() => {
+			this.vaultChangeTimer = null;
+			const paths = [...this.pendingVaultChanges];
+			this.pendingVaultChanges.clear();
+
+			if (!this.running) return;
+
+			for (const pending of paths) {
+				this.enqueue(pending, PRIORITY_VAULT_CHANGE);
+			}
+		}, VAULT_CHANGE_DEBOUNCE_MS);
 	}
 
 	// --- Enqueue ---

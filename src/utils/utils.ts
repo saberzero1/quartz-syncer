@@ -256,7 +256,7 @@ function renderPromise(
 	interval: number = 500,
 ): Promise<void> {
 	return new Promise<void>((resolve, reject) => {
-		let intervalTimer: ReturnType<typeof setTimeout>;
+		let intervalTimer: number;
 
 		const clearIntervalTimer = () => {
 			window.clearTimeout(intervalTimer);
@@ -265,7 +265,6 @@ function renderPromise(
 		const observer = new MutationObserver(() => {
 			clearIntervalTimer();
 
-			// @ts-expect-error -- TypeScript is complaining about the type of intervalTimer, but we know it's a valid timer reference.
 			intervalTimer = window.setTimeout(() => {
 				cleanUp();
 				resolve();

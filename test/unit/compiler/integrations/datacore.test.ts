@@ -87,6 +87,9 @@ describe("DatacoreIntegration", () => {
 
 	it("compile renders with mock Datacore API", async () => {
 		const api = makeApi();
+		vi.mocked(api.executeJs).mockImplementation((_query, element) => {
+			element.innerHTML = '<div class="datacore">Rendered list</div>';
+		});
 		(window as typeof window & { datacore?: DatacoreApi }).datacore = api;
 
 		const descriptor = DatacoreIntegration.getPatterns().find(
@@ -112,9 +115,25 @@ describe("DatacoreIntegration", () => {
 		const result = await DatacoreIntegration.compile(match, context);
 
 		expect(result).toBe("compiled result");
-		expect(api.executeJs).toHaveBeenCalled();
-		expect(datacoreMocks.renderPromise).toHaveBeenCalled();
-		expect(datacoreMocks.sanitizeHTMLToString).toHaveBeenCalled();
+		expect(api.executeJs).toHaveBeenCalledWith(
+			"LIST",
+			expect.objectContaining({
+				innerHTML: '<div class="datacore">Rendered list</div>',
+			}),
+			expect.anything(),
+			"notes/test.md",
+		);
+		const container = vi.mocked(api.executeJs).mock.calls[0]?.[1];
+		expect(datacoreMocks.renderPromise).toHaveBeenCalledWith(
+			container,
+			expect.stringContaining("[class*=datacore]"),
+		);
+		expect(datacoreMocks.sanitizeHTMLToString).toHaveBeenCalledWith(
+			expect.objectContaining({
+				innerHTML: '<div class="datacore">Rendered list</div>',
+			}),
+			expect.any(XMLSerializer),
+		);
 	});
 
 	it("isAvailable returns false when Datacore not installed", () => {

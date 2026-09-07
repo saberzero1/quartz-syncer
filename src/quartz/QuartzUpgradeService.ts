@@ -4,6 +4,10 @@ import type { GitAuth } from "src/models/settings";
 import { requestUrl } from "obsidian";
 import type { QuartzRunner } from "src/process/runners/QuartzRunner";
 import { fetchRemoteHeadCommit } from "src/git/GitRemoteUtils";
+import {
+	type QuartzCompatibility,
+	V4_MANAGEMENT_UNSUPPORTED,
+} from "./QuartzCompatibility";
 
 const UPSTREAM_PACKAGE_JSON_URL =
 	"https://raw.githubusercontent.com/jackyzha0/quartz/v5/package.json";
@@ -39,12 +43,30 @@ export class QuartzUpgradeService {
 	private userRepo: QuartzUpgradeRepo;
 	private runtime?: QuartzUpgradeRuntime;
 
-	constructor(userRepo: QuartzUpgradeRepo, runtime?: QuartzUpgradeRuntime) {
+	constructor(
+		userRepo: QuartzUpgradeRepo,
+		private compatibility: Pick<
+			QuartzCompatibility,
+			"supportsV5Management"
+		>,
+		runtime?: QuartzUpgradeRuntime,
+	) {
 		this.userRepo = userRepo;
 		this.runtime = runtime;
 	}
 
 	async checkForUpgrade(): Promise<QuartzUpgradeStatus> {
+		if (!(await this.compatibility.supportsV5Management())) {
+			return {
+				currentVersion: null,
+				upstreamVersion: null,
+				hasUpgrade: false,
+				latestUpstreamSha: null,
+				hasNewerCommits: false,
+				error: V4_MANAGEMENT_UNSUPPORTED,
+			};
+		}
+
 		let currentVersion: string | null = null;
 
 		try {
@@ -148,6 +170,10 @@ export class QuartzUpgradeService {
 		alreadyMerged?: boolean;
 		error?: string;
 	}> {
+		if (!(await this.compatibility.supportsV5Management())) {
+			return { success: false, error: V4_MANAGEMENT_UNSUPPORTED };
+		}
+
 		if (
 			this.runtime?.enableSystemCommands &&
 			this.runtime.quartzRepoPath &&

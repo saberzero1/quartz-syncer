@@ -18,7 +18,7 @@ prod:
 	cp styles.css ./docs/.obsidian/plugins/quartz-syncer
 
 lint:
-	npm run format
+	npm run lint
 
 format:
     npm run format
@@ -32,9 +32,9 @@ test-full:
 
 check:
 	npm run lint
-	npm run test
 	npm run check-formatting
 	npm run typecheck
+	npm run test
 
 bump version:
 	npm_package_version={{version}} node version-bump.mjs

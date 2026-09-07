@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Upgrade notes
+
+Cache databases are now scoped per vault. Obsidian shares IndexedDB across an installation, so two vaults could previously share a repository clone or a compiled-output cache — the first could let two vaults publishing to the same remote overwrite each other's staged commits, and the second could serve one vault's compiled output to another.
+
+As a result, the first publish after upgrading performs a one-time re-clone of the Quartz repository and a one-time recompile of published notes. Both happen lazily on first use rather than at startup, but large vaults and large repositories will notice the delay once. Databases from earlier versions are left in place so that downgrading still works.
+
+### Fixed
+- Publishing to Quartz v4 repositories is now explicitly supported; v5-only site management is refused with a clear message instead of failing confusingly
+- Vault changes to several notes within one debounce window no longer drop all but the last note from background compilation
+- Compilation queue no longer rescans and re-sorts on every insertion, and no longer processes the same file twice concurrently
+- Disabling the cache no longer leaves cached reads and writes active during publishing, and media-link tracking now works with the cache disabled
+- Publish status no longer walks every note's media links twice
+- A repository read that is superseded by a publish no longer repopulates the remote tree cache with pre-publish state
+- Removed the v1 migration notice's cache cleanup, which matched live repository clones rather than the caches it claimed to remove
+
 ## 2.0.0
 
 ### Architecture

@@ -13,8 +13,12 @@ export class RemotePublishBackend implements PublishBackend {
 		this.treeCache = new RemoteTreeCache(gitBackend, branch);
 	}
 
-	enableTreePersistence(vaultName: string, pluginId: string): void {
-		this.treeCache.enablePersistence(vaultName, pluginId);
+	enableTreePersistence(
+		vaultName: string,
+		pluginId: string,
+		remoteUrl: string,
+	): void {
+		this.treeCache.enablePersistence(vaultName, pluginId, remoteUrl);
 		void this.treeCache.loadPersisted();
 	}
 

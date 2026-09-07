@@ -2,8 +2,14 @@ import { describe, it, expect, vi } from "vitest";
 import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
 import type { PublishFile } from "src/publishFile/PublishFile";
 
-const makePublishFile = (blobLinks: string[]): PublishFile =>
+let publishFileSeq = 0;
+
+const makePublishFile = (
+	blobLinks: string[],
+	path = `notes/file-${publishFileSeq++}.md`,
+): PublishFile =>
 	({
+		file: { path },
 		getBlobLinks: vi.fn().mockResolvedValue(blobLinks),
 	}) as unknown as PublishFile;
 

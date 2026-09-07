@@ -82,7 +82,13 @@ export class QuartzSettingsPage extends SettingPageBase {
 							: "Unknown";
 
 			const suffix = pkgVersion ? ` · Quartz ${pkgVersion}` : "";
-			this.versionStatusEl.setText(`${versionLabel}${suffix}`);
+			const supportNote =
+				version === "v4"
+					? " · Publishing supported; site management requires Quartz v5."
+					: "";
+			this.versionStatusEl.setText(
+				`${versionLabel}${suffix}${supportNote}`,
+			);
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);

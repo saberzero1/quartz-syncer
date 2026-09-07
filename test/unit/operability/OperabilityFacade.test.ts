@@ -94,7 +94,11 @@ describe("OperabilityFacadeImpl", () => {
 			);
 			const result = facade.assert("health.core");
 			expect(typeof result.pass).toBe("boolean");
-			expect(result.details).toBeDefined();
+			expect(result.details).toMatchObject({
+				loaded: true,
+				dataStore: true,
+				errors: { count: 0, latest: null },
+			});
 		});
 
 		it("health.core passes with loaded plugin and dataStore", () => {
@@ -201,7 +205,14 @@ describe("OperabilityFacadeImpl", () => {
 			facade.shutdown();
 			const events = facade.events.tail(10);
 			const unloading = events.find((e) => e.type === "plugin.unloading");
-			expect(unloading).toBeDefined();
+			expect(unloading).toEqual(
+				expect.objectContaining({
+					type: "plugin.unloading",
+					payload: {},
+					cursor: expect.any(Number),
+					timestamp: expect.any(Number),
+				}),
+			);
 		});
 
 		it("reloadSelf() also returns error after shutdown", async () => {

@@ -35,3 +35,6 @@ test-vault/.obsidian/workspace-mobile.json
 # Documentation
 docs/.obsidian
 docs/**/_*.md
+
+# Coverage reports
+coverage/

@@ -2,6 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GitBackend } from "src/git/types";
 import { createQuartzConfigHandler } from "src/cli/handlers/quartzConfigHandler";
 import { buildParams, buildPlugin, makeBackend } from "./helpers";
+import {
+	QuartzCompatibility,
+	V4_MANAGEMENT_UNSUPPORTED,
+} from "src/quartz/QuartzCompatibility";
+import type { QuartzVersion } from "src/quartz/QuartzConfigTypes";
 
 const { createGitBackend, setBackend } = vi.hoisted(() => {
 	let backend: GitBackend | null = null;
@@ -26,6 +31,43 @@ describe("quartzConfigHandler", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
+
+	describe.each<QuartzVersion>(["v4", "unknown"])(
+		"management gating for %s",
+		(version) => {
+			it.each(["list", "get", "set"])(
+				"blocks %s before reading or writing config",
+				async (action) => {
+					const backend = makeBackend({});
+					setBackend(backend);
+					const plugin = buildPlugin();
+					plugin.quartzCompatibility = new QuartzCompatibility(
+						plugin,
+					);
+					vi.spyOn(
+						plugin.quartzCompatibility,
+						"getVersion",
+					).mockResolvedValue(version);
+
+					const result = await createQuartzConfigHandler(plugin)(
+						buildParams({
+							action,
+							key: "configuration.pageTitle",
+							value: "Updated",
+						}),
+					);
+
+					expect(result).toEqual({
+						success: false,
+						error: V4_MANAGEMENT_UNSUPPORTED,
+					});
+					expect(backend.readTree).not.toHaveBeenCalled();
+					expect(backend.readBlob).not.toHaveBeenCalled();
+					expect(backend.writeFiles).not.toHaveBeenCalled();
+				},
+			);
+		},
+	);
 
 	it("lists the Quartz configuration by default", async () => {
 		const files = {

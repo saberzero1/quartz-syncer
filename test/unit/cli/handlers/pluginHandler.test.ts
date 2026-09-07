@@ -1,8 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GitBackend } from "src/git/types";
+import type QuartzSyncer from "src/main";
 import { createPluginHandler } from "src/cli/handlers/pluginHandler";
 import type { QuartzRunner } from "src/process/runners/QuartzRunner";
 import { buildParams, buildPlugin, makeBackend } from "./helpers";
+import {
+	QuartzCompatibility,
+	V4_MANAGEMENT_UNSUPPORTED,
+} from "src/quartz/QuartzCompatibility";
+import type { QuartzVersion } from "src/quartz/QuartzConfigTypes";
 
 const { getPlugins } = vi.hoisted(() => ({
 	getPlugins: vi.fn(),
@@ -33,21 +39,65 @@ vi.mock("src/quartz/QuartzPluginRegistry", () => ({
 	},
 }));
 
-const buildPluginWithRegistry = (overrides: Record<string, unknown> = {}) => {
-	const plugin = buildPlugin(
-		overrides as Partial<typeof import("src/main").default>,
-	);
-	(plugin as Record<string, unknown>).pluginRegistry = {
+const buildPluginWithRegistry = (overrides: Partial<QuartzSyncer> = {}) => {
+	const plugin = buildPlugin(overrides);
+	plugin.pluginRegistry = {
 		getPlugins,
 		clearCache: vi.fn(),
-	};
+	} as unknown as QuartzSyncer["pluginRegistry"];
 	return plugin;
 };
 
 describe("pluginHandler", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		setBackend(makeBackend({}));
 	});
+
+	describe.each<QuartzVersion>(["v4", "unknown"])(
+		"management gating for %s",
+		(version) => {
+			it.each([
+				"list",
+				"add",
+				"remove",
+				"search",
+				"install",
+				"enable",
+				"disable",
+				"config",
+				"prune",
+			])(
+				"blocks %s before accessing config, registry, or runner",
+				async (action) => {
+					const plugin = buildPluginWithRegistry();
+					plugin.quartzCompatibility = new QuartzCompatibility(
+						plugin,
+					);
+					vi.spyOn(
+						plugin.quartzCompatibility,
+						"getVersion",
+					).mockResolvedValue(version);
+					const pluginInstall = vi.fn();
+					plugin.quartzRunner = {
+						pluginInstall,
+					} as unknown as QuartzRunner;
+
+					const result = await createPluginHandler(plugin)(
+						buildParams({ action }),
+					);
+
+					expect(result).toEqual({
+						success: false,
+						error: V4_MANAGEMENT_UNSUPPORTED,
+					});
+					expect(createGitBackend).not.toHaveBeenCalled();
+					expect(getPlugins).not.toHaveBeenCalled();
+					expect(pluginInstall).not.toHaveBeenCalled();
+				},
+			);
+		},
+	);
 
 	it("lists installed plugins", async () => {
 		const files = {

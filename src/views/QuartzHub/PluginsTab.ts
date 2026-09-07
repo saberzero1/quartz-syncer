@@ -13,7 +13,7 @@ import {
 	getPluginName,
 	getPluginSourceKey,
 } from "src/quartz/QuartzPluginUtils";
-import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
+import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
 import { PluginBrowserModal } from "src/views/PluginBrowser/PluginBrowserModal";
 import {
 	expandTilde,
@@ -49,6 +49,7 @@ export function renderPluginsTab(
 		configService: null as QuartzConfigService | null,
 		isLoading: true,
 		isSaving: false,
+		errorMessage: null as string | null,
 	};
 
 	const manager = new QuartzPluginManager();
@@ -73,7 +74,9 @@ export function renderPluginsTab(
 
 		if (!state.config) {
 			listSection.createEl("p", {
-				text: "Quartz configuration is unavailable.",
+				text:
+					state.errorMessage ??
+					"Quartz configuration is unavailable.",
 			});
 			return;
 		}
@@ -180,6 +183,12 @@ export function renderPluginsTab(
 	void (async () => {
 		setLoading(true);
 		try {
+			if (!(await plugin.quartzCompatibility.supportsV5Management())) {
+				browseButton.disabled = true;
+				state.errorMessage = V4_MANAGEMENT_UNSUPPORTED;
+				return;
+			}
+
 			const repo = new LocalFileSource(resolvedRepoPath);
 			const configService = new QuartzConfigService(repo);
 			const config = await configService.readConfig();
@@ -210,16 +219,12 @@ async function openPluginBrowser(
 		return;
 	}
 
-	const repo = new LocalFileSource(repoPath);
-	const version = await QuartzVersionDetector.detectQuartzVersion(repo);
-
-	if (version === "v4" || version === "unknown") {
-		new Notice(
-			"Quartz v5 configuration not detected. Configure quartz.config.yaml first.",
-		);
+	if (!(await plugin.quartzCompatibility.supportsV5Management())) {
+		new Notice(V4_MANAGEMENT_UNSUPPORTED);
 		return;
 	}
 
+	const repo = new LocalFileSource(repoPath);
 	let config: QuartzV5Config;
 	const configService = new QuartzConfigService(repo);
 

@@ -43,6 +43,7 @@ import {
 import { StatusCacheService } from "src/services/StatusCacheService";
 import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
 import { HubDetectionCache } from "src/services/HubDetectionCache";
+import { QuartzCompatibility } from "src/quartz/QuartzCompatibility";
 
 /**
  * QuartzSyncer plugin settings.
@@ -205,6 +206,8 @@ export default class QuartzSyncer extends Plugin {
 	statusCache = new StatusCacheService("", "");
 	pluginRegistry = new QuartzPluginRegistry();
 	hubDetectionCache = new HubDetectionCache();
+	quartzCompatibility = new QuartzCompatibility(this);
+	private lastUseCache: boolean | null = null;
 
 	async onload() {
 		this.appVersion = this.manifest.version;
@@ -228,10 +231,15 @@ export default class QuartzSyncer extends Plugin {
 		}
 
 		this.dataStore = new DataStore(
-			this.app.vault.getName(),
+			this.app.appId,
 			this.manifest.id,
 			this.appVersion,
 		);
+
+		void this.dataStore.dropOutdatedCache().catch((error) => {
+			console.debug("Failed to prune outdated caches:", error);
+		});
+
 		this.statusCache = new StatusCacheService(
 			this.app.vault.getName(),
 			this.manifest.id,
@@ -551,6 +559,22 @@ export default class QuartzSyncer extends Plugin {
 		this.invalidateCachedInstances();
 		this.statusCache?.invalidate();
 		this.hubDetectionCache.clear();
+		this.quartzCompatibility.invalidate();
+		this.clearCacheOnDisable();
+	}
+
+	private clearCacheOnDisable(): void {
+		const wasEnabled = this.lastUseCache;
+		this.lastUseCache = this.settings.useCache;
+
+		if (wasEnabled !== true || this.settings.useCache) return;
+
+		// Cache validity keys on plugin version and mtime, not on compilation
+		// settings, so entries left behind here would be served again if the
+		// cache is re-enabled after unrelated settings changed.
+		void this.dataStore?.dropAllFiles().catch((error) => {
+			console.debug("Failed to clear cache after disabling it:", error);
+		});
 	}
 
 	getSecretStorageService(): SecretStorageService {
@@ -640,6 +664,7 @@ export default class QuartzSyncer extends Plugin {
 			backend.enableTreePersistence(
 				this.app.vault.getName(),
 				this.manifest.id,
+				this.settings.gitRemoteUrl,
 			);
 			const fileSource = new RemoteFileSource(
 				gitBackend,

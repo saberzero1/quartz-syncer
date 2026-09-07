@@ -125,7 +125,7 @@ describe.skipIf(!shouldRun)("Real-world publish", () => {
 			},
 		);
 		expect(response.status).toBe(201);
-		expect(response.data.content.sha).toBeDefined();
+		expect(response.data.content.sha).toMatch(/^[0-9a-f]{40}$/i);
 	});
 
 	it("verifies the published file exists via contents API", async () => {

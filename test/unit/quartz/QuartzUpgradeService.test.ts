@@ -1,10 +1,17 @@
 import assert from "node:assert";
-import { afterEach, describe, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { QuartzUpgradeService } from "src/quartz/QuartzUpgradeService";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 import { requestUrl } from "obsidian";
 import { fetchRemoteHeadCommit } from "src/git/GitRemoteUtils";
+import {
+	QuartzCompatibility,
+	V4_MANAGEMENT_UNSUPPORTED,
+} from "src/quartz/QuartzCompatibility";
+import type { QuartzVersion } from "src/quartz/QuartzConfigTypes";
+import type { QuartzRunner } from "src/process/runners/QuartzRunner";
+import { buildPlugin } from "../cli/handlers/helpers";
 
 vi.mock("obsidian", async () => {
 	const actual = await vi.importActual<typeof import("obsidian")>("obsidian");
@@ -54,13 +61,24 @@ function makeMockRepo(): QuartzFileSource {
 	return {
 		readFile: async () => null,
 		writeFile: async () => {},
+		writeBinaryFile: async () => {},
+		deleteFile: async () => {},
 		listDirectory: async () => [],
+		listAllFiles: async () => [],
 		exists: async () => false,
 	};
 }
 
+function makeCompatibility(
+	version: QuartzVersion = "v5-yaml",
+): QuartzCompatibility {
+	const compatibility = new QuartzCompatibility(buildPlugin());
+	vi.spyOn(compatibility, "getVersion").mockResolvedValue(version);
+	return compatibility;
+}
+
 function makeService(): QuartzUpgradeService {
-	return new QuartzUpgradeService(makeMockRepo());
+	return new QuartzUpgradeService(makeMockRepo(), makeCompatibility());
 }
 
 describe("QuartzUpgradeService", () => {
@@ -206,7 +224,7 @@ describe("QuartzUpgradeService", () => {
 		} satisfies QuartzFileSource & {
 			hasCommitInHistory: (sha: string) => Promise<boolean>;
 		};
-		const service = new QuartzUpgradeService(mockRepo);
+		const service = new QuartzUpgradeService(mockRepo, makeCompatibility());
 
 		mockPackageVersion("5.0.0");
 		mockUpstreamFetch("5.0.0");
@@ -225,7 +243,7 @@ describe("QuartzUpgradeService", () => {
 		} satisfies QuartzFileSource & {
 			hasCommitInHistory: (sha: string) => Promise<boolean>;
 		};
-		const service = new QuartzUpgradeService(mockRepo);
+		const service = new QuartzUpgradeService(mockRepo, makeCompatibility());
 
 		mockPackageVersion("5.0.0");
 		mockUpstreamFetch("5.0.0");
@@ -246,7 +264,7 @@ describe("QuartzUpgradeService", () => {
 		} satisfies QuartzFileSource & {
 			hasCommitInHistory: (sha: string) => Promise<boolean>;
 		};
-		const service = new QuartzUpgradeService(mockRepo);
+		const service = new QuartzUpgradeService(mockRepo, makeCompatibility());
 
 		mockPackageVersion("5.0.0");
 		mockUpstreamFetch("5.0.0");
@@ -274,10 +292,7 @@ describe("QuartzUpgradeService", () => {
 describe("QuartzUpgradeService.performUpgrade", () => {
 	it("returns success on clean merge", async () => {
 		const mockRepo = {
-			readFile: async () => null,
-			writeFile: async () => {},
-			listDirectory: async () => [],
-			exists: async () => false,
+			...makeMockRepo(),
 			upgradeFromUpstream: async () => ({
 				oid: "abc123",
 				alreadyMerged: false,
@@ -289,7 +304,7 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 			}>;
 		};
 
-		const service = new QuartzUpgradeService(mockRepo);
+		const service = new QuartzUpgradeService(mockRepo, makeCompatibility());
 		const result = await service.performUpgrade();
 
 		assert.strictEqual(result.success, true);
@@ -299,10 +314,7 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 
 	it("returns success when already merged", async () => {
 		const mockRepo = {
-			readFile: async () => null,
-			writeFile: async () => {},
-			listDirectory: async () => [],
-			exists: async () => false,
+			...makeMockRepo(),
 			upgradeFromUpstream: async () => ({
 				oid: "abc123",
 				alreadyMerged: true,
@@ -314,7 +326,7 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 			}>;
 		};
 
-		const service = new QuartzUpgradeService(mockRepo);
+		const service = new QuartzUpgradeService(mockRepo, makeCompatibility());
 		const result = await service.performUpgrade();
 
 		assert.strictEqual(result.success, true);
@@ -323,10 +335,7 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 
 	it("detects 'Cannot auto-upgrade' as conflict error", async () => {
 		const mockRepo = {
-			readFile: async () => null,
-			writeFile: async () => {},
-			listDirectory: async () => [],
-			exists: async () => false,
+			...makeMockRepo(),
 			upgradeFromUpstream: async () => {
 				throw new Error(
 					"Cannot auto-upgrade: you have modified framework files",
@@ -339,7 +348,7 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 			}>;
 		};
 
-		const service = new QuartzUpgradeService(mockRepo);
+		const service = new QuartzUpgradeService(mockRepo, makeCompatibility());
 		const result = await service.performUpgrade();
 
 		assert.strictEqual(result.success, false);
@@ -349,10 +358,7 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 
 	it("detects 'Merge conflicts in' as conflict error", async () => {
 		const mockRepo = {
-			readFile: async () => null,
-			writeFile: async () => {},
-			listDirectory: async () => [],
-			exists: async () => false,
+			...makeMockRepo(),
 			upgradeFromUpstream: async () => {
 				throw new Error(
 					"Merge conflicts in: package.json, tsconfig.json",
@@ -365,7 +371,7 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 			}>;
 		};
 
-		const service = new QuartzUpgradeService(mockRepo);
+		const service = new QuartzUpgradeService(mockRepo, makeCompatibility());
 		const result = await service.performUpgrade();
 
 		assert.strictEqual(result.success, false);
@@ -375,10 +381,7 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 
 	it("treats non-conflict errors as generic failures", async () => {
 		const mockRepo = {
-			readFile: async () => null,
-			writeFile: async () => {},
-			listDirectory: async () => [],
-			exists: async () => false,
+			...makeMockRepo(),
 			upgradeFromUpstream: async () => {
 				throw new Error("Network timeout");
 			},
@@ -389,7 +392,7 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 			}>;
 		};
 
-		const service = new QuartzUpgradeService(mockRepo);
+		const service = new QuartzUpgradeService(mockRepo, makeCompatibility());
 		const result = await service.performUpgrade();
 
 		assert.strictEqual(result.success, false);
@@ -397,3 +400,82 @@ describe("QuartzUpgradeService.performUpgrade", () => {
 		assert.ok(!result.error?.includes("npx quartz upgrade"));
 	});
 });
+
+describe.each<QuartzVersion>(["v4", "unknown"])(
+	"upgrade gating for %s",
+	(version) => {
+		it("refuses upgrade checks without contacting upstream", async () => {
+			const repo = { ...makeMockRepo(), readFile: vi.fn() };
+			const service = new QuartzUpgradeService(
+				repo,
+				makeCompatibility(version),
+			);
+
+			expect(await service.checkForUpgrade()).toEqual({
+				currentVersion: null,
+				upstreamVersion: null,
+				hasUpgrade: false,
+				latestUpstreamSha: null,
+				hasNewerCommits: false,
+				error: V4_MANAGEMENT_UNSUPPORTED,
+			});
+			expect(repo.readFile).not.toHaveBeenCalled();
+			expect(mockedRequestUrl).not.toHaveBeenCalled();
+			expect(fetchRemoteHeadCommit).not.toHaveBeenCalled();
+		});
+
+		it("refuses upstream merges without modifying the repository", async () => {
+			const repo = { ...makeMockRepo(), upgradeFromUpstream: vi.fn() };
+			const service = new QuartzUpgradeService(
+				repo,
+				makeCompatibility(version),
+			);
+
+			expect(await service.performUpgrade()).toEqual({
+				success: false,
+				error: V4_MANAGEMENT_UNSUPPORTED,
+			});
+			expect(repo.upgradeFromUpstream).not.toHaveBeenCalled();
+		});
+
+		it("refuses local runner upgrades before running commands", async () => {
+			const update = vi.fn();
+			const repo = { ...makeMockRepo(), upgradeFromUpstream: vi.fn() };
+			const service = new QuartzUpgradeService(
+				repo,
+				makeCompatibility(version),
+				{
+					enableSystemCommands: true,
+					quartzRepoPath: "/repo",
+					quartzRunner: { update } as unknown as QuartzRunner,
+				},
+			);
+
+			expect(await service.performUpgrade()).toEqual({
+				success: false,
+				error: V4_MANAGEMENT_UNSUPPORTED,
+			});
+			expect(update).not.toHaveBeenCalled();
+			expect(repo.upgradeFromUpstream).not.toHaveBeenCalled();
+		});
+	},
+);
+
+it.each<QuartzVersion>(["v5-yaml", "v5-json"])(
+	"allows local runner upgrades for %s",
+	async (version) => {
+		const update = vi.fn().mockResolvedValue({ ok: true });
+		const service = new QuartzUpgradeService(
+			makeMockRepo(),
+			makeCompatibility(version),
+			{
+				enableSystemCommands: true,
+				quartzRepoPath: "/repo",
+				quartzRunner: { update } as unknown as QuartzRunner,
+			},
+		);
+
+		expect(await service.performUpgrade()).toEqual({ success: true });
+		expect(update).toHaveBeenCalledWith({ cwd: "/repo" });
+	},
+);

@@ -5,6 +5,28 @@ export default defineConfig({
 		include: ["test/unit/**/*.test.ts"],
 		globals: true,
 		setupFiles: ["test/unit/setup.ts"],
+		coverage: {
+			provider: "v8",
+			include: ["src/**/*.ts"],
+			exclude: ["src/**/*.d.ts", "src/models/**"],
+			reporter: ["text-summary", "json-summary"],
+			// Ratchet, not a target: these are the measured floor, raised by
+			// hand when coverage improves so it can never silently drop.
+			//
+			// autoUpdate stays off because it rewrites and reindents the whole
+			// file, which fails prettier and buries a four-number change.
+			//
+			// These are exact measured values, which is only safe because the
+			// numbers are now deterministic: identical across Node 22, 24 and
+			// 26 and across maxWorkers 1/2/4, forks and the default pool.
+			thresholds: {
+				autoUpdate: false,
+				statements: 41.86,
+				branches: 38.97,
+				functions: 45.83,
+				lines: 42.31,
+			},
+		},
 	},
 	resolve: {
 		alias: {

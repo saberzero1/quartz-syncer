@@ -1,15 +1,11 @@
-import { App, Modal, Notice } from "obsidian";
-import {
-	detectOldDatabases,
-	cleanupOldDatabases,
-} from "src/utils/LightningFsCleanup";
+import { App, Modal } from "obsidian";
 
 export class MigrationNotice extends Modal {
 	constructor(app: App) {
 		super(app);
 	}
 
-	async onOpen(): Promise<void> {
+	onOpen(): void {
 		this.modalEl.addClass("qs-migration-notice");
 		const { contentEl } = this;
 		contentEl.empty();
@@ -34,27 +30,13 @@ export class MigrationNotice extends Modal {
 			text: "Diff viewer with split and unified modes",
 		});
 
-		const oldDbs = await detectOldDatabases();
-		if (oldDbs.length > 0) {
-			contentEl.createEl("h3", { text: "Clean up old data" });
-			contentEl.createEl("p", {
-				text: `Found ${oldDbs.length} old cache database(s) from v1 that can be safely removed to free up storage.`,
-			});
-
-			const cleanupBtn = contentEl.createEl("button", {
-				text: "Clean up old cache data",
-				cls: "mod-cta",
-			});
-			cleanupBtn.addEventListener("click", () => {
-				void cleanupOldDatabases().then((count) => {
-					new Notice(
-						`Quartz Syncer: Cleaned up ${count} old database(s).`,
-					);
-					cleanupBtn.setText("Done");
-					cleanupBtn.disabled = true;
-				});
-			});
-		}
+		contentEl.createEl("h3", { text: "Quartz v4 support" });
+		contentEl.createEl("p", {
+			text: "Publishing notes and media to Quartz v4 is supported and continues to work.",
+		});
+		contentEl.createEl("p", {
+			text: "Quartz site management (config editing, plugin management, upgrades) requires Quartz v5.",
+		});
 
 		const linksEl = contentEl.createEl("p");
 		linksEl.createEl("a", {

@@ -6,7 +6,8 @@ import type { FileChange } from "src/git/types";
 import type { PublishBackend } from "src/publisher/PublishBackend";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import { PathMapper } from "src/git/PathMapper";
-import { getSpecialFileType, PublishFile } from "src/publishFile/PublishFile";
+import { PublishFile } from "src/publishFile/PublishFile";
+import { collectCandidatePaths } from "src/publishFile/PublishCandidates";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { DataStore } from "src/cache/DataStore";
 import type {
@@ -19,12 +20,20 @@ import {
 	classifyArbitrary,
 	classifyRemoteOnly,
 } from "src/publisher/PublishStatusManager";
-import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
+import {
+	flattenLinkedMedia,
+	resolveLinkedMedia,
+	resolveLinkedMediaByFile,
+} from "src/publisher/MediaLinkResolver";
 import type { CompilationQueue } from "src/services/CompilationQueue";
 import { batchParallel, generateBlobHash } from "src/utils/utils";
 import { isPathIgnored } from "src/utils/ignoredFolders";
 import type { IOperabilityEventSink } from "src/operability/types";
-import { AssetSyncer } from "src/compiler/integrations/AssetSyncer";
+import {
+	AssetSyncer,
+	type AssetSyncResult,
+} from "src/compiler/integrations/AssetSyncer";
+import { createRepositoryAdapter } from "src/cli/handlers/cliUtils";
 import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
 
 export class Publisher {
@@ -74,44 +83,14 @@ export class Publisher {
 	}
 
 	private collectCandidates(settings: QuartzSyncerSettings): PublishFile[] {
-		const vaultFiles = this.app.vault.getFiles();
 		const publishFiles: PublishFile[] = [];
-
-		const extCache = this.plugin.cacheHandle?.api;
 		const useAllDefault = settings.allNotesPublishableByDefault;
 
-		// Determine candidate file paths.
-		// When allNotesPublishableByDefault is true, ALL vault files are
-		// candidates — matching the current Validator.ts behavior where
-		// override=true bypasses the frontmatter check entirely.
-		// The fast-path (inverse-index lookup) only applies when
-		// allNotesPublishableByDefault is false (the default).
-		let candidatePaths: Set<string>;
-
-		if (useAllDefault) {
-			candidatePaths = new Set(vaultFiles.map((f) => f.path));
-		} else if (extCache?.isReady) {
-			candidatePaths = new Set(
-				extCache.getFilesWithFrontmatterValue(
-					settings.publishFrontmatterKey,
-					true,
-				),
-			);
-
-			for (const f of vaultFiles) {
-				const type = getSpecialFileType(f);
-
-				if (type === "base" && settings.useBases) {
-					candidatePaths.add(f.path);
-				} else if (type === "canvas" && settings.useCanvas) {
-					candidatePaths.add(f.path);
-				} else if (type === "excalidraw" && settings.useExcalidraw) {
-					candidatePaths.add(f.path);
-				}
-			}
-		} else {
-			candidatePaths = new Set(vaultFiles.map((f) => f.path));
-		}
+		const candidatePaths = collectCandidatePaths(
+			this.app,
+			this.plugin,
+			settings,
+		);
 
 		for (const path of candidatePaths) {
 			if (isPathIgnored(path, settings.ignoredFolders)) continue;
@@ -137,6 +116,29 @@ export class Publisher {
 		return publishFiles;
 	}
 
+	/**
+	 * Collect integration stylesheets to publish alongside the notes.
+	 *
+	 * Gated on v5 because these paths live outside the content folder. The
+	 * `quartz/styles` layout happens to be identical in v4 today, but writing
+	 * there is only sanctioned for repositories we manage.
+	 */
+	private async collectIntegrationAssets(
+		settings: QuartzSyncerSettings,
+	): Promise<AssetSyncResult | null> {
+		if (!(await this.plugin.quartzCompatibility.supportsV5Management())) {
+			return null;
+		}
+
+		const repo = createRepositoryAdapter(this.plugin);
+
+		if (!repo) return null;
+
+		const result = await new AssetSyncer(settings).collectAssets(repo);
+
+		return result.success ? result : null;
+	}
+
 	private async compileAndHashSingle(file: PublishFile): Promise<string> {
 		const compiled = await file.compile(
 			this.compilationQueue !== undefined,
@@ -157,6 +159,7 @@ export class Publisher {
 				const links = await this.dataStore.loadMediaLinks(
 					file.file.path,
 				);
+
 				if (links.length > 0) {
 					mediaLinks.set(file.file.path, links);
 				}
@@ -184,6 +187,8 @@ export class Publisher {
 			const changed: PublishFile[] = [];
 			const published: PublishFile[] = [];
 
+			const remoteBacked: { file: PublishFile; sha: string }[] = [];
+
 			for (const file of candidates) {
 				const vaultPath = file.getVaultPath();
 				const repoPath = this.pathMapper.toRepoPath(vaultPath);
@@ -194,21 +199,44 @@ export class Publisher {
 					continue;
 				}
 
-				const localHash = settings.useCache
-					? await this.dataStore.loadLocalHash(
-							file.file.path,
-							file.file.stat.mtime,
-						)
-					: await this.compileAndHashSingle(file);
+				remoteBacked.push({ file, sha: remote.sha });
+			}
 
-				if (localHash && localHash === remote.sha) {
+			// Uncached status has to compile each note to hash its output, so
+			// keep concurrency low; cached lookups are cheap IndexedDB reads.
+			const hashConcurrency = settings.useCache
+				? 5
+				: Platform.isMobileApp
+					? 1
+					: 2;
+
+			const hashes = await batchParallel(
+				remoteBacked,
+				async ({ file }) =>
+					settings.useCache
+						? await this.dataStore.loadLocalHash(
+								file.file.path,
+								file.file.stat.mtime,
+							)
+						: await this.compileAndHashSingle(file),
+				hashConcurrency,
+			);
+
+			remoteBacked.forEach(({ file, sha }, index) => {
+				const localHash = hashes[index];
+
+				if (localHash && localHash === sha) {
 					published.push(file);
 				} else {
 					changed.push(file);
 				}
-			}
+			});
 
-			const linkedMedia = await resolveLinkedMedia(candidates);
+			// One walk feeds both the orphan-media union and the per-file map,
+			// so getBlobLinks() is not paid for twice per candidate.
+			const linkedByFile = await resolveLinkedMediaByFile(candidates);
+			const linkedMedia = flattenLinkedMedia(linkedByFile);
+
 			const { deleted, media } = classifyRemoteOnly(
 				remoteIndex,
 				candidates,
@@ -216,8 +244,9 @@ export class Publisher {
 				linkedMedia,
 			);
 
-			const mediaLinks =
-				await this.resolveMediaLinksIncremental(candidates);
+			const mediaLinks = settings.useCache
+				? await this.resolveMediaLinksIncremental(candidates)
+				: linkedByFile;
 
 			const arbitrary = classifyArbitrary(
 				remoteIndex,
@@ -305,11 +334,13 @@ export class Publisher {
 				const file = files[index];
 				if (!file) continue;
 
-				let storedFile = await this.dataStore.loadLocalFile(
-					file.file.path,
-					file.file.stat.mtime,
-					true,
-				);
+				let storedFile = settings.useCache
+					? await this.dataStore.loadLocalFile(
+							file.file.path,
+							file.file.stat.mtime,
+							true,
+						)
+					: null;
 
 				if (!storedFile) {
 					const compiled = await file.compile(true);
@@ -343,10 +374,12 @@ export class Publisher {
 					discoveredStyles.add(style);
 				}
 
-				const localHash = await this.dataStore.loadLocalHash(
-					file.file.path,
-					file.file.stat.mtime,
-				);
+				const localHash = settings.useCache
+					? await this.dataStore.loadLocalHash(
+							file.file.path,
+							file.file.stat.mtime,
+						)
+					: null;
 
 				if (localHash) {
 					remoteHashes.push({
@@ -359,6 +392,13 @@ export class Publisher {
 				onProgress?.(index + 1, total);
 			}
 
+			const stagedAssets: Array<{
+				path: string;
+				content: string;
+				encoding: "utf-8" | "base64";
+			}> = [];
+			const staleStyleFiles: string[] = [];
+
 			if (this.quartzFileSource) {
 				const assetSyncer = new AssetSyncer(settings);
 				const { textFiles, binaryAssets } = await this.resolveCssSnippets();
@@ -370,31 +410,53 @@ export class Publisher {
 				);
 
 				for (const [path, content] of assetResult.filesToStage) {
-					changes.push({ path, content, encoding: "utf-8" });
+					stagedAssets.push({ path, content, encoding: "utf-8" });
 				}
 
 				for (const [path, data] of assetResult.binaryFilesToStage) {
-					changes.push({
+					stagedAssets.push({
 						path,
 						content: arrayBufferToBase64(data),
 						encoding: "base64",
 					});
 				}
 
-				if (assetResult.filesToDelete.length > 0) {
-					await this.backend.deleteFiles(
-						settings.gitBranch,
-						"Clean up syncer styles",
-						assetResult.filesToDelete,
-					);
-				}
+				staleStyleFiles.push(...assetResult.filesToDelete);
 			}
+
+			const repoAssets = await this.collectIntegrationAssets(settings);
+			if (repoAssets) {
+				for (const [path, content] of repoAssets.filesToStage) {
+					stagedAssets.push({ path, content, encoding: "utf-8" });
+				}
+
+				for (const [path, data] of repoAssets.binaryFilesToStage) {
+					stagedAssets.push({
+						path,
+						content: arrayBufferToBase64(data),
+						encoding: "base64",
+					});
+				}
+
+				staleStyleFiles.push(...repoAssets.filesToDelete);
+			}
+
+			changes.push(...stagedAssets);
 
 			const result = await this.backend.writeFiles(
 				settings.gitBranch,
 				commitMessage,
 				changes,
 			);
+
+			if (staleStyleFiles.length > 0) {
+				await this.backend.deleteFiles(
+					settings.gitBranch,
+					"Remove Quartz Syncer integration styles",
+					[...new Set(staleStyleFiles)],
+				);
+			}
+
 			this.eventSink?.emit("publish.completed", {
 				fileCount: files.length,
 				commitSha: result.sha,
@@ -742,7 +804,20 @@ export class Publisher {
 		message?: string,
 	): Promise<PublishResult> {
 		const settings = this.plugin.settings;
+
+		// Arbitrary publishing is the only core path that bypasses PathMapper
+		// and can therefore write outside the content folder.
+		if (await this.plugin.quartzCompatibility.isConfirmedV4()) {
+			return {
+				success: false,
+				filesPublished: 0,
+				filesDeleted: 0,
+				error: V4_ARBITRARY_PUBLISH_BLOCKED,
+			};
+		}
+
 		const commitMessage = message ?? "Publish files";
+
 		const changes: FileChange[] = files.map((file) => ({
 			path: file.repoPath,
 			content: file.content,

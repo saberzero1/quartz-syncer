@@ -28,17 +28,40 @@ describe("DEFAULT_SETTINGS completeness", () => {
 		await plugin.loadSettings();
 
 		const settings = plugin.settings;
-		expect(settings.settingsSchemaVersion).toBeDefined();
-		expect(settings.gitRemoteUrl).toBeDefined();
-		expect(settings.gitBranch).toBeDefined();
-		expect(settings.gitAuthType).toBeDefined();
-		expect(settings.publishFrontmatterKey).toBeDefined();
-		expect(settings.contentFolder).toBeDefined();
-		expect(settings.useCache).toBeDefined();
-		expect(settings.diffViewStyle).toBeDefined();
-		expect(settings.createdTimestampKey).toBeDefined();
-		expect(settings.updatedTimestampKey).toBeDefined();
-		expect(settings.publishedTimestampKey).toBeDefined();
+		expect(settings.settingsSchemaVersion).toBe(4);
+		expect(settings.gitRemoteUrl).toBe("");
+		expect(settings.gitBranch).toBe("v5");
+		expect(settings.gitAuthType).toBe("basic");
+		expect(settings.publishFrontmatterKey).toBe("publish");
+		expect(settings.contentFolder).toBe("content");
+		expect(settings.useCache).toBe(true);
+		expect(settings.allNotesPublishableByDefault).toBe(false);
+		expect(typeof settings.diffViewStyle).toBe("string");
+		expect(typeof settings.createdTimestampKey).toBe("string");
+		expect(typeof settings.updatedTimestampKey).toBe("string");
+		expect(typeof settings.publishedTimestampKey).toBe("string");
+	});
+
+	it("keeps every current settings key backed by a default", async () => {
+		// Cleared by the v0 migration, and pluginVersion is derived from the
+		// manifest at load time rather than from DEFAULT_SETTINGS.
+		const notDefaulted = new Set([
+			"githubRepo",
+			"githubUserName",
+			"githubToken",
+			"pluginVersion",
+		]);
+
+		const plugin = createPlugin({});
+		await plugin.loadSettings();
+
+		const missing = Object.entries(plugin.settings)
+			.filter(
+				([key, value]) => value === undefined && !notDefaulted.has(key),
+			)
+			.map(([key]) => key);
+
+		expect(missing).toEqual([]);
 	});
 });
 
