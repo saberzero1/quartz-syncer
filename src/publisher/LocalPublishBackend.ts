@@ -1,38 +1,59 @@
 import type { FileChange, TreeEntry } from "src/git/types";
 import type { PublishBackend } from "src/publisher/PublishBackend";
+import { Platform } from "obsidian";
 import {
-	readExternalFile,
 	readBinaryExternalFile,
 	writeExternalFile,
 	writeBinaryExternalFile,
 	deleteExternalFile,
-	readExternalDirRecursive,
+	walkExternalFiles,
 	ensureParentDir,
-	externalIsDirectorySync,
 	joinPath,
-	getModule,
+	resolveExternalPath,
+	resolveWithin,
 } from "src/utils/external-fs";
 import { generateBlobHash } from "src/utils/utils";
+
+// Scanning these would walk tens of thousands of files on a real Quartz repo,
+// and none of them are publishable content.
+const IGNORED_DIRECTORIES: ReadonlySet<string> = new Set([
+	".git",
+	"node_modules",
+	"public",
+	".quartz-cache",
+]);
 
 export class LocalPublishBackend implements PublishBackend {
 	readonly isLocal = true;
 	private cachedTree: TreeEntry[] | null = null;
+	private resolvedRepoPath: string | null = null;
 
-	constructor(private repoPath: string) {}
+	constructor(private rawRepoPath: string) {}
 
-	private validatePath(filePath: string): void {
+	// Resolved lazily: the constructor must stay free of Node module access so
+	// getPublisher() can construct this off the desktop app without throwing.
+	private get repoPath(): string {
+		this.resolvedRepoPath ??= resolveExternalPath(this.rawRepoPath);
+
+		return this.resolvedRepoPath;
+	}
+
+	private resolveRepoPath(filePath: string): string {
 		if (filePath.includes("..")) {
 			throw new Error(`Path traversal rejected: ${filePath}`);
 		}
 
-		const pathModule = getModule<{ resolve(...p: string[]): string }>(
-			"path",
-		);
-		const resolved = pathModule.resolve(this.repoPath, filePath);
+		if (!Platform.isDesktopApp) {
+			throw new Error("Local publishing requires a desktop app");
+		}
 
-		if (!resolved.startsWith(this.repoPath)) {
+		const resolved = resolveWithin(this.repoPath, filePath);
+
+		if (resolved === null) {
 			throw new Error(`Path escapes repository: ${filePath}`);
 		}
+
+		return resolved;
 	}
 
 	async writeFiles(
@@ -41,8 +62,7 @@ export class LocalPublishBackend implements PublishBackend {
 		files: FileChange[],
 	): Promise<{ sha: string }> {
 		for (const file of files) {
-			this.validatePath(file.path);
-			const fullPath = joinPath(this.repoPath, file.path);
+			const fullPath = this.resolveRepoPath(file.path);
 			await ensureParentDir(fullPath);
 
 			if (
@@ -88,8 +108,7 @@ export class LocalPublishBackend implements PublishBackend {
 		paths: string[],
 	): Promise<{ sha: string }> {
 		for (const path of paths) {
-			this.validatePath(path);
-			const fullPath = joinPath(this.repoPath, path);
+			const fullPath = this.resolveRepoPath(path);
 			const success = await deleteExternalFile(fullPath);
 
 			if (!success) {
@@ -139,7 +158,10 @@ export class LocalPublishBackend implements PublishBackend {
 	}
 
 	private async buildTree(): Promise<TreeEntry[]> {
-		const entries = await readExternalDirRecursive(this.repoPath);
+		const entries = await walkExternalFiles(
+			this.repoPath,
+			IGNORED_DIRECTORIES,
+		);
 
 		if (!entries) return [];
 
@@ -147,10 +169,7 @@ export class LocalPublishBackend implements PublishBackend {
 
 		for (const entry of entries) {
 			const fullPath = joinPath(this.repoPath, entry);
-
-			if (externalIsDirectorySync(fullPath)) continue;
-
-			const content = await readExternalFile(fullPath);
+			const content = await readBinaryExternalFile(fullPath);
 			const sha = content !== null ? await generateBlobHash(content) : "";
 
 			tree.push({

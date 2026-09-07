@@ -2,6 +2,7 @@ import type {
 	QuartzDirectoryEntry,
 	QuartzFileSource,
 } from "src/quartz/QuartzFileSource";
+import { Platform } from "obsidian";
 import {
 	readExternalFile,
 	writeExternalFile,
@@ -13,20 +14,29 @@ import {
 	externalIsDirectorySync,
 	ensureParentDir,
 	joinPath,
-	getModule,
+	resolveExternalPath,
+	resolveWithin,
 } from "src/utils/external-fs";
 
 export class LocalFileSource implements QuartzFileSource {
-	constructor(private basePath: string) {}
+	private resolvedBasePath: string | null = null;
+
+	constructor(private rawBasePath: string) {}
+
+	// Resolved lazily: the constructor must stay free of Node module access so
+	// callers can construct this off the desktop app without throwing.
+	private get basePath(): string {
+		this.resolvedBasePath ??= resolveExternalPath(this.rawBasePath);
+
+		return this.resolvedBasePath;
+	}
 
 	async readFile(path: string): Promise<string | null> {
-		this.validatePath(path);
-		return readExternalFile(joinPath(this.basePath, path));
+		return readExternalFile(this.resolveBasePath(path));
 	}
 
 	async writeFile(path: string, content: string): Promise<void> {
-		this.validatePath(path);
-		const fullPath = joinPath(this.basePath, path);
+		const fullPath = this.resolveBasePath(path);
 		await ensureParentDir(fullPath);
 		const success = await writeExternalFile(fullPath, content);
 
@@ -36,8 +46,7 @@ export class LocalFileSource implements QuartzFileSource {
 	}
 
 	async writeBinaryFile(path: string, data: Uint8Array): Promise<void> {
-		this.validatePath(path);
-		const fullPath = joinPath(this.basePath, path);
+		const fullPath = this.resolveBasePath(path);
 		const success = await writeBinaryExternalFile(fullPath, data);
 
 		if (!success) {
@@ -46,8 +55,7 @@ export class LocalFileSource implements QuartzFileSource {
 	}
 
 	async deleteFile(path: string): Promise<void> {
-		this.validatePath(path);
-		const fullPath = joinPath(this.basePath, path);
+		const fullPath = this.resolveBasePath(path);
 		const success = await deleteExternalFile(fullPath);
 
 		if (!success) {
@@ -104,18 +112,21 @@ export class LocalFileSource implements QuartzFileSource {
 		return externalIsDirectorySync(fullPath);
 	}
 
-	private validatePath(path: string): void {
+	private resolveBasePath(path: string): string {
 		if (path.includes("..")) {
 			throw new Error(`Path traversal rejected: ${path}`);
 		}
 
-		const pathModule = getModule<{ resolve(...p: string[]): string }>(
-			"path",
-		);
-		const resolved = pathModule.resolve(this.basePath, path);
+		if (!Platform.isDesktopApp) {
+			throw new Error("Local repository access requires a desktop app");
+		}
 
-		if (!resolved.startsWith(this.basePath)) {
+		const resolved = resolveWithin(this.basePath, path);
+
+		if (resolved === null) {
 			throw new Error(`Path escapes base directory: ${path}`);
 		}
+
+		return resolved;
 	}
 }
