@@ -15,6 +15,7 @@ import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 import { getValueByPath, setValueByPath } from "src/cli/handlers/cliUtils";
 import type { PublicationCenterManager } from "src/operability/PublicationCenterManager";
 import type { QuartzHubManager } from "src/operability/QuartzHubManager";
+import { validateAction } from "./ActionValidation";
 
 type PublishStatusSummary = {
 	unpublished: number;
@@ -68,6 +69,9 @@ export class ActionRegistry {
 	}
 
 	async dispatch(action: Action): Promise<ActionResult> {
+		const invalid = validateAction(action);
+		if (invalid) return invalid;
+
 		switch (action.name) {
 			case "status.refresh":
 				return this.withLock(() => this.refreshStatus());

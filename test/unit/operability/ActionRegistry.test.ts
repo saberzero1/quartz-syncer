@@ -4,6 +4,7 @@ import type QuartzSyncer from "src/main";
 import type { Action } from "src/operability/types";
 import type { PublicationService } from "src/services/PublicationService";
 import type { OnboardingService } from "src/services/OnboardingService";
+import { QuartzHubService } from "src/services/QuartzHubService";
 import { CacheMaintenanceService } from "src/services/CacheMaintenanceService";
 import type { PublicationCenterManager } from "src/operability/PublicationCenterManager";
 import type { QuartzHubManager } from "src/operability/QuartzHubManager";
@@ -279,6 +280,262 @@ describe("ActionRegistry", () => {
 	});
 
 	describe("dispatch()", () => {
+		const missingParamsErrors = [
+			["pub.select", "Missing required parameter: paths"],
+			["pub.deselect", "Missing required parameter: paths"],
+			["pub.publish", "Confirmation required"],
+			["pub.delete", "Confirmation required"],
+			["onboarding.setToken", "Missing required parameter: token"],
+			["onboarding.createRepo", "Confirmation required"],
+			["onboarding.connectRepo", "Missing required parameter: repo"],
+			["settings.set", "Missing required parameter: key"],
+			["settings.get", "Missing required parameter: key"],
+			["plugin.reload", "Confirmation required"],
+			["env.emulateMobile", "Destructive action requires confirm: true"],
+			["hub.setup.link", "Missing required parameter: path"],
+			["hub.setup.clone", "Confirmation required"],
+		] as const;
+
+		it.each(missingParamsErrors)(
+			"returns a structured failure when %s omits params entirely",
+			async (name, error) => {
+				const {
+					registry,
+					plugin,
+					service,
+					controller,
+					getOnboardingService,
+				} = makeFixture();
+				await expect(
+					registry.dispatch({ name } as Action),
+				).resolves.toEqual({ success: false, error });
+				expect(plugin.saveSettings).not.toHaveBeenCalled();
+				expect(service.publish).not.toHaveBeenCalled();
+				expect(service.delete).not.toHaveBeenCalled();
+				expect(controller.setSelected).not.toHaveBeenCalled();
+				expect(getOnboardingService).not.toHaveBeenCalled();
+			},
+		);
+
+		describe.each([undefined, null, false, 42, "params", [], {}])(
+			"malformed params: %j",
+			(params) => {
+				it.each(missingParamsErrors)(
+					"rejects %s without throwing",
+					async (name, error) => {
+						const { registry } = makeFixture();
+						await expect(
+							registry.dispatch({
+								name,
+								params,
+							} as unknown as Action),
+						).resolves.toEqual({ success: false, error });
+					},
+				);
+			},
+		);
+
+		const requiredFields = [
+			{ name: "pub.select", field: "paths", params: {} },
+			{ name: "pub.deselect", field: "paths", params: {} },
+			{ name: "onboarding.setToken", field: "token", params: {} },
+			{
+				name: "onboarding.createRepo",
+				field: "name",
+				params: { confirm: true },
+			},
+			{ name: "onboarding.connectRepo", field: "repo", params: {} },
+			{
+				name: "settings.set",
+				field: "key",
+				params: { value: undefined },
+			},
+			{ name: "settings.get", field: "key", params: {} },
+			{
+				name: "env.emulateMobile",
+				field: "enabled",
+				params: { confirm: true },
+			},
+			{ name: "hub.setup.link", field: "path", params: {} },
+			{
+				name: "hub.setup.clone",
+				field: "url",
+				params: { dest: "/tmp/site", confirm: true },
+			},
+			{
+				name: "hub.setup.clone",
+				field: "dest",
+				params: { url: "https://example.com/site.git", confirm: true },
+			},
+		] as const;
+
+		it.each(requiredFields)(
+			"rejects $name with missing $field",
+			async ({ name, field, params }) => {
+				const { registry } = makeFixture();
+				await expect(
+					registry.dispatch({ name, params } as unknown as Action),
+				).resolves.toEqual({
+					success: false,
+					error: `Missing required parameter: ${field}`,
+				});
+			},
+		);
+
+		describe.each([undefined, null, 42, {}])(
+			"invalid field value: %j",
+			(value) => {
+				it.each(requiredFields)(
+					"rejects $name with malformed $field",
+					async ({ name, field, params }) => {
+						const { registry } = makeFixture();
+						await expect(
+							registry.dispatch({
+								name,
+								params: { ...params, [field]: value },
+							} as unknown as Action),
+						).resolves.toEqual({
+							success: false,
+							error: `Missing required parameter: ${field}`,
+						});
+					},
+				);
+			},
+		);
+
+		it.each([
+			{
+				name: "pub.select",
+				params: { paths: "notes/a.md" },
+				field: "paths",
+			},
+			{ name: "pub.select", params: { paths: [1, 2] }, field: "paths" },
+			{
+				name: "pub.select",
+				params: { paths: ["notes/a.md", 2] },
+				field: "paths",
+			},
+			{
+				name: "pub.select",
+				params: { paths: Array<string>(1) },
+				field: "paths",
+			},
+			{
+				name: "env.emulateMobile",
+				params: { enabled: "yes", confirm: true },
+				field: "enabled",
+			},
+			{ name: "settings.get", params: { key: 42 }, field: "key" },
+			{
+				name: "pub.publish",
+				params: { message: 42, confirm: true },
+				field: "message",
+			},
+			{
+				name: "onboarding.createRepo",
+				params: { name: "site", private: "yes", confirm: true },
+				field: "private",
+			},
+		])(
+			"rejects wrong-type $name.$field before handlers run",
+			async ({ name, params, field }) => {
+				const {
+					registry,
+					plugin,
+					service,
+					controller,
+					getOnboardingService,
+				} = makeFixture();
+				await expect(
+					registry.dispatch({ name, params } as unknown as Action),
+				).resolves.toEqual({
+					success: false,
+					error: `Missing required parameter: ${field}`,
+				});
+				expect(plugin.saveSettings).not.toHaveBeenCalled();
+				expect(service.publish).not.toHaveBeenCalled();
+				expect(controller.setSelected).not.toHaveBeenCalled();
+				expect(getOnboardingService).not.toHaveBeenCalled();
+			},
+		);
+
+		describe.each([undefined, false, null, "true", 1, {}, []])(
+			"invalid confirmation: %j",
+			(confirm) => {
+				it.each([
+					...destructiveActions,
+					{
+						name: "onboarding.createRepo",
+						params: { name: "site", confirm: true },
+					},
+				] satisfies Action[])(
+					"rejects $name before other parameters",
+					async (action) => {
+						const { registry } = makeFixture();
+						await expect(
+							registry.dispatch({
+								name: action.name,
+								params: { confirm },
+							} as unknown as Action),
+						).resolves.toEqual({
+							success: false,
+							error:
+								action.name === "env.emulateMobile"
+									? "Destructive action requires confirm: true"
+									: "Confirmation required",
+						});
+					},
+				);
+			},
+		);
+
+		it("accepts settings.set with a present but undefined value", async () => {
+			const { registry, plugin } = makeFixture();
+			const params = { key: "x", value: undefined };
+			await expect(
+				registry.dispatch({ name: "settings.set", params }),
+			).resolves.toEqual({ success: true, data: params });
+			expect(plugin.saveSettings).toHaveBeenCalledOnce();
+			expect(plugin.settings).toHaveProperty("x", undefined);
+		});
+
+		it("publishes with no optional message", async () => {
+			const { registry, service } = makeFixture();
+			await expect(
+				registry.dispatch({
+					name: "pub.publish",
+					params: { confirm: true },
+				}),
+			).resolves.toMatchObject({ success: true });
+			expect(service.publish).toHaveBeenCalledWith(
+				expect.any(Array),
+				undefined,
+			);
+		});
+
+		it.each([
+			{ name: "onboarding.setToken", params: { token: "token" } },
+			{
+				name: "onboarding.createRepo",
+				params: { name: "site", confirm: true },
+			},
+			{ name: "onboarding.connectRepo", params: { repo: "owner/site" } },
+		] satisfies Action[])(
+			"preserves the existing $name stub for valid input",
+			async (action) => {
+				const { registry, getOnboardingService } = makeFixture();
+				await expect(registry.dispatch(action)).resolves.toEqual({
+					success: false,
+					error: "Onboarding service unavailable",
+				});
+				getOnboardingService.mockReturnValue({} as OnboardingService);
+				await expect(registry.dispatch(action)).resolves.toEqual({
+					success: false,
+					error: "Not implemented in v1",
+				});
+			},
+		);
+
 		it("rejects an unknown action with a meaningful error", async () => {
 			const { registry } = makeFixture();
 			// Runtime callers can bypass the discriminated union.
@@ -815,6 +1072,27 @@ describe("ActionRegistry", () => {
 				expect(Reflect.get(window, "__QS_RELOADING__")).toBe(false);
 			},
 		);
+	});
+
+	it("links a valid local repo using the existing trimmed path", async () => {
+		const { registry, plugin } = makeFixture();
+		const validate = vi
+			.spyOn(QuartzHubService.prototype, "validateRepoPath")
+			.mockReturnValue({ ok: true, message: "Quartz repo detected." });
+		try {
+			await expect(
+				registry.dispatch({
+					name: "hub.setup.link",
+					params: { path: " /tmp/site " },
+				}),
+			).resolves.toEqual({ success: true, data: { path: "/tmp/site" } });
+			expect(validate).toHaveBeenCalledExactlyOnceWith("/tmp/site");
+			expect(plugin.settings.quartzRepoPath).toBe("/tmp/site");
+			expect(plugin.settings.enableSystemCommands).toBe(true);
+			expect(plugin.saveSettings).toHaveBeenCalledOnce();
+		} finally {
+			validate.mockRestore();
+		}
 	});
 
 	describe("hub.setup.clone", () => {

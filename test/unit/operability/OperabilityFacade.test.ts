@@ -2,6 +2,7 @@ import { OperabilityFacadeImpl } from "src/operability/OperabilityFacade";
 import { EventBuffer } from "src/operability/EventBuffer";
 import { DEFAULT_SETTINGS } from "src/main";
 import type QuartzSyncer from "src/main";
+import type { Action } from "src/operability/types";
 
 vi.mock("src/services/PublicationService", () => ({
 	PublicationService: vi.fn(),
@@ -130,6 +131,65 @@ describe("OperabilityFacadeImpl", () => {
 	});
 
 	describe("act()", () => {
+		it("act({name:'pub.delete'}) with no params resolves to a confirmation failure rather than throwing", async () => {
+			const facade = new OperabilityFacadeImpl(
+				makePlugin(),
+				new EventBuffer(),
+			);
+			await expect(
+				facade.act({ name: "pub.delete" } as Action),
+			).resolves.toEqual({
+				success: false,
+				error: "Confirmation required",
+			});
+		});
+
+		it("validates pub.publish before its started event reads params.message", async () => {
+			const events = new EventBuffer();
+			const facade = new OperabilityFacadeImpl(makePlugin(), events);
+			await expect(
+				facade.act({ name: "pub.publish" } as Action),
+			).resolves.toEqual({
+				success: false,
+				error: "Confirmation required",
+			});
+			expect(events.tail(10).map((event) => event.type)).toEqual([
+				"plugin.loaded",
+			]);
+		});
+
+		it.each([undefined, null, [], { name: 42 }])(
+			"rejects malformed action envelopes without emitting action events: %j",
+			async (action) => {
+				const facade = new OperabilityFacadeImpl(
+					makePlugin(),
+					new EventBuffer(),
+				);
+				await expect(
+					facade.act(action as unknown as Action),
+				).resolves.toEqual({ success: false, error: "Unknown action" });
+			},
+		);
+
+		it("keeps reloadSelf's internal dispatch confirmed and safe", async () => {
+			const plugin = makePlugin();
+			const disablePlugin = vi.fn().mockResolvedValue(undefined);
+			const enablePlugin = vi.fn().mockResolvedValue(undefined);
+			Object.assign(plugin.app, {
+				plugins: { disablePlugin, enablePlugin },
+			});
+			const facade = new OperabilityFacadeImpl(plugin, new EventBuffer());
+			await expect(facade.reloadSelf()).resolves.toEqual({
+				success: true,
+			});
+			expect(disablePlugin).toHaveBeenCalledExactlyOnceWith(
+				"quartz-syncer",
+			);
+			expect(enablePlugin).toHaveBeenCalledExactlyOnceWith(
+				"quartz-syncer",
+			);
+		});
+
 		it("returns error when shuttingDown", async () => {
 			const facade = new OperabilityFacadeImpl(
 				makePlugin(),
