@@ -3,6 +3,7 @@ import {
 	dropStore,
 	type IndexedDBStore,
 } from "src/cache/IndexedDBStore";
+import { dropStaleCaches } from "src/cache/LegacyCacheCleanup";
 import type QuartzSyncer from "src/main";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import { generateBlobHash } from "src/utils/utils";
@@ -67,11 +68,13 @@ export class DataStore {
 	 * @param appId - Obsidian's per-vault identifier.
 	 * @param pluginId - The plugin ID to namespace the cache under.
 	 * @param version - The plugin version the cached data was written with.
+	 * @param vaultName - Used solely to keep pre-db9905f vault-name-keyed caches reachable for cleanup.
 	 */
 	public constructor(
 		public appId: string,
 		public pluginId: string,
 		public version: string,
+		public vaultName: string = "",
 	) {
 		this.persister = createStore(this.storeName(version));
 	}
@@ -220,38 +223,12 @@ export class DataStore {
 	 * returns A promise that resolves when the cache is dropped.
 	 */
 	public async dropOutdatedCache(): Promise<void> {
-		if (typeof indexedDB === "undefined" || !indexedDB.databases) {
-			return;
-		}
-		// Get all IndexedDB instances
-		const instances = await indexedDB.databases();
-
-		// Filter instances that match the current vault and app ID
-		const prefix = `quartz-syncer/cache/${this.appId}/${this.pluginId}/`;
-		const current = this.storeName(this.version);
-
-		const matchingInstances = instances.filter(
-			(instance) =>
-				instance.name &&
-				instance.name.startsWith(prefix) &&
-				instance.name !== current,
-		);
-
-		// Sequential: concurrent deletions make blocked/error reporting
-		// non-deterministic, and each request must be awaited to completion.
-		for (const instance of matchingInstances) {
-			// instance.name is guaranteed to be non-null due to the filter above
-			const name = instance.name!;
-
-			try {
-				await dropStore(name);
-			} catch (error) {
-				console.debug(
-					`Failed to drop outdated cache "${name}":`,
-					error,
-				);
-			}
-		}
+		await dropStaleCaches({
+			appId: this.appId,
+			vaultName: this.vaultName,
+			pluginId: this.pluginId,
+			version: this.version,
+		});
 	}
 
 	/**

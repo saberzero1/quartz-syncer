@@ -236,6 +236,7 @@ export default class QuartzSyncer extends Plugin {
 			this.app.appId,
 			this.manifest.id,
 			this.appVersion,
+			this.app.vault.getName(),
 		);
 
 		void this.dataStore.dropOutdatedCache().catch((error) => {

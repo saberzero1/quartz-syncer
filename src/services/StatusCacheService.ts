@@ -40,7 +40,8 @@ export class StatusCacheService {
 	private snapshot: StatusSnapshot | null = null;
 	private summary: StatusSummary | null = null;
 	private destination = "none";
-	private store: IndexedDBStore;
+	private store: IndexedDBStore | null = null;
+	private readonly storeName: string | null;
 
 	private diffContentCache = new Map<
 		string,
@@ -48,7 +49,14 @@ export class StatusCacheService {
 	>();
 
 	constructor(vaultName: string, pluginId: string) {
-		this.store = createStore(`${vaultName}-${pluginId}-status`);
+		this.storeName =
+			vaultName && pluginId ? `${vaultName}-${pluginId}-status` : null;
+	}
+
+	private getStore(): IndexedDBStore | null {
+		if (this.storeName === null) return null;
+		if (this.store === null) this.store = createStore(this.storeName);
+		return this.store;
 	}
 
 	private get diffCacheLimit(): number {
@@ -78,7 +86,8 @@ export class StatusCacheService {
 
 	async loadPersistedSnapshot(): Promise<void> {
 		try {
-			const data = await this.store.getItem<StatusSnapshot>(SNAPSHOT_KEY);
+			const data =
+				await this.getStore()?.getItem<StatusSnapshot>(SNAPSHOT_KEY);
 
 			if (data && data.destination === this.destination) {
 				this.snapshot = data;
@@ -203,7 +212,9 @@ export class StatusCacheService {
 		this.stale = true;
 		this.inflight = null;
 		this.clearDiffCache();
-		void this.store.removeItem(SNAPSHOT_KEY).catch(() => {});
+		void this.getStore()
+			?.removeItem(SNAPSHOT_KEY)
+			.catch(() => {});
 	}
 
 	getInflight(): Promise<PublishStatus> | null {
@@ -255,6 +266,8 @@ export class StatusCacheService {
 
 		this.snapshot = snapshot;
 
-		await this.store.setItem(SNAPSHOT_KEY, snapshot).catch(() => {});
+		await this.getStore()
+			?.setItem(SNAPSHOT_KEY, snapshot)
+			.catch(() => {});
 	}
 }

@@ -106,6 +106,47 @@ describe("StatusCacheService", () => {
 		createInstance.mockClear();
 	});
 
+	it.each([
+		["", ""],
+		["vault", ""],
+		["", "app"],
+	])(
+		"does not create or access persistence for an empty scope (%s, %s)",
+		async (vaultName, pluginId) => {
+			const service = new StatusCacheService(vaultName, pluginId);
+			expect(createInstance).not.toHaveBeenCalled();
+
+			await service.loadPersistedSnapshot();
+			expect(service.getSnapshot()).toBeNull();
+			service.setStatus(buildStatus());
+			await flushPromises();
+			service.invalidate();
+			await flushPromises();
+
+			expect(createInstance).not.toHaveBeenCalled();
+			expect(getStore().size).toBe(0);
+		},
+	);
+
+	it("creates a scoped store only on first access and reuses it for persistence", async () => {
+		const service = new StatusCacheService("vault", "app");
+		expect(createInstance).not.toHaveBeenCalled();
+
+		await service.loadPersistedSnapshot();
+		expect(createInstance).toHaveBeenCalledExactlyOnceWith(
+			"vault-app-status",
+		);
+		service.setStatus(buildStatus());
+		await flushPromises();
+		expect(getStore().get("status-snapshot")).toEqual(
+			service.getSnapshot(),
+		);
+		service.invalidate();
+		await flushPromises();
+		expect(getStore().has("status-snapshot")).toBe(false);
+		expect(createInstance).toHaveBeenCalledTimes(1);
+	});
+
 	it("returns cached status only when not stale", () => {
 		const service = new StatusCacheService("vault", "app");
 		const status = buildStatus();
@@ -128,11 +169,11 @@ describe("StatusCacheService", () => {
 	it("setStatus persists a snapshot and clears stale", async () => {
 		const service = new StatusCacheService("vault", "app");
 		const status = buildStatus();
+		service.setStatus(status);
 		const storeInstance = createInstance.mock.results[0].value as {
 			setItem: ReturnType<typeof vi.fn>;
 		};
 
-		service.setStatus(status);
 		await flushPromises();
 
 		expect(service.isStale()).toBe(false);
@@ -231,8 +272,9 @@ describe("StatusCacheService", () => {
 		expect(getStore().has("status-snapshot")).toBe(true);
 	});
 
-	it("patchPublished no-ops when cache is empty", () => {
+	it("patchPublished no-ops when cache is empty", async () => {
 		const service = new StatusCacheService("vault", "app");
+		await service.loadPersistedSnapshot();
 		const storeInstance = createInstance.mock.results[0].value as {
 			setItem: ReturnType<typeof vi.fn>;
 		};
@@ -280,8 +322,9 @@ describe("StatusCacheService", () => {
 		expect(getStore().has("status-snapshot")).toBe(true);
 	});
 
-	it("patchDeleted no-ops when cache is empty", () => {
+	it("patchDeleted no-ops when cache is empty", async () => {
 		const service = new StatusCacheService("vault", "app");
+		await service.loadPersistedSnapshot();
 		const storeInstance = createInstance.mock.results[0].value as {
 			setItem: ReturnType<typeof vi.fn>;
 		};
@@ -300,10 +343,10 @@ describe("StatusCacheService", () => {
 	it("invalidate clears all state and removes persisted snapshot", async () => {
 		const service = new StatusCacheService("vault", "app");
 		const status = buildStatus();
+		service.setStatus(status);
 		const storeInstance = createInstance.mock.results[0].value as {
 			removeItem: ReturnType<typeof vi.fn>;
 		};
-		service.setStatus(status);
 		await flushPromises();
 		service.cacheDiffContent("notes/a.md", "local", "remote");
 		service.setInflight(Promise.resolve(status));
