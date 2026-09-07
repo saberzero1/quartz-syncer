@@ -5,11 +5,18 @@ import {
 	type SettingDefinitionItem,
 } from "obsidian";
 import type QuartzSyncer from "src/main";
-import { createGitBackend } from "src/git/GitBackendFactory";
+import { createRepositoryAdapter } from "src/cli/handlers/cliUtils";
+import {
+	checkPublishReadiness,
+	describeBlocker,
+	describeBlockerResolution,
+	describeReadinessIssue,
+	resolvePublishTarget,
+	type ResolvedPublishTarget,
+} from "src/publisher/PublishTargetResolver";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { QuartzPluginUpdateChecker } from "src/quartz/QuartzPluginUpdateChecker";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
-import { RemoteFileSource } from "src/quartz/RemoteFileSource";
 import { frontmatterSettingDefinitions } from "src/views/settings/FrontmatterSettings";
 import { integrationSettingDefinitions } from "src/views/settings/IntegrationSettings";
 import { performanceSettingDefinitions } from "src/views/settings/PerformanceSettings";
@@ -65,8 +72,7 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 							type: "page" as const,
 							name: "Quartz",
 							desc: "Quartz site configuration, plugins, and templates.",
-							page: () =>
-								new QuartzSettingsPage(this.app, this.plugin),
+							page: () => new QuartzSettingsPage(this.plugin),
 						},
 					]
 				: []),
@@ -97,6 +103,16 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		];
 	}
 
+	// The base implementation persists via saveData, which skips saveSettings
+	// and therefore skips publisher, status-cache and compatibility
+	// invalidation. Without this, changing "Publish to" would update the
+	// setting while the cached Publisher kept writing to the old destination.
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		(this.plugin.settings as unknown as Record<string, unknown>)[key] =
+			value;
+		await this.plugin.saveSettings();
+	}
+
 	private buildOverviewItems(): SettingDefinitionItem[] {
 		const version = this.plugin.manifest.version;
 		const items: SettingDefinitionItem[] = [
@@ -106,25 +122,29 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 			},
 		];
 
-		if (this.plugin.settings.gitRemoteUrl) {
+		const target = resolvePublishTarget(this.plugin.settings);
+
+		items.push({
+			name: "Publish to",
+			desc: this.buildPublishTargetDesc(target),
+			control: {
+				type: "dropdown",
+				key: "publishTarget",
+				defaultValue: "remote",
+				options: {
+					remote: "Remote repository",
+					local: "Local folder (desktop only)",
+				},
+			},
+		});
+
+		if (target.effective) {
 			items.push({
 				name: "Status",
 				desc: this.buildStatusFragment(),
 			});
 		} else {
-			items.push({
-				name: Platform.isDesktopApp
-					? "Run setup wizard"
-					: "Run manual setup",
-				desc: "No repository configured. Set up your Quartz site connection to get started.",
-				action: () => {
-					if (Platform.isDesktopApp) {
-						new OnboardingWizard(this.app, this.plugin).open();
-					} else {
-						new ManualSetupModal(this.app, this.plugin).open();
-					}
-				},
-			});
+			items.push(this.buildUnresolvedTargetItem(target));
 		}
 
 		return items;
@@ -164,6 +184,69 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		return frag;
 	}
 
+	private buildUnresolvedTargetItem(
+		target: ResolvedPublishTarget,
+	): SettingDefinitionItem {
+		const resolution = describeBlockerResolution(
+			target.blocker ?? "none-configured",
+			Platform.isDesktopApp,
+		);
+
+		return {
+			name: resolution.name,
+			desc: resolution.desc,
+			action: () => {
+				if (resolution.opens === "hub") {
+					this.plugin.getQuartzHubManager()?.open();
+
+					return;
+				}
+
+				if (Platform.isDesktopApp) {
+					new OnboardingWizard(this.app, this.plugin).open();
+				} else {
+					new ManualSetupModal(this.app, this.plugin).open();
+				}
+			},
+		};
+	}
+
+	private buildPublishTargetDesc(
+		target: ResolvedPublishTarget,
+	): DocumentFragment {
+		const frag = createFragment();
+
+		frag.createSpan({
+			text: "Where publishing writes. The local repo path is still used for Quartz site management regardless of this choice. ",
+		});
+
+		if (target.blocker) {
+			frag.createEl("br");
+
+			frag.createSpan({
+				text: describeBlocker(target.blocker, this.plugin.settings),
+				cls: "quartz-syncer-publish-target-warning",
+			});
+		}
+
+		const issues = checkPublishReadiness(
+			this.plugin.settings,
+			target.effective,
+			{ hasToken: this.plugin.secretStorageService.hasToken() },
+		);
+
+		for (const issue of issues) {
+			frag.createEl("br");
+
+			frag.createSpan({
+				text: describeReadinessIssue(issue),
+				cls: "quartz-syncer-publish-target-warning",
+			});
+		}
+
+		return frag;
+	}
+
 	private buildStatusFragment(): DocumentFragment {
 		const frag = createFragment();
 		const addLine = (label: string, value: string): void => {
@@ -172,17 +255,22 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 			frag.createEl("br");
 		};
 
-		addLine(
-			"Repository",
-			this.formatRepoUrl(this.plugin.settings.gitRemoteUrl),
-		);
-		addLine("Branch", this.plugin.settings.gitBranch);
-		addLine(
-			"Authentication",
-			this.plugin.secretStorageService.hasToken()
-				? "Token stored securely"
-				: "No token set",
-		);
+		if (resolvePublishTarget(this.plugin.settings).effective === "local") {
+			addLine("Repository", this.plugin.settings.quartzRepoPath);
+			addLine("Mode", "Local folder");
+		} else {
+			addLine(
+				"Repository",
+				this.formatRepoUrl(this.plugin.settings.gitRemoteUrl),
+			);
+			addLine("Branch", this.plugin.settings.gitBranch);
+			addLine(
+				"Authentication",
+				this.plugin.secretStorageService.hasToken()
+					? "Token stored securely"
+					: "No token set",
+			);
+		}
 
 		frag.createSpan({ text: "Quartz plugins: " });
 		const statusEl = frag.createSpan({
@@ -246,18 +334,13 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 	}
 
 	private async fetchPluginUpdateStatus(): Promise<PluginUpdateCache> {
-		const gitSettings = this.plugin.getGitSettingsWithSecret();
-		const backend = createGitBackend(
-			{
-				remoteUrl: gitSettings.remoteUrl,
-				branch: gitSettings.branch,
-				corsProxyUrl: gitSettings.corsProxyUrl,
-				auth: gitSettings.auth,
-			},
-			this.app,
-		);
+		const repo = createRepositoryAdapter(this.plugin);
 
-		const repo = new RemoteFileSource(backend, gitSettings.branch);
+		if (!repo) {
+			return { state: "failed" };
+		}
+
+		const gitSettings = this.plugin.getGitSettingsWithSecret();
 		const version = await QuartzVersionDetector.detectQuartzVersion(repo);
 
 		if (version !== "v5-yaml" && version !== "v5-json") {

@@ -8,6 +8,7 @@ export type QSDomRole =
 	| "pub-delete-btn"
 	| "pub-search"
 	| "pub-progress"
+	| "pub-target"
 	| "wizard"
 	| "wizard-step"
 	| "wizard-next"

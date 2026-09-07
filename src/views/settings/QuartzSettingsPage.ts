@@ -1,4 +1,4 @@
-import { App, Platform, Setting } from "obsidian";
+import { Platform, Setting } from "obsidian";
 import {
 	expandTilde,
 	externalFileExistsSync,
@@ -7,21 +7,16 @@ import {
 } from "src/utils/external-fs";
 import { SettingPageBase } from "./SettingPageBase";
 import type QuartzSyncer from "src/main";
-import { createGitBackend } from "src/git/GitBackendFactory";
-import type { GitBackend } from "src/git/types";
+import { createRepositoryAdapter } from "src/cli/handlers/cliUtils";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
-import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
-import { RemoteFileSource } from "src/quartz/RemoteFileSource";
 
 export class QuartzSettingsPage extends SettingPageBase {
-	private app: App;
 	private plugin: QuartzSyncer;
 	private versionStatusEl: HTMLElement | null = null;
 	private repoPathStatusEl: HTMLElement | null = null;
 
-	constructor(app: App, plugin: QuartzSyncer) {
+	constructor(plugin: QuartzSyncer) {
 		super();
-		this.app = app;
 		this.plugin = plugin;
 		this.title = "Quartz";
 	}
@@ -60,13 +55,16 @@ export class QuartzSettingsPage extends SettingPageBase {
 	private async updateVersionStatus(): Promise<void> {
 		if (!this.versionStatusEl) return;
 
-		if (!this.plugin.settings.gitRemoteUrl) {
-			this.versionStatusEl.setText("Connect a git remote to detect.");
+		const repo = createRepositoryAdapter(this.plugin);
+
+		if (!repo) {
+			this.versionStatusEl.setText(
+				"Connect a git remote or set a local Quartz repo path to detect.",
+			);
 			return;
 		}
 
 		try {
-			const repo = this.createRepositoryAdapter();
 			const version =
 				await QuartzVersionDetector.detectQuartzVersion(repo);
 			const pkgVersion =
@@ -231,25 +229,5 @@ export class QuartzSettingsPage extends SettingPageBase {
 		}
 
 		return { ok: true, message: "Quartz repo detected." };
-	}
-
-	private createBackend(): GitBackend {
-		const gitSettings = this.plugin.getGitSettingsWithSecret();
-		return createGitBackend(
-			{
-				remoteUrl: gitSettings.remoteUrl,
-				branch: gitSettings.branch,
-				corsProxyUrl: gitSettings.corsProxyUrl,
-				auth: gitSettings.auth,
-			},
-			this.app,
-		);
-	}
-
-	private createRepositoryAdapter(): QuartzFileSource {
-		const backend = this.createBackend();
-		const branch = this.plugin.settings.gitBranch || "v5";
-
-		return new RemoteFileSource(backend, branch);
 	}
 }
