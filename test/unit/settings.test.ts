@@ -22,13 +22,70 @@ function createPlugin(savedData: Record<string, unknown>): QuartzSyncer {
 	return plugin;
 }
 
+describe("publishTarget migration to schema v5", () => {
+	it("derives local for an existing local-repo user", async () => {
+		const plugin = createPlugin({ quartzRepoPath: "/home/user/quartz" });
+		await plugin.loadSettings();
+
+		expect(plugin.settings.publishTarget).toBe("local");
+	});
+
+	it("derives remote when no local path was configured", async () => {
+		const plugin = createPlugin({
+			gitRemoteUrl: "https://github.com/user/repo.git",
+		});
+		await plugin.loadSettings();
+
+		expect(plugin.settings.publishTarget).toBe("remote");
+	});
+
+	it("preserves an explicitly persisted choice", async () => {
+		const plugin = createPlugin({
+			quartzRepoPath: "/home/user/quartz",
+			gitRemoteUrl: "https://github.com/user/repo.git",
+			publishTarget: "remote",
+		});
+		await plugin.loadSettings();
+
+		expect(plugin.settings.publishTarget).toBe("remote");
+	});
+
+	it("re-derives an unrecognized persisted value", async () => {
+		const plugin = createPlugin({
+			quartzRepoPath: "/home/user/quartz",
+			publishTarget: "sideways",
+		});
+		await plugin.loadSettings();
+
+		expect(plugin.settings.publishTarget).toBe("local");
+	});
+
+	it("still derives when the record already claims schema 5", async () => {
+		const plugin = createPlugin({
+			settingsSchemaVersion: 5,
+			quartzRepoPath: "/home/user/quartz",
+		});
+		await plugin.loadSettings();
+
+		expect(plugin.settings.publishTarget).toBe("local");
+	});
+
+	it("never clears the local path it migrated from", async () => {
+		const plugin = createPlugin({ quartzRepoPath: "/home/user/quartz" });
+		await plugin.loadSettings();
+
+		expect(plugin.settings.quartzRepoPath).toBe("/home/user/quartz");
+	});
+});
+
 describe("DEFAULT_SETTINGS completeness", () => {
 	it("provides a default for every key in QuartzSyncerSettings", async () => {
 		const plugin = createPlugin({});
 		await plugin.loadSettings();
 
 		const settings = plugin.settings;
-		expect(settings.settingsSchemaVersion).toBe(4);
+		expect(settings.settingsSchemaVersion).toBe(5);
+		expect(settings.publishTarget).toBe("remote");
 		expect(settings.gitRemoteUrl).toBe("");
 		expect(settings.gitBranch).toBe("v5");
 		expect(settings.gitAuthType).toBe("basic");
@@ -94,7 +151,7 @@ describe("settings migration", () => {
 		expect(plugin.settings.gitBranch).toBe("v4");
 		expect(plugin.settings.gitAuthType).toBe("basic");
 		expect(plugin.settings.gitAuthUsername).toBe("testuser");
-		expect(plugin.settings.settingsSchemaVersion).toBe(4);
+		expect(plugin.settings.settingsSchemaVersion).toBe(5);
 		expect(
 			(plugin.settings as unknown as Record<string, unknown>)["git"],
 		).toBeUndefined();
@@ -109,7 +166,7 @@ describe("settings migration", () => {
 			"https://github.com/testuser/quartz.git",
 		);
 		expect(plugin.settings.gitBranch).toBe("v4");
-		expect(plugin.settings.settingsSchemaVersion).toBe(4);
+		expect(plugin.settings.settingsSchemaVersion).toBe(5);
 	});
 
 	it("migrates empty timestamp keys to defaults", async () => {

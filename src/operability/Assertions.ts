@@ -1,6 +1,7 @@
 import type QuartzSyncer from "src/main";
 import type { CheckName, CheckResult } from "./types";
 import type { EventBuffer } from "./EventBuffer";
+import { resolvePublishTarget } from "src/publisher/PublishTargetResolver";
 
 type StatusSummary = {
 	unpublished: number;
@@ -83,10 +84,11 @@ function checkHealthCore(
 
 function checkHealthConfigured(plugin: QuartzSyncer): CheckResult {
 	const settings = plugin.settings;
-	const configured = !!settings.gitRemoteUrl || !!settings.quartzRepoPath;
+	const target = resolvePublishTarget(settings);
+	const configured = target.effective !== null;
 	const branch = settings.gitBranch;
 	const authType = settings.gitAuthType;
-	const needsToken = !settings.quartzRepoPath && authType !== "none";
+	const needsToken = target.effective === "remote" && authType !== "none";
 	const hasToken = needsToken
 		? (plugin.secretStorageService?.hasToken?.() ?? false)
 		: true;
@@ -96,6 +98,10 @@ function checkHealthConfigured(plugin: QuartzSyncer): CheckResult {
 		pass,
 		details: {
 			configured,
+			requestedTarget: target.requested,
+			effectiveTarget: target.effective,
+			targetOverridden: target.overridden,
+			blocker: target.blocker,
 			branch: branch || null,
 			authType,
 			hasToken,

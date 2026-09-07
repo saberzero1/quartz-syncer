@@ -163,7 +163,10 @@ export class ActionRegistry {
 
 		try {
 			const status = await service.getStatus();
-			this.plugin.statusCache.setStatus(status);
+			this.plugin.statusCache.setStatus(
+				status,
+				this.plugin.statusCache.getDestination(),
+			);
 
 			return { success: true, data: status };
 		} catch (error) {

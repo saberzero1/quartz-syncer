@@ -8,6 +8,7 @@ import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
 import type { IOperabilityEventSink } from "src/operability/types";
 import type { StatusSummary } from "src/services/StatusCacheService";
 import { isMediaFile } from "src/utils/mediaTypes";
+import { isPublishConfigured } from "src/publisher/PublishTargetResolver";
 
 const PRIORITY_PREWARM = 0;
 const PRIORITY_VAULT_CHANGE = 5;
@@ -47,7 +48,7 @@ export class BackgroundEngine {
 		private app: App,
 		private plugin: QuartzSyncer,
 		private onStatusChange?: (
-			state: "ready" | "compiling",
+			state: "ready" | "compiling" | "unconfigured",
 			count: number,
 			summary?: StatusSummary | null,
 		) => void,
@@ -792,8 +793,7 @@ export class BackgroundEngine {
 		if (this.autoPublishPaused) return;
 		if (this.compilationQueue.isProcessing) return;
 
-		const publisher = this.plugin.getPublisher();
-		if (!publisher) return;
+		if (!this.plugin.getPublisher()) return;
 
 		this.autoPublishing = true;
 		try {
@@ -805,6 +805,12 @@ export class BackgroundEngine {
 			]);
 
 			await idleTimeout;
+
+			// Re-resolved after the wait: settings can change during it, which
+			// would otherwise publish to the previously selected destination.
+			const publisher = this.plugin.getPublisher();
+
+			if (!publisher) return;
 
 			const status = await publisher.getPublishStatus();
 			const pending = [...status.unpublished, ...status.changed];
@@ -906,6 +912,17 @@ export class BackgroundEngine {
 	private updateStatusBar(): void {
 		if (!this.onStatusChange) return;
 		const count = this.pendingCount;
+
+		if (count === 0 && !isPublishConfigured(this.plugin.settings)) {
+			this.onStatusChange(
+				"unconfigured",
+				0,
+				this.plugin.statusCache.getSummary(),
+			);
+
+			return;
+		}
+
 		this.onStatusChange(
 			count > 0 ? "compiling" : "ready",
 			count,

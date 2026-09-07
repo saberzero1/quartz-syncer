@@ -21,6 +21,8 @@ export interface StatusSummary {
 }
 
 export interface StatusSnapshot {
+	/** Destination this snapshot was computed against. */
+	destination: string;
 	unpublished: string[];
 	changed: string[];
 	published: string[];
@@ -37,6 +39,7 @@ export class StatusCacheService {
 	private inflight: Promise<PublishStatus> | null = null;
 	private snapshot: StatusSnapshot | null = null;
 	private summary: StatusSummary | null = null;
+	private destination = "none";
 	private store: IndexedDBStore;
 
 	private diffContentCache = new Map<
@@ -54,12 +57,33 @@ export class StatusCacheService {
 			: MOBILE_DIFF_CACHE_LIMIT;
 	}
 
+	// Publish status is computed against one destination's file tree, so every
+	// cached artifact is only valid for that destination. Switching targets
+	// must not surface counts or diffs computed against the other one.
+	setDestination(destination: string): void {
+		if (destination === this.destination) return;
+
+		this.destination = destination;
+		this.cachedStatus = null;
+		this.snapshot = null;
+		this.summary = null;
+		this.stale = true;
+		this.inflight = null;
+		this.clearDiffCache();
+	}
+
+	getDestination(): string {
+		return this.destination;
+	}
+
 	async loadPersistedSnapshot(): Promise<void> {
 		try {
 			const data = await this.store.getItem<StatusSnapshot>(SNAPSHOT_KEY);
 
-			if (data) {
+			if (data && data.destination === this.destination) {
 				this.snapshot = data;
+			} else {
+				this.snapshot = null;
 			}
 		} catch {
 			this.snapshot = null;
@@ -92,7 +116,13 @@ export class StatusCacheService {
 		return this.stale;
 	}
 
-	setStatus(status: PublishStatus): void {
+	// `destination` is the target the refresh started against; a result that
+	// arrives after the user switched targets is discarded rather than shown.
+	setStatus(status: PublishStatus, destination?: string): void {
+		if (destination !== undefined && destination !== this.destination) {
+			return;
+		}
+
 		this.cachedStatus = status;
 		this.stale = false;
 		void this.persistSnapshot(status);
@@ -212,6 +242,7 @@ export class StatusCacheService {
 
 	private async persistSnapshot(status: PublishStatus): Promise<void> {
 		const snapshot: StatusSnapshot = {
+			destination: this.destination,
 			unpublished: status.unpublished.map((f) => f.getVaultPath()),
 			changed: status.changed.map((f) => f.getVaultPath()),
 			published: status.published.map((f) => f.getVaultPath()),

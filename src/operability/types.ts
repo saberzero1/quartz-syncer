@@ -30,6 +30,9 @@ export interface OperabilitySnapshot {
 	publisher: {
 		available: boolean; // getPublisher() !== null
 		isLocal: boolean;
+		requestedTarget: "local" | "remote";
+		effectiveTarget: "local" | "remote" | null;
+		targetOverridden: boolean;
 		lastError: string | null;
 	};
 	statusBar: {

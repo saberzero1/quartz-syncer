@@ -22,6 +22,12 @@ import { DataStore } from "src/cache/DataStore";
 import { Publisher } from "src/publisher/Publisher";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import { LocalPublishBackend } from "src/publisher/LocalPublishBackend";
+import {
+	describeBlocker,
+	isPublishConfigured,
+	publishTargetIdentity,
+	resolvePublishTarget,
+} from "src/publisher/PublishTargetResolver";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { BackgroundEngine } from "src/services/BackgroundEngine";
 import { ProcessRunner } from "src/process/ProcessRunner";
@@ -49,7 +55,9 @@ import { QuartzCompatibility } from "src/quartz/QuartzCompatibility";
  * This interface defines the default settings for the QuartzSyncer plugin.
  */
 export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
-	settingsSchemaVersion: 4,
+	settingsSchemaVersion: 5,
+
+	publishTarget: "remote",
 
 	gitRemoteUrl: "",
 	gitBranch: "v5",
@@ -238,6 +246,7 @@ export default class QuartzSyncer extends Plugin {
 			this.app.vault.getName(),
 			this.manifest.id,
 		);
+		this.syncStatusCacheDestination();
 		void this.statusCache.loadPersistedSnapshot();
 		this.pluginRegistry.enablePersistence(
 			this.app.vault.getName(),
@@ -262,14 +271,21 @@ export default class QuartzSyncer extends Plugin {
 				new PublicationCenter(this.app, this).open();
 		});
 
-		if (!this.settings.gitRemoteUrl && !this.settings.quartzRepoPath) {
+		const startupTarget = resolvePublishTarget(this.settings);
+
+		if (!startupTarget.effective) {
 			const notice = new Notice("", 0);
 			const fragment = notice.messageEl.createDiv();
 			fragment.createSpan({
-				text: "Quartz Syncer: no repository configured. ",
+				text: `Quartz Syncer: ${describeBlocker(
+					startupTarget.blocker ?? "none-configured",
+					this.settings,
+				)} `,
 			});
 			const setupLink = fragment.createEl("a", {
-				text: "Open setup wizard",
+				text: Platform.isDesktopApp
+					? "Open setup wizard"
+					: "Open manual setup",
 				href: "#",
 			});
 			setupLink.addEventListener("click", (e) => {
@@ -311,9 +327,9 @@ export default class QuartzSyncer extends Plugin {
 				}
 			},
 		);
-		const isConfigured =
-			!!this.settings.gitRemoteUrl || !!this.settings.quartzRepoPath;
-		this.statusBarManager.setState(isConfigured ? "ready" : "unconfigured");
+		this.statusBarManager.setState(
+			isPublishConfigured(this.settings) ? "ready" : "unconfigured",
+		);
 		this.backgroundEngine = new BackgroundEngine(
 			this.app,
 			this,
@@ -383,11 +399,12 @@ export default class QuartzSyncer extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			(await this.loadData()) as QuartzSyncerSettings,
-		);
+		const persisted = ((await this.loadData()) ?? {}) as Record<
+			string,
+			unknown
+		>;
+
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, persisted);
 
 		this.migrateGitHubSettings();
 		this.migrateNestedGitSettings();
@@ -395,6 +412,7 @@ export default class QuartzSyncer extends Plugin {
 		this.migrateTimestampKeyDefaults();
 		this.migrateDeprecatedSettingsV3();
 		this.migrateDeprecatedSettingsV4();
+		this.migratePublishTargetV5(persisted);
 		this.settings.pluginVersion = this.appVersion;
 		await this.saveSettings();
 
@@ -403,6 +421,23 @@ export default class QuartzSyncer extends Plugin {
 		await this.secretStorageService.migrateFromSettings(this.settings, () =>
 			this.saveSettings(),
 		);
+	}
+
+	// Detects the persisted value from the raw record rather than this.settings,
+	// because DEFAULT_SETTINGS is merged in before migrations run: once the
+	// default schema version is 5, an un-migrated record would look current.
+	private migratePublishTargetV5(persisted: Record<string, unknown>): void {
+		const stored = persisted["publishTarget"];
+
+		if (stored === "local" || stored === "remote") {
+			this.settings.publishTarget = stored;
+		} else {
+			this.settings.publishTarget = this.settings.quartzRepoPath
+				? "local"
+				: "remote";
+		}
+
+		this.settings.settingsSchemaVersion = 5;
 	}
 
 	private migrateGitHubSettings(): void {
@@ -548,9 +583,19 @@ export default class QuartzSyncer extends Plugin {
 		this.settings.settingsSchemaVersion = 4;
 	}
 
+	private syncStatusCacheDestination(): void {
+		this.statusCache?.setDestination(
+			publishTargetIdentity(
+				this.settings,
+				resolvePublishTarget(this.settings).effective,
+			),
+		);
+	}
+
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 		this.invalidateCachedInstances();
+		this.syncStatusCacheDestination();
 		this.statusCache?.invalidate();
 		this.hubDetectionCache.clear();
 		this.quartzCompatibility.invalidate();
@@ -615,7 +660,9 @@ export default class QuartzSyncer extends Plugin {
 			this.dataStore,
 		);
 
-		if (this.settings.quartzRepoPath) {
+		const target = resolvePublishTarget(this.settings).effective;
+
+		if (target === "local") {
 			const backend = new LocalPublishBackend(
 				this.settings.quartzRepoPath,
 			);
@@ -633,7 +680,7 @@ export default class QuartzSyncer extends Plugin {
 			return this.publisher;
 		}
 
-		if (this.settings.gitRemoteUrl) {
+		if (target === "remote") {
 			const gitBackend = createGitBackend(
 				{
 					remoteUrl: this.settings.gitRemoteUrl,

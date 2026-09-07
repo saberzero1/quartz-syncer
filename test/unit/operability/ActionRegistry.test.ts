@@ -80,6 +80,7 @@ function makePlugin(
 		statusCache: {
 			getCachedStatusEvenIfStale: vi.fn(() => overrides.status ?? null),
 			isStale: vi.fn(() => overrides.stale ?? true),
+			getDestination: vi.fn(() => "remote:https://example.com/r.git#v5"),
 			setStatus: vi.fn(),
 		},
 	} as unknown as QuartzSyncer;
@@ -488,7 +489,10 @@ describe("ActionRegistry", () => {
 			expect(result.data).toBe(status);
 			expect(service.getStatus).toHaveBeenCalledTimes(1);
 			expect(plugin.statusCache.setStatus).toHaveBeenCalledTimes(1);
-			expect(plugin.statusCache.setStatus).toHaveBeenCalledWith(status);
+			expect(plugin.statusCache.setStatus).toHaveBeenCalledWith(
+				status,
+				"remote:https://example.com/r.git#v5",
+			);
 		});
 	});
 

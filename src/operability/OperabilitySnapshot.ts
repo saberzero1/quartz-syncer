@@ -2,6 +2,7 @@ import { Platform } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { EventBuffer } from "./EventBuffer";
 import type { OperabilitySnapshot } from "./types";
+import { resolvePublishTarget } from "src/publisher/PublishTargetResolver";
 
 type BackgroundEngineLike = {
 	isRunning: boolean;
@@ -32,7 +33,8 @@ export function assembleSnapshot(
 	const statusBar = resolveStatusBar(plugin);
 	const cacheFileCount = resolveCacheFileCount(settings.cache);
 	const cacheTimestamp = settings.cacheTimestamp || 0;
-	const configured = !!settings.gitRemoteUrl || !!settings.quartzRepoPath;
+	const publishTarget = resolvePublishTarget(settings);
+	const configured = publishTarget.effective !== null;
 	const activeModal = resolveActiveModal(eventBuffer ?? null);
 
 	return {
@@ -62,7 +64,10 @@ export function assembleSnapshot(
 		},
 		publisher: {
 			available: configured,
-			isLocal: !!settings.quartzRepoPath,
+			isLocal: publishTarget.effective === "local",
+			requestedTarget: publishTarget.requested,
+			effectiveTarget: publishTarget.effective,
+			targetOverridden: publishTarget.overridden,
 			lastError: null,
 		},
 		statusBar: {

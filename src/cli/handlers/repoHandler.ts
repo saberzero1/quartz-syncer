@@ -2,6 +2,7 @@ import type QuartzSyncer from "src/main";
 import type { CliHandler } from "src/cli/types";
 import { LocalFileSource } from "src/quartz/LocalFileSource";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
+import { resolvePublishTarget } from "src/publisher/PublishTargetResolver";
 import {
 	externalFileExists,
 	externalIsDirectorySync,
@@ -39,12 +40,15 @@ function handleInfo(plugin: QuartzSyncer) {
 	const { quartzRepoPath, gitRemoteUrl, gitBranch, contentFolder } =
 		plugin.settings;
 
-	const mode = quartzRepoPath ? "local" : gitRemoteUrl ? "remote" : "none";
+	const target = resolvePublishTarget(plugin.settings);
 
 	return {
 		success: true,
 		data: {
-			mode,
+			mode: target.effective ?? "none",
+			requestedTarget: target.requested,
+			targetOverridden: target.overridden,
+			blocker: target.blocker,
 			localPath: quartzRepoPath || null,
 			remoteUrl: gitRemoteUrl || null,
 			branch: gitBranch,
@@ -78,6 +82,7 @@ async function handleSetLocal(plugin: QuartzSyncer, path: string | undefined) {
 	}
 
 	plugin.settings.quartzRepoPath = resolved;
+	plugin.settings.publishTarget = "local";
 	await plugin.saveSettings();
 
 	return {
@@ -91,7 +96,9 @@ async function handleSetLocal(plugin: QuartzSyncer, path: string | undefined) {
 }
 
 async function handleSetRemote(plugin: QuartzSyncer) {
-	plugin.settings.quartzRepoPath = "";
+	// Switches the destination only. The local path stays configured so the
+	// Quartz Hub, builds and local preview keep working.
+	plugin.settings.publishTarget = "remote";
 	await plugin.saveSettings();
 
 	const { gitRemoteUrl, gitBranch } = plugin.settings;

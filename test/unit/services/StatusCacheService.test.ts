@@ -385,6 +385,7 @@ describe("StatusCacheService", () => {
 	it("loadPersistedSnapshot loads stored snapshot", async () => {
 		const service = new StatusCacheService("vault", "app");
 		const snapshot = {
+			destination: "none",
 			unpublished: ["notes/a.md"],
 			changed: ["notes/b.md"],
 			published: ["notes/c.md"],
@@ -399,6 +400,66 @@ describe("StatusCacheService", () => {
 		await service.loadPersistedSnapshot();
 
 		expect(service.getSnapshot()).toEqual(snapshot);
+	});
+
+	it("discards a snapshot persisted for a different destination", async () => {
+		const service = new StatusCacheService("vault", "app");
+		service.setDestination("remote:https://example.com/r.git#v5");
+		getStore().set("status-snapshot", {
+			destination: "local:/home/user/quartz",
+			unpublished: ["notes/a.md"],
+			changed: [],
+			published: [],
+			deleted: [],
+			media: [],
+			arbitrary: [],
+			mediaLinks: {},
+			timestamp: 100,
+		});
+
+		await service.loadPersistedSnapshot();
+
+		expect(service.getSnapshot()).toBeNull();
+	});
+
+	it("drops cached state when the destination changes", () => {
+		const service = new StatusCacheService("vault", "app");
+		service.setDestination("local:/home/user/quartz");
+		service.setSummary({
+			unpublished: 1,
+			changed: 0,
+			published: 0,
+			deleted: 0,
+			media: 0,
+			timestamp: 1,
+		});
+
+		service.setDestination("remote:https://example.com/r.git#v5");
+
+		expect(service.getSummary()).toBeNull();
+		expect(service.getStatus()).toBeNull();
+		expect(service.isStale()).toBe(true);
+	});
+
+	it("ignores a status that resolved for a previous destination", () => {
+		const service = new StatusCacheService("vault", "app");
+		service.setDestination("local:/home/user/quartz");
+		service.setDestination("remote:https://example.com/r.git#v5");
+
+		service.setStatus(
+			{
+				unpublished: [],
+				changed: [],
+				published: [],
+				deleted: [],
+				media: [],
+				arbitrary: [],
+				mediaLinks: new Map(),
+			} as unknown as Parameters<StatusCacheService["setStatus"]>[0],
+			"local:/home/user/quartz",
+		);
+
+		expect(service.getStatus()).toBeNull();
 	});
 
 	it("loadPersistedSnapshot keeps null when no data", async () => {
