@@ -78,6 +78,77 @@ export function isStaleCacheName(name: string, scope: CacheScope): boolean {
 }
 
 /**
+ * Recognize every plugin cache family without assuming which vault owns it.
+ * Explicit cleanup needs this broader boundary to reclaim deleted or renamed
+ * vaults' derived data while leaving other plugins' databases untouched.
+ */
+export function isPluginCacheName(name: string, pluginId: string): boolean {
+	if (name.startsWith("quartz-syncer/cache/")) {
+		const segments = name.split("/");
+		return segments.length === 5 && segments[3] === pluginId;
+	}
+
+	if (parseGitFsGeneration(name) !== null) return true;
+
+	return SCOPED_CACHE_SUFFIXES.some(
+		(suffix) =>
+			name === `--${suffix}` || name.endsWith(`-${pluginId}-${suffix}`),
+	);
+}
+
+/**
+ * Survey candidates without deleting anything so a user can review exact names.
+ * This is the explicit-consent counterpart to the automatic sweep: it deliberately
+ * includes other vaults' live caches. Deleting those is safe only with human
+ * confirmation and because every database is rebuildable derived data.
+ * The current vault's live databases, including remote-dependent clones supplied
+ * through liveExtra, are protected; sorting keeps the review list stable.
+ */
+export async function surveyForeignCaches(
+	scope: CacheScope,
+	liveExtra: readonly string[] = [],
+): Promise<string[]> {
+	if (typeof indexedDB === "undefined" || !indexedDB.databases) return [];
+
+	const live = new Set([...liveCacheNames(scope), ...liveExtra]);
+	const instances = await indexedDB.databases();
+	return instances
+		.map(({ name }) => name)
+		.filter(
+			(name): name is string =>
+				typeof name === "string" &&
+				isPluginCacheName(name, scope.pluginId) &&
+				!live.has(name),
+		)
+		.sort();
+}
+
+/**
+ * Delete exactly the approved names, sequentially to avoid request contention.
+ * One rejection must not prevent reclaiming the remaining derived caches, and
+ * callers need both outcomes to report partial cleanup rather than silent success.
+ * The optional failure label preserves the automatic sweep's existing diagnostics
+ * while sharing its deletion loop with explicit cleanup.
+ */
+export async function dropCaches(
+	names: readonly string[],
+	failureLabel: "cache" | "stale cache" = "cache",
+): Promise<{ dropped: string[]; failed: string[] }> {
+	const dropped: string[] = [];
+	const failed: string[] = [];
+	for (const name of names) {
+		try {
+			await dropStore(name);
+			dropped.push(name);
+		} catch (error) {
+			failed.push(name);
+			console.debug(`Failed to drop ${failureLabel} "${name}":`, error);
+		}
+	}
+	return { dropped, failed };
+}
+
+/**
  * Reclaim caches stranded by the db9905f namespace rename and older layouts.
  *
  * IndexedDB is shared across vaults, so only names classified as stale for
@@ -93,17 +164,12 @@ export async function dropStaleCaches(scope: CacheScope): Promise<string[]> {
 	if (typeof indexedDB === "undefined" || !indexedDB.databases) return [];
 
 	const instances = await indexedDB.databases();
-	const dropped: string[] = [];
-	for (const { name } of instances) {
-		if (!name || !isStaleCacheName(name, scope)) continue;
-
-		try {
-			await dropStore(name);
-			dropped.push(name);
-		} catch (error) {
-			console.debug(`Failed to drop stale cache "${name}":`, error);
-		}
-	}
+	const names = instances
+		.map(({ name }) => name)
+		.filter(
+			(name): name is string => !!name && isStaleCacheName(name, scope),
+		);
+	const { dropped } = await dropCaches(names, "stale cache");
 
 	return dropped;
 }

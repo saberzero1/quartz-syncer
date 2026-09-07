@@ -1,5 +1,6 @@
 import { Platform, type SettingDefinitionItem } from "obsidian";
 import type QuartzSyncer from "src/main";
+import { CacheCleanupModal } from "src/views/CacheCleanupModal";
 
 export function performanceSettingDefinitions(
 	plugin: QuartzSyncer,
@@ -40,6 +41,13 @@ export function performanceSettingDefinitions(
 						type: "toggle",
 						key: "persistCache",
 						defaultValue: false,
+					},
+				},
+				{
+					name: "Clean up caches from other vaults",
+					desc: "Remove cached data left behind by vaults you no longer use or remotes you no longer publish to. You will be asked to review the databases and confirm first.",
+					action: () => {
+						new CacheCleanupModal(plugin).open();
 					},
 				},
 			],

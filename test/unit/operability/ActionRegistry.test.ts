@@ -4,6 +4,7 @@ import type QuartzSyncer from "src/main";
 import type { Action } from "src/operability/types";
 import type { PublicationService } from "src/services/PublicationService";
 import type { OnboardingService } from "src/services/OnboardingService";
+import { CacheMaintenanceService } from "src/services/CacheMaintenanceService";
 import type { PublicationCenterManager } from "src/operability/PublicationCenterManager";
 import type { QuartzHubManager } from "src/operability/QuartzHubManager";
 import type { PublishFile } from "src/publishFile/PublishFile";
@@ -149,6 +150,7 @@ function makeFixture(plugin = makePlugin({ status: makePendingStatus() })) {
 }
 
 const lockedActions: Action[] = [
+	{ name: "cache.pruneForeign", params: { confirm: true } },
 	{ name: "status.refresh" },
 	{ name: "connection.test" },
 	{ name: "settings.set", params: { key: "gitBranch", value: "blocked" } },
@@ -160,6 +162,7 @@ const lockedActions: Action[] = [
 ];
 
 const destructiveActions: Action[] = [
+	{ name: "cache.pruneForeign", params: { confirm: true } },
 	{ name: "pub.publish", params: { confirm: true } },
 	{ name: "pub.delete", params: { confirm: true } },
 	{ name: "plugin.reload", params: { confirm: true } },
@@ -175,6 +178,106 @@ const destructiveActions: Action[] = [
 ];
 
 describe("ActionRegistry", () => {
+	describe("cache.pruneForeign", () => {
+		function fixture() {
+			const fixture = makeFixture();
+			fixture.plugin.cacheMaintenance = new CacheMaintenanceService(
+				fixture.plugin,
+			);
+			const survey = vi
+				.spyOn(fixture.plugin.cacheMaintenance, "survey")
+				.mockResolvedValue({ names: ["foreign-quartz-syncer-status"] });
+			const drop = vi
+				.spyOn(fixture.plugin.cacheMaintenance, "drop")
+				.mockResolvedValue({
+					dropped: ["foreign-quartz-syncer-status"],
+					failed: [],
+				});
+			return { ...fixture, survey, drop };
+		}
+
+		it.each([undefined, false, "true", 1])(
+			"requires literal confirmation before any survey or deletion: %s",
+			async (confirm) => {
+				const { registry, survey, drop } = fixture();
+				await expect(
+					registry.dispatch({
+						name: "cache.pruneForeign",
+						params: { confirm },
+					} as unknown as Action),
+				).resolves.toEqual({
+					success: false,
+					error: "Confirmation required",
+				});
+				expect(survey).not.toHaveBeenCalled();
+				expect(drop).not.toHaveBeenCalled();
+			},
+		);
+
+		it("requires confirmation when runtime callers omit params entirely", async () => {
+			const { registry, survey } = fixture();
+			await expect(
+				registry.dispatch({ name: "cache.pruneForeign" } as Action),
+			).resolves.toEqual({
+				success: false,
+				error: "Confirmation required",
+			});
+			expect(survey).not.toHaveBeenCalled();
+		});
+
+		it("surveys once and deletes that exact list with confirmation", async () => {
+			const { registry, survey, drop } = fixture();
+			await expect(
+				registry.dispatch({
+					name: "cache.pruneForeign",
+					params: { confirm: true },
+				}),
+			).resolves.toEqual({
+				success: true,
+				data: { dropped: ["foreign-quartz-syncer-status"], failed: [] },
+			});
+			expect(survey).toHaveBeenCalledTimes(1);
+			expect(drop).toHaveBeenCalledExactlyOnceWith([
+				"foreign-quartz-syncer-status",
+			]);
+		});
+
+		it("returns failed names without losing partial successes", async () => {
+			const { registry, drop } = fixture();
+			drop.mockResolvedValue({
+				dropped: [],
+				failed: ["foreign-quartz-syncer-status"],
+			});
+			await expect(
+				registry.dispatch({
+					name: "cache.pruneForeign",
+					params: { confirm: true },
+				}),
+			).resolves.toEqual({
+				success: true,
+				data: { dropped: [], failed: ["foreign-quartz-syncer-status"] },
+			});
+		});
+
+		it("reports survey failure and releases the lock", async () => {
+			const { registry, survey, drop } = fixture();
+			survey.mockRejectedValueOnce(new Error("Enumeration failed"));
+			await expect(
+				registry.dispatch({
+					name: "cache.pruneForeign",
+					params: { confirm: true },
+				}),
+			).resolves.toEqual({ success: false, error: "Enumeration failed" });
+			expect(drop).not.toHaveBeenCalled();
+			await expect(
+				registry.dispatch({
+					name: "cache.pruneForeign",
+					params: { confirm: true },
+				}),
+			).resolves.toMatchObject({ success: true });
+		});
+	});
+
 	describe("dispatch()", () => {
 		it("rejects an unknown action with a meaningful error", async () => {
 			const { registry } = makeFixture();

@@ -7,6 +7,24 @@ const DEFAULT_ACTION = "status";
 export function createCacheHandler(plugin: QuartzSyncer): CliHandler {
 	return async (params) => {
 		const action = params.args.action?.toLowerCase() ?? DEFAULT_ACTION;
+		if (action === "prune-foreign") {
+			if (!params.flags.has("force")) {
+				return {
+					success: false,
+					error: "Destructive operation requires the 'force' flag.",
+				};
+			}
+			const { names } = await plugin.cacheMaintenance.survey();
+			if (params.flags.has("dry-run")) {
+				return { success: true, data: { names } };
+			}
+			const result = await plugin.cacheMaintenance.drop(names);
+			return {
+				success: true,
+				data: { ...result, count: result.dropped.length },
+			};
+		}
+
 		const dataStore = plugin.dataStore;
 
 		if (!dataStore) {

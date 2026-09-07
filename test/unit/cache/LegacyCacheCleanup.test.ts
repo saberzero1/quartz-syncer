@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DataStore } from "src/cache/DataStore";
 import {
 	type CacheScope,
+	dropCaches,
 	dropStaleCaches,
+	isPluginCacheName,
 	isStaleCacheName,
 	liveCacheNames,
+	surveyForeignCaches,
 } from "src/cache/LegacyCacheCleanup";
 import { parseGitFsGeneration } from "src/git/backends/GitFsName";
 
@@ -78,6 +81,195 @@ describe("legacy cache cleanup", () => {
 					"319a0eefd0e81b84-quartz-syncer-registry",
 				]),
 			);
+		});
+	});
+
+	describe("isPluginCacheName", () => {
+		it.each([
+			CURRENT_DB,
+			LEGACY_DB,
+			"quartz-syncer/cache/Second Brain/quartz-syncer/1.18.0",
+			LEGACY_FS,
+			"quartz-syncer-1-other-app-id-abc",
+			CURRENT_FS,
+			"quartz-syncer-3-other-app-id-abc",
+			...["status", "hub", "tree", "registry"].flatMap((suffix) => [
+				`--${suffix}`,
+				`anything-quartz-syncer-${suffix}`,
+			]),
+		])("recognizes plugin cache %s regardless of vault", (name) => {
+			expect(isPluginCacheName(name, scope.pluginId)).toBe(true);
+		});
+
+		it.each([
+			"dataview/cache/f63162654e1059c1",
+			"inverse-metadatacache:f63162654e1059c1",
+			"f63162654e1059c1-backup",
+			"f63162654e1059c1-cache",
+			"f63162654e1059c1-sync",
+			"Excalidraw f63162654e1059c1",
+			"datacore/cache/primary",
+			"notebooknavigator/cache/f63162654e1059c1",
+			"omnisearch/cache/f63162654e1059c1",
+			"quartz-syncer/cache/myvault/other-plugin/2.0.11",
+			"quartz-syncer/cache/myvault/quartz-syncer",
+			"quartz-syncer/cache/myvault/quartz-syncer/2.0.11/extra",
+			"anything-other-plugin-status",
+			"anything-quartz-syncer-status-extra",
+			"--unknown",
+			"quartz-syncer-2--abc",
+			"",
+		])("rejects unrelated or malformed database %s", (name) => {
+			expect(isPluginCacheName(name, scope.pluginId)).toBe(false);
+		});
+
+		it("uses the supplied plugin identity for DataStore and service caches", () => {
+			expect(isPluginCacheName(CURRENT_DB, "other-plugin")).toBe(false);
+			expect(
+				isPluginCacheName(
+					"anything-quartz-syncer-status",
+					"other-plugin",
+				),
+			).toBe(false);
+		});
+	});
+
+	describe("surveyForeignCaches", () => {
+		it.each([undefined, {}])(
+			"returns nothing without IndexedDB enumeration: %s",
+			async (value) => {
+				setIndexedDB(value);
+				await expect(surveyForeignCaches(scope)).resolves.toEqual([]);
+				expect(dropInstance).not.toHaveBeenCalled();
+			},
+		);
+
+		it("protects all live names and extra clones and sorts foreign candidates without deleting", async () => {
+			const foreign = [
+				"quartz-syncer/cache/other-vault/quartz-syncer/2.0.11",
+				"other-vault-quartz-syncer-status",
+				"quartz-syncer-2-other-app-id-abc",
+				"quartz-syncer-2-319a0eefd0e81b84-oldremote",
+				LEGACY_FS,
+			];
+			const liveExtra = [
+				CURRENT_FS,
+				"quartz-syncer-3-319a0eefd0e81b84-abc",
+			];
+			setDatabases([
+				{},
+				{ name: "" },
+				...[
+					...foreign,
+					...liveCacheNames(scope),
+					...liveExtra,
+					"datacore/cache/primary",
+				].map((name) => ({ name })),
+			]);
+			await expect(
+				surveyForeignCaches(scope, liveExtra),
+			).resolves.toEqual([...foreign].sort());
+			expect(dropInstance).not.toHaveBeenCalled();
+		});
+
+		it("does not infer live clones when liveExtra is omitted", async () => {
+			setDatabases([{ name: CURRENT_FS }]);
+			await expect(surveyForeignCaches(scope)).resolves.toEqual([
+				CURRENT_FS,
+			]);
+			expect(dropInstance).not.toHaveBeenCalled();
+		});
+
+		it("propagates enumeration errors without deleting anything", async () => {
+			setIndexedDB({
+				databases: vi.fn().mockRejectedValue(new Error("Unavailable")),
+			});
+			await expect(surveyForeignCaches(scope)).rejects.toThrow(
+				"Unavailable",
+			);
+			expect(dropInstance).not.toHaveBeenCalled();
+		});
+
+		it("finds exactly the five orphaned DataStores observed on the dev machine", async () => {
+			const observed = [
+				"f63162654e1059c1-quartz-syncer-hub",
+				"f63162654e1059c1-quartz-syncer-status",
+				"f63162654e1059c1-quartz-syncer-tree",
+				"quartz-syncer-2-f63162654e1059c1-gnmali",
+				"quartz-syncer/cache/Second Brain/quartz-syncer/1.18.0",
+				"quartz-syncer/cache/content/quartz-syncer/1.9.2",
+				"quartz-syncer/cache/docs/quartz-syncer/1.18.0",
+				"quartz-syncer/cache/docs/quartz-syncer/2.0.0",
+				"quartz-syncer/cache/f63162654e1059c1/quartz-syncer/2.0.11",
+				"quartz-syncer/cache/temp/quartz-syncer/2.0.0",
+				"dataview/cache/f63162654e1059c1",
+				"inverse-metadatacache:f63162654e1059c1",
+				"f63162654e1059c1-backup",
+				"f63162654e1059c1-cache",
+				"f63162654e1059c1-sync",
+				"Excalidraw f63162654e1059c1",
+				"datacore/cache/primary",
+			];
+			setDatabases(observed.map((name) => ({ name })));
+			await expect(
+				surveyForeignCaches(
+					{
+						appId: "f63162654e1059c1",
+						vaultName: "test-vault",
+						pluginId: "quartz-syncer",
+						version: "2.0.11",
+					},
+					["quartz-syncer-2-f63162654e1059c1-gnmali"],
+				),
+			).resolves.toEqual([
+				"quartz-syncer/cache/Second Brain/quartz-syncer/1.18.0",
+				"quartz-syncer/cache/content/quartz-syncer/1.9.2",
+				"quartz-syncer/cache/docs/quartz-syncer/1.18.0",
+				"quartz-syncer/cache/docs/quartz-syncer/2.0.0",
+				"quartz-syncer/cache/temp/quartz-syncer/2.0.0",
+			]);
+			expect(dropInstance).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("dropCaches", () => {
+		it("partitions outcomes and continues sequentially past rejection", async () => {
+			const error = new Error("blocked");
+			const debug = vi
+				.spyOn(console, "debug")
+				.mockImplementation(() => {});
+			let release = () => {};
+			dropInstance.mockImplementationOnce(
+				() =>
+					new Promise<void>((resolve) => {
+						release = resolve;
+					}),
+			);
+			dropInstance.mockRejectedValueOnce(error);
+			const deletion = dropCaches([LEGACY_DB, LEGACY_FS, "--status"]);
+			expect(dropInstance.mock.calls).toEqual([[LEGACY_DB]]);
+			release();
+			await expect(deletion).resolves.toEqual({
+				dropped: [LEGACY_DB, "--status"],
+				failed: [LEGACY_FS],
+			});
+			expect(dropInstance.mock.calls).toEqual([
+				[LEGACY_DB],
+				[LEGACY_FS],
+				["--status"],
+			]);
+			expect(debug).toHaveBeenCalledExactlyOnceWith(
+				`Failed to drop cache "${LEGACY_FS}":`,
+				error,
+			);
+		});
+
+		it("deletes nothing for an empty approved list", async () => {
+			await expect(dropCaches([])).resolves.toEqual({
+				dropped: [],
+				failed: [],
+			});
+			expect(dropInstance).not.toHaveBeenCalled();
 		});
 	});
 

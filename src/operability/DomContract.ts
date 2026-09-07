@@ -1,4 +1,9 @@
 export type QSDomRole =
+	| "cache-cleanup"
+	| "cache-cleanup-item"
+	| "cache-cleanup-confirm"
+	| "cache-cleanup-cancel"
+	| "cache-cleanup-empty"
 	| "pub-center"
 	| "pub-tab"
 	| "pub-row"

@@ -144,14 +144,22 @@ obsidian quartz-syncer:cache action=clear-file path="notes/my-post.md"
 obsidian quartz-syncer:cache action=clear
 obsidian quartz-syncer:cache action=export
 obsidian quartz-syncer:cache action=import data="..."
+obsidian quartz-syncer:cache action=prune-foreign force dry-run
+obsidian quartz-syncer:cache action=prune-foreign force
 ```
 
 | Flag | Description |
 |------|-------------|
-| `action` | **Required.** `status`, `clear-file`, `clear` (clear all), `export`, `import`, `prune`, `tree-status`, or `tree-refresh`. |
+| `action` | **Required.** `status`, `clear-file`, `clear` (clear all), `export`, `import`, `prune`, `prune-foreign`, `tree-status`, or `tree-refresh`. |
 | `path` | File path for `clear-file`. |
 | `data` | Cache data for `import`. |
+| `force` | **Required** for `prune-foreign`, including with `dry-run`. |
+| `dry-run` | Survey `prune-foreign` candidates without deleting them; returns their exact database names. |
 | `format` | Output format: `json` or `text` (default). |
+
+`prune` keeps the automatic sweep's conservative scope. `prune-foreign` also reclaims caches from other vaults and remotes you no longer publish to, while protecting this vault's current caches and configured remote clone. Its result contains `dropped` and `failed` database names and a `count` of successful drops.
+
+These databases contain only rebuildable cached data, not notes. Other vaults still in use will rebuild their caches automatically next time they open. To review and confirm an exact list in the UI, use **Performance → Clean up caches from other vaults** in plugin settings.
 
 ### `quartz-syncer:config`
 

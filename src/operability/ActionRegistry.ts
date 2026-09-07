@@ -94,6 +94,10 @@ export class ActionRegistry {
 				return this.withLock(() =>
 					this.deletePending(action.params.confirm),
 				);
+			case "cache.pruneForeign":
+				return this.withLock(() =>
+					this.pruneForeignCaches(action.params?.confirm),
+				);
 			case "pub.open":
 				return this.openPublicationCenter();
 			case "pub.close":
@@ -262,6 +266,21 @@ export class ActionRegistry {
 					? undefined
 					: (result.error ?? "Delete failed"),
 			};
+		} catch (error) {
+			return { success: false, error: toErrorMessage(error) };
+		}
+	}
+
+	private async pruneForeignCaches(
+		confirm: boolean | undefined,
+	): Promise<ActionResult> {
+		if (confirm !== true) {
+			return { success: false, error: "Confirmation required" };
+		}
+		try {
+			const { names } = await this.plugin.cacheMaintenance.survey();
+			const result = await this.plugin.cacheMaintenance.drop(names);
+			return { success: true, data: result };
 		} catch (error) {
 			return { success: false, error: toErrorMessage(error) };
 		}

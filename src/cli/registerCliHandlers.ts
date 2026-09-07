@@ -170,17 +170,30 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 			{
 				name: "action",
 				description:
-					"status, clear, clear-file, export, import, prune, tree-status, or tree-refresh.",
+					"status, clear, clear-file, export, import, prune, prune-foreign, tree-status, or tree-refresh.",
 			},
 			{ name: "path", description: "File path for clear-file." },
 			{ name: "data", description: "JSON string for import action." },
 		],
-		flags: [{ name: "help", description: "Show help for this command." }],
+		flags: [
+			{
+				name: "force",
+				description: "Required for prune-foreign, including dry-run.",
+			},
+			{
+				name: "dry-run",
+				description:
+					"List prune-foreign candidates without deleting them.",
+			},
+			{ name: "help", description: "Show help for this command." },
+		],
 		examples: [
 			"obsidian quartz-syncer:cache action=status",
 			"obsidian quartz-syncer:cache action=clear",
 			"obsidian quartz-syncer:cache action=export",
 			"obsidian quartz-syncer:cache action=prune",
+			"obsidian quartz-syncer:cache action=prune-foreign force dry-run",
+			"obsidian quartz-syncer:cache action=prune-foreign force",
 		],
 	},
 	{
