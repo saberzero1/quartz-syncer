@@ -159,7 +159,7 @@ describe("repoHandler", () => {
 		expect(saveSettings).toHaveBeenCalledTimes(1);
 	});
 
-	it("set-remote clears local path and returns remote mode", async () => {
+	it("set-remote switches target and keeps the local path", async () => {
 		const saveSettings = vi.fn();
 		const plugin = buildPlugin({
 			settings: {
@@ -173,7 +173,8 @@ describe("repoHandler", () => {
 		const handler = createRepoHandler(plugin);
 
 		const result = await handler(buildParams({ action: "set-remote" }));
-		expect(plugin.settings.quartzRepoPath).toBe("");
+		expect(plugin.settings.quartzRepoPath).toBe("/repo");
+		expect(plugin.settings.publishTarget).toBe("remote");
 		expect(saveSettings).toHaveBeenCalledTimes(1);
 		expect(result).toEqual({
 			success: true,
@@ -214,6 +215,7 @@ describe("repoHandler", () => {
 				gitRemoteUrl: "https://example.com/repo.git",
 				gitBranch: "main",
 				contentFolder: "content",
+				publishTarget: "local",
 			},
 		});
 		const handler = createRepoHandler(plugin);
@@ -223,6 +225,9 @@ describe("repoHandler", () => {
 			success: true,
 			data: {
 				mode: "local",
+				requestedTarget: "local",
+				targetOverridden: false,
+				blocker: null,
 				localPath: "/repo",
 				remoteUrl: "https://example.com/repo.git",
 				branch: "main",

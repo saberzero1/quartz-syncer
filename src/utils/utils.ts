@@ -48,12 +48,17 @@ function slugifySegment(value: string): string {
  * Generates a SHA1 hash for a blob content.
  * The content is prefixed with the header "blob \{byteLength\}\0".
  *
- * @param content - The content of the blob to hash.
+ * Binary content must be passed as raw bytes. Decoding it to a string first
+ * replaces invalid UTF-8 sequences, which yields a hash that never matches the
+ * bytes actually stored on disk.
+ *
+ * @param content - The content of the blob to hash, as text or raw bytes.
  * @returns The SHA1 hash of the blob content.
  */
-async function generateBlobHash(content: string): Promise<string> {
+async function generateBlobHash(content: string | Uint8Array): Promise<string> {
 	const encoder = new TextEncoder();
-	const contentBytes = encoder.encode(content);
+	const contentBytes =
+		typeof content === "string" ? encoder.encode(content) : content;
 	const length = contentBytes.byteLength;
 	const header = encoder.encode(`blob ${length}\0`);
 	const combined = new Uint8Array(header.length + contentBytes.length);

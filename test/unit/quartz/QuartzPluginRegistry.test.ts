@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { requestUrl } from "obsidian";
 import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
+import { createStore } from "src/cache/IndexedDBStore";
 
 const { persistedStore } = vi.hoisted(() => {
 	const persistedStore = new Map<string, unknown>();
@@ -38,6 +39,7 @@ const mockedRequestUrl = vi.mocked(requestUrl);
 describe("QuartzPluginRegistry", () => {
 	beforeEach(() => {
 		mockedRequestUrl.mockReset();
+		vi.mocked(createStore).mockClear();
 	});
 
 	it("returns parsed plugins from successful fetch", async () => {
@@ -192,8 +194,19 @@ describe("QuartzPluginRegistry", () => {
 	});
 
 	describe("persistence", () => {
+		const APP_ID = "319a0eefd0e81b84";
+
 		beforeEach(() => {
 			persistedStore.clear();
+		});
+
+		it("keys persistence by appId", () => {
+			const registry = new QuartzPluginRegistry();
+			registry.enablePersistence(APP_ID, "quartz-syncer");
+
+			expect(createStore).toHaveBeenCalledExactlyOnceWith(
+				"319a0eefd0e81b84-quartz-syncer-registry",
+			);
 		});
 
 		it("persists fetched plugins to IndexedDB", async () => {
@@ -213,7 +226,7 @@ describe("QuartzPluginRegistry", () => {
 			});
 
 			const registry = new QuartzPluginRegistry();
-			registry.enablePersistence("vault", "quartz-syncer");
+			registry.enablePersistence(APP_ID, "quartz-syncer");
 			await registry.getPlugins();
 
 			expect(persistedStore.has("registry")).toBe(true);
@@ -252,7 +265,7 @@ describe("QuartzPluginRegistry", () => {
 			});
 
 			const registry = new QuartzPluginRegistry();
-			registry.enablePersistence("vault", "quartz-syncer");
+			registry.enablePersistence(APP_ID, "quartz-syncer");
 			const plugins = await registry.getPlugins();
 
 			expect(plugins[0]).toMatchObject({ name: "cached-plugin" });
@@ -276,7 +289,7 @@ describe("QuartzPluginRegistry", () => {
 			});
 
 			const registry = new QuartzPluginRegistry();
-			registry.enablePersistence("vault", "quartz-syncer");
+			registry.enablePersistence(APP_ID, "quartz-syncer");
 			const plugins = await registry.getPlugins();
 
 			expect(plugins[0]).toMatchObject({ name: "new" });
@@ -289,7 +302,7 @@ describe("QuartzPluginRegistry", () => {
 			});
 
 			const registry = new QuartzPluginRegistry();
-			registry.enablePersistence("vault", "quartz-syncer");
+			registry.enablePersistence(APP_ID, "quartz-syncer");
 			registry.clearCache();
 
 			expect(persistedStore.has("registry")).toBe(false);

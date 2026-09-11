@@ -1,4 +1,9 @@
 export type QSDomRole =
+	| "cache-cleanup"
+	| "cache-cleanup-item"
+	| "cache-cleanup-confirm"
+	| "cache-cleanup-cancel"
+	| "cache-cleanup-empty"
 	| "pub-center"
 	| "pub-tab"
 	| "pub-row"
@@ -8,6 +13,7 @@ export type QSDomRole =
 	| "pub-delete-btn"
 	| "pub-search"
 	| "pub-progress"
+	| "pub-target"
 	| "wizard"
 	| "wizard-step"
 	| "wizard-next"

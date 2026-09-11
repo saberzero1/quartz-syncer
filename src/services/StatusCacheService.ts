@@ -21,6 +21,8 @@ export interface StatusSummary {
 }
 
 export interface StatusSnapshot {
+	/** Destination this snapshot was computed against. */
+	destination: string;
 	unpublished: string[];
 	changed: string[];
 	published: string[];
@@ -37,15 +39,29 @@ export class StatusCacheService {
 	private inflight: Promise<PublishStatus> | null = null;
 	private snapshot: StatusSnapshot | null = null;
 	private summary: StatusSummary | null = null;
-	private store: IndexedDBStore;
+	private destination = "none";
+	private store: IndexedDBStore | null = null;
+	private readonly storeName: string | null;
 
 	private diffContentCache = new Map<
 		string,
 		{ local: string; remote: string }
 	>();
 
-	constructor(vaultName: string, pluginId: string) {
-		this.store = createStore(`${vaultName}-${pluginId}-status`);
+	/**
+	 * IndexedDB is shared across vaults in one Obsidian installation, so use
+	 * `appId`: vault names are neither unique nor stable. A name-keyed cache
+	 * could serve another vault's status or be orphaned after a vault rename.
+	 */
+	constructor(appId: string, pluginId: string) {
+		this.storeName =
+			appId && pluginId ? `${appId}-${pluginId}-status` : null;
+	}
+
+	private getStore(): IndexedDBStore | null {
+		if (this.storeName === null) return null;
+		if (this.store === null) this.store = createStore(this.storeName);
+		return this.store;
 	}
 
 	private get diffCacheLimit(): number {
@@ -54,12 +70,34 @@ export class StatusCacheService {
 			: MOBILE_DIFF_CACHE_LIMIT;
 	}
 
+	// Publish status is computed against one destination's file tree, so every
+	// cached artifact is only valid for that destination. Switching targets
+	// must not surface counts or diffs computed against the other one.
+	setDestination(destination: string): void {
+		if (destination === this.destination) return;
+
+		this.destination = destination;
+		this.cachedStatus = null;
+		this.snapshot = null;
+		this.summary = null;
+		this.stale = true;
+		this.inflight = null;
+		this.clearDiffCache();
+	}
+
+	getDestination(): string {
+		return this.destination;
+	}
+
 	async loadPersistedSnapshot(): Promise<void> {
 		try {
-			const data = await this.store.getItem<StatusSnapshot>(SNAPSHOT_KEY);
+			const data =
+				await this.getStore()?.getItem<StatusSnapshot>(SNAPSHOT_KEY);
 
-			if (data) {
+			if (data && data.destination === this.destination) {
 				this.snapshot = data;
+			} else {
+				this.snapshot = null;
 			}
 		} catch {
 			this.snapshot = null;
@@ -92,7 +130,13 @@ export class StatusCacheService {
 		return this.stale;
 	}
 
-	setStatus(status: PublishStatus): void {
+	// `destination` is the target the refresh started against; a result that
+	// arrives after the user switched targets is discarded rather than shown.
+	setStatus(status: PublishStatus, destination?: string): void {
+		if (destination !== undefined && destination !== this.destination) {
+			return;
+		}
+
 		this.cachedStatus = status;
 		this.stale = false;
 		void this.persistSnapshot(status);
@@ -173,7 +217,9 @@ export class StatusCacheService {
 		this.stale = true;
 		this.inflight = null;
 		this.clearDiffCache();
-		void this.store.removeItem(SNAPSHOT_KEY).catch(() => {});
+		void this.getStore()
+			?.removeItem(SNAPSHOT_KEY)
+			.catch(() => {});
 	}
 
 	getInflight(): Promise<PublishStatus> | null {
@@ -212,6 +258,7 @@ export class StatusCacheService {
 
 	private async persistSnapshot(status: PublishStatus): Promise<void> {
 		const snapshot: StatusSnapshot = {
+			destination: this.destination,
 			unpublished: status.unpublished.map((f) => f.getVaultPath()),
 			changed: status.changed.map((f) => f.getVaultPath()),
 			published: status.published.map((f) => f.getVaultPath()),
@@ -224,6 +271,8 @@ export class StatusCacheService {
 
 		this.snapshot = snapshot;
 
-		await this.store.setItem(SNAPSHOT_KEY, snapshot).catch(() => {});
+		await this.getStore()
+			?.setItem(SNAPSHOT_KEY, snapshot)
+			.catch(() => {});
 	}
 }

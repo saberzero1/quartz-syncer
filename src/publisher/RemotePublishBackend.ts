@@ -13,12 +13,17 @@ export class RemotePublishBackend implements PublishBackend {
 		this.treeCache = new RemoteTreeCache(gitBackend, branch);
 	}
 
+	/**
+	 * IndexedDB is shared across vaults in one Obsidian installation, so use
+	 * `appId`: vault names are neither unique nor stable. A name-keyed tree
+	 * cache could be shared across vaults or orphaned after a vault rename.
+	 */
 	enableTreePersistence(
-		vaultName: string,
+		appId: string,
 		pluginId: string,
 		remoteUrl: string,
 	): void {
-		this.treeCache.enablePersistence(vaultName, pluginId, remoteUrl);
+		this.treeCache.enablePersistence(appId, pluginId, remoteUrl);
 		void this.treeCache.loadPersisted();
 	}
 

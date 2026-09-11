@@ -4,6 +4,7 @@ import type { GitAuthType, GitProviderHint } from "src/models/settings";
 import { detectGitProvider } from "src/utils/gitProviderDetection";
 import { createGitBackend } from "src/git/GitBackendFactory";
 import { SettingPageBase } from "./SettingPageBase";
+import { resolvePublishTarget } from "src/publisher/PublishTargetResolver";
 
 export class GitSettingsPage extends SettingPageBase {
 	private app: App;
@@ -328,7 +329,13 @@ export class GitSettingsPage extends SettingPageBase {
 			}
 
 			const writeStatus = result.writeAccess ? "write" : "read-only";
-			this.updateStatus(`Connected (${writeStatus}).`);
+
+			const unused =
+				resolvePublishTarget(this.settings).effective === "local"
+					? " Publish target is the local folder, so this remote is not used for publishing."
+					: "";
+
+			this.updateStatus(`Connected (${writeStatus}).${unused}`);
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);

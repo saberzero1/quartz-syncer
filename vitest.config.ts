@@ -21,10 +21,10 @@ export default defineConfig({
 			// 26 and across maxWorkers 1/2/4, forks and the default pool.
 			thresholds: {
 				autoUpdate: false,
-				statements: 41.86,
-				branches: 38.97,
-				functions: 45.83,
-				lines: 42.31,
+				statements: 43.35,
+				branches: 40.27,
+				functions: 47.48,
+				lines: 43.79,
 			},
 		},
 	},

@@ -6,6 +6,7 @@ function makePlugin(
 	overrides: Partial<{
 		gitRemoteUrl: string;
 		quartzRepoPath: string;
+		publishTarget: "local" | "remote";
 		cache: string;
 		cacheTimestamp: number;
 		hasToken: boolean;
@@ -20,6 +21,7 @@ function makePlugin(
 			...DEFAULT_SETTINGS,
 			gitRemoteUrl: overrides.gitRemoteUrl ?? "",
 			quartzRepoPath: overrides.quartzRepoPath ?? "",
+			publishTarget: overrides.publishTarget ?? "remote",
 			cache: overrides.cache ?? "{}",
 			cacheTimestamp: overrides.cacheTimestamp ?? 0,
 		},
@@ -75,11 +77,21 @@ describe("assembleSnapshot", () => {
 			expect(snapshot.settings.configured).toBe(true);
 		});
 
-		it("is true when quartzRepoPath is set", () => {
+		it("is true when quartzRepoPath is set and selected", () => {
+			const snapshot = assembleSnapshot(
+				makePlugin({
+					quartzRepoPath: "/home/user/quartz",
+					publishTarget: "local",
+				}),
+			);
+			expect(snapshot.settings.configured).toBe(true);
+		});
+
+		it("is false when quartzRepoPath is set but the target is remote", () => {
 			const snapshot = assembleSnapshot(
 				makePlugin({ quartzRepoPath: "/home/user/quartz" }),
 			);
-			expect(snapshot.settings.configured).toBe(true);
+			expect(snapshot.settings.configured).toBe(false);
 		});
 
 		it("is false when both gitRemoteUrl and quartzRepoPath are empty", () => {

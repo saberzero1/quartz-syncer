@@ -5,6 +5,7 @@ import {
 } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { DynamicOptionListState } from "src/views/settings/DynamicToggleSet";
+import { CacheCleanupModal } from "src/views/CacheCleanupModal";
 
 /** Prefix for the synthetic per-folder toggle keys read by QuartzSyncerSettingTab. */
 export const IGNORED_FOLDER_CONTROL_PREFIX = "ignoredFolder::";
@@ -54,6 +55,13 @@ export function performanceSettingDefinitions(
 						type: "toggle",
 						key: "persistCache",
 						defaultValue: false,
+					},
+				},
+				{
+					name: "Clean up caches from other vaults",
+					desc: "Remove cached data left behind by vaults you no longer use or remotes you no longer publish to. You will be asked to review the databases and confirm first.",
+					action: () => {
+						new CacheCleanupModal(plugin).open();
 					},
 				},
 			],

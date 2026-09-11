@@ -10,6 +10,7 @@ import type {
 import { EventBuffer } from "./EventBuffer";
 import { assembleSnapshot } from "./OperabilitySnapshot";
 import { ActionRegistry } from "./ActionRegistry";
+import { validateAction } from "./ActionValidation";
 import { runAssertion } from "./Assertions";
 import { PublicationService } from "src/services/PublicationService";
 import { OnboardingService } from "src/services/OnboardingService";
@@ -61,6 +62,9 @@ export class OperabilityFacadeImpl implements IOperabilityFacade {
 		if (this.shuttingDown) {
 			return { success: false, error: "Plugin is shutting down" };
 		}
+
+		const invalid = validateAction(action);
+		if (invalid) return invalid;
 
 		this.emitActionStart(action);
 		const result = await this.actionRegistry.dispatch(action);

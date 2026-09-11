@@ -48,6 +48,9 @@ export interface GitRemoteSettings {
 	providerHint?: GitProviderHint;
 }
 
+/** Publishing destination. */
+export type PublishTarget = "local" | "remote";
+
 /**
  * QuartzSyncer plugin settings.
  * Saved to data.json. All keys are flat (top-level) for compatibility with the
@@ -56,6 +59,13 @@ export interface GitRemoteSettings {
 export default interface QuartzSyncerSettings {
 	/** Settings schema version for data migrations */
 	settingsSchemaVersion: number;
+
+	/**
+	 * Where publishing writes. Independent of `quartzRepoPath`, which also
+	 * serves as the local checkout for Quartz site management regardless of
+	 * this value.
+	 */
+	publishTarget: PublishTarget;
 
 	/** Git remote URL (e.g., https://github.com/username/quartz.git) */
 	gitRemoteUrl: string;

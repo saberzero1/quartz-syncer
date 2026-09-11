@@ -27,12 +27,17 @@ export class RemoteTreeCache {
 		private branch: string,
 	) {}
 
+	/**
+	 * IndexedDB is shared across vaults in one Obsidian installation, so use
+	 * `appId`: vault names are neither unique nor stable. A name-keyed cache
+	 * could share tree records across vaults or be orphaned on a vault rename.
+	 */
 	enablePersistence(
-		vaultName: string,
+		appId: string,
 		pluginId: string,
 		remoteUrl: string,
 	): void {
-		this.store = createStore(`${vaultName}-${pluginId}-tree`);
+		this.store = createStore(`${appId}-${pluginId}-tree`);
 		this.remoteUrl = remoteUrl;
 	}
 

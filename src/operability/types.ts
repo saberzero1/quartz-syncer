@@ -30,6 +30,9 @@ export interface OperabilitySnapshot {
 	publisher: {
 		available: boolean; // getPublisher() !== null
 		isLocal: boolean;
+		requestedTarget: "local" | "remote";
+		effectiveTarget: "local" | "remote" | null;
+		targetOverridden: boolean;
 		lastError: string | null;
 	};
 	statusBar: {
@@ -98,6 +101,7 @@ export type Action =
 	| { name: "pub.deselectAll" }
 	| { name: "pub.publish"; params: { message?: string; confirm: true } }
 	| { name: "pub.delete"; params: { confirm: true } }
+	| { name: "cache.pruneForeign"; params: { confirm: true } }
 	| { name: "status.refresh" }
 	| { name: "onboarding.start" }
 	| { name: "onboarding.setToken"; params: { token: string } }

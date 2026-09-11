@@ -1,11 +1,104 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DataStore } from "src/cache/DataStore";
+import type { Publisher } from "src/publisher/Publisher";
+import { CacheMaintenanceService } from "src/services/CacheMaintenanceService";
 import { createCacheHandler } from "src/cli/handlers/cacheHandler";
 import { buildParams, buildPlugin } from "./helpers";
 
 describe("cacheHandler", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+	});
+
+	describe("prune-foreign", () => {
+		function fixture() {
+			const plugin = buildPlugin();
+			plugin.cacheMaintenance = new CacheMaintenanceService(plugin);
+			const survey = vi
+				.spyOn(plugin.cacheMaintenance, "survey")
+				.mockResolvedValue({
+					names: [
+						"foreign-quartz-syncer-status",
+						"foreign-quartz-syncer-hub",
+					],
+				});
+			const drop = vi
+				.spyOn(plugin.cacheMaintenance, "drop")
+				.mockResolvedValue({
+					dropped: ["foreign-quartz-syncer-status"],
+					failed: ["foreign-quartz-syncer-hub"],
+				});
+			return { handler: createCacheHandler(plugin), survey, drop };
+		}
+
+		it.each([{ flags: [] }, { flags: ["dry-run"] }])(
+			"requires force before surveying even for dry-run: %s",
+			async ({ flags }) => {
+				const { handler, survey, drop } = fixture();
+				await expect(
+					handler(buildParams({ action: "prune-foreign" }, flags)),
+				).resolves.toEqual({
+					success: false,
+					error: "Destructive operation requires the 'force' flag.",
+				});
+				expect(survey).not.toHaveBeenCalled();
+				expect(drop).not.toHaveBeenCalled();
+			},
+		);
+
+		it("honours dry-run without deleting", async () => {
+			const { handler, survey, drop } = fixture();
+			await expect(
+				handler(
+					buildParams({ action: "prune-foreign" }, [
+						"force",
+						"dry-run",
+					]),
+				),
+			).resolves.toEqual({
+				success: true,
+				data: {
+					names: [
+						"foreign-quartz-syncer-status",
+						"foreign-quartz-syncer-hub",
+					],
+				},
+			});
+			expect(survey).toHaveBeenCalledTimes(1);
+			expect(drop).not.toHaveBeenCalled();
+		});
+
+		it("deletes the surveyed names with force and reports partial failures and successful count", async () => {
+			const { handler, survey, drop } = fixture();
+			await expect(
+				handler(buildParams({ action: "prune-foreign" }, ["force"])),
+			).resolves.toEqual({
+				success: true,
+				data: {
+					dropped: ["foreign-quartz-syncer-status"],
+					failed: ["foreign-quartz-syncer-hub"],
+					count: 1,
+				},
+			});
+			expect(survey).toHaveBeenCalledTimes(1);
+			expect(drop).toHaveBeenCalledExactlyOnceWith([
+				"foreign-quartz-syncer-status",
+				"foreign-quartz-syncer-hub",
+			]);
+		});
+
+		it("reports zero when no candidates remain", async () => {
+			const { handler, survey, drop } = fixture();
+			survey.mockResolvedValue({ names: [] });
+			drop.mockResolvedValue({ dropped: [], failed: [] });
+			await expect(
+				handler(buildParams({ action: "prune-foreign" }, ["force"])),
+			).resolves.toEqual({
+				success: true,
+				data: { dropped: [], failed: [], count: 0 },
+			});
+			expect(drop).toHaveBeenCalledExactlyOnceWith([]);
+		});
 	});
 
 	it("returns cache status by default", async () => {
@@ -336,7 +429,7 @@ describe("cacheHandler", () => {
 		} as unknown as DataStore;
 		const plugin = buildPlugin({
 			dataStore,
-			getPublisher: vi.fn(() => publisher),
+			getPublisher: vi.fn(() => publisher as unknown as Publisher),
 		});
 		const handler = createCacheHandler(plugin);
 
@@ -360,7 +453,7 @@ describe("cacheHandler", () => {
 		} as unknown as DataStore;
 		const plugin = buildPlugin({
 			dataStore,
-			getPublisher: vi.fn(() => publisher),
+			getPublisher: vi.fn(() => publisher as unknown as Publisher),
 		});
 		const handler = createCacheHandler(plugin);
 
@@ -407,7 +500,7 @@ describe("cacheHandler", () => {
 		} as unknown as DataStore;
 		const plugin = buildPlugin({
 			dataStore,
-			getPublisher: vi.fn(() => publisher),
+			getPublisher: vi.fn(() => publisher as unknown as Publisher),
 		});
 		const handler = createCacheHandler(plugin);
 

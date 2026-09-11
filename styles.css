@@ -1212,6 +1212,24 @@
 }
 
 /* ──────────────────────────────────────────────
+   Cache Cleanup
+   ────────────────────────────────────────────── */
+
+.qs-cache-cleanup-list {
+	max-height: 40vh;
+	overflow-y: auto;
+	overflow-wrap: anywhere;
+	font-family: var(--font-monospace);
+}
+
+.qs-cache-cleanup-buttons {
+	display: flex;
+	justify-content: flex-end;
+	gap: var(--size-4-2);
+	flex-wrap: wrap;
+}
+
+/* ──────────────────────────────────────────────
    Plugin Browser
    ────────────────────────────────────────────── */
 

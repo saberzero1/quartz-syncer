@@ -1,5 +1,12 @@
 import { Platform } from "obsidian";
 
+type DirentType = {
+	name: string;
+	isDirectory(): boolean;
+	isFile(): boolean;
+	isSymbolicLink(): boolean;
+};
+
 type FsPromisesType = {
 	readFile(path: string, options: { encoding: string }): Promise<string>;
 	readFile(path: string): Promise<Buffer>;
@@ -10,6 +17,10 @@ type FsPromisesType = {
 	): Promise<void>;
 	writeFile(path: string, data: Buffer): Promise<void>;
 	access(path: string): Promise<void>;
+	readdir(
+		path: string,
+		options: { withFileTypes: true },
+	): Promise<DirentType[]>;
 	readdir(path: string, options?: { recursive?: boolean }): Promise<string[]>;
 	stat(path: string): Promise<{
 		isFile(): boolean;
@@ -29,6 +40,10 @@ type FsSyncType = {
 
 type PathType = {
 	join(...paths: string[]): string;
+	resolve(...paths: string[]): string;
+	relative(from: string, to: string): string;
+	isAbsolute(p: string): boolean;
+	sep: string;
 };
 
 type OsType = {
@@ -98,6 +113,35 @@ export function expandTilde(p: string): string {
 
 export function joinPath(...segments: string[]): string {
 	return getPath().join(...segments);
+}
+
+export function resolveExternalPath(p: string): string {
+	if (!Platform.isDesktopApp) return p;
+
+	return getPath().resolve(expandTilde(p));
+}
+
+// Containment is checked via path.relative rather than a string prefix: a
+// prefix test is wrong for mixed separators, drive-letter casing and trailing
+// separators on Windows. Lexical only — symlinks are deliberately not resolved.
+export function resolveWithin(
+	basePath: string,
+	relativePath: string,
+): string | null {
+	if (!Platform.isDesktopApp) return null;
+
+	const path = getPath();
+	const base = resolveExternalPath(basePath);
+	const target = path.resolve(base, relativePath);
+	const rel = path.relative(base, target);
+
+	if (rel === "" || rel === ".." || rel.startsWith(`..${path.sep}`)) {
+		return null;
+	}
+
+	if (path.isAbsolute(rel)) return null;
+
+	return target;
 }
 
 export async function readExternalFile(
@@ -246,6 +290,58 @@ export async function readExternalDirRecursive(
 		// Node's fs.readdir returns backslash-separated paths on Windows.
 		// Normalize to forward slashes for consistent cross-platform behavior.
 		return entries.map((e) => e.replace(/\\/g, "/"));
+	} catch {
+		return null;
+	}
+}
+
+export async function walkExternalFiles(
+	dirPath: string,
+	ignoredDirectories: ReadonlySet<string>,
+): Promise<string[] | null> {
+	if (!Platform.isDesktopApp) return null;
+
+	const fs = getFsPromises();
+	const path = getPath();
+	const files: string[] = [];
+
+	const walk = async (absoluteDir: string, relativeDir: string) => {
+		const entries = await fs.readdir(absoluteDir, { withFileTypes: true });
+
+		for (const entry of entries) {
+			const relativePath = relativeDir
+				? `${relativeDir}/${entry.name}`
+				: entry.name;
+			const absolutePath = path.join(absoluteDir, entry.name);
+
+			if (entry.isDirectory()) {
+				if (ignoredDirectories.has(entry.name)) continue;
+				await walk(absolutePath, relativePath);
+				continue;
+			}
+
+			if (entry.isFile()) {
+				files.push(relativePath);
+				continue;
+			}
+
+			// Symlinks are never traversed, so a link to a directory is skipped
+			// rather than followed. This keeps the walk acyclic.
+			if (entry.isSymbolicLink()) {
+				try {
+					const stats = await fs.stat(absolutePath);
+					if (!stats.isDirectory()) files.push(relativePath);
+				} catch {
+					continue;
+				}
+			}
+		}
+	};
+
+	try {
+		await walk(resolveExternalPath(dirPath), "");
+
+		return files;
 	} catch {
 		return null;
 	}

@@ -106,8 +106,49 @@ describe("StatusCacheService", () => {
 		createInstance.mockClear();
 	});
 
+	it.each([
+		["", ""],
+		["app-id", ""],
+		["", "app"],
+	])(
+		"does not create or access persistence for an empty scope (%s, %s)",
+		async (appId, pluginId) => {
+			const service = new StatusCacheService(appId, pluginId);
+			expect(createInstance).not.toHaveBeenCalled();
+
+			await service.loadPersistedSnapshot();
+			expect(service.getSnapshot()).toBeNull();
+			service.setStatus(buildStatus());
+			await flushPromises();
+			service.invalidate();
+			await flushPromises();
+
+			expect(createInstance).not.toHaveBeenCalled();
+			expect(getStore().size).toBe(0);
+		},
+	);
+
+	it("creates an appId-scoped store only on first access and reuses it for persistence", async () => {
+		const service = new StatusCacheService("app-id", "app");
+		expect(createInstance).not.toHaveBeenCalled();
+
+		await service.loadPersistedSnapshot();
+		expect(createInstance).toHaveBeenCalledExactlyOnceWith(
+			"app-id-app-status",
+		);
+		service.setStatus(buildStatus());
+		await flushPromises();
+		expect(getStore().get("status-snapshot")).toEqual(
+			service.getSnapshot(),
+		);
+		service.invalidate();
+		await flushPromises();
+		expect(getStore().has("status-snapshot")).toBe(false);
+		expect(createInstance).toHaveBeenCalledTimes(1);
+	});
+
 	it("returns cached status only when not stale", () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		const status = buildStatus();
 
 		expect(service.getStatus()).toBeNull();
@@ -126,13 +167,13 @@ describe("StatusCacheService", () => {
 	});
 
 	it("setStatus persists a snapshot and clears stale", async () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		const status = buildStatus();
+		service.setStatus(status);
 		const storeInstance = createInstance.mock.results[0].value as {
 			setItem: ReturnType<typeof vi.fn>;
 		};
 
-		service.setStatus(status);
 		await flushPromises();
 
 		expect(service.isStale()).toBe(false);
@@ -157,7 +198,7 @@ describe("StatusCacheService", () => {
 	});
 
 	it("setStatus handles missing mediaLinks", async () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		const status = buildStatus({ mediaLinks: undefined });
 
 		service.setStatus(status);
@@ -170,7 +211,7 @@ describe("StatusCacheService", () => {
 	});
 
 	it("markStale clears diff cache", () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		service.cacheDiffContent("notes/a.md", "local", "remote");
 		service.cacheDiffContent("notes/b.md", "local", "remote");
 
@@ -182,7 +223,7 @@ describe("StatusCacheService", () => {
 	});
 
 	it("markStaleFile clears only the specified diff entry", () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		service.cacheDiffContent("notes/a.md", "local", "remote");
 		service.cacheDiffContent("notes/b.md", "local", "remote");
 
@@ -197,7 +238,7 @@ describe("StatusCacheService", () => {
 	});
 
 	it("patchPublished moves files and evicts only published diffs", async () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		const status = buildStatus({
 			unpublished: [stubFile("notes/a.md"), stubFile("notes/b.md")],
 			changed: [stubFile("notes/c.md")],
@@ -231,8 +272,9 @@ describe("StatusCacheService", () => {
 		expect(getStore().has("status-snapshot")).toBe(true);
 	});
 
-	it("patchPublished no-ops when cache is empty", () => {
-		const service = new StatusCacheService("vault", "app");
+	it("patchPublished no-ops when cache is empty", async () => {
+		const service = new StatusCacheService("app-id", "app");
+		await service.loadPersistedSnapshot();
 		const storeInstance = createInstance.mock.results[0].value as {
 			setItem: ReturnType<typeof vi.fn>;
 		};
@@ -249,7 +291,7 @@ describe("StatusCacheService", () => {
 	});
 
 	it("patchDeleted removes files and evicts only deleted diffs", async () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		const status = buildStatus({
 			published: [stubFile("notes/a.md"), stubFile("notes/b.md")],
 			changed: [stubFile("notes/c.md")],
@@ -280,8 +322,9 @@ describe("StatusCacheService", () => {
 		expect(getStore().has("status-snapshot")).toBe(true);
 	});
 
-	it("patchDeleted no-ops when cache is empty", () => {
-		const service = new StatusCacheService("vault", "app");
+	it("patchDeleted no-ops when cache is empty", async () => {
+		const service = new StatusCacheService("app-id", "app");
+		await service.loadPersistedSnapshot();
 		const storeInstance = createInstance.mock.results[0].value as {
 			setItem: ReturnType<typeof vi.fn>;
 		};
@@ -298,12 +341,12 @@ describe("StatusCacheService", () => {
 	});
 
 	it("invalidate clears all state and removes persisted snapshot", async () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		const status = buildStatus();
+		service.setStatus(status);
 		const storeInstance = createInstance.mock.results[0].value as {
 			removeItem: ReturnType<typeof vi.fn>;
 		};
-		service.setStatus(status);
 		await flushPromises();
 		service.cacheDiffContent("notes/a.md", "local", "remote");
 		service.setInflight(Promise.resolve(status));
@@ -323,7 +366,7 @@ describe("StatusCacheService", () => {
 	});
 
 	it("manages inflight state", () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		const promise = Promise.resolve(buildStatus());
 
 		expect(service.getInflight()).toBeNull();
@@ -334,7 +377,7 @@ describe("StatusCacheService", () => {
 	});
 
 	it("caches and retrieves diff content", () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 
 		expect(service.getDiffContent("notes/a.md")).toBeUndefined();
 
@@ -348,7 +391,7 @@ describe("StatusCacheService", () => {
 
 	it("evicts oldest diff entries when at capacity", () => {
 		setDesktop(false);
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 
 		for (let index = 0; index < 20; index += 1) {
 			service.cacheDiffContent(
@@ -372,7 +415,7 @@ describe("StatusCacheService", () => {
 	});
 
 	it("clearDiffCache removes all entries", () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		service.cacheDiffContent("notes/a.md", "local", "remote");
 		service.cacheDiffContent("notes/b.md", "local", "remote");
 
@@ -383,8 +426,9 @@ describe("StatusCacheService", () => {
 	});
 
 	it("loadPersistedSnapshot loads stored snapshot", async () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		const snapshot = {
+			destination: "none",
 			unpublished: ["notes/a.md"],
 			changed: ["notes/b.md"],
 			published: ["notes/c.md"],
@@ -401,8 +445,68 @@ describe("StatusCacheService", () => {
 		expect(service.getSnapshot()).toEqual(snapshot);
 	});
 
+	it("discards a snapshot persisted for a different destination", async () => {
+		const service = new StatusCacheService("app-id", "app");
+		service.setDestination("remote:https://example.com/r.git#v5");
+		getStore().set("status-snapshot", {
+			destination: "local:/home/user/quartz",
+			unpublished: ["notes/a.md"],
+			changed: [],
+			published: [],
+			deleted: [],
+			media: [],
+			arbitrary: [],
+			mediaLinks: {},
+			timestamp: 100,
+		});
+
+		await service.loadPersistedSnapshot();
+
+		expect(service.getSnapshot()).toBeNull();
+	});
+
+	it("drops cached state when the destination changes", () => {
+		const service = new StatusCacheService("app-id", "app");
+		service.setDestination("local:/home/user/quartz");
+		service.setSummary({
+			unpublished: 1,
+			changed: 0,
+			published: 0,
+			deleted: 0,
+			media: 0,
+			timestamp: 1,
+		});
+
+		service.setDestination("remote:https://example.com/r.git#v5");
+
+		expect(service.getSummary()).toBeNull();
+		expect(service.getStatus()).toBeNull();
+		expect(service.isStale()).toBe(true);
+	});
+
+	it("ignores a status that resolved for a previous destination", () => {
+		const service = new StatusCacheService("app-id", "app");
+		service.setDestination("local:/home/user/quartz");
+		service.setDestination("remote:https://example.com/r.git#v5");
+
+		service.setStatus(
+			{
+				unpublished: [],
+				changed: [],
+				published: [],
+				deleted: [],
+				media: [],
+				arbitrary: [],
+				mediaLinks: new Map(),
+			} as unknown as Parameters<StatusCacheService["setStatus"]>[0],
+			"local:/home/user/quartz",
+		);
+
+		expect(service.getStatus()).toBeNull();
+	});
+
 	it("loadPersistedSnapshot keeps null when no data", async () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 
 		await service.loadPersistedSnapshot();
 
@@ -410,7 +514,7 @@ describe("StatusCacheService", () => {
 	});
 
 	it("loadPersistedSnapshot clears snapshot on error", async () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		service.setStatus(buildStatus());
 		await flushPromises();
 
@@ -421,11 +525,11 @@ describe("StatusCacheService", () => {
 	});
 
 	it("roundtrips persisted snapshot into a new instance", async () => {
-		const service = new StatusCacheService("vault", "app");
+		const service = new StatusCacheService("app-id", "app");
 		service.setStatus(buildStatus());
 		await flushPromises();
 
-		const newService = new StatusCacheService("vault", "app");
+		const newService = new StatusCacheService("app-id", "app");
 		await newService.loadPersistedSnapshot();
 
 		expect(newService.getSnapshot()).toEqual(

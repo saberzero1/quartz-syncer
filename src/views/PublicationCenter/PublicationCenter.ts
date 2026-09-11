@@ -35,6 +35,11 @@ import {
 	TreeState,
 } from "src/views/PublicationCenter/TreeState";
 import { qsDom } from "src/operability/DomContract";
+import {
+	describeBlocker,
+	describePublishTarget,
+	resolvePublishTarget,
+} from "src/publisher/PublishTargetResolver";
 
 type ProgressState = {
 	current: number;
@@ -257,6 +262,7 @@ export class PublicationCenter extends Modal {
 		publisher: ReturnType<QuartzSyncer["getPublisher"]> & object,
 	): Promise<PublishStatus> {
 		const statusCache = this._plugin.statusCache;
+		const destination = statusCache.getDestination();
 		let inflight = statusCache.getInflight();
 
 		if (!inflight) {
@@ -266,7 +272,7 @@ export class PublicationCenter extends Modal {
 
 		try {
 			const status = await inflight;
-			statusCache.setStatus(status);
+			statusCache.setStatus(status, destination);
 			return status;
 		} finally {
 			statusCache.clearInflight();
@@ -522,10 +528,40 @@ export class PublicationCenter extends Modal {
 		this.progressIndicatorEl.setAttrs(qsDom("pub-progress"));
 		this.updateProgress();
 
+		const target = resolvePublishTarget(this._plugin.settings);
+
+		const targetEl = footer.createDiv({
+			cls: "pub-center-target",
+			text: target.effective
+				? `Publishing to ${describePublishTarget(target.effective)}`
+				: describeBlocker(
+						target.blocker ?? "none-configured",
+						this._plugin.settings,
+					),
+		});
+
+		targetEl.setAttrs(
+			qsDom("pub-target", { value: target.effective ?? "none" }),
+		);
+
+		if (target.overridden) {
+			targetEl.createEl("br");
+
+			targetEl.createSpan({
+				text: describeBlocker(
+					target.blocker ?? "none-configured",
+					this._plugin.settings,
+				),
+				cls: "pub-center-target-note",
+			});
+		}
+
 		const actions = footer.createDiv({ cls: "pub-center-actions" });
 		this.publishButtonEl = actions.createEl("button", {
 			cls: "mod-cta",
-			text: "Publish",
+			text: target.effective
+				? `Publish to ${describePublishTarget(target.effective)}`
+				: "Publish",
 		});
 		this.publishButtonEl.setAttrs(qsDom("pub-publish-btn"));
 		this.publishButtonEl.disabled = this.isOperating;
