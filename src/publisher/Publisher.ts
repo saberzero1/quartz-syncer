@@ -27,6 +27,7 @@ import {
 } from "src/publisher/MediaLinkResolver";
 import type { CompilationQueue } from "src/services/CompilationQueue";
 import { batchParallel, generateBlobHash } from "src/utils/utils";
+import { V4_ARBITRARY_PUBLISH_BLOCKED } from "src/quartz/QuartzCompatibility";
 import { isPathIgnored } from "src/utils/ignoredFolders";
 import type { IOperabilityEventSink } from "src/operability/types";
 import {
