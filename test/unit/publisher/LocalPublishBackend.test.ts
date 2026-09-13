@@ -102,7 +102,7 @@ describe("LocalPublishBackend repo path handling", () => {
 		]);
 
 		expect(result).toEqual({ sha: "local" });
-		expect(files.has(nodePath.join("home", "testuser", "quartz", "content", "note.md"))).toBe(true);
+		expect(files.has(nodePath.join("/home", "testuser", "quartz", "content", "note.md"))).toBe(true);
 	});
 
 	it("writes through a repo path with a trailing separator", async () => {
