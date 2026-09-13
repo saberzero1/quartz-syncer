@@ -61,6 +61,6 @@
 		"esbuild@0.28.2": true,
 		"classic-level@3.0.0": true,
 		"geckodriver@6.1.1": true,
-		"edgedriver@6.3.0": true
+		"edgedriver@6.3.1": true
 	}
 }
