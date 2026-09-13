@@ -55,5 +55,12 @@
 		"unified": "^11.0.5",
 		"unist-util-visit": "^5.1.0",
 		"yaml": "^2.9.0"
+	},
+	"allowScripts": {
+		"esbuild@0.25.12": true,
+		"esbuild@0.28.2": true,
+		"classic-level@3.0.0": true,
+		"edgedriver@6.3.0": true,
+		"geckodriver@6.1.1": true
 	}
 }
