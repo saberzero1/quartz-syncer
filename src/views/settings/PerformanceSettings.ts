@@ -17,7 +17,12 @@ export interface IgnoredFolderListState extends DynamicOptionListState {
 
 export function performanceSettingDefinitions(
 	plugin: QuartzSyncer,
-	ignoredFolders: IgnoredFolderListState,
+	ignoredFolders: IgnoredFolderListState = {
+		options: null,
+		loading: false,
+		refresh: () => undefined,
+		refreshTopLevel: () => undefined,
+	},
 ): SettingDefinitionItem[] {
 	const settings = plugin.settings;
 

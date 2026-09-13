@@ -1,5 +1,22 @@
-import { afterEach } from "vitest";
+import { afterEach, expect } from "vitest";
 import { resetPlatform } from "./__mocks__/obsidian";
+
+expect.extend({
+	toHaveBeenCalledExactlyOnceWith(received, ...expectedArgs) {
+		const mock = (received as { mock?: { calls?: unknown[][] } } | null)?.mock;
+		const calls = mock?.calls ?? [];
+		const pass =
+			calls.length === 1 && this.equals(calls[0], expectedArgs);
+
+		return {
+			pass,
+			message: () =>
+				pass
+					? `Expected spy not to be called exactly once with ${this.utils.printExpected(expectedArgs)}`
+					: `Expected spy to be called exactly once with ${this.utils.printExpected(expectedArgs)}, but it was called ${calls.length} time(s): ${this.utils.printReceived(calls)}`,
+		};
+	},
+});
 
 afterEach(() => {
 	resetPlatform();
