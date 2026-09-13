@@ -98,20 +98,20 @@ describe("LocalPublishBackend repo path handling", () => {
 	it("writes through a tilde repo path", async () => {
 		const backend = new LocalPublishBackend("~/quartz");
 		const result = await backend.writeFiles("main", "msg", [
-			{ path: "content/note.md", content: "Tilde" },
+			{ path: nodePath.join("content", "note.md"), content: "Tilde" },
 		]);
 
 		expect(result).toEqual({ sha: "local" });
-		expect(files.has("/home/testuser/quartz/content/note.md")).toBe(true);
+		expect(files.has(nodePath.join("home", "testuser", "quartz", "content", "note.md"))).toBe(true);
 	});
 
 	it("writes through a repo path with a trailing separator", async () => {
 		const backend = new LocalPublishBackend("/repo/");
 		await backend.writeFiles("main", "msg", [
-			{ path: "content/note.md", content: "Trailing" },
+			{ path: nodePath.join("content", "note.md"), content: "Trailing" },
 		]);
 
-		expect(files.has("/repo/content/note.md")).toBe(true);
+		expect(files.has(nodePath.join("/repo", "content", "note.md"))).toBe(true);
 	});
 
 	it("does not touch Node modules when constructed", () => {
@@ -153,19 +153,19 @@ describe("LocalPublishBackend repo path handling", () => {
 	it("deletes a published file", async () => {
 		const backend = new LocalPublishBackend("/repo");
 		await backend.writeFiles("main", "msg", [
-			{ path: "content/note.md", content: "Bye" },
+			{ path: nodePath.join("content", "note.md"), content: "Bye" },
 		]);
 
-		await backend.deleteFiles("main", "msg", ["content/note.md"]);
+		await backend.deleteFiles("main", "msg", [nodePath.join("content", "note.md")]);
 
-		expect(files.has("/repo/content/note.md")).toBe(false);
+		expect(files.has(nodePath.join("/repo", "content", "note.md"))).toBe(false);
 	});
 
 	it("throws when deleting a missing file", async () => {
 		const backend = new LocalPublishBackend("/repo");
 
 		await expect(
-			backend.deleteFiles("main", "msg", ["content/gone.md"]),
+			backend.deleteFiles("main", "msg", [nodePath.join("content", "gone.md")]),
 		).rejects.toThrow("Failed to delete file");
 	});
 });
