@@ -6,6 +6,7 @@ import {
 	type SettingDefinitionItem,
 } from "obsidian";
 import type QuartzSyncer from "src/main";
+import type QuartzSyncerSettings from "src/models/settings";
 import { createRepositoryAdapter } from "src/cli/handlers/cliUtils";
 import {
 	checkPublishReadiness,
@@ -50,6 +51,10 @@ type PluginUpdateCache = {
 	state: PluginUpdateState;
 	updates?: number;
 };
+
+type SettingsKey = keyof QuartzSyncerSettings;
+type SettingsUpdateValue = QuartzSyncerSettings[SettingsKey];
+type SettingsPatch = Partial<Record<SettingsKey, SettingsUpdateValue>>;
 
 /**
  * Quartz Syncer settings tab.
@@ -105,6 +110,17 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		return super.getControlValue(key);
 	}
 
+	private updateSetting<K extends SettingsKey>(
+		key: K,
+		value: QuartzSyncerSettings[K],
+	): Promise<void> {
+		this.plugin.settings[key] = value;
+		return this.plugin.saveSettings();
+	}
+
+	// Override the base implementation so dynamic toggle-backed settings and
+	// publish-target changes both persist through saveSettings() instead of the
+	// raw saveData() path, which would skip cache invalidation.
 	async setControlValue(key: string, value: unknown): Promise<void> {
 		const handled = await applyDynamicToggleValue(
 			this.dynamicToggleBindings,
@@ -112,7 +128,9 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 			value,
 		);
 		if (handled) return;
-		await super.setControlValue(key, value);
+
+		const settingKey = key as SettingsKey;
+		await this.updateSetting(settingKey, value as SettingsUpdateValue);
 	}
 
 	private listCssSnippetFiles(): Promise<string[]> {
@@ -199,16 +217,6 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 				items: uiSettingDefinitions(),
 			},
 		];
-	}
-
-	// The base implementation persists via saveData, which skips saveSettings
-	// and therefore skips publisher, status-cache and compatibility
-	// invalidation. Without this, changing "Publish to" would update the
-	// setting while the cached Publisher kept writing to the old destination.
-	async setControlValue(key: string, value: unknown): Promise<void> {
-		(this.plugin.settings as unknown as Record<string, unknown>)[key] =
-			value;
-		await this.plugin.saveSettings();
 	}
 
 	private buildOverviewItems(): SettingDefinitionItem[] {
