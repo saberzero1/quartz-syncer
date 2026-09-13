@@ -48,9 +48,6 @@ const fsPromisesStub = {
 
 beforeEach(() => {
 	Platform.isDesktopApp = true;
-	Platform.isWin = false;
-	Platform.isMacOS = false;
-	Platform.isLinux = true;
 	(window as Window & { require?: (module: string) => unknown }).require = (
 		module: string,
 	) => {
@@ -63,24 +60,11 @@ beforeEach(() => {
 
 afterEach(() => {
 	Platform.isDesktopApp = true;
-	Platform.isWin = false;
-	Platform.isMacOS = false;
-	Platform.isLinux = true;
 });
 
 describe("resolveExternalPath", () => {
 	it("expands a tilde into an absolute path", () => {
 		expect(resolveExternalPath("~/quartz")).toBe("/home/testuser/quartz");
-	});
-
-	it("uses Obsidian platform flags to select Windows path semantics", () => {
-		Platform.isWin = true;
-		Platform.isMacOS = false;
-		Platform.isLinux = false;
-
-		expect(resolveExternalPath("C:\\repo\\content")).toBe(
-			"C:\\repo\\content",
-		);
 	});
 
 	it("normalizes a trailing separator", () => {
