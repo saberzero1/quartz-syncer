@@ -11,6 +11,32 @@ running Obsidian instance is required.
 
 ## What is measured
 
+- **Cache composition and entry deserialization:** 10,000 modeled cache records
+  using the current `QuartzSyncerCache` type and `DATA_STORE_CACHE_VERSION`, with
+  roughly 1 KiB of field-note prose each. 550 notes (5.5%) embed one image, spread
+  across the vault and cycling through 39 distinct images: 14.10 references per
+  asset. Asset sizes range from 94 to 246 KiB, averaging exactly 170 KiB. Shared
+  assets are charged once **per referring note** in the synthetic old shape;
+  they are not deduplicated across IndexedDB records. These parameters imply
+  6.47 MiB of distinct assets, not the measured vault's 10.8 MB: this is a
+  calibrated model of the duplication mechanism, not an exact vault replay.
+  The measured 668 → 10,020-note vault's 142.20 → 13.01 MB and 90.9% binary share
+  are context, not hard-coded expected benchmark results.
+  Current records contain deferred `{ path, vaultPath }` assets; the explicitly
+  **synthetic OLD baseline** substitutes `{ path, content: base64 }`. Both have
+  local compiled text, hashes, timestamps, media links and null remote data.
+  The benchmark models these shapes; real compilation/persistence is covered
+  separately by `test/unit/cache/CachePayloadRegression.test.ts`.
+  Each shape emits serialized UTF-8 JSON bytes (including record keys), bytes per
+  note, base64 payload bytes (encoded bytes, not decoded image size), binary
+  share percentage, and mean entry deserialization milliseconds. Common timing
+  fields measure a full pass of **individual `structuredClone(entry)` calls**,
+  matching independent IndexedDB record reads rather than JSON parsing or a
+  whole-cache clone that could share references. This is CPU deserialization,
+  not IndexedDB I/O, heap size, or physical disk size. Fixture allocation and
+  size accounting are outside timing. One warmup and five samples per shape keep
+  the roughly 130 MiB synthetic baseline proportionate to the timer-heavy suite.
+  No timing/size threshold in this benchmark gates CI.
 - **Status-shaped pipeline (headline):** real `collectCandidatePaths()` → map
   returned paths to newly allocated narrow `PublishFile` stubs → real
   `resolveLinkedMediaByFile()`. All three stages are inside the timed callback.
@@ -101,9 +127,29 @@ typecheck surface.
 
 ## Reproduce before/after
 
+### Track the current cache composition over time
+
+Save the raw `QS_BENCH_RESULT` records and a dated snapshot on each revision;
+all existing operations remain in the report alongside the two cache shapes:
+
+```bash
+set -o pipefail
+npm run bench -- --run --no-color 2>&1 | tee /tmp/qs-bench.log
+node test/bench/report.mjs --current /tmp/qs-bench.log /tmp/qs-bench.md
+```
+
+Compare `cache-current-deferred` metrics between runs; the side-by-side synthetic
+OLD column makes the avoided payload cost visible on every revision. Preserve
+machine/revision context with archived logs; timings are noisy, sizes deterministic.
+The CI tests independently enforce path-only persisted assets and a documented,
+hand-maintained bytes-per-note ceiling. Do not raise that ceiling automatically.
+
+### Historical candidate/queue optimization comparison
+
 Run from the main repository with the intended fixes still uncommitted and
 `/tmp/qs-baseline` absent. Do not stash, reset, or check out the main working tree.
-The report command expects exactly the five benchmarks above and checks the
+The legacy two-log report expects the five original operations (plus the cache
+pair when present) and checks the
 status stage counts and interleaved backlog counts independently of timing.
 
 ```bash

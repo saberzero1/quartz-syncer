@@ -7,10 +7,11 @@ const [baselinePath, fixedPath, outputPath = "/tmp/bench-results.md"] =
 	process.argv.slice(2);
 if (!baselinePath || !fixedPath) {
 	throw new Error(
-		"Usage: node test/bench/report.mjs BASELINE.log FIXED.log [OUTPUT.md]",
+		"Usage: node test/bench/report.mjs BASELINE.log FIXED.log [OUTPUT.md], or --current RUN.log [OUTPUT.md]",
 	);
 }
-const baselineRaw = readFileSync(baselinePath, "utf8");
+const baselineRaw =
+	baselinePath === "--current" ? "" : readFileSync(baselinePath, "utf8");
 const fixedRaw = readFileSync(fixedPath, "utf8");
 function results(raw) {
 	return new Map(
@@ -24,6 +25,96 @@ function results(raw) {
 }
 const baseline = results(baselineRaw);
 const fixed = results(fixedRaw);
+
+function cacheTable(run) {
+	const current = [...run.values()].find(
+		(r) => r.kind === "cache-current-deferred",
+	);
+	const old = [...run.values()].find(
+		(r) => r.kind === "cache-synthetic-old-base64",
+	);
+	assert(current && old, "Run must contain both cache shapes");
+	for (const r of [current, old]) {
+		for (const field of [
+			"serializedBytes",
+			"bytesPerNote",
+			"binaryPayloadBytes",
+			"binarySharePercent",
+			"entryDeserializationMs",
+		]) {
+			assert(
+				Number.isFinite(r[field]) && r[field] >= 0,
+				`Invalid cache metric: ${field}`,
+			);
+		}
+		assert.equal(r.noteCount, 10_000);
+		assert.equal(r.mediaNoteCount, 550);
+		assert.equal(r.distinctAssets, 39);
+	}
+	const metrics = [
+		["Serialized cache (UTF-8 bytes)", "serializedBytes", 0],
+		["Bytes per note", "bytesPerNote", 2],
+		["Binary payload (base64 bytes)", "binaryPayloadBytes", 0],
+		["Binary share (%)", "binarySharePercent", 2],
+		["Entry deserialization (ms per note)", "entryDeserializationMs", 6],
+		["All entry reads (ms)", "meanMs", 3],
+	];
+	return `## Cache composition
+
+Current cache version: ${current.cacheVersion}. ${current.noteCount} notes; ${current.mediaNoteCount} media-bearing notes; ${current.distinctAssets} distinct assets averaging ${current.assetMeanBytes} bytes; ${current.referencesPerAsset.toFixed(2)} references per asset.
+
+| Metric | Current (deferred) | OLD (synthetic base64 baseline, not live code) |
+| --- | ---: | ---: |
+${metrics.map(([label, field, digits]) => `| ${label} | ${current[field].toFixed(digits)} | ${old[field].toFixed(digits)} |`).join("\n")}
+
+Deferred shape preserves ${(old.serializedBytes - current.serializedBytes).toLocaleString("en-US")} fewer serialized bytes (${((1 - current.serializedBytes / old.serializedBytes) * 100).toFixed(2)}%). Sizes are modeled JSON record bytes, not heap or IndexedDB disk usage. Timing uses structuredClone per entry, excludes fixture construction/serialization, and is not end-to-end IndexedDB I/O. No benchmark timing or size budget gates CI; the unit persistence tests do.
+`;
+}
+
+if (baselinePath === "--current") {
+	assert.equal(fixed.size, 7, "Run must contain all seven benchmark results");
+	const table = cacheTable(fixed);
+	const timingRows = [...fixed.values()].map(
+		(r) =>
+			`| ${r.name} | ${r.meanMs.toFixed(3)} ms ± ${r.rmePercent.toFixed(2)}% | ${r.medianMs.toFixed(3)} ms | ${r.samples} |`,
+	);
+	writeFileSync(
+		outputPath,
+		`# Quartz Syncer benchmark snapshot
+
+Generated: ${new Date().toISOString()}
+Machine: ${cpus()[0]?.model}, ${cpus().length} logical CPUs, ${platform()} ${release()}, Node ${process.version}.
+
+| Benchmark | Mean ± relative margin | Median | Samples |
+| --- | ---: | ---: | ---: |
+${timingRows.join("\n")}
+
+${table}
+## Raw Vitest output
+
+\x60\x60\x60text
+${fixedRaw}
+\x60\x60\x60
+`,
+	);
+	console.log(`Wrote ${outputPath}`);
+	console.log(table);
+	process.exit(0);
+}
+
+// Keep the original five-operation revision comparison. Cache records are an
+// additional within-run comparison, never confused with the old source revision.
+const cacheSections = [];
+for (const [label, run] of [
+	["Baseline run", baseline],
+	["Fixed run", fixed],
+]) {
+	if ([...run.values()].some((r) => r.kind.startsWith("cache-"))) {
+		cacheSections.push(`### ${label}\n\n${cacheTable(run)}`);
+		for (const [name, r] of run)
+			if (r.kind.startsWith("cache-")) run.delete(name);
+	}
+}
 const scopes = new Map([
 	["status", "Status-shaped synthetic pipeline"],
 	["queue-interleaved", "Interleaved backlog microbenchmark"],
@@ -173,6 +264,8 @@ The first row times the complete requested chain: real candidate collection → 
 ${stageRows.join("\n")}
 
 Binary stubs still wait for the async lookup but return no links. Both revisions produce the exact same 10,000-entry useful media map. Avoiding the 5,000 useless lookups is measured inside the chain rather than extrapolated from the ~millisecond collection call.
+
+${cacheSections.join("\n\n")}
 
 ## Queue interpretation
 
