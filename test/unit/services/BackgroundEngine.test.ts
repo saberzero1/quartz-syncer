@@ -123,6 +123,7 @@ const createSummaryContext = (files: TFile[], tree: TreeEntry[] = []) => {
 		allNotesPublishableByDefault: true,
 	};
 	plugin.dataStore.loadLocalHash = vi.fn().mockResolvedValue(null);
+	plugin.dataStore.loadStatusMetadata = vi.fn().mockResolvedValue(new Map());
 	plugin.statusCache.setSummary = vi.fn();
 	const pathMapper = new PathMapper("content");
 	const publisher = createPublisherStub({
@@ -1078,36 +1079,40 @@ describe("BackgroundEngine", () => {
 				{ path: "quartz.config.yaml", sha: "config", type: "blob" },
 			);
 			const { engine, plugin } = createSummaryContext(files, tree);
-			let activeReads = 0;
-			let maxActiveReads = 0;
-			vi.mocked(plugin.dataStore.loadLocalHash).mockImplementation(
-				async (path) => {
-					const index = files.findIndex((file) => file.path === path);
-					activeReads++;
-					maxActiveReads = Math.max(maxActiveReads, activeReads);
-					// Resolve out of order to exercise result-to-path association.
-					await new Promise((resolve) =>
-						window.setTimeout(resolve, 20 - index),
-					);
-					activeReads--;
-					return index % 3 === 0
-						? `sha-${index}`
-						: index % 3 === 1
-							? "outdated"
-							: null;
-				},
+			vi.mocked(plugin.dataStore.loadStatusMetadata).mockImplementation(
+				async (requests) =>
+					new Map(
+						[...requests].reverse().map(({ path }) => {
+							const index = files.findIndex(
+								(file) => file.path === path,
+							);
+							return [
+								path,
+								{
+									localHash:
+										index % 3 === 0
+											? `sha-${index}`
+											: index % 3 === 1
+												? "outdated"
+												: null,
+									mediaLinks: [],
+								},
+							];
+						}),
+					),
 			);
 
 			try {
 				engine.start();
 				await vi.runAllTimersAsync();
-				expect(maxActiveReads).toBe(isMobile ? 2 : 5);
+				expect(plugin.dataStore.loadLocalHash).not.toHaveBeenCalled();
 				expect(
-					vi.mocked(plugin.dataStore.loadLocalHash).mock.calls,
-				).toEqual(
-					files
-						.slice(0, 12)
-						.map((file) => [file.path, file.stat.mtime]),
+					plugin.dataStore.loadStatusMetadata,
+				).toHaveBeenCalledExactlyOnceWith(
+					files.slice(0, 12).map((file) => ({
+						path: file.path,
+						mtime: file.stat.mtime,
+					})),
 				);
 				expect(
 					plugin.statusCache.setSummary,

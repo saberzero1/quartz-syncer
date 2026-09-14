@@ -45,8 +45,8 @@ describe("DataStore.dropAllFiles()", () => {
 	});
 
 	it.each([false, true])(
-		"removes every seeded file from listing and lookup (preloaded: %s)",
-		async (preloaded) => {
+		"removes every seeded file from listing and lookup (updated: %s)",
+		async (updated) => {
 			const store = new DataStore("vault", "app", "1.0.0");
 			const paths = [
 				"notes/a.md",
@@ -59,9 +59,7 @@ describe("DataStore.dropAllFiles()", () => {
 			}
 			await store.persister.setItem("data.json", 1000);
 
-			if (preloaded) {
-				await store.preloadCache();
-				// Dirty an existing persisted entry to exercise write-back cleanup.
+			if (updated) {
 				await store.storeLocalHash("notes/a.md", 2000, "updated-hash");
 			}
 
@@ -70,7 +68,7 @@ describe("DataStore.dropAllFiles()", () => {
 				expect(await store.loadFile(path)).toMatchObject({
 					version: "1.0.0",
 					localHash:
-						preloaded && path === "notes/a.md"
+						updated && path === "notes/a.md"
 							? "updated-hash"
 							: `hash:${path}`,
 				});
@@ -84,12 +82,10 @@ describe("DataStore.dropAllFiles()", () => {
 			}
 			expect(await store.getLastUpdateTimestamp()).toBe(1000);
 
-			await store.flushCache();
-			store.clearMemoryCache();
-
-			expect(await store.allFiles()).toEqual([]);
+			const reopened = new DataStore("vault", "app", "1.0.0");
+			expect(await reopened.allFiles()).toEqual([]);
 			for (const path of paths) {
-				expect(await store.loadFile(path)).toBeNull();
+				expect(await reopened.loadFile(path)).toBeNull();
 			}
 		},
 	);

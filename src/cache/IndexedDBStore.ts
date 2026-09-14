@@ -1,6 +1,8 @@
 export interface IndexedDBStore {
 	getItem<T>(key: string): Promise<T | null>;
+	getMany<T>(keys: string[]): Promise<Array<T | null>>;
 	setItem<T>(key: string, value: T): Promise<void>;
+	setMany<T>(entries: Array<{ key: string; value: T }>): Promise<void>;
 	removeItem(key: string): Promise<void>;
 	keys(): Promise<string[]>;
 	iterate<T>(callback: (value: T, key: string) => void): Promise<void>;
@@ -8,6 +10,8 @@ export interface IndexedDBStore {
 }
 
 const DELETE_BLOCKED_TIMEOUT_MS = 10_000;
+export const CACHE_READ_BATCH_SIZE = 500;
+export const CACHE_WRITE_BATCH_SIZE = 500;
 
 export function createStore(name: string): IndexedDBStore {
 	let dbPromise: Promise<IDBDatabase> | null = null;
@@ -79,9 +83,46 @@ export function createStore(name: string): IndexedDBStore {
 			const result: unknown = await wrap(store.get(key));
 			return (result as T) ?? null;
 		},
+		async getMany<T>(keys: string[]): Promise<Array<T | null>> {
+			const results: Array<T | null> = [];
+
+			for (
+				let offset = 0;
+				offset < keys.length;
+				offset += CACHE_READ_BATCH_SIZE
+			) {
+				const store = await tx("readonly");
+				// Issue every request synchronously: yielding between gets can
+				// auto-commit an idle transaction before the next request.
+				const pending = keys
+					.slice(offset, offset + CACHE_READ_BATCH_SIZE)
+					.map((key) => wrap<unknown>(store.get(key)));
+				const batch = await Promise.all(pending);
+				for (const value of batch) results.push((value as T) ?? null);
+			}
+
+			return results;
+		},
 		async setItem<T>(key: string, value: T): Promise<void> {
 			const store = await tx("readwrite");
 			await wrap(store.put(value, key));
+		},
+		async setMany<T>(
+			entries: Array<{ key: string; value: T }>,
+		): Promise<void> {
+			for (
+				let offset = 0;
+				offset < entries.length;
+				offset += CACHE_WRITE_BATCH_SIZE
+			) {
+				const store = await tx("readwrite");
+				// Issue every put synchronously: awaiting between requests can
+				// auto-commit an idle transaction before the next write.
+				const pending = entries
+					.slice(offset, offset + CACHE_WRITE_BATCH_SIZE)
+					.map(({ key, value }) => wrap(store.put(value, key)));
+				await Promise.all(pending);
+			}
 		},
 		async removeItem(key: string): Promise<void> {
 			const store = await tx("readwrite");

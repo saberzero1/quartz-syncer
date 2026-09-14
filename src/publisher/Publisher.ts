@@ -8,7 +8,7 @@ import { PathMapper } from "src/git/PathMapper";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { collectCandidatePaths } from "src/publishFile/PublishCandidates";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
-import { DataStore } from "src/cache/DataStore";
+import { DataStore, type CachedStatusMetadata } from "src/cache/DataStore";
 import type {
 	PublishFailure,
 	PublishProgressCallback,
@@ -145,6 +145,7 @@ export class Publisher {
 
 	private async resolveMediaLinksIncremental(
 		files: PublishFile[],
+		metadata: Map<string, CachedStatusMetadata>,
 	): Promise<Map<string, string[]>> {
 		const mediaLinks = new Map<string, string[]>();
 		const concurrency = Platform.isMobileApp ? 2 : 5;
@@ -152,10 +153,7 @@ export class Publisher {
 		await batchParallel(
 			files,
 			async (file) => {
-				const cachedLinks = await this.dataStore.loadCachedMediaLinks(
-					file.file.path,
-					file.file.stat.mtime,
-				);
+				const cachedLinks = metadata.get(file.file.path)?.mediaLinks;
 				const links = cachedLinks ?? (await file.getBlobLinks());
 
 				if (links.length > 0) {
@@ -201,25 +199,24 @@ export class Publisher {
 				remoteBacked.push({ file, sha: remote.sha });
 			}
 
-			// Uncached status has to compile each note to hash its output, so
-			// keep concurrency low; cached lookups are cheap IndexedDB reads.
-			const hashConcurrency = settings.useCache
-				? 5
-				: Platform.isMobileApp
-					? 1
-					: 2;
-
-			const hashes = await batchParallel(
-				remoteBacked,
-				async ({ file }) =>
-					settings.useCache
-						? await this.dataStore.loadLocalHash(
-								file.file.path,
-								file.file.stat.mtime,
-							)
-						: await this.compileAndHashSingle(file),
-				hashConcurrency,
-			);
+			// One metadata pass serves both hash classification and media links.
+			const metadata = settings.useCache
+				? await this.dataStore.loadStatusMetadata(
+						candidates.map(({ file }) => ({
+							path: file.path,
+							mtime: file.stat.mtime,
+						})),
+					)
+				: new Map<string, CachedStatusMetadata>();
+			const hashes = settings.useCache
+				? remoteBacked.map(
+						({ file }) => metadata.get(file.file.path)?.localHash,
+					)
+				: await batchParallel(
+						remoteBacked,
+						({ file }) => this.compileAndHashSingle(file),
+						Platform.isMobileApp ? 1 : 2,
+					);
 
 			remoteBacked.forEach(({ file, sha }, index) => {
 				const localHash = hashes[index];
@@ -233,7 +230,7 @@ export class Publisher {
 
 			// Orphan detection and callers share the same cache-aware links.
 			const mediaLinks = settings.useCache
-				? await this.resolveMediaLinksIncremental(candidates)
+				? await this.resolveMediaLinksIncremental(candidates, metadata)
 				: await resolveLinkedMediaByFile(candidates);
 			const linkedMedia = flattenLinkedMedia(mediaLinks);
 
@@ -448,12 +445,8 @@ export class Publisher {
 				commitSha: result.sha,
 			});
 
-			for (const entry of remoteHashes) {
-				await this.dataStore.storeRemoteHash(
-					entry.path,
-					entry.timestamp,
-					entry.hash,
-				);
+			if (remoteHashes.length > 0) {
+				await this.dataStore.storeRemoteHashes(remoteHashes);
 			}
 
 			this.backend.invalidateTreeCache();

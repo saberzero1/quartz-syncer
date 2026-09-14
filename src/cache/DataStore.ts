@@ -1,4 +1,6 @@
 import {
+	CACHE_READ_BATCH_SIZE,
+	CACHE_WRITE_BATCH_SIZE,
 	createStore,
 	dropStore,
 	type IndexedDBStore,
@@ -34,6 +36,26 @@ export type QuartzSyncerCache = {
 	mediaLinks?: string[];
 };
 
+export type CachedStatusMetadata = {
+	localHash: string | null;
+	mediaLinks: string[] | null;
+};
+
+export type CompilationMetadata = {
+	mediaLinks: string[];
+	dataviewRevision?: number;
+	datacoreRevision?: number;
+};
+
+export type CompilationCacheWrite = {
+	localData: TCompiledFile;
+	localHash: string;
+	hasDynamicContent: boolean;
+	sourceMtime: number;
+	currentMtime: number;
+	metadata?: CompilationMetadata;
+};
+
 /**
  * Simpler wrapper for a file-backed cache for arbitrary metadata.
  *
@@ -42,21 +64,6 @@ export type QuartzSyncerCache = {
  */
 export class DataStore {
 	public persister: IndexedDBStore;
-
-	/**
-	 * In-memory cache for bulk-preloaded entries.
-	 * When populated via `preloadCache()`, all read methods serve from memory
-	 * instead of making individual IndexedDB round-trips.
-	 * Write methods update only the in-memory cache (write-back).
-	 * Call `flushCache()` to persist dirty entries to IndexedDB.
-	 */
-	private memoryCache: Map<string, QuartzSyncerCache> | null = null;
-
-	/**
-	 * Tracks keys that have been modified in the in-memory cache
-	 * and need to be flushed to IndexedDB.
-	 */
-	private dirtyKeys: Set<string> = new Set();
 
 	/**
 	 * Create a new DataStore instance for caching metadata about files and sections.
@@ -84,69 +91,12 @@ export class DataStore {
 	}
 
 	/**
-	 * Bulk-preload all cache entries from IndexedDB into memory.
-	 * After this call, all read methods serve from the in-memory Map,
-	 * eliminating per-file IndexedDB round-trips.
-	 * Call `clearMemoryCache()` when the batch operation is complete.
-	 */
-	public async preloadCache(): Promise<void> {
-		if (this.memoryCache) return;
-
-		const cache = new Map<string, QuartzSyncerCache>();
-
-		await this.persister.iterate<QuartzSyncerCache>(
-			(value: QuartzSyncerCache, key: string) => {
-				if (key.startsWith("file:")) {
-					cache.set(key, value);
-				}
-			},
-		);
-
-		this.memoryCache = cache;
-	}
-
-	/**
-	 * Clear the in-memory cache.
-	 * Call after a batch operation to free memory.
-	 */
-	public clearMemoryCache(): void {
-		this.memoryCache = null;
-		this.dirtyKeys.clear();
-	}
-
-	/**
-	 * Flush all dirty in-memory cache entries to IndexedDB.
-	 * Call this after a batch operation completes to persist changes.
-	 * Writes are done sequentially to avoid IndexedDB transaction contention.
-	 */
-	public async flushCache(): Promise<void> {
-		if (!this.memoryCache || this.dirtyKeys.size === 0) {
-			return;
-		}
-
-		for (const key of this.dirtyKeys) {
-			const data = this.memoryCache.get(key);
-
-			if (data) {
-				await this.persister.setItem(key, data);
-			}
-		}
-
-		this.dirtyKeys.clear();
-	}
-
-	/**
-	 * Get a cache entry from memory (if preloaded) or IndexedDB.
-	 * This is the single read path used by all accessor methods.
+	 * Get a cache entry from IndexedDB for single-path accessors.
 	 */
 	private async getCacheEntry(
 		path: string,
 	): Promise<QuartzSyncerCache | null> {
 		const key = this.fileKey(path);
-
-		if (this.memoryCache) {
-			return this.memoryCache.get(key) ?? null;
-		}
 
 		return await this.persister.getItem(key);
 	}
@@ -161,7 +111,7 @@ export class DataStore {
 	}
 
 	/**
-	 * Store a cache entry to IndexedDB and update the in-memory cache if active.
+	 * Store a cache entry to IndexedDB.
 	 */
 	private async setCacheEntry(
 		path: string,
@@ -169,15 +119,6 @@ export class DataStore {
 	): Promise<void> {
 		const key = this.fileKey(path);
 
-		if (this.memoryCache) {
-			// Write-back: only update memory, mark dirty for later flush.
-			this.memoryCache.set(key, data);
-			this.dirtyKeys.add(key);
-
-			return;
-		}
-
-		// No memory cache active — write directly to IndexedDB.
 		await this.persister.setItem(key, data);
 	}
 
@@ -187,9 +128,21 @@ export class DataStore {
 		timestamp?: number,
 	): Promise<void> {
 		const existing = await this.getCacheEntry(path);
+		await this.setCacheEntry(
+			path,
+			this.mergeEntry(existing, updates, timestamp),
+		);
+	}
+
+	private mergeEntry(
+		existing: QuartzSyncerCache | null,
+		updates: Partial<QuartzSyncerCache>,
+		timestamp?: number,
+	): QuartzSyncerCache {
 		const sourceMtime = updates.sourceMtime ?? existing?.sourceMtime ?? 0;
 
-		await this.setCacheEntry(path, {
+		return {
+			...existing,
 			version: this.version,
 			time: timestamp ?? Date.now(),
 			sourceMtime,
@@ -199,7 +152,40 @@ export class DataStore {
 			remoteHash: existing?.remoteHash ?? undefined,
 			hasDynamicContent: existing?.hasDynamicContent,
 			...updates,
-		});
+		};
+	}
+
+	/** Persist compiled output and its metadata together, reusing a caller's cache read. */
+	public async storeCompilation(
+		path: string,
+		write: CompilationCacheWrite,
+		existing?: QuartzSyncerCache | null,
+	): Promise<void> {
+		if (write.currentMtime !== write.sourceMtime) return;
+
+		const updates: Partial<QuartzSyncerCache> = {
+			localData: write.localData,
+			localHash: write.localHash,
+			hasDynamicContent: write.hasDynamicContent,
+			sourceMtime: write.sourceMtime,
+		};
+		if (write.metadata) {
+			updates.mediaLinks = write.metadata.mediaLinks;
+			if (write.metadata.dataviewRevision !== undefined)
+				updates.dataviewRevision = write.metadata.dataviewRevision;
+			if (write.metadata.datacoreRevision !== undefined)
+				updates.datacoreRevision = write.metadata.datacoreRevision;
+		}
+		const entry =
+			existing === undefined ? await this.getCacheEntry(path) : existing;
+		await this.setCacheEntry(
+			path,
+			this.mergeEntry(
+				entry,
+				updates,
+				write.metadata ? Date.now() : write.sourceMtime,
+			),
+		);
 	}
 
 	/**
@@ -209,8 +195,6 @@ export class DataStore {
 	 */
 	public async recreate() {
 		const storeName = this.storeName(this.version);
-		this.memoryCache = null;
-		this.dirtyKeys.clear();
 		this.persister.close();
 		await dropStore(storeName);
 		await this.dropOutdatedCache();
@@ -281,15 +265,6 @@ export class DataStore {
 	 */
 	public async getDynamicContentPaths(): Promise<Set<string>> {
 		const paths = new Set<string>();
-
-		if (this.memoryCache) {
-			for (const [key, value] of this.memoryCache) {
-				if (!key.startsWith("file:")) continue;
-				if (value.hasDynamicContent) paths.add(key.substring(5));
-			}
-
-			return paths;
-		}
 
 		await this.persister.iterate<QuartzSyncerCache>(
 			(value: QuartzSyncerCache, key: string) => {
@@ -458,6 +433,13 @@ export class DataStore {
 		currentMtime?: number,
 	): Promise<string | null | undefined> {
 		const data = await this.getCacheEntry(path);
+		return this.validLocalHash(data, currentMtime);
+	}
+
+	private validLocalHash(
+		data: QuartzSyncerCache | null,
+		currentMtime?: number,
+	): string | null {
 		if (!data?.localHash) {
 			return null;
 		}
@@ -532,6 +514,40 @@ export class DataStore {
 		await this.mergeAndStore(path, { mediaLinks: links });
 	}
 
+	/** Merge bounded batches before writing so publishing retains local cache fields. */
+	public async storeRemoteHashes(
+		entries: Array<{ path: string; timestamp: number; hash: string }>,
+	): Promise<void> {
+		for (
+			let offset = 0;
+			offset < entries.length;
+			offset += CACHE_WRITE_BATCH_SIZE
+		) {
+			const batch = entries.slice(
+				offset,
+				offset + CACHE_WRITE_BATCH_SIZE,
+			);
+			const keys = batch.map(({ path }) => this.fileKey(path));
+			const existing =
+				await this.persister.getMany<QuartzSyncerCache>(keys);
+			const merged = new Map<string, QuartzSyncerCache>();
+			batch.forEach(({ hash, timestamp }, index) => {
+				const key = keys[index]!;
+				merged.set(
+					key,
+					this.mergeEntry(
+						merged.get(key) ?? existing[index] ?? null,
+						{ remoteHash: hash },
+						timestamp,
+					),
+				);
+			});
+			await this.persister.setMany(
+				Array.from(merged, ([key, value]) => ({ key, value })),
+			);
+		}
+	}
+
 	public async loadMediaLinks(path: string): Promise<string[]> {
 		const data = await this.getCacheEntry(path);
 		return data?.mediaLinks ?? [];
@@ -543,7 +559,13 @@ export class DataStore {
 		currentMtime: number,
 	): Promise<string[] | null> {
 		const data = await this.getCacheEntry(path);
+		return this.validMediaLinks(data, currentMtime);
+	}
 
+	private validMediaLinks(
+		data: QuartzSyncerCache | null,
+		currentMtime: number,
+	): string[] | null {
 		if (
 			!data ||
 			data.version !== this.version ||
@@ -553,6 +575,35 @@ export class DataStore {
 		}
 
 		return data.mediaLinks ?? null;
+	}
+
+	/** Read status metadata without retaining compiled content across batches. */
+	public async loadStatusMetadata(
+		files: Array<{ path: string; mtime: number }>,
+	): Promise<Map<string, CachedStatusMetadata>> {
+		const metadata = new Map<string, CachedStatusMetadata>();
+
+		for (
+			let offset = 0;
+			offset < files.length;
+			offset += CACHE_READ_BATCH_SIZE
+		) {
+			const batch = files.slice(offset, offset + CACHE_READ_BATCH_SIZE);
+			// Entries also contain full compiled files. Project each bounded
+			// batch before reading the next, retaining only hashes and links.
+			const entries = await this.persister.getMany<QuartzSyncerCache>(
+				batch.map(({ path }) => this.fileKey(path)),
+			);
+			batch.forEach(({ path, mtime }, index) => {
+				const data = entries[index] ?? null;
+				metadata.set(path, {
+					localHash: this.validLocalHash(data, mtime),
+					mediaLinks: this.validMediaLinks(data, mtime),
+				});
+			});
+		}
+
+		return metadata;
 	}
 
 	public async storeCompilationRevisions(
@@ -621,8 +672,6 @@ export class DataStore {
 	 */
 	public async dropFile(path: string): Promise<void> {
 		const key = this.fileKey(path);
-		this.memoryCache?.delete(key);
-		this.dirtyKeys.delete(key);
 		await this.persister.removeItem(key);
 	}
 

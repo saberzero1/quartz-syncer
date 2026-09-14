@@ -1,11 +1,4 @@
-import {
-	debounce,
-	Events,
-	Platform,
-	TFile,
-	type App,
-	type EventRef,
-} from "obsidian";
+import { debounce, Events, TFile, type App, type EventRef } from "obsidian";
 import type QuartzSyncer from "src/main";
 import { CompilationQueue } from "src/services/CompilationQueue";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
@@ -16,7 +9,7 @@ import type { IOperabilityEventSink } from "src/operability/types";
 import type { StatusSummary } from "src/services/StatusCacheService";
 import { isMediaFile } from "src/utils/mediaTypes";
 import { isPublishConfigured } from "src/publisher/PublishTargetResolver";
-import { batchParallel, isWithinVaultPath } from "src/utils/utils";
+import { isWithinVaultPath } from "src/utils/utils";
 
 const PRIORITY_VAULT_CHANGE = 5;
 const PRIORITY_ACTIVE_FILE = 10;
@@ -152,18 +145,15 @@ export class BackgroundEngine {
 				remoteBacked.push({ file, sha: remoteSha });
 			}
 
-			const hashes = await batchParallel(
-				remoteBacked,
-				({ file }) =>
-					this.plugin.dataStore.loadLocalHash(
-						file.path,
-						file.stat.mtime,
-					),
-				Platform.isMobileApp ? 2 : 5,
+			const metadata = await this.plugin.dataStore.loadStatusMetadata(
+				remoteBacked.map(({ file }) => ({
+					path: file.path,
+					mtime: file.stat.mtime,
+				})),
 			);
 
-			remoteBacked.forEach(({ sha }, index) => {
-				const localHash = hashes[index];
+			remoteBacked.forEach(({ file, sha }) => {
+				const localHash = metadata.get(file.path)?.localHash;
 
 				if (localHash && localHash === sha) {
 					published++;
@@ -309,24 +299,18 @@ export class BackgroundEngine {
 		if (signal.aborted) return;
 
 		try {
-			await publishFile.compile();
-
-			this.setDynamicFlag(
-				path,
-				await this.plugin.dataStore.hasDynamicContentFlag(path),
-			);
-
-			const blobLinks = await publishFile.getBlobLinks();
-			await this.plugin.dataStore.storeMediaLinks(path, blobLinks);
-
-			const dvApi = getDataviewApi();
-			const dcApi = this.getDatacoreApi();
-
-			await this.plugin.dataStore.storeCompilationRevisions(
-				path,
-				dvApi?.index?.revision,
-				dcApi?.core?.revision,
-			);
+			await publishFile.compile(false, {
+				cachedEntry: cached ?? null,
+				getMetadata: async () => {
+					const mediaLinks = await publishFile.getBlobLinks();
+					return {
+						mediaLinks,
+						dataviewRevision: getDataviewApi()?.index?.revision,
+						datacoreRevision: this.getDatacoreApi()?.core?.revision,
+					};
+				},
+			});
+			this.setDynamicFlag(path, publishFile.hasDynamicContent);
 			this.eventSink?.emit("compilation.completed", { path });
 		} catch (error) {
 			if (

@@ -108,26 +108,23 @@ describe("DataStore.getDynamicContentPaths", () => {
 		expect(getItemSpy).not.toHaveBeenCalled();
 	});
 
-	it("serves from memoryCache when preloaded, calling iterate zero additional times", async () => {
+	it("reflects persisted changes on subsequent scans", async () => {
 		const store = new DataStore("vault", "app", "1.0.0");
 		await store.persister.setItem("file:notes/dynamic.md", makeEntry(true));
 		await store.persister.setItem("file:notes/static.md", makeEntry(false));
 
-		await store.preloadCache();
-
-		// spyOn reuses an existing mock rather than creating a fresh one, so
-		// these inherit the calls preloadCache() just made. Clear them so the
-		// assertions below measure only getDynamicContentPaths().
-		const iterateSpy = vi.spyOn(store.persister, "iterate");
-		const getItemSpy = vi.spyOn(store.persister, "getItem");
-		iterateSpy.mockClear();
-		getItemSpy.mockClear();
+		expect(await store.getDynamicContentPaths()).toEqual(
+			new Set(["notes/dynamic.md"]),
+		);
+		await store.persister.setItem("file:notes/static.md", makeEntry(true));
 
 		const result = await store.getDynamicContentPaths();
 
-		expect(result).toEqual(new Set(["notes/dynamic.md"]));
-		expect(iterateSpy).not.toHaveBeenCalled();
-		expect(getItemSpy).not.toHaveBeenCalled();
+		expect(result).toEqual(
+			new Set(["notes/dynamic.md", "notes/static.md"]),
+		);
+		expect(store.persister.iterate).toHaveBeenCalledTimes(2);
+		expect(store.persister.getItem).not.toHaveBeenCalled();
 	});
 
 	it("handles multiple dynamic paths in a single pass", async () => {

@@ -10,7 +10,11 @@ import {
 import QuartzSyncerSettings from "src/models/settings";
 import { hasPublishFlag } from "src/publishFile/Validator";
 import { FileMetadataManager } from "src/publishFile/FileMetaDataManager";
-import { DataStore } from "src/cache/DataStore";
+import {
+	DataStore,
+	type CompilationMetadata,
+	type QuartzSyncerCache,
+} from "src/cache/DataStore";
 import { generateBlobHash, isWithinVaultPath } from "src/utils/utils";
 import {
 	DATAVIEW_FIELD_REGEX,
@@ -54,6 +58,11 @@ interface IPublishFileProps {
 	datastore: DataStore;
 }
 
+interface CompilationCacheOptions {
+	cachedEntry?: QuartzSyncerCache | null;
+	getMetadata?: () => Promise<CompilationMetadata>;
+}
+
 /**
  * PublishFile class.
  * This class represents a file that can be published.
@@ -71,6 +80,7 @@ export class PublishFile {
 	// Access props and other file metadata
 	meta: FileMetadataManager;
 	datastore: DataStore;
+	hasDynamicContent = false;
 
 	constructor({
 		file,
@@ -97,24 +107,25 @@ export class PublishFile {
 	 *
 	 * @returns A promise that resolves to a CompiledPublishFile instance.
 	 */
-	async compile(trustDynamicCache = false): Promise<CompiledPublishFile> {
+	async compile(
+		trustDynamicCache = false,
+		cacheOptions: CompilationCacheOptions = {},
+	): Promise<CompiledPublishFile> {
 		let compiledFile: TCompiledFile;
 		const sourceMtime = this.file.stat.mtime;
 
 		if (this.settings.useCache) {
-			const cachedFile = await this.datastore.loadLocalFile(
-				this.file.path,
-				sourceMtime,
-				trustDynamicCache,
-			);
-
-			const outdated = cachedFile
-				? await this.datastore.isLocalFileOutdated(
-						this.file.path,
-						sourceMtime,
-						trustDynamicCache,
-					)
-				: true;
+			const cached =
+				cacheOptions.cachedEntry === undefined
+					? ((await this.datastore.loadFile(this.file.path)) ?? null)
+					: cacheOptions.cachedEntry;
+			const cachedFile = cached?.localData;
+			const outdated =
+				!cached ||
+				cached.version !== this.datastore.version ||
+				cached.sourceMtime !== sourceMtime ||
+				(!!cached.hasDynamicContent && !trustDynamicCache);
+			this.hasDynamicContent = cached?.hasDynamicContent ?? false;
 
 			let storedFile = null;
 
@@ -133,22 +144,23 @@ export class PublishFile {
 				}
 
 				const localHash = await generateBlobHash(storedFile[0]);
+				const metadata = await cacheOptions.getMetadata?.();
 				const currentMtime = this.file.stat.mtime;
 
-				await this.datastore.storeLocalFile(
+				await this.datastore.storeCompilation(
 					this.file.path,
-					sourceMtime,
-					storedFile,
-					isDynamic,
-					currentMtime,
+					{
+						localData: storedFile,
+						localHash,
+						hasDynamicContent: isDynamic,
+						sourceMtime,
+						currentMtime,
+						metadata,
+					},
+					cached,
 				);
-
-				await this.datastore.storeLocalHash(
-					this.file.path,
-					sourceMtime,
-					localHash,
-					currentMtime,
-				);
+				if (currentMtime === sourceMtime)
+					this.hasDynamicContent = isDynamic;
 			}
 
 			compiledFile = storedFile;
