@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
+import { Platform } from "obsidian";
+import {
+	flattenLinkedMedia,
+	resolveLinkedMedia,
+	resolveLinkedMediaByFile,
+} from "src/publisher/MediaLinkResolver";
 import type { PublishFile } from "src/publishFile/PublishFile";
 
 let publishFileSeq = 0;
@@ -12,6 +17,81 @@ const makePublishFile = (
 		file: { path },
 		getBlobLinks: vi.fn().mockResolvedValue(blobLinks),
 	}) as unknown as PublishFile;
+
+describe("resolveLinkedMediaByFile", () => {
+	it("keys non-empty links by file path and preserves flattening order", async () => {
+		const files = [
+			makePublishFile(
+				["images/a.png", "images/shared.png"],
+				"notes/a.md",
+			),
+			makePublishFile([], "notes/empty.md"),
+			makePublishFile(
+				["images/shared.png", "images/b.png"],
+				"notes/b.md",
+			),
+		];
+
+		const result = await resolveLinkedMediaByFile(files);
+
+		expect([...result.keys()]).toEqual(["notes/a.md", "notes/b.md"]);
+		expect([...flattenLinkedMedia(result)]).toEqual([
+			"images/a.png",
+			"images/shared.png",
+			"images/b.png",
+		]);
+	});
+
+	it.each([
+		{ mobile: false, concurrency: 5 },
+		{ mobile: true, concurrency: 2 },
+	])(
+		"bounds extraction to $concurrency with mobile=$mobile",
+		async ({ mobile, concurrency }) => {
+			const originalMobile = Platform.isMobileApp;
+			Platform.isMobileApp = mobile;
+			vi.useFakeTimers();
+
+			try {
+				let active = 0;
+				let peak = 0;
+				const files = Array.from({ length: 12 }, (_, index) => {
+					const file = makePublishFile([], `notes/${index}.md`);
+					vi.mocked(file.getBlobLinks).mockImplementation(
+						async () => {
+							active += 1;
+							peak = Math.max(peak, active);
+							await new Promise((resolve) =>
+								setTimeout(resolve, 12 - index),
+							);
+							active -= 1;
+							return [`images/${index}.png`];
+						},
+					);
+					return file;
+				});
+
+				const pending = resolveLinkedMediaByFile(files);
+				expect(active).toBe(concurrency);
+				await vi.runAllTimersAsync();
+				const result = await pending;
+
+				expect(peak).toBe(concurrency);
+				expect(active).toBe(0);
+				expect([...result.keys()]).toEqual(
+					files.map((file) => file.file.path),
+				);
+
+				for (const file of files) {
+					expect(file.getBlobLinks).toHaveBeenCalledOnce();
+				}
+			} finally {
+				Platform.isMobileApp = originalMobile;
+				vi.useRealTimers();
+			}
+		},
+	);
+});
 
 describe("resolveLinkedMedia", () => {
 	it("returns empty set for empty array input", async () => {

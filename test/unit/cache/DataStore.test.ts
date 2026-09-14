@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DataStore } from "src/cache/DataStore";
+import { DataStore, type QuartzSyncerCache } from "src/cache/DataStore";
 
 const { createInstance, dropInstance, setStore } = vi.hoisted(() => {
 	let currentStore = new Map<string, unknown>();
@@ -62,6 +62,66 @@ describe("DataStore", () => {
 		const store = new DataStore("vault", "app", "1.0.0");
 		const cached = await store.loadLocalFile("notes/missing.md", 1000);
 		expect(cached).toBeNull();
+	});
+
+	describe("loadCachedMediaLinks", () => {
+		it("distinguishes a missing entry from cached empty links", async () => {
+			const store = new DataStore("vault", "app", "1.0.0");
+
+			expect(
+				await store.loadCachedMediaLinks("notes/a.md", 1000),
+			).toBeNull();
+			await store.storeLocalHash("notes/a.md", 1000, "hash");
+			expect(
+				await store.loadCachedMediaLinks("notes/a.md", 1000),
+			).toBeNull();
+			await store.storeMediaLinks("notes/a.md", []);
+			expect(
+				await store.loadCachedMediaLinks("notes/a.md", 1000),
+			).toEqual([]);
+		});
+
+		it.each([false, true])(
+			"reads valid links with preloading=%s",
+			async (preload) => {
+				const store = new DataStore("vault", "app", "1.0.0");
+				await store.storeLocalHash("notes/a.md", 1000, "hash");
+				await store.storeMediaLinks("notes/a.md", ["images/a.png"]);
+
+				if (preload) {
+					await store.preloadCache();
+				}
+
+				expect(
+					await store.loadCachedMediaLinks("notes/a.md", 1000),
+				).toEqual(["images/a.png"]);
+			},
+		);
+
+		it.each<Partial<QuartzSyncerCache>>([
+			{ sourceMtime: 500 },
+			{ version: "0.9.0" },
+		])("rejects stale links: %s", async (overrides) => {
+			const store = new DataStore("vault", "app", "1.0.0");
+			const entry: QuartzSyncerCache = {
+				version: "1.0.0",
+				time: 1000,
+				sourceMtime: 1000,
+				mediaLinks: ["images/old.png"],
+				...overrides,
+			};
+			await store.persister.setItem("file:notes/a.md", entry);
+
+			expect(
+				await store.loadCachedMediaLinks("notes/a.md", 1000),
+			).toBeNull();
+		});
+
+		it("preserves the legacy accessor's empty-array fallback", async () => {
+			const store = new DataStore("vault", "app", "1.0.0");
+
+			expect(await store.loadMediaLinks("notes/missing.md")).toEqual([]);
+		});
 	});
 
 	it("invalidates cache when mtime changes", async () => {

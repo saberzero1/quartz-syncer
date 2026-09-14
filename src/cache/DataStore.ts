@@ -537,6 +537,24 @@ export class DataStore {
 		return data?.mediaLinks ?? [];
 	}
 
+	/** Returns null for missing or stale links; an empty array is a cache hit. */
+	public async loadCachedMediaLinks(
+		path: string,
+		currentMtime: number,
+	): Promise<string[] | null> {
+		const data = await this.getCacheEntry(path);
+
+		if (
+			!data ||
+			data.version !== this.version ||
+			data.sourceMtime !== currentMtime
+		) {
+			return null;
+		}
+
+		return data.mediaLinks ?? null;
+	}
+
 	public async storeCompilationRevisions(
 		path: string,
 		dataviewRevision?: number,

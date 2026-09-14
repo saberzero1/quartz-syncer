@@ -152,13 +152,16 @@ export class Publisher {
 		await batchParallel(
 			files,
 			async (file) => {
-				const links = await this.dataStore.loadMediaLinks(
+				const cachedLinks = await this.dataStore.loadCachedMediaLinks(
 					file.file.path,
+					file.file.stat.mtime,
 				);
+				const links = cachedLinks ?? (await file.getBlobLinks());
 
 				if (links.length > 0) {
 					mediaLinks.set(file.file.path, links);
 				}
+
 				return undefined;
 			},
 			concurrency,
@@ -228,10 +231,11 @@ export class Publisher {
 				}
 			});
 
-			// One walk feeds both the orphan-media union and the per-file map,
-			// so getBlobLinks() is not paid for twice per candidate.
-			const linkedByFile = await resolveLinkedMediaByFile(candidates);
-			const linkedMedia = flattenLinkedMedia(linkedByFile);
+			// Orphan detection and callers share the same cache-aware links.
+			const mediaLinks = settings.useCache
+				? await this.resolveMediaLinksIncremental(candidates)
+				: await resolveLinkedMediaByFile(candidates);
+			const linkedMedia = flattenLinkedMedia(mediaLinks);
 
 			const { deleted, media } = classifyRemoteOnly(
 				remoteIndex,
@@ -239,10 +243,6 @@ export class Publisher {
 				this.pathMapper,
 				linkedMedia,
 			);
-
-			const mediaLinks = settings.useCache
-				? await this.resolveMediaLinksIncremental(candidates)
-				: linkedByFile;
 
 			const arbitrary = classifyArbitrary(
 				remoteIndex,

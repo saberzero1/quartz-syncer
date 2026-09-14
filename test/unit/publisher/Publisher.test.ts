@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "obsidian";
+import { App, type TFile } from "obsidian";
 import { Publisher } from "src/publisher/Publisher";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import type { GitBackend } from "src/git/types";
@@ -9,7 +9,11 @@ import type QuartzSyncer from "src/main";
 import type { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import type { DataStore } from "src/cache/DataStore";
 import type { AssetSyncResult } from "src/compiler/integrations/AssetSyncer";
-import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
+import {
+	flattenLinkedMedia,
+	resolveLinkedMedia,
+	resolveLinkedMediaByFile,
+} from "src/publisher/MediaLinkResolver";
 
 const resolveLinkedMediaMock = vi.hoisted(() => vi.fn());
 const collectAssetsMock = vi.hoisted(() => vi.fn());
@@ -33,17 +37,7 @@ vi.mock("src/publisher/MediaLinkResolver", async (importOriginal) => {
 	return {
 		...actual,
 		resolveLinkedMedia: resolveLinkedMediaMock,
-		// Keep the per-file walk driven by the same stub the tests configure,
-		// so flattenLinkedMedia() still yields the set they set up.
-		resolveLinkedMediaByFile: vi.fn(async (files: unknown) => {
-			const links = (await resolveLinkedMediaMock(files)) as
-				| Set<string>
-				| undefined;
-
-			return links && links.size > 0
-				? new Map([["__mocked__", [...links]]])
-				: new Map<string, string[]>();
-		}),
+		resolveLinkedMediaByFile: vi.fn(actual.resolveLinkedMediaByFile),
 	};
 });
 
@@ -51,6 +45,7 @@ const makeSettings = (
 	overrides: Partial<QuartzSyncerSettings> = {},
 ): QuartzSyncerSettings => ({
 	settingsSchemaVersion: 2,
+	publishTarget: "remote",
 	gitRemoteUrl: "",
 	gitBranch: "main",
 	gitCorsProxyUrl: "",
@@ -147,6 +142,7 @@ const makePublishFile = (path: string): PublishFile =>
 describe("Publisher", () => {
 	beforeEach(() => {
 		vi.mocked(resolveLinkedMedia).mockResolvedValue(new Set());
+		vi.mocked(resolveLinkedMediaByFile).mockClear();
 	});
 
 	it("publishBatch calls writeFiles with compiled content", async () => {
@@ -991,7 +987,7 @@ describe("Publisher", () => {
 					return Promise.resolve("hash-different");
 				return Promise.resolve(null);
 			}),
-			loadMediaLinks: vi.fn().mockResolvedValue([]),
+			loadCachedMediaLinks: vi.fn().mockResolvedValue([]),
 		} as unknown as DataStore;
 
 		const metaStub = app.metadataCache as typeof app.metadataCache & {
@@ -1076,6 +1072,7 @@ describe("Publisher", () => {
 			readTree: vi.fn().mockResolvedValue([]),
 		});
 		const compiler = {
+			extractBlobLinks: async () => [],
 			generateMarkdown: vi
 				.fn()
 				.mockResolvedValue(["compiled", { blobs: [] }]),
@@ -1182,6 +1179,7 @@ describe("Publisher", () => {
 		} as unknown as DataStore;
 
 		const compiler = {
+			extractBlobLinks: async () => [],
 			generateMarkdown: vi
 				.fn()
 				.mockResolvedValue(["compiled-text", { blobs: [] }]),
@@ -1247,6 +1245,173 @@ describe("Publisher", () => {
 		await publisher.getPublishStatus();
 
 		expect(loadLocalHashSpy).not.toHaveBeenCalled();
+	});
+
+	describe("getPublishStatus media links", () => {
+		const setup = (
+			cachedLinks: Array<string[] | null>,
+			useCache = true,
+		) => {
+			const app = new App();
+			const settings = makeSettings({ useCache });
+			const plugin = makePlugin(settings);
+			const files = cachedLinks.map(
+				(_, index) =>
+					({
+						path: `notes/${index}.md`,
+						name: `${index}.md`,
+						extension: "md",
+						stat: { mtime: 1000 },
+					}) as TFile,
+			);
+			app.vault.getFiles = vi.fn().mockReturnValue(files);
+			app.vault.getMarkdownFiles = vi.fn().mockReturnValue(files);
+			app.vault.getFileByPath = vi.fn(
+				(path: string) =>
+					files.find((file) => file.path === path) ?? null,
+			);
+			app.metadataCache.getCache = vi.fn().mockReturnValue({
+				frontmatter: { publish: true },
+			});
+			app.metadataCache.getFileCache = vi.fn().mockReturnValue({
+				frontmatter: { publish: true },
+			});
+			const loadCachedMediaLinks = vi.fn(
+				async (path: string) =>
+					cachedLinks[
+						files.findIndex((file) => file.path === path)
+					] ?? null,
+			);
+			const extractBlobLinks = vi.fn(async (file: PublishFile) => [
+				`images/fresh-${file.file.name}.png`,
+			]);
+			const compiler = {
+				extractBlobLinks,
+			} as unknown as SyncerPageCompiler;
+			const dataStore = { loadCachedMediaLinks } as unknown as DataStore;
+			const gitBackend = makeGitBackend({
+				readTree: vi.fn().mockResolvedValue([
+					{
+						path: "content/images/cached.png",
+						type: "blob",
+						sha: "1",
+					},
+					{
+						path: "content/images/fresh-0.md.png",
+						type: "blob",
+						sha: "2",
+					},
+					{
+						path: "content/images/fresh-1.md.png",
+						type: "blob",
+						sha: "3",
+					},
+					{
+						path: "content/images/orphan.png",
+						type: "blob",
+						sha: "4",
+					},
+				]),
+			});
+			const publisher = new Publisher(
+				app,
+				plugin,
+				new RemotePublishBackend(gitBackend, "main"),
+				compiler,
+				dataStore,
+			);
+
+			return { publisher, loadCachedMediaLinks, extractBlobLinks };
+		};
+
+		it("uses cached links including empty arrays without fresh extraction", async () => {
+			const { publisher, loadCachedMediaLinks, extractBlobLinks } = setup(
+				[["images/cached.png"], []],
+			);
+
+			const status = await publisher.getPublishStatus();
+
+			expect(status.mediaLinks).toEqual(
+				new Map([["notes/0.md", ["images/cached.png"]]]),
+			);
+			expect(loadCachedMediaLinks).toHaveBeenCalledTimes(2);
+			expect(loadCachedMediaLinks).toHaveBeenCalledWith(
+				"notes/0.md",
+				1000,
+			);
+			expect(loadCachedMediaLinks).toHaveBeenCalledWith(
+				"notes/1.md",
+				1000,
+			);
+			expect(extractBlobLinks).not.toHaveBeenCalled();
+			expect(resolveLinkedMediaByFile).not.toHaveBeenCalled();
+		});
+
+		it("merges cache hits and fresh extraction for missing or stale entries", async () => {
+			const { publisher, extractBlobLinks } = setup([
+				["images/cached.png"],
+				null,
+				[],
+			]);
+
+			const status = await publisher.getPublishStatus();
+
+			expect(status.mediaLinks).toEqual(
+				new Map([
+					["notes/0.md", ["images/cached.png"]],
+					["notes/1.md", ["images/fresh-1.md.png"]],
+				]),
+			);
+			expect(extractBlobLinks).toHaveBeenCalledOnce();
+			expect(extractBlobLinks.mock.calls[0]?.[0].file.path).toBe(
+				"notes/1.md",
+			);
+		});
+
+		it("omits cache misses whose fresh extraction finds no links", async () => {
+			const { publisher, extractBlobLinks } = setup([null]);
+			extractBlobLinks.mockResolvedValue([]);
+
+			const status = await publisher.getPublishStatus();
+
+			expect(status.mediaLinks).toEqual(new Map());
+			expect(extractBlobLinks).toHaveBeenCalledOnce();
+		});
+
+		it.each([true, false])(
+			"derives orphan flags from returned links with useCache=%s",
+			async (useCache) => {
+				const { publisher, loadCachedMediaLinks, extractBlobLinks } =
+					setup([["images/cached.png"], null], useCache);
+
+				const status = await publisher.getPublishStatus();
+				const linked = flattenLinkedMedia(status.mediaLinks!);
+
+				expect(linked).toEqual(
+					new Set(
+						useCache
+							? ["images/cached.png", "images/fresh-1.md.png"]
+							: [
+									"images/fresh-0.md.png",
+									"images/fresh-1.md.png",
+								],
+					),
+				);
+
+				for (const media of status.media) {
+					expect(media.linked).toBe(linked.has(media.vaultPath));
+				}
+
+				expect(extractBlobLinks).toHaveBeenCalledTimes(
+					useCache ? 1 : 2,
+				);
+
+				if (!useCache) {
+					expect(loadCachedMediaLinks).not.toHaveBeenCalled();
+					expect(resolveLinkedMediaByFile).toHaveBeenCalledOnce();
+				}
+			},
+		);
 	});
 
 	describe("integration stylesheets", () => {
