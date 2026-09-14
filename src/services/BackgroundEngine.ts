@@ -1,4 +1,11 @@
-import { debounce, Events, TFile, type App, type EventRef } from "obsidian";
+import {
+	debounce,
+	Events,
+	Platform,
+	TFile,
+	type App,
+	type EventRef,
+} from "obsidian";
 import type QuartzSyncer from "src/main";
 import { CompilationQueue } from "src/services/CompilationQueue";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
@@ -9,8 +16,8 @@ import type { IOperabilityEventSink } from "src/operability/types";
 import type { StatusSummary } from "src/services/StatusCacheService";
 import { isMediaFile } from "src/utils/mediaTypes";
 import { isPublishConfigured } from "src/publisher/PublishTargetResolver";
+import { batchParallel, isWithinVaultPath } from "src/utils/utils";
 
-const PRIORITY_PREWARM = 0;
 const PRIORITY_VAULT_CHANGE = 5;
 const PRIORITY_ACTIVE_FILE = 10;
 
@@ -120,6 +127,7 @@ export class BackgroundEngine {
 			let changed = 0;
 			let published = 0;
 			const localRepoPaths = new Set<string>();
+			const remoteBacked: { file: TFile; sha: string }[] = [];
 
 			for (const filePath of candidatePaths) {
 				const file = this.app.vault.getFileByPath(filePath);
@@ -127,7 +135,8 @@ export class BackgroundEngine {
 
 				const vaultPath =
 					settings.vaultPath !== "/" &&
-					file.path.startsWith(settings.vaultPath)
+					settings.vaultPath !== "." &&
+					isWithinVaultPath(file.path, settings.vaultPath)
 						? file.path.replace(settings.vaultPath, "")
 						: file.path;
 				const repoPath = pathMapper.toRepoPath(vaultPath);
@@ -140,17 +149,28 @@ export class BackgroundEngine {
 					continue;
 				}
 
-				const localHash = await this.plugin.dataStore.loadLocalHash(
-					file.path,
-					file.stat.mtime,
-				);
+				remoteBacked.push({ file, sha: remoteSha });
+			}
 
-				if (localHash && localHash === remoteSha) {
+			const hashes = await batchParallel(
+				remoteBacked,
+				({ file }) =>
+					this.plugin.dataStore.loadLocalHash(
+						file.path,
+						file.stat.mtime,
+					),
+				Platform.isMobileApp ? 2 : 5,
+			);
+
+			remoteBacked.forEach(({ sha }, index) => {
+				const localHash = hashes[index];
+
+				if (localHash && localHash === sha) {
 					published++;
 				} else {
 					changed++;
 				}
-			}
+			});
 
 			let deleted = 0;
 			let media = 0;
@@ -191,7 +211,7 @@ export class BackgroundEngine {
 			this.registerDataviewListeners();
 			this.registerDatacoreListeners();
 			this.registerExtCacheListener();
-			this.prewarmCache();
+			this.fetchRemoteTreeOnFirstIdle();
 		});
 	}
 
@@ -654,49 +674,6 @@ export class BackgroundEngine {
 		if (storedRevision === undefined || currentRevision > storedRevision) {
 			this.enqueue(path, PRIORITY_VAULT_CHANGE);
 		}
-	}
-
-	// --- Startup pre-warm ---
-
-	private prewarmCache(): void {
-		if (!this.running) return;
-		if (!this.plugin.settings.useCache) return;
-
-		const candidates = collectCandidatePaths(
-			this.app,
-			this.plugin,
-			this.plugin.settings,
-		);
-
-		const files = this.app.vault
-			.getFiles()
-			.filter(
-				(file) =>
-					this.isPublishableFile(file) && candidates.has(file.path),
-			);
-		let index = 0;
-
-		const enqueueBatch = () => {
-			if (!this.running) return;
-
-			const batchEnd = Math.min(index + 10, files.length);
-
-			while (index < batchEnd) {
-				const file = files[index];
-
-				if (file) {
-					this.compilationQueue.enqueue(file.path, PRIORITY_PREWARM);
-				}
-
-				index++;
-			}
-
-			if (index < files.length) {
-				window.setTimeout(enqueueBatch, 50);
-			}
-		};
-
-		enqueueBatch();
 	}
 
 	private isPublishableFile(file: TFile): boolean {
