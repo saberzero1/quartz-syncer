@@ -10,6 +10,14 @@ import type QuartzSyncer from "src/main";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import { generateBlobHash } from "src/utils/utils";
 
+/** Invalidate compiled payloads independently of the plugin release version. */
+export const DATA_STORE_CACHE_VERSION = "deferred-assets-v1";
+
+export type AssetShaCache = {
+	mtime: number;
+	gitSha: string;
+};
+
 /** A piece of data that has been cached for a specific version and time. */
 export type QuartzSyncerCache = {
 	/** The version of the plugin that the data was written to cache with. */
@@ -98,7 +106,8 @@ export class DataStore {
 	): Promise<QuartzSyncerCache | null> {
 		const key = this.fileKey(path);
 
-		return await this.persister.getItem(key);
+		const data = await this.persister.getItem<QuartzSyncerCache>(key);
+		return data?.version === this.version ? data : null;
 	}
 
 	private async getCacheProperty<K extends keyof QuartzSyncerCache>(
@@ -139,6 +148,8 @@ export class DataStore {
 		updates: Partial<QuartzSyncerCache>,
 		timestamp?: number,
 	): QuartzSyncerCache {
+		// Never promote stale compiled payloads (including legacy base64) on a merge.
+		if (existing?.version !== this.version) existing = null;
 		const sourceMtime = updates.sourceMtime ?? existing?.sourceMtime ?? 0;
 
 		return {
@@ -440,7 +451,7 @@ export class DataStore {
 		data: QuartzSyncerCache | null,
 		currentMtime?: number,
 	): string | null {
-		if (!data?.localHash) {
+		if (!data?.localHash || data.version !== this.version) {
 			return null;
 		}
 		if (currentMtime !== undefined && data.sourceMtime !== currentMtime) {
@@ -512,6 +523,39 @@ export class DataStore {
 
 	public async storeMediaLinks(path: string, links: string[]): Promise<void> {
 		await this.mergeAndStore(path, { mediaLinks: links });
+	}
+
+	/** Asset keys share the store, but never contain compiled files or bytes. */
+	public async loadAssetShas(
+		paths: string[],
+	): Promise<Map<string, AssetShaCache>> {
+		const entries = await this.persister.getMany<AssetShaCache>(
+			paths.map((path) => `asset:${path}`),
+		);
+		const result = new Map<string, AssetShaCache>();
+		paths.forEach((path, index) => {
+			const entry = entries[index];
+			if (
+				entry &&
+				Number.isFinite(entry.mtime) &&
+				typeof entry.gitSha === "string" &&
+				/^[0-9a-f]{40}$/.test(entry.gitSha)
+			) {
+				result.set(path, entry);
+			}
+		});
+		return result;
+	}
+
+	public async storeAssetShas(
+		entries: Map<string, AssetShaCache>,
+	): Promise<void> {
+		await this.persister.setMany(
+			Array.from(entries, ([path, value]) => ({
+				key: `asset:${path}`,
+				value,
+			})),
+		);
 	}
 
 	/** Merge bounded batches before writing so publishing retains local cache fields. */

@@ -1,4 +1,4 @@
-import { base64ToArrayBuffer, Platform, type App } from "obsidian";
+import { arrayBufferToBase64, Platform, type App } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type QuartzSyncerSettings from "src/models/settings";
 import type { FileChange } from "src/git/types";
@@ -8,7 +8,11 @@ import { PathMapper } from "src/git/PathMapper";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { collectCandidatePaths } from "src/publishFile/PublishCandidates";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
-import { DataStore, type CachedStatusMetadata } from "src/cache/DataStore";
+import {
+	DataStore,
+	type AssetShaCache,
+	type CachedStatusMetadata,
+} from "src/cache/DataStore";
 import type {
 	PublishFailure,
 	PublishProgressCallback,
@@ -322,6 +326,9 @@ export class Publisher {
 		const publishedFiles: PublishFile[] = [];
 		const failures: PublishFailure[] = [];
 		const stagedAssetPaths = new Set<string>();
+		const assetShas = new Map<string, AssetShaCache>();
+		const loadedAssetPaths = new Set<string>();
+		const updatedAssetShas = new Map<string, AssetShaCache>();
 
 		try {
 			// This optimization must not fetch on a cold cache or block publishing
@@ -355,6 +362,29 @@ export class Publisher {
 					}
 
 					const [text, assets] = storedFile;
+					const uncachedPaths = [
+						...new Set(
+							assets.blobs.map((asset) => asset.vaultPath),
+						),
+					].filter((path) => !loadedAssetPaths.has(path));
+					if (settings.useCache && uncachedPaths.length > 0) {
+						try {
+							const cached =
+								await this.dataStore.loadAssetShas(
+									uncachedPaths,
+								);
+							for (const [path, entry] of cached)
+								assetShas.set(path, entry);
+						} catch (error) {
+							// Cache availability must never prevent a fresh read and stage.
+							console.debug(
+								"Asset SHA cache read failed:",
+								error,
+							);
+						}
+						for (const path of uncachedPaths)
+							loadedAssetPaths.add(path);
+					}
 					const repoPath = this.pathMapper.toRepoPath(
 						file.getVaultPath(),
 					);
@@ -377,27 +407,53 @@ export class Publisher {
 							continue;
 						}
 
-						const remote = remoteIndex.full.get(assetPath);
-						if (remote) {
+						const source = this.app.vault.getFileByPath(
+							asset.vaultPath,
+						);
+						if (!source) {
+							throw new Error(
+								`Asset source is missing: ${asset.vaultPath} (destination: ${asset.path})`,
+							);
+						}
+						const mtime = source.stat.mtime;
+						const cached = assetShas.get(asset.vaultPath);
+						let gitSha =
+							cached?.mtime === mtime ? cached.gitSha : undefined;
+						let bytes: ArrayBuffer | undefined;
+						if (!gitSha) {
+							bytes = await this.app.vault.readBinary(source);
 							try {
 								// Git hashes raw bytes, not the base64 transport text.
-								const bytes = new Uint8Array(
-									base64ToArrayBuffer(asset.content),
+								gitSha = await generateBlobHash(
+									new Uint8Array(bytes),
 								);
-								if (
-									(await generateBlobHash(bytes)) ===
-									remote.sha
-								) {
-									continue;
-								}
 							} catch {
-								// If comparison fails, preserve the existing asset write.
+								// If hashing fails, stage the bytes without a comparison.
+							}
+							if (source.stat.mtime !== mtime) {
+								throw new Error(
+									`Asset changed while reading: ${asset.vaultPath}. Retry publishing.`,
+								);
+							}
+							if (gitSha) {
+								const entry = { mtime, gitSha };
+								assetShas.set(asset.vaultPath, entry);
+								updatedAssetShas.set(asset.vaultPath, entry);
 							}
 						}
 
+						const remote = remoteIndex.full.get(assetPath);
+						if (gitSha && gitSha === remote?.sha) continue;
+
+						bytes ??= await this.app.vault.readBinary(source);
+						if (source.stat.mtime !== mtime) {
+							throw new Error(
+								`Asset changed while reading: ${asset.vaultPath}. Retry publishing.`,
+							);
+						}
 						fileChanges.push({
 							path: assetPath,
-							content: asset.content,
+							content: arrayBufferToBase64(bytes),
 							encoding: "base64",
 						});
 						fileAssetPaths.add(assetPath);
@@ -439,6 +495,14 @@ export class Publisher {
 				}
 
 				onProgress?.(index + 1, total);
+			}
+
+			if (settings.useCache && updatedAssetShas.size > 0) {
+				try {
+					await this.dataStore.storeAssetShas(updatedAssetShas);
+				} catch (error) {
+					console.debug("Asset SHA cache write failed:", error);
+				}
 			}
 
 			if (files.length > 0 && publishedFiles.length === 0) {

@@ -10,10 +10,10 @@ import { createHash } from "node:crypto";
 import { Publisher } from "src/publisher/Publisher";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import type { GitBackend, TreeEntry } from "src/git/types";
-import type { PublishFile } from "src/publishFile/PublishFile";
+import { PublishFile } from "src/publishFile/PublishFile";
 import type QuartzSyncerSettings from "src/models/settings";
 import type QuartzSyncer from "src/main";
-import type { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
+import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { DataStore, type QuartzSyncerCache } from "src/cache/DataStore";
 import type { AssetSyncResult } from "src/compiler/integrations/AssetSyncer";
 import { generateBlobHash } from "src/utils/utils";
@@ -333,7 +333,10 @@ describe("Publisher", () => {
 			.update(Buffer.from(`blob ${bytes.byteLength}\0`))
 			.update(Buffer.from(bytes))
 			.digest("hex");
-		const asset = { path: "/vault/images/photo.png", content };
+		const asset = {
+			path: "/vault/images/photo.png",
+			vaultPath: "/vault/images/photo.png",
+		};
 		const assetChange = {
 			path: "site/images/photo.png",
 			content,
@@ -358,20 +361,45 @@ describe("Publisher", () => {
 					.mockResolvedValue(["hello", { blobs: [asset] }]),
 				loadLocalHash: vi.fn().mockResolvedValue(null),
 				storeRemoteHashes: vi.fn(),
+				loadAssetShas: vi.fn().mockResolvedValue(new Map()),
+				storeAssetShas: vi.fn(),
 			} as unknown as DataStore;
-			const publisher = new Publisher(
-				new App(),
-				makePlugin(
-					makeSettings({
-						vaultPath: "/vault/",
-						contentFolder: "site",
-					}),
-				),
-				backend,
-				{} as SyncerPageCompiler,
+			const app = new App();
+			const source = {
+				path: asset.vaultPath,
+				extension: "png",
+				stat: { mtime: 1000 },
+			} as TFile;
+			vi.spyOn(app.vault, "getFileByPath").mockReturnValue(source);
+			vi.spyOn(app.vault, "readBinary").mockResolvedValue(bytes.buffer);
+			const settings = makeSettings({
+				vaultPath: "/vault/",
+				contentFolder: "site",
+			});
+			const compiler = new SyncerPageCompiler(
+				app,
+				app.vault,
+				settings,
+				app.metadataCache,
 				dataStore,
 			);
-			return { publisher, backend, gitBackend, dataStore };
+			const publisher = new Publisher(
+				app,
+				makePlugin(settings),
+				backend,
+				compiler,
+				dataStore,
+			);
+			return {
+				publisher,
+				backend,
+				gitBackend,
+				dataStore,
+				app,
+				source,
+				settings,
+				compiler,
+			};
 		};
 
 		it("round-trips padded base64 into bytes with the Git blob SHA, not the base64 text SHA", async () => {
@@ -562,22 +590,245 @@ describe("Publisher", () => {
 			}
 		});
 
-		it("preserves the asset write when base64 decoding fails", async () => {
+		it("re-hashes and stages when the SHA cache cannot be read (no base64 decode is needed)", async () => {
 			const { publisher, gitBackend, dataStore } = await setup([
-				remoteAsset,
+				{ ...remoteAsset, sha: "old-sha" },
 			]);
-			vi.mocked(dataStore.loadLocalFile).mockResolvedValue([
-				"hello",
-				{ blobs: [{ ...asset, content: "not valid base64!" }] },
-			]);
+			vi.mocked(dataStore.loadAssetShas).mockRejectedValue(
+				new Error("cache unavailable"),
+			);
 			const result = await publisher.publishBatch([
 				makePublishFile("notes/a.md"),
 			]);
 			expect(result.success).toBe(true);
 			expect(
 				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
-			).toContainEqual({ ...assetChange, content: "not valid base64!" });
+			).toContainEqual(assetChange);
 		});
+
+		it("reuses cached SHA without reading or hashing unchanged media across notes", async () => {
+			const { publisher, app, gitBackend, dataStore } = await setup([
+				remoteAsset,
+			]);
+			vi.mocked(dataStore.loadAssetShas).mockResolvedValue(
+				new Map([[asset.vaultPath, { mtime: 1000, gitSha: sha }]]),
+			);
+			const digest = vi.spyOn(crypto.subtle, "digest");
+			try {
+				await publisher.publishBatch([
+					makePublishFile("a.md"),
+					makePublishFile("b.md"),
+				]);
+				expect(app.vault.readBinary).not.toHaveBeenCalled();
+				expect(digest).not.toHaveBeenCalled();
+				expect(dataStore.loadAssetShas).toHaveBeenCalledExactlyOnceWith(
+					[asset.vaultPath],
+				);
+				expect(dataStore.storeAssetShas).not.toHaveBeenCalled();
+				expect(
+					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+				).toHaveLength(2);
+			} finally {
+				digest.mockRestore();
+			}
+		});
+
+		it.each([true, false])(
+			"re-hashes changed mtime once; remote match = %s",
+			async (matches) => {
+				const { publisher, app, source, gitBackend, dataStore } =
+					await setup([
+						{ ...remoteAsset, sha: matches ? sha : "old-sha" },
+					]);
+				vi.mocked(dataStore.loadAssetShas).mockResolvedValue(
+					new Map([
+						[
+							asset.vaultPath,
+							{ mtime: 1000, gitSha: "0".repeat(40) },
+						],
+					]),
+				);
+				source.stat.mtime = 2000;
+				await publisher.publishBatch([
+					makePublishFile("a.md"),
+					makePublishFile("b.md"),
+				]);
+				expect(app.vault.readBinary).toHaveBeenCalledExactlyOnceWith(
+					source,
+				);
+				expect(
+					dataStore.storeAssetShas,
+				).toHaveBeenCalledExactlyOnceWith(
+					new Map([[asset.vaultPath, { mtime: 2000, gitSha: sha }]]),
+				);
+				const changes = vi.mocked(gitBackend.writeFiles).mock
+					.calls[0]?.[2];
+				expect(changes).toHaveLength(matches ? 2 : 3);
+				if (!matches) expect(changes).toContainEqual(assetChange);
+			},
+		);
+
+		it("reads once to stage a cached SHA that differs from the remote", async () => {
+			const { publisher, app, gitBackend, dataStore } = await setup([]);
+			vi.mocked(dataStore.loadAssetShas).mockResolvedValue(
+				new Map([[asset.vaultPath, { mtime: 1000, gitSha: sha }]]),
+			);
+			await publisher.publishBatch([makePublishFile("a.md")]);
+			expect(app.vault.readBinary).toHaveBeenCalledTimes(1);
+			expect(
+				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+			).toContainEqual(assetChange);
+		});
+
+		it("SHA cache write failures do not prevent staging", async () => {
+			const { publisher, gitBackend, dataStore } = await setup([]);
+			vi.mocked(dataStore.storeAssetShas).mockRejectedValue(
+				new Error("disk full"),
+			);
+			expect(
+				(await publisher.publishBatch([makePublishFile("a.md")]))
+					.success,
+			).toBe(true);
+			expect(
+				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+			).toContainEqual(assetChange);
+		});
+
+		it.each(["missing", "unreadable", "modified during read"])(
+			"fails the note explicitly for a %s source instead of silently dropping media",
+			async (state) => {
+				const { publisher, app, source, gitBackend, dataStore } =
+					await setup([remoteAsset]);
+				if (state === "missing") {
+					vi.mocked(app.vault.getFileByPath).mockReturnValue(null);
+					vi.mocked(dataStore.loadAssetShas).mockResolvedValue(
+						new Map([
+							[asset.vaultPath, { mtime: 1000, gitSha: sha }],
+						]),
+					);
+				} else if (state === "unreadable") {
+					vi.mocked(app.vault.readBinary).mockRejectedValue(
+						new Error("Asset unreadable"),
+					);
+				} else {
+					vi.mocked(app.vault.readBinary).mockImplementation(
+						async () => {
+							source.stat.mtime += 1;
+							return bytes.buffer;
+						},
+					);
+				}
+				const result = await publisher.publishBatch([
+					makePublishFile("a.md"),
+				]);
+				expect(result.success).toBe(false);
+				expect(result.failures).toEqual([
+					{
+						vaultPath: "a.md",
+						error: expect.stringContaining("Asset"),
+					},
+				]);
+				expect(gitBackend.writeFiles).not.toHaveBeenCalled();
+				expect(dataStore.storeAssetShas).not.toHaveBeenCalled();
+			},
+		);
+
+		it.each(["base", "canvas", "excalidraw", "markdown"] as const)(
+			"compiles %s with zero binary reads and publishes byte-identical media",
+			async (type) => {
+				const {
+					publisher,
+					app,
+					source,
+					compiler,
+					settings,
+					gitBackend,
+					dataStore,
+				} = await setup([]);
+				const path =
+					type === "excalidraw"
+						? "drawing.excalidraw.md"
+						: `note.${type === "markdown" ? "md" : type}`;
+				const raw =
+					type === "canvas"
+						? JSON.stringify({
+								nodes: [{ type: "file", file: source.path }],
+							})
+						: type === "excalidraw"
+							? `## Embedded Files\n[[${source.path}]]`
+							: "![[photo.png#center|300]]";
+				vi.spyOn(app.vault, "cachedRead").mockResolvedValue(raw);
+				vi.spyOn(app.metadataCache, "getCache").mockReturnValue({
+					embeds: [
+						{
+							link: "photo.png",
+							original: "![[photo.png#center|300]]",
+						},
+					],
+					links: [
+						{ link: source.path, original: `[[${source.path}]]` },
+					],
+				} as ReturnType<typeof app.metadataCache.getCache>);
+				// The second lookup fails for markdown: retain the known source,
+				// while preserving the old blobLinkText destination and rewriting.
+				vi.spyOn(
+					app.metadataCache,
+					"getFirstLinkpathDest",
+				).mockImplementation((link) =>
+					type === "markdown" && link === source.path ? null : source,
+				);
+				vi.spyOn(app.metadataCache, "fileToLinktext").mockReturnValue(
+					"rewritten/photo.png",
+				);
+				const file = new PublishFile({
+					file: {
+						path,
+						name: path,
+						extension: path.split(".").pop(),
+						stat: { mtime: 1000, ctime: 1000, size: raw.length },
+					} as TFile,
+					vault: app.vault,
+					metadataCache: app.metadataCache,
+					settings,
+					compiler,
+					datastore: dataStore,
+				});
+				const compiled = await compiler.generateMarkdown(file);
+				expect(app.vault.readBinary).not.toHaveBeenCalled();
+				const destination =
+					type === "markdown" ? "rewritten/photo.png" : source.path;
+				expect(compiled[1].blobs).toEqual([
+					{ path: destination, vaultPath: source.path },
+				]);
+				expect(compiled[0]).toBe(
+					type === "markdown"
+						? "![[rewritten/photo.png#center|300]]\n"
+						: raw,
+				);
+				vi.mocked(dataStore.loadLocalFile).mockResolvedValue(compiled);
+				const result = await publisher.publishBatch([file]);
+				expect(result.success).toBe(true);
+				expect(app.vault.readBinary).toHaveBeenCalledExactlyOnceWith(
+					source,
+				);
+				expect(
+					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+				).toEqual([
+					{
+						path: `site/${path}`,
+						content: compiled[0],
+						encoding: "utf-8",
+					},
+					{
+						...assetChange,
+						path:
+							type === "markdown"
+								? "site/rewritten/photo.png"
+								: assetChange.path,
+					},
+				]);
+			},
+		);
 	});
 
 	describe("publishBatch failure isolation", () => {

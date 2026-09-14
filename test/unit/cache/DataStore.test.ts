@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DataStore, type QuartzSyncerCache } from "src/cache/DataStore";
+import {
+	DataStore,
+	DATA_STORE_CACHE_VERSION,
+	type QuartzSyncerCache,
+} from "src/cache/DataStore";
+import { App, type TFile } from "obsidian";
+import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
+import { PublishFile } from "src/publishFile/PublishFile";
+import { DEFAULT_SETTINGS } from "src/main";
 
 const { createInstance, dropInstance, setStore } = vi.hoisted(() => {
 	let currentStore = new Map<string, unknown>();
@@ -73,7 +81,7 @@ describe("DataStore", () => {
 			async (count) => {
 				const store = new DataStore("vault", "app", "1.0.0");
 				const existing: QuartzSyncerCache = {
-					version: "0.9.0",
+					version: "1.0.0",
 					time: 10,
 					sourceMtime: 20,
 					localData: ["local", { blobs: [] }],
@@ -361,7 +369,7 @@ describe("DataStore", () => {
 			expect(store.persister.getItem).not.toHaveBeenCalled();
 			if (overrides?.version === "0.9.0") {
 				expect(expected).toEqual({
-					localHash: "hash",
+					localHash: null,
 					mediaLinks: null,
 				});
 			}
@@ -411,6 +419,173 @@ describe("DataStore", () => {
 				expect(store.persister.iterate).not.toHaveBeenCalled();
 			},
 		);
+	});
+
+	describe("deferred asset cache", () => {
+		it("uses separate asset keys and bulk I/O, leaving file entries and null/empty links intact", async () => {
+			const store = new DataStore("vault", "app", "1.0.0");
+			await store.storeLocalFile("image.png", 1000, [
+				"text",
+				{ blobs: [] },
+			]);
+			await store.storeMediaLinks("image.png", []);
+			const hashes = new Map([
+				["image.png", { mtime: 1000, gitSha: "a".repeat(40) }],
+				["other.png", { mtime: 2000, gitSha: "b".repeat(40) }],
+			]);
+			await store.storeAssetShas(hashes);
+			expect(store.persister.setMany).toHaveBeenCalledExactlyOnceWith([
+				{ key: "asset:image.png", value: hashes.get("image.png") },
+				{ key: "asset:other.png", value: hashes.get("other.png") },
+			]);
+			vi.mocked(store.persister.getItem).mockClear();
+			expect(
+				await store.loadAssetShas([
+					"image.png",
+					"other.png",
+					"missing.png",
+				]),
+			).toEqual(hashes);
+			expect(store.persister.getMany).toHaveBeenCalledExactlyOnceWith([
+				"asset:image.png",
+				"asset:other.png",
+				"asset:missing.png",
+			]);
+			expect(store.persister.getItem).not.toHaveBeenCalled();
+			expect(await store.allFiles()).toEqual(["image.png"]);
+			expect(await store.loadLocalFile("image.png", 1000)).toEqual([
+				"text",
+				{ blobs: [] },
+			]);
+			expect(await store.loadCachedMediaLinks("image.png", 1000)).toEqual(
+				[],
+			);
+			expect(
+				await store.loadCachedMediaLinks("other.png", 2000),
+			).toBeNull();
+		});
+
+		it.each([
+			{},
+			{ mtime: 1000, gitSha: "invalid-sha" },
+			{ mtime: NaN, gitSha: "a".repeat(40) },
+			{ mtime: 1000, gitSha: null },
+		])(
+			"treats malformed asset SHA entries as misses: %s",
+			async (entry) => {
+				const store = new DataStore("vault", "app", "1.0.0");
+				await store.persister.setItem("asset:image.png", entry);
+				expect(await store.loadAssetShas(["image.png"])).toEqual(
+					new Map(),
+				);
+			},
+		);
+
+		it("rejects legacy base64 entries and automatically recompiles without resurrecting remote payloads", async () => {
+			const store = new DataStore(
+				"vault",
+				"app",
+				`1.0.0-${DATA_STORE_CACHE_VERSION}`,
+			);
+			const legacy = {
+				version: "1.0.0",
+				time: 1000,
+				sourceMtime: 1000,
+				localHash: "old-hash",
+				remoteHash: "old-hash",
+				mediaLinks: [],
+				localData: [
+					"old",
+					{ blobs: [{ path: "image.png", content: "AID/DQo=" }] },
+				],
+				remoteData: [
+					"old",
+					{ blobs: [{ path: "image.png", content: "AID/DQo=" }] },
+				],
+			};
+			await store.persister.setItem("file:note.md", legacy);
+			expect(await store.loadFile("note.md")).toBeNull();
+			expect(await store.loadLocalFile("note.md", 1000, true)).toBeNull();
+			expect(await store.loadRemoteFile("note.md")).toBeNull();
+			expect(await store.isLocalFileOutdated("note.md", 1000)).toBe(true);
+			expect(
+				await store.loadStatusMetadata([
+					{ path: "note.md", mtime: 1000 },
+				]),
+			).toEqual(
+				new Map([["note.md", { localHash: null, mediaLinks: null }]]),
+			);
+			const app = new App();
+			const settings = { ...DEFAULT_SETTINGS, useCache: true };
+			vi.spyOn(app.vault, "cachedRead").mockResolvedValue("Hello\n");
+			const binary = vi.spyOn(app.vault, "readBinary");
+			const compiler = new SyncerPageCompiler(
+				app,
+				app.vault,
+				settings,
+				app.metadataCache,
+				store,
+			);
+			const compile = vi.spyOn(compiler, "generateMarkdown");
+			const file = new PublishFile({
+				file: {
+					path: "note.md",
+					name: "note.md",
+					extension: "md",
+					stat: { mtime: 1000, ctime: 1000, size: 6 },
+				} as TFile,
+				compiler,
+				vault: app.vault,
+				metadataCache: app.metadataCache,
+				settings,
+				datastore: store,
+			});
+			expect((await file.compile(true)).getCompiledFile()).toEqual([
+				"Hello\n",
+				{ blobs: [] },
+			]);
+			await file.compile(true);
+			expect(compile).toHaveBeenCalledTimes(1);
+			expect(binary).not.toHaveBeenCalled();
+			const healed = await store.loadFile("note.md");
+			expect(healed?.version).toBe(store.version);
+			expect(healed?.remoteData).toBeNull();
+			expect(JSON.stringify(healed)).not.toContain("AID/DQo=");
+		});
+
+		it("does not promote stale payloads through single, bulk, or caller-supplied merges", async () => {
+			const store = new DataStore("vault", "app", "current");
+			const stale: QuartzSyncerCache = {
+				version: "old",
+				time: 1000,
+				sourceMtime: 1000,
+				localData: ["stale", { blobs: [] }],
+				remoteData: ["stale", { blobs: [] }],
+			};
+			await store.persister.setItem("file:single.md", stale);
+			await store.persister.setItem("file:bulk.md", stale);
+			await store.storeMediaLinks("single.md", []);
+			await store.storeRemoteHashes([
+				{ path: "bulk.md", timestamp: 2000, hash: "new" },
+			]);
+			await store.storeCompilation(
+				"supplied.md",
+				{
+					localData: ["new", { blobs: [] }],
+					localHash: "new",
+					hasDynamicContent: false,
+					sourceMtime: 1000,
+					currentMtime: 1000,
+				},
+				stale,
+			);
+			for (const path of ["single.md", "bulk.md", "supplied.md"]) {
+				expect(await store.loadRemoteFile(path)).toBeNull();
+				expect(
+					JSON.stringify(await store.loadFile(path)),
+				).not.toContain("stale");
+			}
+		});
 	});
 
 	it("exports an empty cache when no entries exist", async () => {

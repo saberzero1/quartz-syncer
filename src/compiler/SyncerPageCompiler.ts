@@ -1,10 +1,4 @@
-import {
-	App,
-	MetadataCache,
-	Vault,
-	arrayBufferToBase64,
-	getLinkpath,
-} from "obsidian";
+import { App, MetadataCache, Vault, getLinkpath } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
 import { escapeRegExp } from "src/utils/utils";
 import { ASSET_EXTENSIONS } from "src/utils/mediaTypes";
@@ -24,14 +18,13 @@ import { PluginCompiler } from "src/compiler/PluginCompiler";
 import { DataStore } from "src/cache/DataStore";
 
 /**
- * Interface for an asset that will be published.
- * It contains the path to the asset and its content.
+ * A cached asset reference. Bytes are read only when publishing.
  */
-export interface Asset {
+export interface DeferredAsset {
+	/** Existing publish/link destination, which need not be a vault path. */
 	path: string;
-	content: string;
-	// not set yet
-	remoteHash?: string;
+	/** Verified source TFile.path, retained even when link rewriting falls back. */
+	vaultPath: string;
 }
 
 /**
@@ -39,7 +32,7 @@ export interface Asset {
  * It contains an array of assets.
  */
 export interface Assets {
-	blobs: Array<Asset>;
+	blobs: Array<DeferredAsset>;
 }
 
 /**
@@ -73,20 +66,18 @@ export type TCompilerStep = (
  */
 export class SyncerPageCompiler {
 	private app: App;
-	private readonly vault: Vault;
 	private readonly settings: QuartzSyncerSettings;
 	private metadataCache: MetadataCache;
 	private datastore: DataStore;
 
 	constructor(
 		app: App,
-		vault: Vault,
+		_vault: Vault,
 		settings: QuartzSyncerSettings,
 		metadataCache: MetadataCache,
 		datastore: DataStore,
 	) {
 		this.app = app;
-		this.vault = vault;
 		this.settings = settings;
 		this.metadataCache = metadataCache;
 		this.datastore = datastore;
@@ -122,28 +113,11 @@ export class SyncerPageCompiler {
 	 * @returns A promise that resolves to a tuple containing the compiled text and the assets.
 	 * @throws If the file is an Excalidraw file, a warning is logged as Excalidraw files are not supported yet.
 	 */
-	private async resolveEmbeddedAssets(file: PublishFile): Promise<Asset[]> {
+	private async resolveEmbeddedAssets(
+		file: PublishFile,
+	): Promise<DeferredAsset[]> {
 		const blobPaths = await this.extractBlobLinks(file);
-		const assets: Asset[] = [];
-
-		for (const blobPath of blobPaths) {
-			try {
-				const linkedFile = this.vault.getFileByPath(blobPath);
-
-				if (!linkedFile) continue;
-
-				const blob = await this.vault.readBinary(linkedFile);
-
-				assets.push({
-					path: linkedFile.path,
-					content: arrayBufferToBase64(blob),
-				});
-			} catch {
-				continue;
-			}
-		}
-
-		return assets;
+		return blobPaths.map((path) => ({ path, vaultPath: path }));
 	}
 
 	async generateMarkdown(file: PublishFile): Promise<TCompiledFile> {
@@ -427,9 +401,9 @@ export class SyncerPageCompiler {
 
 	convertFileLinks =
 		(file: PublishFile) =>
-		async (text: string): Promise<[string, Array<Asset>]> => {
+		async (text: string): Promise<[string, Array<DeferredAsset>]> => {
 			const filePath = file.getPath();
-			const assets: Array<Asset> = [];
+			const assets: Array<DeferredAsset> = [];
 
 			const cache = this.metadataCache.getCache(filePath);
 
@@ -456,9 +430,6 @@ export class SyncerPageCompiler {
 						continue;
 					}
 
-					const blob = await this.vault.readBinary(linkedFile);
-					const blobBase64 = arrayBufferToBase64(blob);
-
 					const blobLinkText = this.metadataCache.fileToLinktext(
 						linkedFile,
 						filePath,
@@ -472,7 +443,7 @@ export class SyncerPageCompiler {
 
 					assets.push({
 						path: blobFullPath,
-						content: blobBase64,
+						vaultPath: linkedFile.path,
 					});
 
 					const isWikilink = embed.original.startsWith("![[");
