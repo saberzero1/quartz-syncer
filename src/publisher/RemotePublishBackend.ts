@@ -71,7 +71,9 @@ export class RemotePublishBackend implements PublishBackend {
 		return this.treeCache.refresh();
 	}
 
-	async getCachedTree(_ref: string): Promise<TreeEntry[]> {
+	async getCachedTree(_ref: string, cacheOnly = false): Promise<TreeEntry[]> {
+		if (cacheOnly && !this.treeCache.isCached) return [];
+
 		return this.treeCache.get();
 	}
 }

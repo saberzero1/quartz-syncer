@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { App, Platform, type TFile } from "obsidian";
+import {
+	App,
+	arrayBufferToBase64,
+	base64ToArrayBuffer,
+	Platform,
+	type TFile,
+} from "obsidian";
+import { createHash } from "node:crypto";
 import { Publisher } from "src/publisher/Publisher";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
-import type { GitBackend } from "src/git/types";
+import type { GitBackend, TreeEntry } from "src/git/types";
 import type { PublishFile } from "src/publishFile/PublishFile";
 import type QuartzSyncerSettings from "src/models/settings";
 import type QuartzSyncer from "src/main";
 import type { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { DataStore, type QuartzSyncerCache } from "src/cache/DataStore";
 import type { AssetSyncResult } from "src/compiler/integrations/AssetSyncer";
+import { generateBlobHash } from "src/utils/utils";
 import {
 	flattenLinkedMedia,
 	resolveLinkedMedia,
@@ -315,6 +323,261 @@ describe("Publisher", () => {
 		expect(plugin.statusCache.patchPublished).toHaveBeenCalledWith(
 			new Set(["notes/a.md"]),
 		);
+	});
+
+	describe("publishBatch media staging", () => {
+		// Five bytes exercise base64 padding, NUL, and non-UTF-8 binary data.
+		const bytes = new Uint8Array([0, 128, 255, 13, 10]);
+		const content = arrayBufferToBase64(bytes.buffer);
+		const sha = createHash("sha1")
+			.update(Buffer.from(`blob ${bytes.byteLength}\0`))
+			.update(Buffer.from(bytes))
+			.digest("hex");
+		const asset = { path: "/vault/images/photo.png", content };
+		const assetChange = {
+			path: "site/images/photo.png",
+			content,
+			encoding: "base64",
+		};
+		const remoteAsset: TreeEntry = {
+			path: assetChange.path,
+			sha,
+			type: "blob",
+		};
+
+		const setup = async (tree?: TreeEntry[]) => {
+			const gitBackend = makeGitBackend({
+				readTree: vi.fn().mockResolvedValue(tree ?? []),
+			});
+			const backend = new RemotePublishBackend(gitBackend, "main");
+			if (tree) await backend.refreshTreeCache();
+			vi.mocked(gitBackend.readTree).mockClear();
+			const dataStore = {
+				loadLocalFile: vi
+					.fn()
+					.mockResolvedValue(["hello", { blobs: [asset] }]),
+				loadLocalHash: vi.fn().mockResolvedValue(null),
+				storeRemoteHashes: vi.fn(),
+			} as unknown as DataStore;
+			const publisher = new Publisher(
+				new App(),
+				makePlugin(
+					makeSettings({
+						vaultPath: "/vault/",
+						contentFolder: "site",
+					}),
+				),
+				backend,
+				{} as SyncerPageCompiler,
+				dataStore,
+			);
+			return { publisher, backend, gitBackend, dataStore };
+		};
+
+		it("round-trips padded base64 into bytes with the Git blob SHA, not the base64 text SHA", async () => {
+			expect(content).toBe("AID/DQo=");
+			const decoded = new Uint8Array(base64ToArrayBuffer(content));
+			expect(decoded).toEqual(bytes);
+			expect(await generateBlobHash(decoded)).toBe(sha);
+			expect(await generateBlobHash(content)).not.toBe(sha);
+		});
+
+		it("skips identical media using the staged repo path and keeps note writes", async () => {
+			const { publisher, backend, gitBackend } = await setup([
+				remoteAsset,
+			]);
+			const cachedTree = vi.spyOn(backend, "getCachedTree");
+			const result = await publisher.publishBatch([
+				makePublishFile("notes/a.md"),
+			]);
+			expect(result.success).toBe(true);
+			expect(cachedTree).toHaveBeenCalledExactlyOnceWith("main", true);
+			expect(gitBackend.writeFiles).toHaveBeenCalledExactlyOnceWith(
+				"main",
+				"Publish notes",
+				[
+					{
+						path: "site/notes/a.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+				],
+			);
+			// Only the existing post-write refresh reads the remote tree.
+			expect(gitBackend.readTree).toHaveBeenCalledTimes(1);
+			expect(
+				vi.mocked(gitBackend.writeFiles).mock.invocationCallOrder[0],
+			).toBeLessThan(
+				vi.mocked(gitBackend.readTree).mock.invocationCallOrder[0]!,
+			);
+		});
+
+		it("uses the full index even for paths outside the content index", async () => {
+			const { publisher, gitBackend } = await setup([remoteAsset]);
+			vi.spyOn(
+				publisher.getPathMapper(),
+				"isInContentFolder",
+			).mockReturnValue(false);
+			await publisher.publishBatch([makePublishFile("notes/a.md")]);
+			expect(
+				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+			).toHaveLength(1);
+		});
+
+		it.each([
+			["different bytes", [{ ...remoteAsset, sha: "different-sha" }]],
+			["absent media", []],
+			[
+				"matching SHA at a different path",
+				[{ ...remoteAsset, path: "site/other.png" }],
+			],
+		])("stages media for %s", async (_label, tree) => {
+			const { publisher, gitBackend } = await setup(tree);
+			await publisher.publishBatch([makePublishFile("notes/a.md")]);
+			expect(vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2]).toEqual(
+				[
+					{
+						path: "site/notes/a.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+					assetChange,
+				],
+			);
+		});
+
+		it.each(["cold", "null", "rejected"])(
+			"stages every asset with a %s cache",
+			async (state) => {
+				const { publisher, backend, gitBackend, dataStore } =
+					await setup();
+				if (state === "null") {
+					// Exercise a runtime null despite the non-null backend contract.
+					vi.spyOn(backend, "getCachedTree").mockResolvedValue(
+						null as unknown as TreeEntry[],
+					);
+				} else if (state === "rejected") {
+					vi.spyOn(backend, "getCachedTree").mockRejectedValue(
+						new Error("unavailable"),
+					);
+				}
+				vi.mocked(dataStore.loadLocalFile).mockResolvedValue([
+					"hello",
+					{
+						blobs: [
+							asset,
+							{ ...asset, path: "/vault/images/second.png" },
+						],
+					},
+				]);
+				const result = await publisher.publishBatch([
+					makePublishFile("notes/a.md"),
+				]);
+				expect(result.success).toBe(true);
+				expect(
+					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+				).toEqual([
+					{
+						path: "site/notes/a.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+					assetChange,
+					{ ...assetChange, path: "site/images/second.png" },
+				]);
+				expect(gitBackend.readTree).toHaveBeenCalledTimes(1);
+				expect(
+					vi.mocked(gitBackend.writeFiles).mock
+						.invocationCallOrder[0],
+				).toBeLessThan(
+					vi.mocked(gitBackend.readTree).mock.invocationCallOrder[0]!,
+				);
+			},
+		);
+
+		it("stages shared media once within and across notes", async () => {
+			const { publisher, gitBackend, dataStore } = await setup();
+			vi.mocked(dataStore.loadLocalFile).mockResolvedValue([
+				"hello",
+				{ blobs: [asset, { ...asset, path: "images/photo.png" }] },
+			]);
+			await publisher.publishBatch([
+				makePublishFile("notes/a.md"),
+				makePublishFile("notes/b.md"),
+			]);
+			expect(vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2]).toEqual(
+				[
+					{
+						path: "site/notes/a.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+					assetChange,
+					{
+						path: "site/notes/b.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+				],
+			);
+		});
+
+		it("does not deduplicate against assets discarded with a failed note", async () => {
+			const { publisher, gitBackend, dataStore } = await setup();
+			vi.mocked(dataStore.loadLocalHash).mockRejectedValueOnce(
+				new Error("cache failure"),
+			);
+			const result = await publisher.publishBatch([
+				makePublishFile("notes/a.md"),
+				makePublishFile("notes/b.md"),
+			]);
+			expect(result.filesPublished).toBe(1);
+			expect(vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2]).toEqual(
+				[
+					{
+						path: "site/notes/b.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+					assetChange,
+				],
+			);
+		});
+
+		it("stages media when hashing fails", async () => {
+			const { publisher, gitBackend } = await setup([remoteAsset]);
+			const digest = vi
+				.spyOn(crypto.subtle, "digest")
+				.mockRejectedValueOnce(new Error("hash unavailable"));
+			try {
+				const result = await publisher.publishBatch([
+					makePublishFile("notes/a.md"),
+				]);
+				expect(result.success).toBe(true);
+				expect(
+					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+				).toContainEqual(assetChange);
+			} finally {
+				digest.mockRestore();
+			}
+		});
+
+		it("preserves the asset write when base64 decoding fails", async () => {
+			const { publisher, gitBackend, dataStore } = await setup([
+				remoteAsset,
+			]);
+			vi.mocked(dataStore.loadLocalFile).mockResolvedValue([
+				"hello",
+				{ blobs: [{ ...asset, content: "not valid base64!" }] },
+			]);
+			const result = await publisher.publishBatch([
+				makePublishFile("notes/a.md"),
+			]);
+			expect(result.success).toBe(true);
+			expect(
+				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+			).toContainEqual({ ...assetChange, content: "not valid base64!" });
+		});
 	});
 
 	describe("publishBatch failure isolation", () => {

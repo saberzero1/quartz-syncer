@@ -1,4 +1,4 @@
-import { Platform, type App } from "obsidian";
+import { base64ToArrayBuffer, Platform, type App } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type QuartzSyncerSettings from "src/models/settings";
 import type { FileChange } from "src/git/types";
@@ -321,8 +321,16 @@ export class Publisher {
 
 		const publishedFiles: PublishFile[] = [];
 		const failures: PublishFailure[] = [];
+		const stagedAssetPaths = new Set<string>();
 
 		try {
+			// This optimization must not fetch on a cold cache or block publishing
+			// when the cached tree is unavailable.
+			const remoteIndex = await this.backend
+				.getCachedTree(settings.gitBranch, true)
+				.then((tree) => buildRemoteIndex(tree ?? [], this.pathMapper))
+				.catch(() => buildRemoteIndex([], this.pathMapper));
+
 			for (let index = 0; index < files.length; index += 1) {
 				const file = files[index];
 				if (!file) continue;
@@ -330,6 +338,7 @@ export class Publisher {
 				// Staged per file so a failure midway cannot leave a partially
 				// written note (text without its media) in the commit.
 				const fileChanges: FileChange[] = [];
+				const fileAssetPaths = new Set<string>();
 
 				try {
 					let storedFile = settings.useCache
@@ -361,11 +370,37 @@ export class Publisher {
 							this.toVaultRelativePath(asset.path),
 						);
 
+						if (
+							stagedAssetPaths.has(assetPath) ||
+							fileAssetPaths.has(assetPath)
+						) {
+							continue;
+						}
+
+						const remote = remoteIndex.full.get(assetPath);
+						if (remote) {
+							try {
+								// Git hashes raw bytes, not the base64 transport text.
+								const bytes = new Uint8Array(
+									base64ToArrayBuffer(asset.content),
+								);
+								if (
+									(await generateBlobHash(bytes)) ===
+									remote.sha
+								) {
+									continue;
+								}
+							} catch {
+								// If comparison fails, preserve the existing asset write.
+							}
+						}
+
 						fileChanges.push({
 							path: assetPath,
 							content: asset.content,
 							encoding: "base64",
 						});
+						fileAssetPaths.add(assetPath);
 					}
 
 					const localHash = settings.useCache
@@ -384,6 +419,9 @@ export class Publisher {
 					}
 
 					changes.push(...fileChanges);
+					for (const path of fileAssetPaths) {
+						stagedAssetPaths.add(path);
+					}
 					publishedFiles.push(file);
 				} catch (error) {
 					const message =
