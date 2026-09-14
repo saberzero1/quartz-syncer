@@ -16,6 +16,7 @@ import { getValueByPath, setValueByPath } from "src/cli/handlers/cliUtils";
 import type { PublicationCenterManager } from "src/operability/PublicationCenterManager";
 import type { QuartzHubManager } from "src/operability/QuartzHubManager";
 import { validateAction } from "./ActionValidation";
+import { resolvePublishTarget } from "src/publisher/PublishTargetResolver";
 
 type PublishStatusSummary = {
 	unpublished: number;
@@ -488,11 +489,12 @@ export class ActionRegistry {
 	}
 
 	private async testConnection(): Promise<ActionResult> {
-		if (this.plugin.settings.quartzRepoPath) {
+		const target = resolvePublishTarget(this.plugin.settings);
+		if (target.effective === "local") {
 			return this.testLocalConnection();
 		}
 
-		if (!this.plugin.settings.gitRemoteUrl) {
+		if (target.effective === null) {
 			return { success: false, error: "Repository not configured" };
 		}
 
