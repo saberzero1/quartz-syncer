@@ -12,6 +12,7 @@ type CompilationQueueOptions = {
 
 export class CompilationQueue {
 	private queue: QueueItem[] = [];
+	private head = 0;
 	private queued = new Map<string, QueueItem>();
 	private inFlightPaths = new Set<string>();
 	private needsSort = false;
@@ -53,9 +54,15 @@ export class CompilationQueue {
 		if (this.inFlightPaths.has(path)) return;
 
 		const item = { path, priority, sequence: this.sequence++ };
+		const last = this.queue[this.queue.length - 1];
+
+		// Equal- or lower-priority appends preserve an already sorted tail.
+		if (last && priority > last.priority) {
+			this.needsSort = true;
+		}
+
 		this.queue.push(item);
 		this.queued.set(path, item);
-		this.needsSort = true;
 		this.schedule();
 	}
 
@@ -64,20 +71,33 @@ export class CompilationQueue {
 	}
 
 	get queuedPaths(): string[] {
-		return this.queue.map((item) => item.path);
+		return this.queue.slice(this.head).map((item) => item.path);
 	}
 
 	private takeNext(): QueueItem | undefined {
 		if (this.needsSort) {
+			this.queue = this.queue.slice(this.head);
+			this.head = 0;
 			this.queue.sort(
 				(a, b) => b.priority - a.priority || a.sequence - b.sequence,
 			);
 			this.needsSort = false;
 		}
 
-		const item = this.queue.shift();
+		const item = this.queue[this.head];
 
-		if (item) this.queued.delete(item.path);
+		if (item) {
+			this.head++;
+			this.queued.delete(item.path);
+
+			// Compact once the dead prefix matches the live tail. This keeps the
+			// array packed, bounds retained storage to twice the live size, and
+			// makes removal amortised O(1) instead of shift()'s reindexing.
+			if (this.head * 2 >= this.queue.length) {
+				this.queue = this.queue.slice(this.head);
+				this.head = 0;
+			}
+		}
 
 		return item;
 	}
@@ -114,13 +134,14 @@ export class CompilationQueue {
 
 	cancel(): void {
 		this.queue = [];
+		this.head = 0;
 		this.queued.clear();
 		this.needsSort = false;
 		this.abortController?.abort();
 	}
 
 	onIdle(): Promise<void> {
-		if (this.queue.length === 0 && this.inFlight === 0) {
+		if (this.pendingCount === 0 && this.inFlight === 0) {
 			return Promise.resolve();
 		}
 
@@ -130,7 +151,7 @@ export class CompilationQueue {
 	}
 
 	get pendingCount(): number {
-		return this.queue.length;
+		return this.queue.length - this.head;
 	}
 
 	get inFlightCount(): number {
@@ -151,7 +172,7 @@ export class CompilationQueue {
 	private pump(): void {
 		if (this.paused) return;
 
-		while (this.inFlight < this.concurrency && this.queue.length > 0) {
+		while (this.inFlight < this.concurrency && this.pendingCount > 0) {
 			const item = this.takeNext();
 			if (!item) break;
 			this.inFlight += 1;
@@ -159,7 +180,7 @@ export class CompilationQueue {
 			void this.runItem(item);
 		}
 
-		if (this.queue.length === 0 && this.inFlight === 0) {
+		if (this.pendingCount === 0 && this.inFlight === 0) {
 			this.processing = false;
 			this.abortController = null;
 			this.resolveIdle();

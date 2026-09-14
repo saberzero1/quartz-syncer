@@ -8,6 +8,7 @@ const makeSettings = (
 	overrides: Partial<QuartzSyncerSettings> = {},
 ): QuartzSyncerSettings => ({
 	settingsSchemaVersion: 4,
+	publishTarget: "remote",
 	gitRemoteUrl: "",
 	gitBranch: "main",
 	gitCorsProxyUrl: "",
@@ -105,25 +106,251 @@ describe("collectCandidatePaths", () => {
 		vi.clearAllMocks();
 	});
 
-	it("returns every vault file path when allNotesPublishableByDefault is true", () => {
-		const files = [
+	it("returns only markdown paths when allNotesPublishableByDefault is true", () => {
+		const markdownFiles = [
 			makeTFile("notes/a.md"),
 			makeTFile("notes/b.md"),
-			makeTFile("images/photo.png", "png"),
 		];
-		const app = makeApp([], files);
+		const files = [
+			...markdownFiles,
+			makeTFile("images/photo.png", "png"),
+			makeTFile("documents/report.pdf", "pdf"),
+		];
+		const app = makeApp(markdownFiles, files);
 		const settings = makeSettings({ allNotesPublishableByDefault: true });
 		const plugin = makePlugin();
 
 		const result = collectCandidatePaths(app, plugin, settings);
 
-		expect(result).toEqual(
-			new Set(["notes/a.md", "notes/b.md", "images/photo.png"]),
-		);
+		expect(result).toEqual(new Set(["notes/a.md", "notes/b.md"]));
 		expect(
 			(app.vault as { getFiles?: () => TFile[] }).getFiles,
-		).toHaveBeenCalledTimes(1);
+		).not.toHaveBeenCalled();
 	});
+
+	it.each([false, true])(
+		"defaults an absent vault scope to the whole vault with allNotesPublishableByDefault=%s",
+		(allNotesPublishableByDefault) => {
+			const markdownFiles = [makeTFile("notes/a.md")];
+			const app = makeApp(markdownFiles, markdownFiles, {
+				"notes/a.md": { publish: true },
+			});
+			const settings = {
+				...makeSettings({ allNotesPublishableByDefault }),
+				vaultPath: undefined,
+			} as unknown as QuartzSyncerSettings;
+
+			const result = collectCandidatePaths(app, makePlugin(), settings);
+
+			expect(result).toEqual(new Set(["notes/a.md"]));
+		},
+	);
+
+	it.each(["notes", "notes/"])(
+		"scopes all-notes candidates to %s on path boundaries",
+		(vaultPath) => {
+			const markdownFiles = [
+				makeTFile("notes/a.md"),
+				makeTFile("notes/nested/b.md"),
+				makeTFile("notes-old/a.md"),
+				makeTFile("private/a.md"),
+			];
+			const app = makeApp(markdownFiles, markdownFiles);
+
+			const result = collectCandidatePaths(
+				app,
+				makePlugin(),
+				makeSettings({ allNotesPublishableByDefault: true, vaultPath }),
+			);
+
+			expect(result).toEqual(
+				new Set(["notes/a.md", "notes/nested/b.md"]),
+			);
+		},
+	);
+
+	it.each([
+		{ useCanvas: false, useBases: false },
+		{ useCanvas: true, useBases: false },
+		{ useCanvas: false, useBases: true },
+		{ useCanvas: true, useBases: true },
+	])("includes only enabled special types in all-notes mode: %j", (flags) => {
+		const markdownFiles = [makeTFile("notes/a.md")];
+		const allFiles = [
+			...markdownFiles,
+			makeTFile("notes/board.canvas"),
+			makeTFile("notes/table.base"),
+			makeTFile("notes/photo.png"),
+		];
+		const app = makeApp(markdownFiles, allFiles);
+
+		const result = collectCandidatePaths(
+			app,
+			makePlugin(),
+			makeSettings({ allNotesPublishableByDefault: true, ...flags }),
+		);
+
+		const expected = new Set(["notes/a.md"]);
+
+		if (flags.useCanvas) expected.add("notes/board.canvas");
+
+		if (flags.useBases) expected.add("notes/table.base");
+
+		expect(result).toEqual(expected);
+		expect(app.vault.getFiles).toHaveBeenCalledTimes(
+			flags.useCanvas || flags.useBases ? 1 : 0,
+		);
+	});
+
+	it.each([false, true])(
+		"gates both Excalidraw formats in all-notes mode with useExcalidraw=%s",
+		(useExcalidraw) => {
+			const markdownFiles = [
+				makeTFile("notes/a.md"),
+				makeTFile("notes/sketch.excalidraw.md"),
+			];
+			const allFiles = [
+				...markdownFiles,
+				makeTFile("notes/sketch.excalidraw"),
+			];
+			const app = makeApp(markdownFiles, allFiles);
+
+			const result = collectCandidatePaths(
+				app,
+				makePlugin(),
+				makeSettings({
+					allNotesPublishableByDefault: true,
+					useExcalidraw,
+				}),
+			);
+
+			expect(result).toEqual(
+				new Set(
+					useExcalidraw
+						? [
+								"notes/a.md",
+								"notes/sketch.excalidraw.md",
+								"notes/sketch.excalidraw",
+							]
+						: ["notes/a.md"],
+				),
+			);
+			expect(app.vault.getFiles).toHaveBeenCalledTimes(
+				useExcalidraw ? 1 : 0,
+			);
+		},
+	);
+
+	it("scopes ready extended-cache candidates without mutating the index", () => {
+		const indexedPaths = new Set([
+			"notes/a.md",
+			"notes/nested/b.md",
+			"notes-old/a.md",
+			"private/a.md",
+		]);
+		const extCacheApi = {
+			isReady: true,
+			getFilesWithFrontmatterValue: vi.fn().mockReturnValue(indexedPaths),
+			on: vi.fn(),
+			offref: vi.fn(),
+		};
+		const plugin = makePlugin({
+			api: extCacheApi,
+		} as unknown as QuartzSyncer["cacheHandle"]);
+		const app = makeApp();
+
+		const result = collectCandidatePaths(
+			app,
+			plugin,
+			makeSettings({ vaultPath: "notes" }),
+		);
+
+		expect(result).toEqual(new Set(["notes/a.md", "notes/nested/b.md"]));
+		expect(indexedPaths.size).toBe(4);
+		expect(app.vault.getMarkdownFiles).not.toHaveBeenCalled();
+		expect(app.vault.getFiles).not.toHaveBeenCalled();
+	});
+
+	it.each(["missing", "not ready"])(
+		"scopes metadata fallback before cache lookups when extended cache is %s",
+		(cacheState) => {
+			const markdownFiles = [
+				makeTFile("notes/a.md"),
+				makeTFile("notes/draft.md"),
+				makeTFile("notes-old/a.md"),
+				makeTFile("private/a.md"),
+			];
+			const app = makeApp(markdownFiles, markdownFiles, {
+				"notes/a.md": { publish: true },
+				"notes/draft.md": { publish: false },
+				"notes-old/a.md": { publish: true },
+				"private/a.md": { publish: true },
+			});
+			const plugin = makePlugin(
+				cacheState === "missing"
+					? null
+					: ({
+							api: { isReady: false },
+						} as unknown as QuartzSyncer["cacheHandle"]),
+			);
+
+			const result = collectCandidatePaths(
+				app,
+				plugin,
+				makeSettings({ vaultPath: "notes" }),
+			);
+
+			expect(result).toEqual(new Set(["notes/a.md"]));
+			expect(app.metadataCache.getFileCache).toHaveBeenCalledTimes(2);
+			expect(app.metadataCache.getFileCache).not.toHaveBeenCalledWith(
+				markdownFiles[2],
+			);
+			expect(app.metadataCache.getFileCache).not.toHaveBeenCalledWith(
+				markdownFiles[3],
+			);
+		},
+	);
+
+	it.each([false, true])(
+		"scopes enabled special files with allNotesPublishableByDefault=%s",
+		(allNotesPublishableByDefault) => {
+			const allFiles = ["notes", "notes-old", "private"].flatMap(
+				(folder) =>
+					[
+						"board.canvas",
+						"table.base",
+						"sketch.excalidraw",
+						"sketch.excalidraw.md",
+					].map((name) => makeTFile(`${folder}/${name}`)),
+			);
+			const app = makeApp(
+				allFiles.filter((file) => file.extension === "md"),
+				allFiles,
+			);
+
+			const result = collectCandidatePaths(
+				app,
+				makePlugin(),
+				makeSettings({
+					allNotesPublishableByDefault,
+					vaultPath: "notes",
+					useCanvas: true,
+					useBases: true,
+					useExcalidraw: true,
+				}),
+			);
+
+			expect(result).toEqual(
+				new Set([
+					"notes/board.canvas",
+					"notes/table.base",
+					"notes/sketch.excalidraw",
+					"notes/sketch.excalidraw.md",
+				]),
+			);
+			expect(app.vault.getFiles).toHaveBeenCalledTimes(1);
+		},
+	);
 
 	it("returns exactly the paths from extCache.getFilesWithFrontmatterValue when cache is ready", () => {
 		const extCachePaths = new Set(["notes/a.md", "notes/b.md"]);

@@ -131,6 +131,30 @@ export function removeLeadingSlash(path: string): string {
 }
 
 /**
+ * Reports whether a vault-relative path sits inside the configured vault
+ * subfolder.
+ *
+ * A bare `startsWith` check is wrong here: with `vaultPath` set to `notes` it
+ * also matches `notes-old/a.md`. Comparison happens on path boundaries so only
+ * the folder itself and its descendants qualify. Leading slashes are stripped
+ * from both sides first, because `vaultPath` is user-entered and may be written
+ * as `/vault` while `TFile.path` is vault-relative.
+ *
+ * @param path - The path to test.
+ * @param vaultPath - The configured subfolder. `/`, `""`, or `.` mean the whole vault.
+ * @returns True when the path lies within the configured subfolder.
+ */
+export function isWithinVaultPath(path: string, vaultPath: string): boolean {
+	const scope = vaultPath.replace(/^[/.]+|\/+$/g, "");
+
+	if (scope === "") return true;
+
+	const target = path.replace(/^\/+/, "");
+
+	return target === scope || target.startsWith(`${scope}/`);
+}
+
+/**
  * Escapes special characters in a string for use in a regular expression.
  * This is useful to prevent regex injection attacks or unintended matches.
  *

@@ -1,13 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
-import { MetadataCache, TFile, Vault } from "obsidian";
+import { App, MetadataCache, TFile, Vault } from "obsidian";
 import { PublishFile, getSpecialFileType } from "src/publishFile/PublishFile";
 import type QuartzSyncerSettings from "src/models/settings";
-import type { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
-import type { DataStore } from "src/cache/DataStore";
-import { generateBlobHash } from "src/utils/utils";
+import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
+import { DataStore, type QuartzSyncerCache } from "src/cache/DataStore";
+import * as utils from "src/utils/utils";
+import { BackgroundEngine } from "src/services/BackgroundEngine";
+import type QuartzSyncer from "src/main";
+
+vi.mock("src/cache/IndexedDBStore", () => ({
+	createStore: () => ({
+		getItem: vi.fn().mockResolvedValue(null),
+		setItem: vi.fn().mockResolvedValue(undefined),
+	}),
+}));
 
 const baseSettings: QuartzSyncerSettings = {
 	settingsSchemaVersion: 2,
+	publishTarget: "remote",
 	gitRemoteUrl: "",
 	gitBranch: "v4",
 	gitCorsProxyUrl: "",
@@ -88,15 +98,58 @@ function makeCompiler(compiledFile: [string, { blobs: string[] }]) {
 }
 
 function makeDatastore() {
-	return {
-		loadLocalFile: vi.fn().mockResolvedValue(null),
-		isLocalFileOutdated: vi.fn().mockResolvedValue(true),
-		storeLocalFile: vi.fn().mockResolvedValue(undefined),
-		storeLocalHash: vi.fn().mockResolvedValue(undefined),
-	} as unknown as DataStore;
+	return new DataStore("vault", "app", "1.0.0");
 }
 
 describe("PublishFile", () => {
+	it("background compilation persists output, links, and revisions in one write", async () => {
+		const app = new App();
+		const file = makeFile({
+			path: "notes/test.md",
+			name: "test.md",
+			extension: "md",
+		});
+		app.vault.getFileByPath = vi.fn().mockReturnValue(file);
+		app.vault.cachedRead = vi.fn().mockResolvedValue("content");
+		app.metadataCache = makeMetadataCache({ publish: true });
+		const datastore = makeDatastore();
+		const plugin = {
+			settings: baseSettings,
+			dataStore: datastore,
+		} as unknown as QuartzSyncer;
+		const engine = new BackgroundEngine(app, plugin);
+		const compiler = engine["getOrCreateCompiler"]();
+		const generate = vi
+			.spyOn(compiler, "generateMarkdown")
+			.mockResolvedValue(["compiled", { blobs: [] }]);
+		const links = vi
+			.spyOn(compiler, "extractBlobLinks")
+			.mockResolvedValue(["images/a.png"]);
+		const hashSpy = vi.spyOn(utils, "generateBlobHash");
+		try {
+			await engine["compileFile"](
+				file.path,
+				new AbortController().signal,
+			);
+			expect(datastore.persister.getItem).toHaveBeenCalledExactlyOnceWith(
+				"file:notes/test.md",
+			);
+			expect(datastore.persister.setItem).toHaveBeenCalledExactlyOnceWith(
+				"file:notes/test.md",
+				expect.objectContaining({
+					localData: ["compiled", { blobs: [] }],
+					mediaLinks: ["images/a.png"],
+					sourceMtime: 2000,
+				}),
+			);
+			expect(hashSpy).toHaveBeenCalledExactlyOnceWith("compiled");
+		} finally {
+			generate.mockRestore();
+			links.mockRestore();
+			hashSpy.mockRestore();
+		}
+	});
+
 	it("constructs from a TFile and pulls frontmatter", () => {
 		const file = makeFile({
 			path: "notes/test.md",
@@ -368,8 +421,12 @@ describe("PublishFile", () => {
 		];
 		const compiler = makeCompiler(compiledFile);
 		const datastore = makeDatastore();
-		datastore.loadLocalFile = vi.fn().mockResolvedValue(compiledFile);
-		datastore.isLocalFileOutdated = vi.fn().mockResolvedValue(false);
+		vi.mocked(datastore.persister.getItem).mockResolvedValue({
+			version: "1.0.0",
+			sourceMtime: 2000,
+			time: 2000,
+			localData: compiledFile,
+		});
 
 		const publishFile = new PublishFile({
 			file: makeFile({
@@ -390,7 +447,7 @@ describe("PublishFile", () => {
 		expect(compiled.getCompiledFile()).toEqual(compiledFile);
 	});
 
-	it("writes compiled output to cache when outdated", async () => {
+	it("reads and writes once and hashes exactly once when compiling", async () => {
 		const compiledFile: [string, { blobs: string[] }] = [
 			"compiled",
 			{ blobs: [] },
@@ -413,22 +470,166 @@ describe("PublishFile", () => {
 			datastore,
 		});
 
-		await publishFile.compile();
-
-		expect(datastore.storeLocalFile).toHaveBeenCalledWith(
-			"notes/test.md",
-			2000,
-			compiledFile,
-			false,
-			2000,
-		);
-		expect(datastore.storeLocalHash).toHaveBeenCalledWith(
-			"notes/test.md",
-			2000,
-			await generateBlobHash("compiled"),
-			2000,
-		);
+		const expectedHash = await utils.generateBlobHash("compiled");
+		const hashSpy = vi.spyOn(utils, "generateBlobHash");
+		try {
+			await publishFile.compile();
+			expect(hashSpy).toHaveBeenCalledExactlyOnceWith("compiled");
+			expect(datastore.persister.getItem).toHaveBeenCalledExactlyOnceWith(
+				"file:notes/test.md",
+			);
+			expect(datastore.persister.setItem).toHaveBeenCalledExactlyOnceWith(
+				"file:notes/test.md",
+				expect.objectContaining({
+					localData: compiledFile,
+					localHash: expectedHash,
+					hasDynamicContent: false,
+					sourceMtime: 2000,
+					time: 2000,
+				}),
+			);
+		} finally {
+			hashSpy.mockRestore();
+		}
 	});
+
+	it.each([
+		{
+			version: "old",
+			mtime: 2000,
+			dynamic: false,
+			trust: false,
+			hit: false,
+		},
+		{
+			version: "1.0.0",
+			mtime: 1000,
+			dynamic: false,
+			trust: false,
+			hit: false,
+		},
+		{
+			version: "1.0.0",
+			mtime: 2000,
+			dynamic: true,
+			trust: false,
+			hit: false,
+		},
+		{
+			version: "1.0.0",
+			mtime: 2000,
+			dynamic: true,
+			trust: true,
+			hit: true,
+		},
+		{ version: "old", mtime: 2000, dynamic: true, trust: true, hit: false },
+	])(
+		"preserves cache validation: %j",
+		async ({ version, mtime, dynamic, trust, hit }) => {
+			const datastore = makeDatastore();
+			vi.mocked(datastore.persister.getItem).mockResolvedValue({
+				version,
+				sourceMtime: mtime,
+				hasDynamicContent: dynamic,
+				localData: ["cached", { blobs: [] }],
+			});
+			const compiler = makeCompiler(["compiled", { blobs: [] }]);
+			const vault = new Vault();
+			vault.cachedRead = vi.fn().mockResolvedValue("content");
+			const publishFile = new PublishFile({
+				file: makeFile({
+					path: "note.md",
+					name: "note.md",
+					extension: "md",
+				}),
+				compiler,
+				metadataCache: makeMetadataCache(),
+				vault,
+				settings: baseSettings,
+				datastore,
+			});
+			const hashSpy = vi.spyOn(utils, "generateBlobHash");
+			try {
+				const result = await publishFile.compile(trust);
+				expect(result.getCompiledFile()[0]).toBe(
+					hit ? "cached" : "compiled",
+				);
+				expect(hashSpy).toHaveBeenCalledTimes(hit ? 0 : 1);
+				expect(datastore.persister.getItem).toHaveBeenCalledTimes(1);
+				expect(datastore.persister.setItem).toHaveBeenCalledTimes(
+					hit ? 0 : 1,
+				);
+			} finally {
+				hashSpy.mockRestore();
+			}
+		},
+	);
+
+	it.each([false, true])(
+		"consolidates background metadata and rejects mtime changes: %s",
+		async (changeMtime) => {
+			const datastore = makeDatastore();
+			const file = makeFile({
+				path: "notes/test.md",
+				name: "test.md",
+				extension: "md",
+			});
+			const vault = new Vault();
+			vault.cachedRead = vi
+				.fn()
+				.mockResolvedValue("```dataview\nLIST\n```");
+			const cached: QuartzSyncerCache = {
+				version: "1.0.0",
+				time: 1000,
+				sourceMtime: 1000,
+				remoteHash: "remote",
+				datacoreRevision: 7,
+			};
+			const publishFile = new PublishFile({
+				file,
+				compiler: makeCompiler(["compiled", { blobs: [] }]),
+				metadataCache: makeMetadataCache(),
+				vault,
+				settings: baseSettings,
+				datastore,
+			});
+			const hashSpy = vi.spyOn(utils, "generateBlobHash");
+			try {
+				await publishFile.compile(false, {
+					cachedEntry: cached,
+					getMetadata: () => {
+						if (changeMtime) file.stat.mtime = 3000;
+						return Promise.resolve({
+							mediaLinks: [],
+							dataviewRevision: 42,
+						});
+					},
+				});
+				expect(hashSpy).toHaveBeenCalledExactlyOnceWith("compiled");
+				expect(datastore.persister.getItem).not.toHaveBeenCalled();
+				if (changeMtime) {
+					expect(datastore.persister.setItem).not.toHaveBeenCalled();
+				} else {
+					expect(
+						datastore.persister.setItem,
+					).toHaveBeenCalledExactlyOnceWith(
+						"file:notes/test.md",
+						expect.objectContaining({
+							localData: ["compiled", { blobs: [] }],
+							mediaLinks: [],
+							dataviewRevision: 42,
+							datacoreRevision: 7,
+							remoteHash: "remote",
+							sourceMtime: 2000,
+							hasDynamicContent: true,
+						}),
+					);
+				}
+			} finally {
+				hashSpy.mockRestore();
+			}
+		},
+	);
 
 	it("extracts blob links from compiler", async () => {
 		const compiler = makeCompiler(["content", { blobs: [] }]);

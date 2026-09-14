@@ -3,6 +3,7 @@ import type QuartzSyncer from "src/main";
 import QuartzSyncerSettings from "src/models/settings";
 import { getSpecialFileType } from "src/publishFile/PublishFile";
 import { hasPublishFlag } from "src/publishFile/Validator";
+import { isWithinVaultPath } from "src/utils/utils";
 
 function isEnabledSpecialFile(
 	file: TFile,
@@ -24,8 +25,11 @@ function collectFromMetadataCache(
 	settings: QuartzSyncerSettings,
 ): Set<string> {
 	const paths = new Set<string>();
+	const vaultPath = settings.vaultPath ?? "/";
 
 	for (const file of app.vault.getMarkdownFiles()) {
+		if (!isWithinVaultPath(file.path, vaultPath)) continue;
+
 		const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
 
 		if (hasPublishFlag(settings.publishFrontmatterKey, frontmatter)) {
@@ -37,15 +41,18 @@ function collectFromMetadataCache(
 }
 
 /**
- * Resolve the vault paths worth considering for publishing.
+ * Resolve the paths within the configured vault subfolder worth considering
+ * for publishing.
  *
- * Prefers the extended metadata cache's inverse frontmatter index. When that
- * index is not ready, this falls back to Obsidian's own metadata cache rather
- * than promoting every vault file to a candidate, which on large vaults turned
- * a 331-note lookup into a 28,000-file scan.
+ * When all notes are publishable by default, includes regular markdown files,
+ * not binary attachments. Otherwise, prefers the extended metadata cache's
+ * inverse frontmatter index for explicitly marked files, falling back to
+ * Obsidian's own metadata cache when that index is not ready.
  *
- * The full-vault walk needed to find `.base`/`.canvas`/`.excalidraw` files runs
- * only when at least one of those file types is enabled.
+ * Both modes also include enabled special files. The full-vault walk needed
+ * to find `.base`/`.canvas`/`.excalidraw` files runs only when at least one of
+ * those types is enabled. In all-notes mode, `.excalidraw.md` files are special
+ * files, not regular markdown, so they require `useExcalidraw`.
  *
  * @param app - The Obsidian app instance.
  * @param plugin - The plugin instance, used to reach the extended metadata cache.
@@ -57,27 +64,44 @@ export function collectCandidatePaths(
 	plugin: QuartzSyncer,
 	settings: QuartzSyncerSettings,
 ): Set<string> {
+	let paths: Set<string>;
+	const vaultPath = settings.vaultPath ?? "/";
+
 	if (settings.allNotesPublishableByDefault) {
-		return new Set(app.vault.getFiles().map((file) => file.path));
+		paths = new Set(
+			app.vault
+				.getMarkdownFiles()
+				.filter(
+					(file) =>
+						isWithinVaultPath(file.path, vaultPath) &&
+						getSpecialFileType(file) === null,
+				)
+				.map((file) => file.path),
+		);
+	} else {
+		const extCache = plugin.cacheHandle?.api;
+
+		paths = extCache?.isReady
+			? new Set(
+					Array.from(
+						extCache.getFilesWithFrontmatterValue(
+							settings.publishFrontmatterKey,
+							true,
+						),
+					).filter((path) => isWithinVaultPath(path, vaultPath)),
+				)
+			: collectFromMetadataCache(app, settings);
 	}
-
-	const extCache = plugin.cacheHandle?.api;
-
-	const paths = extCache?.isReady
-		? new Set(
-				extCache.getFilesWithFrontmatterValue(
-					settings.publishFrontmatterKey,
-					true,
-				),
-			)
-		: collectFromMetadataCache(app, settings);
 
 	const specialTypesEnabled =
 		settings.useBases || settings.useCanvas || settings.useExcalidraw;
 
 	if (specialTypesEnabled) {
 		for (const file of app.vault.getFiles()) {
-			if (isEnabledSpecialFile(file, settings)) {
+			if (
+				isWithinVaultPath(file.path, vaultPath) &&
+				isEnabledSpecialFile(file, settings)
+			) {
 				paths.add(file.path);
 			}
 		}

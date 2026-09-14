@@ -17,5 +17,5 @@
 		"esModuleInterop": true,
 		"lib": ["ES2024", "DOM"]
 	},
-	"include": ["src/**/*.ts"]
+	"include": ["src/**/*.ts", "test/bench/**/*.ts"]
 }

@@ -27,10 +27,16 @@ export interface PublishStatus {
 	mediaLinks?: Map<string, string[]>;
 }
 
+export interface PublishFailure {
+	vaultPath: string;
+	error: string;
+}
+
 export interface PublishResult {
 	success: boolean;
 	commitSha?: string;
 	filesPublished: number;
 	filesDeleted: number;
 	error?: string;
+	failures?: PublishFailure[];
 }

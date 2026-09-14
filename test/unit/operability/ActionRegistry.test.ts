@@ -13,7 +13,11 @@ import type { PublishStatus } from "src/publisher/types";
 import type { GitRunner } from "src/process/runners/GitRunner";
 import type { NpmRunner } from "src/process/runners/NpmRunner";
 import { setPlatform } from "../__mocks__/obsidian";
-import { it } from "vitest";
+import { describe, it } from "vitest";
+import * as GitBackendFactory from "src/git/GitBackendFactory";
+import type { GitBackend } from "src/git/types";
+import * as externalFs from "src/utils/external-fs";
+import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 
 type PluginManager = {
 	disablePlugin?: (id: string) => Promise<void>;
@@ -36,7 +40,10 @@ function makeStatus(): PublishStatus {
 function makePendingStatus(): PublishStatus {
 	// The registry forwards these file objects; it does not compile them.
 	const file = (path: string) =>
-		({ file: { path } }) as unknown as PublishFile;
+		({
+			file: { path },
+			getVaultPath: () => path,
+		}) as unknown as PublishFile;
 	return {
 		unpublished: [file("New.md")],
 		changed: [file("Changed.md"), file("Also changed.md")],
@@ -151,6 +158,7 @@ function makeFixture(plugin = makePlugin({ status: makePendingStatus() })) {
 }
 
 const lockedActions: Action[] = [
+	{ name: "pub.unpublish", params: { paths: ["Synced.md"], confirm: true } },
 	{ name: "cache.pruneForeign", params: { confirm: true } },
 	{ name: "status.refresh" },
 	{ name: "connection.test" },
@@ -163,6 +171,7 @@ const lockedActions: Action[] = [
 ];
 
 const destructiveActions: Action[] = [
+	{ name: "pub.unpublish", params: { paths: ["Synced.md"], confirm: true } },
 	{ name: "cache.pruneForeign", params: { confirm: true } },
 	{ name: "pub.publish", params: { confirm: true } },
 	{ name: "pub.delete", params: { confirm: true } },
@@ -179,6 +188,265 @@ const destructiveActions: Action[] = [
 ];
 
 describe("ActionRegistry", () => {
+	describe("pub.unpublish", () => {
+		it("deletes only explicit published paths, deduplicated, using current status", async () => {
+			const f = makeFixture(makePlugin());
+			f.service.getStatus.mockResolvedValue(makePendingStatus());
+			const result = await f.registry.dispatch({
+				name: "pub.unpublish",
+				params: { paths: ["Synced.md", "Synced.md"], confirm: true },
+			});
+			expect(f.service.getStatus).toHaveBeenCalledOnce();
+			expect(f.service.delete).toHaveBeenCalledExactlyOnceWith([
+				"Synced.md",
+			]);
+			expect(result).toMatchObject({
+				success: true,
+				data: { files: ["Synced.md"], filesDeleted: 1 },
+			});
+		});
+
+		it.each(["Missing.md", "Removed.md", "New.md", "Changed.md", "*.md"])(
+			"rejects the entire request when a path is not published: %s",
+			async (path) => {
+				const f = makeFixture();
+				f.service.getStatus.mockResolvedValue(makePendingStatus());
+				const result = await f.registry.dispatch({
+					name: "pub.unpublish",
+					params: { paths: ["Synced.md", path], confirm: true },
+				});
+				expect(result).toMatchObject({
+					success: false,
+					data: { unmatched: [path] },
+				});
+				expect(f.service.delete).not.toHaveBeenCalled();
+			},
+		);
+
+		it("rejects a cached published path that is no longer published", async () => {
+			const f = makeFixture();
+			const result = await f.registry.dispatch({
+				name: "pub.unpublish",
+				params: { paths: ["Synced.md"], confirm: true },
+			});
+			expect(result.success).toBe(false);
+			expect(f.service.delete).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			{ paths: undefined },
+			{ paths: [] },
+			{ paths: [""] },
+			{ paths: [" "] },
+			{ paths: [42] },
+			{ paths: "Synced.md" },
+		])(
+			"rejects invalid paths before reading status: %j",
+			async ({ paths }) => {
+				const f = makeFixture();
+				const result = await f.registry.dispatch({
+					name: "pub.unpublish",
+					params: { paths, confirm: true },
+				} as unknown as Action);
+				expect(result.success).toBe(false);
+				expect(f.service.getStatus).not.toHaveBeenCalled();
+				expect(f.service.delete).not.toHaveBeenCalled();
+			},
+		);
+
+		it("returns a structured error when no publisher is available", async () => {
+			const f = makeFixture();
+			f.getPublicationService.mockReturnValue(null);
+			expect(
+				await f.registry.dispatch({
+					name: "pub.unpublish",
+					params: { paths: ["Synced.md"], confirm: true },
+				}),
+			).toEqual({ success: false, error: "Publisher not available" });
+		});
+
+		it("returns status errors without deleting", async () => {
+			const f = makeFixture();
+			f.service.getStatus.mockRejectedValue(new Error("Status failed"));
+			expect(
+				await f.registry.dispatch({
+					name: "pub.unpublish",
+					params: { paths: ["Synced.md"], confirm: true },
+				}),
+			).toEqual({ success: false, error: "Status failed" });
+			expect(f.service.delete).not.toHaveBeenCalled();
+		});
+
+		it("reports deletion failure", async () => {
+			const f = makeFixture();
+			f.service.getStatus.mockResolvedValue(makePendingStatus());
+			f.service.delete.mockResolvedValue({
+				success: false,
+				filesPublished: 0,
+				filesDeleted: 0,
+				error: "Backend failed",
+			});
+			expect(
+				await f.registry.dispatch({
+					name: "pub.unpublish",
+					params: { paths: ["Synced.md"], confirm: true },
+				}),
+			).toMatchObject({ success: false, error: "Backend failed" });
+		});
+	});
+
+	describe("connection.test", () => {
+		afterEach(() => vi.restoreAllMocks());
+
+		function fixture() {
+			const { plugin, registry } = makeFixture();
+			plugin.settings.gitRemoteUrl = "https://example.com/quartz.git";
+			plugin.settings.quartzRepoPath = "/tmp/quartz";
+			plugin.getGitSettingsWithSecret = vi.fn(() => ({
+				remoteUrl: plugin.settings.gitRemoteUrl,
+				branch: plugin.settings.gitBranch,
+				auth: { type: "none" as const },
+			}));
+			const remoteResult = {
+				ok: true,
+				readAccess: true,
+				writeAccess: true,
+			};
+			const testConnection = vi
+				.fn<GitBackend["testConnection"]>()
+				.mockResolvedValue(remoteResult);
+			const createBackend = vi
+				.spyOn(GitBackendFactory, "createGitBackend")
+				.mockReturnValue({ testConnection } as unknown as GitBackend);
+			const exists = vi
+				.spyOn(externalFs, "externalFileExists")
+				.mockResolvedValue(true);
+			vi.spyOn(externalFs, "externalIsDirectorySync").mockReturnValue(
+				true,
+			);
+			vi.spyOn(
+				QuartzVersionDetector,
+				"detectQuartzVersion",
+			).mockResolvedValue("v5-yaml");
+			return {
+				plugin,
+				registry,
+				remoteResult,
+				testConnection,
+				createBackend,
+				exists,
+			};
+		}
+
+		it("tests remote when selected even with a local management checkout", async () => {
+			const f = fixture();
+			f.plugin.settings.publishTarget = "remote";
+			await expect(
+				f.registry.dispatch({ name: "connection.test" }),
+			).resolves.toEqual({ success: true, data: f.remoteResult });
+			expect(f.createBackend).toHaveBeenCalledExactlyOnceWith(
+				{
+					remoteUrl: f.plugin.settings.gitRemoteUrl,
+					branch: f.plugin.settings.gitBranch,
+					corsProxyUrl: undefined,
+					auth: { type: "none" },
+				},
+				f.plugin.app,
+			);
+			expect(f.testConnection).toHaveBeenCalledTimes(1);
+			expect(f.exists).not.toHaveBeenCalled();
+		});
+
+		it("tests local when selected even with a remote configured", async () => {
+			const f = fixture();
+			f.plugin.settings.publishTarget = "local";
+			await expect(
+				f.registry.dispatch({ name: "connection.test" }),
+			).resolves.toMatchObject({
+				success: true,
+				data: { mode: "local", path: "/tmp/quartz" },
+			});
+			expect(f.exists).toHaveBeenCalledWith("/tmp/quartz");
+			expect(f.createBackend).not.toHaveBeenCalled();
+			expect(f.testConnection).not.toHaveBeenCalled();
+			expect(f.plugin.getGitSettingsWithSecret).not.toHaveBeenCalled();
+		});
+
+		it("tests the effective remote destination for local-on-mobile", async () => {
+			setPlatform({ isDesktopApp: false, isMobileApp: true });
+			const f = fixture();
+			f.plugin.settings.publishTarget = "local";
+			await expect(
+				f.registry.dispatch({ name: "connection.test" }),
+			).resolves.toEqual({ success: true, data: f.remoteResult });
+			expect(f.testConnection).toHaveBeenCalledTimes(1);
+			expect(f.exists).not.toHaveBeenCalled();
+			expect(f.plugin.settings.publishTarget).toBe("local");
+			expect(f.plugin.settings.quartzRepoPath).toBe("/tmp/quartz");
+		});
+
+		it.each([
+			{
+				name: "remote missing despite a local checkout",
+				publishTarget: "remote",
+				gitRemoteUrl: "",
+				quartzRepoPath: "/tmp/quartz",
+				mobile: false,
+			},
+			{
+				name: "local missing despite a configured remote",
+				publishTarget: "local",
+				gitRemoteUrl: "https://example.com/quartz.git",
+				quartzRepoPath: "",
+				mobile: false,
+			},
+			{
+				name: "neither destination configured",
+				publishTarget: "remote",
+				gitRemoteUrl: "",
+				quartzRepoPath: "",
+				mobile: false,
+			},
+			{
+				name: "local on mobile without a remote",
+				publishTarget: "local",
+				gitRemoteUrl: "",
+				quartzRepoPath: "/tmp/quartz",
+				mobile: true,
+			},
+			{
+				name: "local missing on mobile despite a configured remote",
+				publishTarget: "local",
+				gitRemoteUrl: "https://example.com/quartz.git",
+				quartzRepoPath: "",
+				mobile: true,
+			},
+		] as const)(
+			"fails without testing either destination when $name",
+			async ({ publishTarget, gitRemoteUrl, quartzRepoPath, mobile }) => {
+				setPlatform({ isDesktopApp: !mobile, isMobileApp: mobile });
+				const f = fixture();
+				Object.assign(f.plugin.settings, {
+					publishTarget,
+					gitRemoteUrl,
+					quartzRepoPath,
+				});
+				await expect(
+					f.registry.dispatch({ name: "connection.test" }),
+				).resolves.toEqual({
+					success: false,
+					error: "Repository not configured",
+				});
+				expect(f.createBackend).not.toHaveBeenCalled();
+				expect(f.testConnection).not.toHaveBeenCalled();
+				expect(f.exists).not.toHaveBeenCalled();
+				expect(
+					f.plugin.getGitSettingsWithSecret,
+				).not.toHaveBeenCalled();
+			},
+		);
+	});
+
 	describe("cache.pruneForeign", () => {
 		function fixture() {
 			const fixture = makeFixture();

@@ -16,6 +16,7 @@ import { getValueByPath, setValueByPath } from "src/cli/handlers/cliUtils";
 import type { PublicationCenterManager } from "src/operability/PublicationCenterManager";
 import type { QuartzHubManager } from "src/operability/QuartzHubManager";
 import { validateAction } from "./ActionValidation";
+import { resolvePublishTarget } from "src/publisher/PublishTargetResolver";
 
 type PublishStatusSummary = {
 	unpublished: number;
@@ -97,6 +98,10 @@ export class ActionRegistry {
 			case "pub.delete":
 				return this.withLock(() =>
 					this.deletePending(action.params.confirm),
+				);
+			case "pub.unpublish":
+				return this.withLock(() =>
+					this.unpublishPaths(action.params.paths),
 				);
 			case "cache.pruneForeign":
 				return this.withLock(() =>
@@ -266,6 +271,43 @@ export class ActionRegistry {
 			return {
 				success: result.success,
 				data: result,
+				error: result.success
+					? undefined
+					: (result.error ?? "Delete failed"),
+			};
+		} catch (error) {
+			return { success: false, error: toErrorMessage(error) };
+		}
+	}
+
+	private async unpublishPaths(
+		requestedPaths: string[],
+	): Promise<ActionResult> {
+		const service = this.getPublicationService();
+		if (!service) {
+			return { success: false, error: "Publisher not available" };
+		}
+
+		try {
+			// Resolve eligibility against current status, not a stale cached selection.
+			const paths = [...new Set(requestedPaths)];
+			const status = await service.getStatus();
+			const published = new Set(
+				status.published.map((file) => file.getVaultPath()),
+			);
+			const unmatched = paths.filter((path) => !published.has(path));
+			if (unmatched.length > 0) {
+				return {
+					success: false,
+					error: "All paths must exactly match currently published notes. Nothing was deleted.",
+					data: { unmatched },
+				};
+			}
+
+			const result = await service.delete(paths);
+			return {
+				success: result.success,
+				data: { ...result, files: paths },
 				error: result.success
 					? undefined
 					: (result.error ?? "Delete failed"),
@@ -488,11 +530,12 @@ export class ActionRegistry {
 	}
 
 	private async testConnection(): Promise<ActionResult> {
-		if (this.plugin.settings.quartzRepoPath) {
+		const target = resolvePublishTarget(this.plugin.settings);
+		if (target.effective === "local") {
 			return this.testLocalConnection();
 		}
 
-		if (!this.plugin.settings.gitRemoteUrl) {
+		if (target.effective === null) {
 			return { success: false, error: "Repository not configured" };
 		}
 

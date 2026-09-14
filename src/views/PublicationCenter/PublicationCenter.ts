@@ -14,6 +14,7 @@ import type { StatusSnapshot } from "src/services/StatusCacheService";
 import type {
 	ArbitraryFileEntry,
 	MediaEntry,
+	PublishFailure,
 	PublishStatus,
 } from "src/publisher/types";
 import { isMediaFile, isTextMediaFile } from "src/utils/mediaTypes";
@@ -1123,6 +1124,9 @@ export class PublicationCenter extends Modal {
 			...this.status.changed,
 		].filter((file) => publishPaths.has(file.getVaultPath()));
 
+		let publishedCount = 0;
+		let skipped: PublishFailure[] = [];
+
 		try {
 			if (publishFiles.length > 0) {
 				const result = await publisher.publishBatch(
@@ -1144,6 +1148,8 @@ export class PublicationCenter extends Modal {
 					);
 					return;
 				}
+				publishedCount = result.filesPublished;
+				skipped = result.failures ?? [];
 				this.progressState = {
 					current: publishable.length,
 					total: publishable.length + arbitrarySelected.length,
@@ -1192,6 +1198,7 @@ export class PublicationCenter extends Modal {
 					);
 					return;
 				}
+				publishedCount += arbitrarySelected.length;
 				this.progressState = {
 					current: publishable.length + arbitrarySelected.length,
 					total: publishable.length + arbitrarySelected.length,
@@ -1199,9 +1206,22 @@ export class PublicationCenter extends Modal {
 				this.updateProgress();
 			}
 
-			const totalPublished =
-				publishable.length + arbitrarySelected.length;
-			new Notice(`Published ${totalPublished} file(s).`);
+			if (skipped.length > 0) {
+				for (const failure of skipped) {
+					console.error(
+						`Quartz Syncer: skipped "${failure.vaultPath}": ${failure.error}`,
+					);
+				}
+
+				new Notice(
+					`Published ${publishedCount} file(s). Skipped ${skipped.length}: ${skipped
+						.map((failure) => failure.vaultPath)
+						.join(", ")}. See console for details.`,
+					10000,
+				);
+			} else {
+				new Notice(`Published ${publishedCount} file(s).`);
+			}
 			await this.loadStatus();
 		} catch (error) {
 			const message =

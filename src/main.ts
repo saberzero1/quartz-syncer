@@ -18,7 +18,7 @@ import {
 } from "src/views/MigrationNotice";
 import { registerCliHandlers } from "src/cli/registerCliHandlers";
 import type { CliHandler } from "src/cli/types";
-import { DataStore } from "src/cache/DataStore";
+import { DataStore, DATA_STORE_CACHE_VERSION } from "src/cache/DataStore";
 import { Publisher } from "src/publisher/Publisher";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import { LocalPublishBackend } from "src/publisher/LocalPublishBackend";
@@ -243,7 +243,7 @@ export default class QuartzSyncer extends Plugin {
 		this.dataStore = new DataStore(
 			this.app.appId,
 			this.manifest.id,
-			this.appVersion,
+			`${this.appVersion}-${DATA_STORE_CACHE_VERSION}`,
 			this.app.vault.getName(),
 		);
 

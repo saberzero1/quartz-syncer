@@ -1,15 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { App, getIcon } from "obsidian";
+import {
+	App,
+	arrayBufferToBase64,
+	base64ToArrayBuffer,
+	getIcon,
+	Platform,
+	type TFile,
+} from "obsidian";
+import { createHash } from "node:crypto";
 import { Publisher } from "src/publisher/Publisher";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
-import type { GitBackend } from "src/git/types";
-import type { PublishFile } from "src/publishFile/PublishFile";
+import type { GitBackend, TreeEntry } from "src/git/types";
+import { PublishFile } from "src/publishFile/PublishFile";
 import type QuartzSyncerSettings from "src/models/settings";
 import type QuartzSyncer from "src/main";
-import type { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
-import type { DataStore } from "src/cache/DataStore";
+import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
+import { DataStore, type QuartzSyncerCache } from "src/cache/DataStore";
 import { AssetSyncer, type AssetSyncResult } from "src/compiler/integrations/AssetSyncer";
-import { resolveLinkedMedia } from "src/publisher/MediaLinkResolver";
+import { generateBlobHash } from "src/utils/utils";
+import {
+	flattenLinkedMedia,
+	resolveLinkedMedia,
+	resolveLinkedMediaByFile,
+} from "src/publisher/MediaLinkResolver";
 import { integrationRegistry } from "src/compiler/integrations/registry";
 
 const resolveLinkedMediaMock = vi.hoisted(() => vi.fn());
@@ -21,6 +34,8 @@ vi.mock("src/cli/handlers/cliUtils", () => ({
 vi.mock("src/compiler/integrations/registry", () => ({
 	integrationRegistry: {
 		getCollectedAssets: vi.fn().mockReturnValue(new Map()),
+		register: vi.fn(),
+		getEnabled: vi.fn().mockReturnValue([]),
 	},
 }));
 
@@ -33,21 +48,14 @@ vi.mock("src/publisher/MediaLinkResolver", async (importOriginal) => {
 	return {
 		...actual,
 		resolveLinkedMedia: resolveLinkedMediaMock,
-		resolveLinkedMediaByFile: vi.fn(async (files: unknown) => {
-			const links = (await resolveLinkedMediaMock(files)) as
-				| Set<string>
-				| undefined;
-
-			return links && links.size > 0
-				? new Map([["__mocked__", [...links]]])
-				: new Map<string, string[]>();
-		}),
+		resolveLinkedMediaByFile: vi.fn(actual.resolveLinkedMediaByFile),
 	};
 });
 const makeSettings = (
 	overrides: Partial<QuartzSyncerSettings> = {},
 ): QuartzSyncerSettings => ({
 	settingsSchemaVersion: 2,
+	publishTarget: "remote",
 	gitRemoteUrl: "",
 	gitBranch: "main",
 	gitCorsProxyUrl: "",
@@ -97,6 +105,7 @@ const makeSettings = (
 	remoteFetchInterval: 60,
 	quartzRepoPath: "",
 	enableSystemCommands: false,
+	ignoredFolders: [],
 	...overrides,
 });
 
@@ -146,7 +155,7 @@ const makePublishFile = (path: string): PublishFile =>
 describe("Publisher", () => {
 	beforeEach(() => {
 		vi.mocked(resolveLinkedMedia).mockResolvedValue(new Set());
-		vi.mocked(getIcon).mockClear();
+		vi.mocked(resolveLinkedMediaByFile).mockClear();  // TODO: use obsidian's getIcon if this fails
 	});
 
 	it("publishBatch calls writeFiles with compiled content", async () => {
@@ -160,7 +169,7 @@ describe("Publisher", () => {
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
-			storeRemoteHash: vi.fn(),
+			storeRemoteHashes: vi.fn(),
 		} as unknown as DataStore;
 
 		const backend = new RemotePublishBackend(gitBackend, "main");
@@ -454,7 +463,7 @@ describe("Publisher", () => {
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
-			storeRemoteHash: vi.fn(),
+			storeRemoteHashes: vi.fn(),
 		} as unknown as DataStore;
 
 		const backend = new RemotePublishBackend(gitBackend, "main");
@@ -468,10 +477,10 @@ describe("Publisher", () => {
 
 		await publisher.publishBatch([makePublishFile("notes/a.md")]);
 
-		expect(dataStore.storeRemoteHash).not.toHaveBeenCalled();
+		expect(dataStore.storeRemoteHashes).not.toHaveBeenCalled();
 	});
 
-	it("publishBatch stores remote hash only after successful writeFiles", async () => {
+	it("publishBatch stores remote hashes in one batch after successful writeFiles", async () => {
 		const app = new App();
 		const settings = makeSettings();
 		const plugin = makePlugin(settings);
@@ -484,7 +493,7 @@ describe("Publisher", () => {
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
-			storeRemoteHash: vi.fn(),
+			storeRemoteHashes: vi.fn(),
 		} as unknown as DataStore;
 		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(1234);
 
@@ -497,17 +506,19 @@ describe("Publisher", () => {
 			dataStore,
 		);
 
-		await publisher.publishBatch([makePublishFile("notes/a.md")]);
+		await publisher.publishBatch([
+			makePublishFile("notes/a.md"),
+			makePublishFile("notes/b.md"),
+		]);
 
-		expect(dataStore.storeRemoteHash).toHaveBeenCalledWith(
-			"notes/a.md",
-			1234,
-			"sha-1",
-		);
+		expect(dataStore.storeRemoteHashes).toHaveBeenCalledExactlyOnceWith([
+			{ path: "notes/a.md", timestamp: 1234, hash: "sha-1" },
+			{ path: "notes/b.md", timestamp: 1234, hash: "sha-1" },
+		]);
 
 		const writeOrder = vi.mocked(gitBackend.writeFiles).mock
 			.invocationCallOrder[0]!;
-		const storeOrder = vi.mocked(dataStore.storeRemoteHash).mock
+		const storeOrder = vi.mocked(dataStore.storeRemoteHashes).mock
 			.invocationCallOrder[0]!;
 		expect(writeOrder).toBeLessThan(storeOrder);
 
@@ -525,7 +536,7 @@ describe("Publisher", () => {
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
-			storeRemoteHash: vi.fn(),
+			storeRemoteHashes: vi.fn(),
 		} as unknown as DataStore;
 
 		const backend = new RemotePublishBackend(gitBackend, "main");
@@ -553,7 +564,7 @@ describe("Publisher", () => {
 		const dataStore = {
 			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
 			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
-			storeRemoteHash: vi.fn(),
+			storeRemoteHashes: vi.fn(),
 		} as unknown as DataStore;
 
 		const backend = new RemotePublishBackend(gitBackend, "main");
@@ -570,6 +581,645 @@ describe("Publisher", () => {
 		expect(plugin.statusCache.patchPublished).toHaveBeenCalledWith(
 			new Set(["notes/a.md"]),
 		);
+	});
+
+	describe("publishBatch media staging", () => {
+		// Five bytes exercise base64 padding, NUL, and non-UTF-8 binary data.
+		const bytes = new Uint8Array([0, 128, 255, 13, 10]);
+		const content = arrayBufferToBase64(bytes.buffer);
+		const sha = createHash("sha1")
+			.update(Buffer.from(`blob ${bytes.byteLength}\0`))
+			.update(Buffer.from(bytes))
+			.digest("hex");
+		const asset = {
+			path: "/vault/images/photo.png",
+			vaultPath: "/vault/images/photo.png",
+		};
+		const assetChange = {
+			path: "site/images/photo.png",
+			content,
+			encoding: "base64",
+		};
+		const remoteAsset: TreeEntry = {
+			path: assetChange.path,
+			sha,
+			type: "blob",
+		};
+
+		const setup = async (tree?: TreeEntry[]) => {
+			const gitBackend = makeGitBackend({
+				readTree: vi.fn().mockResolvedValue(tree ?? []),
+			});
+			const backend = new RemotePublishBackend(gitBackend, "main");
+			if (tree) await backend.refreshTreeCache();
+			vi.mocked(gitBackend.readTree).mockClear();
+			const dataStore = {
+				loadLocalFile: vi
+					.fn()
+					.mockResolvedValue(["hello", { blobs: [asset] }]),
+				loadLocalHash: vi.fn().mockResolvedValue(null),
+				storeRemoteHashes: vi.fn(),
+				loadAssetShas: vi.fn().mockResolvedValue(new Map()),
+				storeAssetShas: vi.fn(),
+			} as unknown as DataStore;
+			const app = new App();
+			const source = {
+				path: asset.vaultPath,
+				extension: "png",
+				stat: { mtime: 1000 },
+			} as TFile;
+			vi.spyOn(app.vault, "getFileByPath").mockReturnValue(source);
+			vi.spyOn(app.vault, "readBinary").mockResolvedValue(bytes.buffer);
+			const settings = makeSettings({
+				vaultPath: "/vault/",
+				contentFolder: "site",
+			});
+			const compiler = new SyncerPageCompiler(
+				app,
+				app.vault,
+				settings,
+				app.metadataCache,
+				dataStore,
+			);
+			const publisher = new Publisher(
+				app,
+				makePlugin(settings),
+				backend,
+				compiler,
+				dataStore,
+			);
+			return {
+				publisher,
+				backend,
+				gitBackend,
+				dataStore,
+				app,
+				source,
+				settings,
+				compiler,
+			};
+		};
+
+		it("round-trips padded base64 into bytes with the Git blob SHA, not the base64 text SHA", async () => {
+			expect(content).toBe("AID/DQo=");
+			const decoded = new Uint8Array(base64ToArrayBuffer(content));
+			expect(decoded).toEqual(bytes);
+			expect(await generateBlobHash(decoded)).toBe(sha);
+			expect(await generateBlobHash(content)).not.toBe(sha);
+		});
+
+		it("skips identical media using the staged repo path and keeps note writes", async () => {
+			const { publisher, backend, gitBackend } = await setup([
+				remoteAsset,
+			]);
+			const cachedTree = vi.spyOn(backend, "getCachedTree");
+			const result = await publisher.publishBatch([
+				makePublishFile("notes/a.md"),
+			]);
+			expect(result.success).toBe(true);
+			expect(cachedTree).toHaveBeenCalledExactlyOnceWith("main", true);
+			expect(gitBackend.writeFiles).toHaveBeenCalledExactlyOnceWith(
+				"main",
+				"Publish notes",
+				[
+					{
+						path: "site/notes/a.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+				],
+			);
+			// Only the existing post-write refresh reads the remote tree.
+			expect(gitBackend.readTree).toHaveBeenCalledTimes(1);
+			expect(
+				vi.mocked(gitBackend.writeFiles).mock.invocationCallOrder[0],
+			).toBeLessThan(
+				vi.mocked(gitBackend.readTree).mock.invocationCallOrder[0]!,
+			);
+		});
+
+		it("uses the full index even for paths outside the content index", async () => {
+			const { publisher, gitBackend } = await setup([remoteAsset]);
+			vi.spyOn(
+				publisher.getPathMapper(),
+				"isInContentFolder",
+			).mockReturnValue(false);
+			await publisher.publishBatch([makePublishFile("notes/a.md")]);
+			expect(
+				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+			).toHaveLength(1);
+		});
+
+		it.each([
+			["different bytes", [{ ...remoteAsset, sha: "different-sha" }]],
+			["absent media", []],
+			[
+				"matching SHA at a different path",
+				[{ ...remoteAsset, path: "site/other.png" }],
+			],
+		])("stages media for %s", async (_label, tree) => {
+			const { publisher, gitBackend } = await setup(tree);
+			await publisher.publishBatch([makePublishFile("notes/a.md")]);
+			expect(vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2]).toEqual(
+				[
+					{
+						path: "site/notes/a.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+					assetChange,
+				],
+			);
+		});
+
+		it.each(["cold", "null", "rejected"])(
+			"stages every asset with a %s cache",
+			async (state) => {
+				const { publisher, backend, gitBackend, dataStore } =
+					await setup();
+				if (state === "null") {
+					// Exercise a runtime null despite the non-null backend contract.
+					vi.spyOn(backend, "getCachedTree").mockResolvedValue(
+						null as unknown as TreeEntry[],
+					);
+				} else if (state === "rejected") {
+					vi.spyOn(backend, "getCachedTree").mockRejectedValue(
+						new Error("unavailable"),
+					);
+				}
+				vi.mocked(dataStore.loadLocalFile).mockResolvedValue([
+					"hello",
+					{
+						blobs: [
+							asset,
+							{ ...asset, path: "/vault/images/second.png" },
+						],
+					},
+				]);
+				const result = await publisher.publishBatch([
+					makePublishFile("notes/a.md"),
+				]);
+				expect(result.success).toBe(true);
+				expect(
+					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+				).toEqual([
+					{
+						path: "site/notes/a.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+					assetChange,
+					{ ...assetChange, path: "site/images/second.png" },
+				]);
+				expect(gitBackend.readTree).toHaveBeenCalledTimes(1);
+				expect(
+					vi.mocked(gitBackend.writeFiles).mock
+						.invocationCallOrder[0],
+				).toBeLessThan(
+					vi.mocked(gitBackend.readTree).mock.invocationCallOrder[0]!,
+				);
+			},
+		);
+
+		it("stages shared media once within and across notes", async () => {
+			const { publisher, gitBackend, dataStore } = await setup();
+			vi.mocked(dataStore.loadLocalFile).mockResolvedValue([
+				"hello",
+				{ blobs: [asset, { ...asset, path: "images/photo.png" }] },
+			]);
+			await publisher.publishBatch([
+				makePublishFile("notes/a.md"),
+				makePublishFile("notes/b.md"),
+			]);
+			expect(vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2]).toEqual(
+				[
+					{
+						path: "site/notes/a.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+					assetChange,
+					{
+						path: "site/notes/b.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+				],
+			);
+		});
+
+		it("does not deduplicate against assets discarded with a failed note", async () => {
+			const { publisher, gitBackend, dataStore } = await setup();
+			vi.mocked(dataStore.loadLocalHash).mockRejectedValueOnce(
+				new Error("cache failure"),
+			);
+			const result = await publisher.publishBatch([
+				makePublishFile("notes/a.md"),
+				makePublishFile("notes/b.md"),
+			]);
+			expect(result.filesPublished).toBe(1);
+			expect(vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2]).toEqual(
+				[
+					{
+						path: "site/notes/b.md",
+						content: "hello",
+						encoding: "utf-8",
+					},
+					assetChange,
+				],
+			);
+		});
+
+		it("stages media when hashing fails", async () => {
+			const { publisher, gitBackend } = await setup([remoteAsset]);
+			const digest = vi
+				.spyOn(crypto.subtle, "digest")
+				.mockRejectedValueOnce(new Error("hash unavailable"));
+			try {
+				const result = await publisher.publishBatch([
+					makePublishFile("notes/a.md"),
+				]);
+				expect(result.success).toBe(true);
+				expect(
+					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+				).toContainEqual(assetChange);
+			} finally {
+				digest.mockRestore();
+			}
+		});
+
+		it("re-hashes and stages when the SHA cache cannot be read (no base64 decode is needed)", async () => {
+			const { publisher, gitBackend, dataStore } = await setup([
+				{ ...remoteAsset, sha: "old-sha" },
+			]);
+			vi.mocked(dataStore.loadAssetShas).mockRejectedValue(
+				new Error("cache unavailable"),
+			);
+			const result = await publisher.publishBatch([
+				makePublishFile("notes/a.md"),
+			]);
+			expect(result.success).toBe(true);
+			expect(
+				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+			).toContainEqual(assetChange);
+		});
+
+		it("reuses cached SHA without reading or hashing unchanged media across notes", async () => {
+			const { publisher, app, gitBackend, dataStore } = await setup([
+				remoteAsset,
+			]);
+			vi.mocked(dataStore.loadAssetShas).mockResolvedValue(
+				new Map([[asset.vaultPath, { mtime: 1000, gitSha: sha }]]),
+			);
+			const digest = vi.spyOn(crypto.subtle, "digest");
+			try {
+				await publisher.publishBatch([
+					makePublishFile("a.md"),
+					makePublishFile("b.md"),
+				]);
+				expect(app.vault.readBinary).not.toHaveBeenCalled();
+				expect(digest).not.toHaveBeenCalled();
+				expect(dataStore.loadAssetShas).toHaveBeenCalledExactlyOnceWith(
+					[asset.vaultPath],
+				);
+				expect(dataStore.storeAssetShas).not.toHaveBeenCalled();
+				expect(
+					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+				).toHaveLength(2);
+			} finally {
+				digest.mockRestore();
+			}
+		});
+
+		it.each([true, false])(
+			"re-hashes changed mtime once; remote match = %s",
+			async (matches) => {
+				const { publisher, app, source, gitBackend, dataStore } =
+					await setup([
+						{ ...remoteAsset, sha: matches ? sha : "old-sha" },
+					]);
+				vi.mocked(dataStore.loadAssetShas).mockResolvedValue(
+					new Map([
+						[
+							asset.vaultPath,
+							{ mtime: 1000, gitSha: "0".repeat(40) },
+						],
+					]),
+				);
+				source.stat.mtime = 2000;
+				await publisher.publishBatch([
+					makePublishFile("a.md"),
+					makePublishFile("b.md"),
+				]);
+				expect(app.vault.readBinary).toHaveBeenCalledExactlyOnceWith(
+					source,
+				);
+				expect(
+					dataStore.storeAssetShas,
+				).toHaveBeenCalledExactlyOnceWith(
+					new Map([[asset.vaultPath, { mtime: 2000, gitSha: sha }]]),
+				);
+				const changes = vi.mocked(gitBackend.writeFiles).mock
+					.calls[0]?.[2];
+				expect(changes).toHaveLength(matches ? 2 : 3);
+				if (!matches) expect(changes).toContainEqual(assetChange);
+			},
+		);
+
+		it("reads once to stage a cached SHA that differs from the remote", async () => {
+			const { publisher, app, gitBackend, dataStore } = await setup([]);
+			vi.mocked(dataStore.loadAssetShas).mockResolvedValue(
+				new Map([[asset.vaultPath, { mtime: 1000, gitSha: sha }]]),
+			);
+			await publisher.publishBatch([makePublishFile("a.md")]);
+			expect(app.vault.readBinary).toHaveBeenCalledTimes(1);
+			expect(
+				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+			).toContainEqual(assetChange);
+		});
+
+		it("SHA cache write failures do not prevent staging", async () => {
+			const { publisher, gitBackend, dataStore } = await setup([]);
+			vi.mocked(dataStore.storeAssetShas).mockRejectedValue(
+				new Error("disk full"),
+			);
+			expect(
+				(await publisher.publishBatch([makePublishFile("a.md")]))
+					.success,
+			).toBe(true);
+			expect(
+				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+			).toContainEqual(assetChange);
+		});
+
+		it.each(["missing", "unreadable", "modified during read"])(
+			"fails the note explicitly for a %s source instead of silently dropping media",
+			async (state) => {
+				const { publisher, app, source, gitBackend, dataStore } =
+					await setup([remoteAsset]);
+				if (state === "missing") {
+					vi.mocked(app.vault.getFileByPath).mockReturnValue(null);
+					vi.mocked(dataStore.loadAssetShas).mockResolvedValue(
+						new Map([
+							[asset.vaultPath, { mtime: 1000, gitSha: sha }],
+						]),
+					);
+				} else if (state === "unreadable") {
+					vi.mocked(app.vault.readBinary).mockRejectedValue(
+						new Error("Asset unreadable"),
+					);
+				} else {
+					vi.mocked(app.vault.readBinary).mockImplementation(
+						async () => {
+							source.stat.mtime += 1;
+							return bytes.buffer;
+						},
+					);
+				}
+				const result = await publisher.publishBatch([
+					makePublishFile("a.md"),
+				]);
+				expect(result.success).toBe(false);
+				expect(result.failures).toEqual([
+					{
+						vaultPath: "a.md",
+						error: expect.stringContaining("Asset"),
+					},
+				]);
+				expect(gitBackend.writeFiles).not.toHaveBeenCalled();
+				expect(dataStore.storeAssetShas).not.toHaveBeenCalled();
+			},
+		);
+
+		it.each(["base", "canvas", "excalidraw", "markdown"] as const)(
+			"compiles %s with zero binary reads and publishes byte-identical media",
+			async (type) => {
+				const {
+					publisher,
+					app,
+					source,
+					compiler,
+					settings,
+					gitBackend,
+					dataStore,
+				} = await setup([]);
+				const path =
+					type === "excalidraw"
+						? "drawing.excalidraw.md"
+						: `note.${type === "markdown" ? "md" : type}`;
+				const raw =
+					type === "canvas"
+						? JSON.stringify({
+								nodes: [{ type: "file", file: source.path }],
+							})
+						: type === "excalidraw"
+							? `## Embedded Files\n[[${source.path}]]`
+							: "![[photo.png#center|300]]";
+				vi.spyOn(app.vault, "cachedRead").mockResolvedValue(raw);
+				vi.spyOn(app.metadataCache, "getCache").mockReturnValue({
+					embeds: [
+						{
+							link: "photo.png",
+							original: "![[photo.png#center|300]]",
+						},
+					],
+					links: [
+						{ link: source.path, original: `[[${source.path}]]` },
+					],
+				} as ReturnType<typeof app.metadataCache.getCache>);
+				// The second lookup fails for markdown: retain the known source,
+				// while preserving the old blobLinkText destination and rewriting.
+				vi.spyOn(
+					app.metadataCache,
+					"getFirstLinkpathDest",
+				).mockImplementation((link) =>
+					type === "markdown" && link === source.path ? null : source,
+				);
+				vi.spyOn(app.metadataCache, "fileToLinktext").mockReturnValue(
+					"rewritten/photo.png",
+				);
+				const file = new PublishFile({
+					file: {
+						path,
+						name: path,
+						extension: path.split(".").pop(),
+						stat: { mtime: 1000, ctime: 1000, size: raw.length },
+					} as TFile,
+					vault: app.vault,
+					metadataCache: app.metadataCache,
+					settings,
+					compiler,
+					datastore: dataStore,
+				});
+				const compiled = await compiler.generateMarkdown(file);
+				expect(app.vault.readBinary).not.toHaveBeenCalled();
+				const destination =
+					type === "markdown" ? "rewritten/photo.png" : source.path;
+				expect(compiled[1].blobs).toEqual([
+					{ path: destination, vaultPath: source.path },
+				]);
+				expect(compiled[0]).toBe(
+					type === "markdown"
+						? "![[rewritten/photo.png#center|300]]\n"
+						: raw,
+				);
+				vi.mocked(dataStore.loadLocalFile).mockResolvedValue(compiled);
+				const result = await publisher.publishBatch([file]);
+				expect(result.success).toBe(true);
+				expect(app.vault.readBinary).toHaveBeenCalledExactlyOnceWith(
+					source,
+				);
+				expect(
+					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
+				).toEqual([
+					{
+						path: `site/${path}`,
+						content: compiled[0],
+						encoding: "utf-8",
+					},
+					{
+						...assetChange,
+						path:
+							type === "markdown"
+								? "site/rewritten/photo.png"
+								: assetChange.path,
+					},
+				]);
+			},
+		);
+	});
+
+	describe("publishBatch failure isolation", () => {
+		const makeFailingSetup = (failingPaths: string[]) => {
+			const app = new App();
+			const settings = makeSettings({ useCache: false });
+			const plugin = makePlugin(settings);
+			const gitBackend = makeGitBackend();
+			const compiler = {
+				extractBlobLinks: async () => [],
+			} as unknown as SyncerPageCompiler;
+			const dataStore = {
+				loadLocalFile: vi.fn().mockResolvedValue(null),
+				loadLocalHash: vi.fn().mockResolvedValue(null),
+				storeRemoteHashes: vi.fn(),
+			} as unknown as DataStore;
+
+			const makeFile = (path: string): PublishFile =>
+				({
+					file: { path, stat: { mtime: 1000 } },
+					getVaultPath: () => path,
+					compile: failingPaths.includes(path)
+						? vi
+								.fn()
+								.mockRejectedValue(new Error(`boom in ${path}`))
+						: vi.fn().mockResolvedValue({
+								getCompiledFile: () => [
+									`content of ${path}`,
+									{ blobs: [] },
+								],
+							}),
+				}) as unknown as PublishFile;
+
+			const backend = new RemotePublishBackend(gitBackend, "main");
+			const publisher = new Publisher(
+				app,
+				plugin,
+				backend,
+				compiler,
+				dataStore,
+			);
+
+			return { publisher, plugin, gitBackend, makeFile };
+		};
+
+		it("publishes healthy files and reports the failed one", async () => {
+			const { publisher, gitBackend, makeFile } = makeFailingSetup([
+				"notes/bad.md",
+			]);
+
+			const result = await publisher.publishBatch([
+				makeFile("notes/a.md"),
+				makeFile("notes/bad.md"),
+				makeFile("notes/b.md"),
+			]);
+
+			expect(result.success).toBe(true);
+			expect(result.filesPublished).toBe(2);
+			expect(result.failures).toEqual([
+				{
+					vaultPath: "notes/bad.md",
+					error: "boom in notes/bad.md",
+				},
+			]);
+
+			const [, , changes] = vi.mocked(gitBackend.writeFiles).mock
+				.calls[0] as unknown as [
+				string,
+				string,
+				Array<{ path: string }>,
+			];
+			expect(changes.map((change) => change.path)).toEqual([
+				"content/notes/a.md",
+				"content/notes/b.md",
+			]);
+		});
+
+		it("does not mark failed files as published", async () => {
+			const { publisher, plugin, makeFile } = makeFailingSetup([
+				"notes/bad.md",
+			]);
+
+			await publisher.publishBatch([
+				makeFile("notes/a.md"),
+				makeFile("notes/bad.md"),
+			]);
+
+			expect(plugin.statusCache.patchPublished).toHaveBeenCalledWith(
+				new Set(["notes/a.md"]),
+			);
+		});
+
+		it("fails the batch without writing when every file fails", async () => {
+			const { publisher, plugin, gitBackend, makeFile } =
+				makeFailingSetup(["notes/a.md", "notes/b.md"]);
+
+			const result = await publisher.publishBatch([
+				makeFile("notes/a.md"),
+				makeFile("notes/b.md"),
+			]);
+
+			expect(result.success).toBe(false);
+			expect(result.filesPublished).toBe(0);
+			expect(result.failures).toHaveLength(2);
+			expect(gitBackend.writeFiles).not.toHaveBeenCalled();
+			expect(plugin.statusCache.patchPublished).not.toHaveBeenCalled();
+		});
+
+		it("omits failures when every file succeeds", async () => {
+			const { publisher, makeFile } = makeFailingSetup([]);
+
+			const result = await publisher.publishBatch([
+				makeFile("notes/a.md"),
+				makeFile("notes/b.md"),
+			]);
+
+			expect(result.success).toBe(true);
+			expect(result.filesPublished).toBe(2);
+			expect(result.failures).toBeUndefined();
+		});
+
+		it("reports progress for failed files so the bar still completes", async () => {
+			const { publisher, makeFile } = makeFailingSetup(["notes/bad.md"]);
+			const progress: number[] = [];
+
+			await publisher.publishBatch(
+				[makeFile("notes/a.md"), makeFile("notes/bad.md")],
+				"msg",
+				(current) => progress.push(current),
+			);
+
+			expect(progress).toEqual([1, 2]);
+		});
 	});
 
 	it("deleteBatch calls deleteFiles with mapped paths", async () => {
@@ -696,9 +1346,7 @@ describe("Publisher", () => {
 			extractBlobLinks: async () => [],
 		} as unknown as SyncerPageCompiler;
 		const dataStore = {
-			preloadCache: vi.fn().mockResolvedValue(undefined),
-			flushCache: vi.fn().mockResolvedValue(undefined),
-			clearMemoryCache: vi.fn(),
+			loadStatusMetadata: vi.fn().mockResolvedValue(new Map()),
 		} as unknown as DataStore;
 
 		const mockQueue = {
@@ -747,9 +1395,7 @@ describe("Publisher", () => {
 			extractBlobLinks: async () => [],
 		} as unknown as SyncerPageCompiler;
 		const dataStore = {
-			preloadCache: vi.fn().mockResolvedValue(undefined),
-			flushCache: vi.fn().mockResolvedValue(undefined),
-			clearMemoryCache: vi.fn(),
+			loadStatusMetadata: vi.fn().mockResolvedValue(new Map()),
 		} as unknown as DataStore;
 
 		const mockQueue = {
@@ -1102,16 +1748,17 @@ describe("Publisher", () => {
 		} as unknown as SyncerPageCompiler;
 
 		const dataStore = {
-			preloadCache: vi.fn().mockResolvedValue(undefined),
-			flushCache: vi.fn().mockResolvedValue(undefined),
-			clearMemoryCache: vi.fn(),
-			loadLocalHash: vi.fn().mockImplementation((path: string) => {
-				if (path === "notes/a.md") return Promise.resolve("hash-a");
-				if (path === "notes/b.md")
-					return Promise.resolve("hash-different");
-				return Promise.resolve(null);
-			}),
-			loadMediaLinks: vi.fn().mockResolvedValue([]),
+			loadStatusMetadata: vi.fn().mockResolvedValue(
+				new Map([
+					["notes/a.md", { localHash: "hash-a", mediaLinks: [] }],
+					[
+						"notes/b.md",
+						{ localHash: "hash-different", mediaLinks: [] },
+					],
+				]),
+			),
+			loadLocalHash: vi.fn(),
+			loadCachedMediaLinks: vi.fn(),
 		} as unknown as DataStore;
 
 		const metaStub = app.metadataCache as typeof app.metadataCache & {
@@ -1185,6 +1832,12 @@ describe("Publisher", () => {
 		expect(publishedPaths).toContain("notes/a.md");
 		expect(changedPaths).toContain("notes/b.md");
 		expect(status.unpublished).toHaveLength(0);
+		expect(dataStore.loadStatusMetadata).toHaveBeenCalledExactlyOnceWith([
+			{ path: "notes/a.md", mtime: 1000 },
+			{ path: "notes/b.md", mtime: 1000 },
+		]);
+		expect(dataStore.loadLocalHash).not.toHaveBeenCalled();
+		expect(dataStore.loadCachedMediaLinks).not.toHaveBeenCalled();
 	});
 
 	it("getPublishStatus puts files without remote counterpart into unpublished with useCache false", async () => {
@@ -1196,15 +1849,14 @@ describe("Publisher", () => {
 			readTree: vi.fn().mockResolvedValue([]),
 		});
 		const compiler = {
+			extractBlobLinks: async () => [],
 			generateMarkdown: vi
 				.fn()
 				.mockResolvedValue(["compiled", { blobs: [] }]),
 		} as unknown as SyncerPageCompiler;
 
 		const dataStore = {
-			preloadCache: vi.fn().mockResolvedValue(undefined),
-			flushCache: vi.fn().mockResolvedValue(undefined),
-			clearMemoryCache: vi.fn(),
+			loadStatusMetadata: vi.fn(),
 			loadLocalHash: vi.fn(),
 			loadMediaLinks: vi.fn().mockResolvedValue([]),
 		} as unknown as DataStore;
@@ -1271,6 +1923,7 @@ describe("Publisher", () => {
 		const unpublishedPaths = status.unpublished.map((f) => f.file.path);
 		expect(unpublishedPaths).toContain("notes/new.md");
 		expect(dataStore.loadLocalHash).not.toHaveBeenCalled();
+		expect(dataStore.loadStatusMetadata).not.toHaveBeenCalled();
 	});
 
 	it("getPublishStatus with useCache false does not read hashes from dataStore.loadLocalHash for remote-backed files", async () => {
@@ -1290,9 +1943,7 @@ describe("Publisher", () => {
 
 		const loadLocalHashSpy = vi.fn();
 		const dataStore = {
-			preloadCache: vi.fn().mockResolvedValue(undefined),
-			flushCache: vi.fn().mockResolvedValue(undefined),
-			clearMemoryCache: vi.fn(),
+			loadStatusMetadata: vi.fn(),
 			loadLocalHash: loadLocalHashSpy,
 			loadLocalFile: vi.fn().mockResolvedValue(null),
 			storeLocalFile: vi.fn().mockResolvedValue(undefined),
@@ -1302,6 +1953,7 @@ describe("Publisher", () => {
 		} as unknown as DataStore;
 
 		const compiler = {
+			extractBlobLinks: async () => [],
 			generateMarkdown: vi
 				.fn()
 				.mockResolvedValue(["compiled-text", { blobs: [] }]),
@@ -1369,6 +2021,286 @@ describe("Publisher", () => {
 		expect(loadLocalHashSpy).not.toHaveBeenCalled();
 	});
 
+	describe("getPublishStatus media links", () => {
+		const setup = (
+			cachedLinks: Array<string[] | null>,
+			useCache = true,
+		) => {
+			const app = new App();
+			const settings = makeSettings({ useCache });
+			const plugin = makePlugin(settings);
+			const files = cachedLinks.map(
+				(_, index) =>
+					({
+						path: `notes/${index}.md`,
+						name: `${index}.md`,
+						extension: "md",
+						stat: { mtime: 1000 },
+					}) as TFile,
+			);
+			app.vault.getFiles = vi.fn().mockReturnValue(files);
+			app.vault.getMarkdownFiles = vi.fn().mockReturnValue(files);
+			app.vault.getFileByPath = vi.fn(
+				(path: string) =>
+					files.find((file) => file.path === path) ?? null,
+			);
+			app.metadataCache.getCache = vi.fn().mockReturnValue({
+				frontmatter: { publish: true },
+			});
+			app.metadataCache.getFileCache = vi.fn().mockReturnValue({
+				frontmatter: { publish: true },
+			});
+			const dataStore = new DataStore("vault", "plugin", "1.0.0");
+			vi.spyOn(dataStore.persister, "getMany").mockImplementation(
+				async (keys) =>
+					keys.map((key) => {
+						const index = files.findIndex(
+							(file) => `file:${file.path}` === key,
+						);
+						return {
+							version: "1.0.0",
+							time: 1000,
+							sourceMtime: 1000,
+							localHash:
+								index % 3 === 0
+									? `sha-${index}`
+									: index % 3 === 1
+										? "changed"
+										: undefined,
+							mediaLinks: cachedLinks[index] ?? undefined,
+						} satisfies QuartzSyncerCache;
+					}),
+			);
+			const loadStatusMetadata = vi.spyOn(
+				dataStore,
+				"loadStatusMetadata",
+			);
+			const loadCachedMediaLinks = vi.spyOn(
+				dataStore,
+				"loadCachedMediaLinks",
+			);
+			const loadLocalHash = vi.spyOn(dataStore, "loadLocalHash");
+			const extractBlobLinks = vi.fn(async (file: PublishFile) => [
+				`images/fresh-${file.file.name}.png`,
+			]);
+			const compiler = {
+				extractBlobLinks,
+			} as unknown as SyncerPageCompiler;
+			const gitBackend = makeGitBackend({
+				readTree: vi.fn().mockResolvedValue([
+					{
+						path: "content/images/cached.png",
+						type: "blob",
+						sha: "1",
+					},
+					{
+						path: "content/images/fresh-0.md.png",
+						type: "blob",
+						sha: "2",
+					},
+					{
+						path: "content/images/fresh-1.md.png",
+						type: "blob",
+						sha: "3",
+					},
+					{
+						path: "content/images/orphan.png",
+						type: "blob",
+						sha: "4",
+					},
+				]),
+			});
+			const publisher = new Publisher(
+				app,
+				plugin,
+				new RemotePublishBackend(gitBackend, "main"),
+				compiler,
+				dataStore,
+			);
+
+			return {
+				publisher,
+				loadStatusMetadata,
+				loadCachedMediaLinks,
+				loadLocalHash,
+				extractBlobLinks,
+				dataStore,
+				gitBackend,
+				files,
+			};
+		};
+
+		it("uses cached links including empty arrays without fresh extraction", async () => {
+			const {
+				publisher,
+				loadStatusMetadata,
+				loadCachedMediaLinks,
+				extractBlobLinks,
+			} = setup([["images/cached.png"], []]);
+
+			const status = await publisher.getPublishStatus();
+
+			expect(status.mediaLinks).toEqual(
+				new Map([["notes/0.md", ["images/cached.png"]]]),
+			);
+			expect(loadStatusMetadata).toHaveBeenCalledExactlyOnceWith([
+				{ path: "notes/0.md", mtime: 1000 },
+				{ path: "notes/1.md", mtime: 1000 },
+			]);
+			expect(loadCachedMediaLinks).not.toHaveBeenCalled();
+			expect(extractBlobLinks).not.toHaveBeenCalled();
+			expect(resolveLinkedMediaByFile).not.toHaveBeenCalled();
+		});
+
+		it("merges cache hits and fresh extraction for missing or stale entries", async () => {
+			const { publisher, extractBlobLinks } = setup([
+				["images/cached.png"],
+				null,
+				[],
+			]);
+
+			const status = await publisher.getPublishStatus();
+
+			expect(status.mediaLinks).toEqual(
+				new Map([
+					["notes/0.md", ["images/cached.png"]],
+					["notes/1.md", ["images/fresh-1.md.png"]],
+				]),
+			);
+			expect(extractBlobLinks).toHaveBeenCalledOnce();
+			expect(extractBlobLinks.mock.calls[0]?.[0].file.path).toBe(
+				"notes/1.md",
+			);
+		});
+
+		it("omits cache misses whose fresh extraction finds no links", async () => {
+			const { publisher, extractBlobLinks } = setup([null]);
+			extractBlobLinks.mockResolvedValue([]);
+
+			const status = await publisher.getPublishStatus();
+
+			expect(status.mediaLinks).toEqual(new Map());
+			expect(extractBlobLinks).toHaveBeenCalledOnce();
+		});
+
+		it("preserves classifications and links across metadata chunk boundaries", async () => {
+			const cachedLinks = Array.from({ length: 1001 }, (_, index) =>
+				index % 3 === 0
+					? [`images/${index}.png`]
+					: index % 3 === 1
+						? []
+						: null,
+			);
+			const {
+				publisher,
+				files,
+				gitBackend,
+				dataStore,
+				loadLocalHash,
+				loadCachedMediaLinks,
+			} = setup(cachedLinks);
+			vi.mocked(gitBackend.readTree).mockResolvedValue(
+				files.slice(0, 1000).map((file, index) => ({
+					path: `content/${file.path}`,
+					sha: `sha-${index}`,
+					type: "blob",
+				})),
+			);
+
+			const status = await publisher.getPublishStatus();
+
+			expect(status.published.map(({ file }) => file.path)).toEqual(
+				files
+					.slice(0, 1000)
+					.filter((_, index) => index % 3 === 0)
+					.map((file) => file.path),
+			);
+			expect(status.changed.map(({ file }) => file.path)).toEqual(
+				files
+					.slice(0, 1000)
+					.filter((_, index) => index % 3 !== 0)
+					.map((file) => file.path),
+			);
+			expect(status.unpublished.map(({ file }) => file.path)).toEqual([
+				"notes/1000.md",
+			]);
+			const expectedLinks = new Map<string, string[]>();
+			files.forEach((file, index) => {
+				const links = cachedLinks[index] ?? [
+					`images/fresh-${file.name}.png`,
+				];
+				if (links.length) expectedLinks.set(file.path, links);
+			});
+			expect(status.mediaLinks).toEqual(expectedLinks);
+			expect(dataStore.persister.getMany).toHaveBeenCalledTimes(3);
+			expect(loadLocalHash).not.toHaveBeenCalled();
+			expect(loadCachedMediaLinks).not.toHaveBeenCalled();
+		});
+
+		it.each([false, true])(
+			"bounds fresh extraction concurrency (mobile=%s)",
+			async (isMobile) => {
+				const wasMobile = Platform.isMobileApp;
+				Platform.isMobileApp = isMobile;
+				const { publisher, extractBlobLinks } = setup(
+					Array.from({ length: 13 }, () => null),
+				);
+				let active = 0;
+				let maximum = 0;
+				extractBlobLinks.mockImplementation(async () => {
+					active++;
+					maximum = Math.max(maximum, active);
+					await new Promise((resolve) => setTimeout(resolve, 0));
+					active--;
+					return [];
+				});
+				try {
+					const status = await publisher.getPublishStatus();
+					expect(maximum).toBe(isMobile ? 2 : 5);
+					expect(extractBlobLinks).toHaveBeenCalledTimes(13);
+					expect(status.mediaLinks).toEqual(new Map());
+				} finally {
+					Platform.isMobileApp = wasMobile;
+				}
+			},
+		);
+
+		it.each([true, false])(
+			"derives orphan flags from returned links with useCache=%s",
+			async (useCache) => {
+				const { publisher, loadCachedMediaLinks, extractBlobLinks } =
+					setup([["images/cached.png"], null], useCache);
+
+				const status = await publisher.getPublishStatus();
+				const linked = flattenLinkedMedia(status.mediaLinks!);
+
+				expect(linked).toEqual(
+					new Set(
+						useCache
+							? ["images/cached.png", "images/fresh-1.md.png"]
+							: [
+									"images/fresh-0.md.png",
+									"images/fresh-1.md.png",
+								],
+					),
+				);
+
+				for (const media of status.media) {
+					expect(media.linked).toBe(linked.has(media.vaultPath));
+				}
+
+				expect(extractBlobLinks).toHaveBeenCalledTimes(
+					useCache ? 1 : 2,
+				);
+
+				if (!useCache) {
+					expect(loadCachedMediaLinks).not.toHaveBeenCalled();
+					expect(resolveLinkedMediaByFile).toHaveBeenCalledOnce();
+				}
+			},
+		);
+	});
+
 	describe("integration stylesheets", () => {
 		beforeEach(() => {
 			vi.restoreAllMocks();
@@ -1401,7 +2333,7 @@ describe("Publisher", () => {
 					.fn()
 					.mockResolvedValue(["hello", { blobs: [] }]),
 				loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
-				storeRemoteHash: vi.fn(),
+				storeRemoteHashes: vi.fn(),
 			} as unknown as DataStore;
 
 			const publisher = new Publisher(

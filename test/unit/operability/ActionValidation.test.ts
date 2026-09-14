@@ -1,5 +1,6 @@
 import { validateAction } from "src/operability/ActionValidation";
 import type { Action } from "src/operability/types";
+import { describe, expect, it } from "vitest";
 
 const validActions = [
 	{ name: "pub.open" },
@@ -10,6 +11,7 @@ const validActions = [
 	{ name: "pub.deselectAll" },
 	{ name: "pub.publish", params: { confirm: true } },
 	{ name: "pub.delete", params: { confirm: true } },
+	{ name: "pub.unpublish", params: { paths: ["notes/a.md"], confirm: true } },
 	{ name: "cache.pruneForeign", params: { confirm: true } },
 	{ name: "status.refresh" },
 	{ name: "onboarding.start" },

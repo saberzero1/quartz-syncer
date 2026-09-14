@@ -10,8 +10,8 @@ import type { StatusSummary } from "src/services/StatusCacheService";
 import { isMediaFile } from "src/utils/mediaTypes";
 import { isPathIgnored } from "src/utils/ignoredFolders";
 import { isPublishConfigured } from "src/publisher/PublishTargetResolver";
+import { isWithinVaultPath } from "src/utils/utils";
 
-const PRIORITY_PREWARM = 0;
 const PRIORITY_VAULT_CHANGE = 5;
 const PRIORITY_ACTIVE_FILE = 10;
 
@@ -121,6 +121,7 @@ export class BackgroundEngine {
 			let changed = 0;
 			let published = 0;
 			const localRepoPaths = new Set<string>();
+			const remoteBacked: { file: TFile; sha: string }[] = [];
 
 			for (const filePath of candidatePaths) {
 				if (isPathIgnored(filePath, settings.ignoredFolders)) continue;
@@ -130,7 +131,8 @@ export class BackgroundEngine {
 
 				const vaultPath =
 					settings.vaultPath !== "/" &&
-					file.path.startsWith(settings.vaultPath)
+					settings.vaultPath !== "." &&
+					isWithinVaultPath(file.path, settings.vaultPath)
 						? file.path.replace(settings.vaultPath, "")
 						: file.path;
 				const repoPath = pathMapper.toRepoPath(vaultPath);
@@ -143,17 +145,25 @@ export class BackgroundEngine {
 					continue;
 				}
 
-				const localHash = await this.plugin.dataStore.loadLocalHash(
-					file.path,
-					file.stat.mtime,
-				);
+				remoteBacked.push({ file, sha: remoteSha });
+			}
 
-				if (localHash && localHash === remoteSha) {
+			const metadata = await this.plugin.dataStore.loadStatusMetadata(
+				remoteBacked.map(({ file }) => ({
+					path: file.path,
+					mtime: file.stat.mtime,
+				})),
+			);
+
+			remoteBacked.forEach(({ file, sha }) => {
+				const localHash = metadata.get(file.path)?.localHash;
+
+				if (localHash && localHash === sha) {
 					published++;
 				} else {
 					changed++;
 				}
-			}
+			});
 
 			let deleted = 0;
 			let media = 0;
@@ -194,7 +204,7 @@ export class BackgroundEngine {
 			this.registerDataviewListeners();
 			this.registerDatacoreListeners();
 			this.registerExtCacheListener();
-			this.prewarmCache();
+			this.fetchRemoteTreeOnFirstIdle();
 		});
 	}
 
@@ -292,24 +302,18 @@ export class BackgroundEngine {
 		if (signal.aborted) return;
 
 		try {
-			await publishFile.compile();
-
-			this.setDynamicFlag(
-				path,
-				await this.plugin.dataStore.hasDynamicContentFlag(path),
-			);
-
-			const blobLinks = await publishFile.getBlobLinks();
-			await this.plugin.dataStore.storeMediaLinks(path, blobLinks);
-
-			const dvApi = getDataviewApi();
-			const dcApi = this.getDatacoreApi();
-
-			await this.plugin.dataStore.storeCompilationRevisions(
-				path,
-				dvApi?.index?.revision,
-				dcApi?.core?.revision,
-			);
+			await publishFile.compile(false, {
+				cachedEntry: cached ?? null,
+				getMetadata: async () => {
+					const mediaLinks = await publishFile.getBlobLinks();
+					return {
+						mediaLinks,
+						dataviewRevision: getDataviewApi()?.index?.revision,
+						datacoreRevision: this.getDatacoreApi()?.core?.revision,
+					};
+				},
+			});
+			this.setDynamicFlag(path, publishFile.hasDynamicContent);
 			this.eventSink?.emit("compilation.completed", { path });
 		} catch (error) {
 			if (
@@ -659,49 +663,6 @@ export class BackgroundEngine {
 		}
 	}
 
-	// --- Startup pre-warm ---
-
-	private prewarmCache(): void {
-		if (!this.running) return;
-		if (!this.plugin.settings.useCache) return;
-
-		const candidates = collectCandidatePaths(
-			this.app,
-			this.plugin,
-			this.plugin.settings,
-		);
-
-		const files = this.app.vault
-			.getFiles()
-			.filter(
-				(file) =>
-					this.isPublishableFile(file) && candidates.has(file.path),
-			);
-		let index = 0;
-
-		const enqueueBatch = () => {
-			if (!this.running) return;
-
-			const batchEnd = Math.min(index + 10, files.length);
-
-			while (index < batchEnd) {
-				const file = files[index];
-
-				if (file) {
-					this.compilationQueue.enqueue(file.path, PRIORITY_PREWARM);
-				}
-
-				index++;
-			}
-
-			if (index < files.length) {
-				window.setTimeout(enqueueBatch, 50);
-			}
-		};
-
-		enqueueBatch();
-	}
-
 	private isPublishableFile(file: TFile): boolean {
 		if (file.extension === "md") return true;
 		const type = getSpecialFileType(file);
@@ -821,11 +782,20 @@ export class BackgroundEngine {
 
 			if (pending.length === 0 && deleted.length === 0) return;
 
+			let published = 0;
+
 			if (pending.length > 0) {
-				await publisher.publishBatch(
+				const result = await publisher.publishBatch(
 					pending,
 					"Auto-published via Quartz Syncer",
 				);
+				published = result.filesPublished;
+
+				for (const failure of result.failures ?? []) {
+					console.error(
+						`Quartz Syncer auto-publish: skipped "${failure.vaultPath}": ${failure.error}`,
+					);
+				}
 			}
 			if (deleted.length > 0) {
 				await publisher.deleteBatch(
@@ -845,7 +815,7 @@ export class BackgroundEngine {
 			}
 
 			console.debug(
-				`Auto-publish: ${pending.length} published, ${deleted.length} deleted`,
+				`Auto-publish: ${published} published, ${deleted.length} deleted`,
 			);
 		} catch (e) {
 			console.debug("Auto-publish failed:", e);

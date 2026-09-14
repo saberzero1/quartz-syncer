@@ -732,6 +732,7 @@ describe("SyncerPageCompiler", () => {
 			vi.spyOn(vault, "readBinary").mockResolvedValue(new ArrayBuffer(0));
 
 			await compiler.convertFileLinks(file)("![[image.png]]");
+			expect(vault.readBinary).not.toHaveBeenCalled();
 
 			expect(mc.getFirstLinkpathDest).toHaveBeenNthCalledWith(
 				1,
@@ -784,7 +785,13 @@ describe("SyncerPageCompiler", () => {
 			);
 
 			expect(result).toBe("![[attachments/image.png#center]]");
-			expect(assets[0]?.path).toBe("attachments/image.png");
+			expect(assets).toEqual([
+				{
+					path: "attachments/image.png",
+					vaultPath: "attachments/image.png",
+				},
+			]);
+			expect(vault.readBinary).not.toHaveBeenCalled();
 		});
 
 		it("preserves dimensions in wikilink embeds", async () => {

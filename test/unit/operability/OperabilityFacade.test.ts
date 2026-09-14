@@ -3,10 +3,10 @@ import { EventBuffer } from "src/operability/EventBuffer";
 import { DEFAULT_SETTINGS } from "src/main";
 import type QuartzSyncer from "src/main";
 import type { Action } from "src/operability/types";
-
-vi.mock("src/services/PublicationService", () => ({
-	PublicationService: vi.fn(),
-}));
+import type { PublishFile } from "src/publishFile/PublishFile";
+import type { Publisher } from "src/publisher/Publisher";
+import type { PublishStatus } from "src/publisher/types";
+import { describe, expect, it, vi } from "vitest";
 
 vi.mock("src/services/OnboardingService", () => ({
 	OnboardingService: vi.fn(),
@@ -131,6 +131,94 @@ describe("OperabilityFacadeImpl", () => {
 	});
 
 	describe("act()", () => {
+		function unpublishFixture() {
+			const plugin = makePlugin();
+			const status: PublishStatus = {
+				unpublished: [],
+				changed: [],
+				published: [
+					{ getVaultPath: () => "notes/post.md" } as PublishFile,
+					{ getVaultPath: () => "notes/keep.md" } as PublishFile,
+				],
+				deleted: ["removed.md"],
+				media: [],
+				arbitrary: [],
+			};
+			const publisher = {
+				getPublishStatus: vi
+					.fn<Publisher["getPublishStatus"]>()
+					.mockResolvedValue(status),
+				deleteBatch: vi
+					.fn<Publisher["deleteBatch"]>()
+					.mockResolvedValue({
+						success: true,
+						filesPublished: 0,
+						filesDeleted: 1,
+					}),
+			};
+			plugin.getPublisher = () => publisher as unknown as Publisher;
+			plugin.statusCache.getCachedStatusEvenIfStale = () => status;
+			const events = new EventBuffer();
+			const facade = new OperabilityFacadeImpl(plugin, events);
+			return { facade, publisher, events };
+		}
+
+		it("unpublishes only explicitly requested notes via the public facade", async () => {
+			const f = unpublishFixture();
+			expect(
+				await f.facade.act({
+					name: "pub.unpublish",
+					params: { paths: ["notes/post.md"], confirm: true },
+				}),
+			).toMatchObject({
+				success: true,
+				data: { files: ["notes/post.md"] },
+			});
+			expect(f.publisher.deleteBatch).toHaveBeenCalledExactlyOnceWith(
+				["notes/post.md"],
+				"Deleted via Quartz Syncer",
+				undefined,
+			);
+			expect(f.events.tail(10).map((event) => event.type)).toContain(
+				"delete.completed",
+			);
+		});
+
+		it.each([undefined, false, "true", 1])(
+			"requires literal confirm: true for unpublish: %j",
+			async (confirm) => {
+				const f = unpublishFixture();
+				expect(
+					await f.facade.act({
+						name: "pub.unpublish",
+						params: { paths: ["notes/post.md"], confirm },
+					} as unknown as Action),
+				).toEqual({ success: false, error: "Confirmation required" });
+				expect(f.publisher.getPublishStatus).not.toHaveBeenCalled();
+				expect(f.publisher.deleteBatch).not.toHaveBeenCalled();
+				expect(f.events.tail(10).map((event) => event.type)).toEqual([
+					"plugin.loaded",
+				]);
+			},
+		);
+
+		it("keeps pub.delete deleted-only with published notes present", async () => {
+			const f = unpublishFixture();
+			expect(
+				(
+					await f.facade.act({
+						name: "pub.delete",
+						params: { confirm: true },
+					})
+				).success,
+			).toBe(true);
+			expect(f.publisher.deleteBatch).toHaveBeenCalledExactlyOnceWith(
+				["removed.md"],
+				"Deleted via Quartz Syncer",
+				undefined,
+			);
+		});
+
 		it("act({name:'pub.delete'}) with no params resolves to a confirmation failure rather than throwing", async () => {
 			const facade = new OperabilityFacadeImpl(
 				makePlugin(),
@@ -230,7 +318,7 @@ describe("OperabilityFacadeImpl", () => {
 			);
 			const events = facade.events.tail(10);
 			expect(events.length).toBeGreaterThanOrEqual(1);
-			expect(events[0].type).toBe("plugin.loaded");
+			expect(events[0]?.type).toBe("plugin.loaded");
 		});
 
 		it("records error.occurred events from failed actions", async () => {

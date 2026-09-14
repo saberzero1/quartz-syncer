@@ -27,5 +27,6 @@ export interface PublishBackend {
 
 	refreshTreeCache(): Promise<TreeEntry[]>;
 
-	getCachedTree(ref: string): Promise<TreeEntry[]>;
+	/** With cacheOnly, return an empty tree on a cache miss instead of reading it. */
+	getCachedTree(ref: string, cacheOnly?: boolean): Promise<TreeEntry[]>;
 }

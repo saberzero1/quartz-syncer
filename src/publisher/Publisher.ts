@@ -1,5 +1,4 @@
-import { Platform, type App } from "obsidian";
-import { arrayBufferToBase64, getIcon, normalizePath } from "obsidian";
+import { arrayBufferToBase64, getIcon, normalizePath, Platform, type App, } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type QuartzSyncerSettings from "src/models/settings";
 import type { FileChange } from "src/git/types";
@@ -9,8 +8,13 @@ import { PathMapper } from "src/git/PathMapper";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { collectCandidatePaths } from "src/publishFile/PublishCandidates";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
-import { DataStore } from "src/cache/DataStore";
+import {
+	DataStore,
+	type AssetShaCache,
+	type CachedStatusMetadata,
+} from "src/cache/DataStore";
 import type {
+	PublishFailure,
 	PublishProgressCallback,
 	PublishResult,
 	PublishStatus,
@@ -150,6 +154,7 @@ export class Publisher {
 
 	private async resolveMediaLinksIncremental(
 		files: PublishFile[],
+		metadata: Map<string, CachedStatusMetadata>,
 	): Promise<Map<string, string[]>> {
 		const mediaLinks = new Map<string, string[]>();
 		const concurrency = Platform.isMobileApp ? 2 : 5;
@@ -157,13 +162,13 @@ export class Publisher {
 		await batchParallel(
 			files,
 			async (file) => {
-				const links = await this.dataStore.loadMediaLinks(
-					file.file.path,
-				);
+				const cachedLinks = metadata.get(file.file.path)?.mediaLinks;
+				const links = cachedLinks ?? (await file.getBlobLinks());
 
 				if (links.length > 0) {
 					mediaLinks.set(file.file.path, links);
 				}
+
 				return undefined;
 			},
 			concurrency,
@@ -203,25 +208,24 @@ export class Publisher {
 				remoteBacked.push({ file, sha: remote.sha });
 			}
 
-			// Uncached status has to compile each note to hash its output, so
-			// keep concurrency low; cached lookups are cheap IndexedDB reads.
-			const hashConcurrency = settings.useCache
-				? 5
-				: Platform.isMobileApp
-					? 1
-					: 2;
-
-			const hashes = await batchParallel(
-				remoteBacked,
-				async ({ file }) =>
-					settings.useCache
-						? await this.dataStore.loadLocalHash(
-								file.file.path,
-								file.file.stat.mtime,
-							)
-						: await this.compileAndHashSingle(file),
-				hashConcurrency,
-			);
+			// One metadata pass serves both hash classification and media links.
+			const metadata = settings.useCache
+				? await this.dataStore.loadStatusMetadata(
+						candidates.map(({ file }) => ({
+							path: file.path,
+							mtime: file.stat.mtime,
+						})),
+					)
+				: new Map<string, CachedStatusMetadata>();
+			const hashes = settings.useCache
+				? remoteBacked.map(
+						({ file }) => metadata.get(file.file.path)?.localHash,
+					)
+				: await batchParallel(
+						remoteBacked,
+						({ file }) => this.compileAndHashSingle(file),
+						Platform.isMobileApp ? 1 : 2,
+					);
 
 			remoteBacked.forEach(({ file, sha }, index) => {
 				const localHash = hashes[index];
@@ -233,10 +237,11 @@ export class Publisher {
 				}
 			});
 
-			// One walk feeds both the orphan-media union and the per-file map,
-			// so getBlobLinks() is not paid for twice per candidate.
-			const linkedByFile = await resolveLinkedMediaByFile(candidates);
-			const linkedMedia = flattenLinkedMedia(linkedByFile);
+			// Orphan detection and callers share the same cache-aware links.
+			const mediaLinks = settings.useCache
+				? await this.resolveMediaLinksIncremental(candidates, metadata)
+				: await resolveLinkedMediaByFile(candidates);
+			const linkedMedia = flattenLinkedMedia(mediaLinks);
 
 			const { deleted, media } = classifyRemoteOnly(
 				remoteIndex,
@@ -244,10 +249,6 @@ export class Publisher {
 				this.pathMapper,
 				linkedMedia,
 			);
-
-			const mediaLinks = settings.useCache
-				? await this.resolveMediaLinksIncremental(candidates)
-				: linkedByFile;
 
 			const arbitrary = classifyArbitrary(
 				remoteIndex,
@@ -330,63 +331,178 @@ export class Publisher {
 		// dv.view() view.css), not tied to any single integration.
 		const discoveredStyles = new Set<string>();
 
+		const publishedFiles: PublishFile[] = [];
+		const failures: PublishFailure[] = [];
+		const stagedAssetPaths = new Set<string>();
+		const assetShas = new Map<string, AssetShaCache>();
+		const loadedAssetPaths = new Set<string>();
+		const updatedAssetShas = new Map<string, AssetShaCache>();
+
 		try {
+			// This optimization must not fetch on a cold cache or block publishing
+			// when the cached tree is unavailable.
+			const remoteIndex = await this.backend
+				.getCachedTree(settings.gitBranch, true)
+				.then((tree) => buildRemoteIndex(tree ?? [], this.pathMapper))
+				.catch(() => buildRemoteIndex([], this.pathMapper));
+
 			for (let index = 0; index < files.length; index += 1) {
 				const file = files[index];
 				if (!file) continue;
 
-				let storedFile = settings.useCache
-					? await this.dataStore.loadLocalFile(
-							file.file.path,
-							file.file.stat.mtime,
-							true,
-						)
-					: null;
+				// Staged per file so a failure midway cannot leave a partially
+				// written note (text without its media) in the commit.
+				const fileChanges: FileChange[] = [];
+				const fileAssetPaths = new Set<string>();
 
-				if (!storedFile) {
-					const compiled = await file.compile(true);
-					storedFile = compiled.getCompiledFile();
-				}
+				try {
+					let storedFile = settings.useCache
+						? await this.dataStore.loadLocalFile(
+								file.file.path,
+								file.file.stat.mtime,
+								true,
+							)
+						: null;
 
-				const [text, assets] = storedFile;
-				const repoPath = this.pathMapper.toRepoPath(
-					file.getVaultPath(),
-				);
+					if (!storedFile) {
+						const compiled = await file.compile(true);
+						storedFile = compiled.getCompiledFile();
+					}
 
-				changes.push({
-					path: repoPath,
-					content: text,
-					encoding: "utf-8",
-				});
-
-				for (const asset of assets.blobs) {
-					const assetPath = this.pathMapper.toRepoPath(
-						this.toVaultRelativePath(asset.path),
+					const [text, assets] = storedFile;
+					const uncachedPaths = [
+						...new Set(
+							assets.blobs.map((asset) => asset.vaultPath),
+						),
+					].filter((path) => !loadedAssetPaths.has(path));
+					if (settings.useCache && uncachedPaths.length > 0) {
+						try {
+							const cached =
+								await this.dataStore.loadAssetShas(
+									uncachedPaths,
+								);
+							for (const [path, entry] of cached)
+								assetShas.set(path, entry);
+						} catch (error) {
+							// Cache availability must never prevent a fresh read and stage.
+							console.debug(
+								"Asset SHA cache read failed:",
+								error,
+							);
+						}
+						for (const path of uncachedPaths)
+							loadedAssetPaths.add(path);
+					}
+					const repoPath = this.pathMapper.toRepoPath(
+						file.getVaultPath(),
 					);
 
-					changes.push({
-						path: assetPath,
-						content: asset.content,
-						encoding: "base64",
+					fileChanges.push({
+						path: repoPath,
+						content: text,
+						encoding: "utf-8",
 					});
-				}
 
-				for (const style of assets.styles ?? []) {
-					discoveredStyles.add(style);
-				}
+					for (const style of assets.styles ?? []) {
+						discoveredStyles.add(style);
+					}
 
-				const localHash = settings.useCache
-					? await this.dataStore.loadLocalHash(
-							file.file.path,
-							file.file.stat.mtime,
-						)
-					: null;
+					for (const asset of assets.blobs) {
+						const assetPath = this.pathMapper.toRepoPath(
+							this.toVaultRelativePath(asset.path),
+						);
 
-				if (localHash) {
-					remoteHashes.push({
-						path: file.file.path,
-						timestamp: now,
-						hash: localHash,
+						if (
+							stagedAssetPaths.has(assetPath) ||
+							fileAssetPaths.has(assetPath)
+						) {
+							continue;
+						}
+
+						const source = this.app.vault.getFileByPath(
+							asset.vaultPath,
+						);
+						if (!source) {
+							throw new Error(
+								`Asset source is missing: ${asset.vaultPath} (destination: ${asset.path})`,
+							);
+						}
+						const mtime = source.stat.mtime;
+						const cached = assetShas.get(asset.vaultPath);
+						let gitSha =
+							cached?.mtime === mtime ? cached.gitSha : undefined;
+						let bytes: ArrayBuffer | undefined;
+						if (!gitSha) {
+							bytes = await this.app.vault.readBinary(source);
+							try {
+								// Git hashes raw bytes, not the base64 transport text.
+								gitSha = await generateBlobHash(
+									new Uint8Array(bytes),
+								);
+							} catch {
+								// If hashing fails, stage the bytes without a comparison.
+							}
+							if (source.stat.mtime !== mtime) {
+								throw new Error(
+									`Asset changed while reading: ${asset.vaultPath}. Retry publishing.`,
+								);
+							}
+							if (gitSha) {
+								const entry = { mtime, gitSha };
+								assetShas.set(asset.vaultPath, entry);
+								updatedAssetShas.set(asset.vaultPath, entry);
+							}
+						}
+
+						const remote = remoteIndex.full.get(assetPath);
+						if (gitSha && gitSha === remote?.sha) continue;
+
+						bytes ??= await this.app.vault.readBinary(source);
+						if (source.stat.mtime !== mtime) {
+							throw new Error(
+								`Asset changed while reading: ${asset.vaultPath}. Retry publishing.`,
+							);
+						}
+						fileChanges.push({
+							path: assetPath,
+							content: arrayBufferToBase64(bytes),
+							encoding: "base64",
+						});
+						fileAssetPaths.add(assetPath);
+					}
+
+					const localHash = settings.useCache
+						? await this.dataStore.loadLocalHash(
+								file.file.path,
+								file.file.stat.mtime,
+							)
+						: null;
+
+					if (localHash) {
+						remoteHashes.push({
+							path: file.file.path,
+							timestamp: now,
+							hash: localHash,
+						});
+					}
+
+					changes.push(...fileChanges);
+					for (const path of fileAssetPaths) {
+						stagedAssetPaths.add(path);
+					}
+					publishedFiles.push(file);
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+
+					failures.push({
+						vaultPath: file.getVaultPath(),
+						error: message,
+					});
+
+					this.eventSink?.emit("publish.file.failed", {
+						path: file.getVaultPath(),
+						error: message,
 					});
 				}
 
@@ -399,6 +515,27 @@ export class Publisher {
 				encoding: "utf-8" | "base64";
 			}> = [];
 			const staleStyleFiles: string[] = [];
+			if (settings.useCache && updatedAssetShas.size > 0) {
+				try {
+					await this.dataStore.storeAssetShas(updatedAssetShas);
+				} catch (error) {
+					console.debug("Asset SHA cache write failed:", error);
+				}
+			}
+
+			if (files.length > 0 && publishedFiles.length === 0) {
+				this.eventSink?.emit("publish.failed", {
+					error: `All ${failures.length} file(s) failed to compile`,
+				});
+
+				return {
+					success: false,
+					filesPublished: 0,
+					filesDeleted: 0,
+					error: `All ${failures.length} file(s) failed to compile. First error: ${failures[0]?.error ?? "Unknown error"}`,
+					failures,
+				};
+			}
 
 			if (this.quartzFileSource) {
 				const assetSyncer = new AssetSyncer(settings);
@@ -459,21 +596,18 @@ export class Publisher {
 			}
 
 			this.eventSink?.emit("publish.completed", {
-				fileCount: files.length,
+				fileCount: publishedFiles.length,
+				failedCount: failures.length,
 				commitSha: result.sha,
 			});
 
-			for (const entry of remoteHashes) {
-				await this.dataStore.storeRemoteHash(
-					entry.path,
-					entry.timestamp,
-					entry.hash,
-				);
+			if (remoteHashes.length > 0) {
+				await this.dataStore.storeRemoteHashes(remoteHashes);
 			}
 
 			this.backend.invalidateTreeCache();
 			this.plugin.statusCache.patchPublished(
-				new Set(files.map((f) => f.getVaultPath())),
+				new Set(publishedFiles.map((f) => f.getVaultPath())),
 			);
 			this.backend.refreshTreeCache().catch((error) => {
 				console.debug("Tree cache refresh failed:", error);
@@ -486,8 +620,9 @@ export class Publisher {
 			const publishResult: PublishResult = {
 				success: true,
 				commitSha: result.sha,
-				filesPublished: files.length,
+				filesPublished: publishedFiles.length,
 				filesDeleted: 0,
+				...(failures.length > 0 ? { failures } : {}),
 			};
 
 			if (settings.autoCleanOrphanedMedia) {
@@ -510,6 +645,7 @@ export class Publisher {
 				filesPublished: 0,
 				filesDeleted: 0,
 				error: error instanceof Error ? error.message : String(error),
+				...(failures.length > 0 ? { failures } : {}),
 			};
 		}
 	}
