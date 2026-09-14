@@ -82,6 +82,7 @@ export type QSEventType =
 	| "publish.started"
 	| "publish.completed"
 	| "publish.failed"
+	| "publish.file.failed"
 	| "delete.started"
 	| "delete.completed"
 	| "delete.failed"

@@ -212,7 +212,7 @@ export class SyncerPageCompiler {
 	 * Parses text with remark-obsidian, strips comments (built-in tree transform),
 	 * and strips vault path prefix from link/image URLs.
 	 */
-	astTransform: TCompilerStep = () => async (text) => {
+	astTransform: TCompilerStep = (file) => async (text) => {
 		const vaultPath = this.settings.vaultPath;
 		const hasVaultPath = vaultPath !== "/" && vaultPath !== "";
 
@@ -226,33 +226,42 @@ export class SyncerPageCompiler {
 				rule: "-",
 			});
 
-		const tree = processor.parse(text);
-		const transformed = await processor.run(tree);
+		try {
+			const tree = processor.parse(text);
+			const transformed = await processor.run(tree);
 
-		if (hasVaultPath) {
-			visit(transformed, "link", (node: Link) => {
-				if (node.url.startsWith(vaultPath)) {
-					node.url = node.url.substring(vaultPath.length);
-				}
-			});
+			if (hasVaultPath) {
+				visit(transformed, "link", (node: Link) => {
+					if (node.url.startsWith(vaultPath)) {
+						node.url = node.url.substring(vaultPath.length);
+					}
+				});
 
-			visit(transformed, "image", (node: Image) => {
-				if (node.url.startsWith(vaultPath)) {
-					node.url = node.url.substring(vaultPath.length);
-				}
-			});
+				visit(transformed, "image", (node: Image) => {
+					if (node.url.startsWith(vaultPath)) {
+						node.url = node.url.substring(vaultPath.length);
+					}
+				});
+			}
+
+			let result = processor.stringify(transformed as Root);
+
+			result = result.replace(
+				/^((?:> ?)+)\\\[(![\w-]+(?:\|[^\]\r\n]*)?)]/gm,
+				"$1[$2]",
+			);
+
+			result = result.replace(/\\\[(\^[\w-]+)\]/g, "[$1]");
+
+			return result;
+		} catch (error) {
+			const message =
+				error instanceof Error ? error.message : String(error);
+
+			throw new Error(
+				`Markdown transform failed for "${file.getVaultPath()}": ${message}`,
+			);
 		}
-
-		let result = processor.stringify(transformed as Root);
-
-		result = result.replace(
-			/^((?:> ?)+)\\\[(![\w-]+(?:\|[^\]\r\n]*)?)]/gm,
-			"$1[$2]",
-		);
-
-		result = result.replace(/\\\[(\^[\w-]+)\]/g, "[$1]");
-
-		return result;
 	};
 
 	/**

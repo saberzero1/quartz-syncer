@@ -10,6 +10,7 @@ import { collectCandidatePaths } from "src/publishFile/PublishCandidates";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { DataStore } from "src/cache/DataStore";
 import type {
+	PublishFailure,
 	PublishProgressCallback,
 	PublishResult,
 	PublishStatus,
@@ -321,63 +322,102 @@ export class Publisher {
 		const commitMessage = message ?? "Publish notes";
 		const total = files.length;
 
+		const publishedFiles: PublishFile[] = [];
+		const failures: PublishFailure[] = [];
+
 		try {
 			for (let index = 0; index < files.length; index += 1) {
 				const file = files[index];
 				if (!file) continue;
 
-				let storedFile = settings.useCache
-					? await this.dataStore.loadLocalFile(
-							file.file.path,
-							file.file.stat.mtime,
-							true,
-						)
-					: null;
+				// Staged per file so a failure midway cannot leave a partially
+				// written note (text without its media) in the commit.
+				const fileChanges: FileChange[] = [];
 
-				if (!storedFile) {
-					const compiled = await file.compile(true);
-					storedFile = compiled.getCompiledFile();
-				}
+				try {
+					let storedFile = settings.useCache
+						? await this.dataStore.loadLocalFile(
+								file.file.path,
+								file.file.stat.mtime,
+								true,
+							)
+						: null;
 
-				const [text, assets] = storedFile;
-				const repoPath = this.pathMapper.toRepoPath(
-					file.getVaultPath(),
-				);
+					if (!storedFile) {
+						const compiled = await file.compile(true);
+						storedFile = compiled.getCompiledFile();
+					}
 
-				changes.push({
-					path: repoPath,
-					content: text,
-					encoding: "utf-8",
-				});
-
-				for (const asset of assets.blobs) {
-					const assetPath = this.pathMapper.toRepoPath(
-						this.toVaultRelativePath(asset.path),
+					const [text, assets] = storedFile;
+					const repoPath = this.pathMapper.toRepoPath(
+						file.getVaultPath(),
 					);
 
-					changes.push({
-						path: assetPath,
-						content: asset.content,
-						encoding: "base64",
+					fileChanges.push({
+						path: repoPath,
+						content: text,
+						encoding: "utf-8",
 					});
-				}
 
-				const localHash = settings.useCache
-					? await this.dataStore.loadLocalHash(
-							file.file.path,
-							file.file.stat.mtime,
-						)
-					: null;
+					for (const asset of assets.blobs) {
+						const assetPath = this.pathMapper.toRepoPath(
+							this.toVaultRelativePath(asset.path),
+						);
 
-				if (localHash) {
-					remoteHashes.push({
-						path: file.file.path,
-						timestamp: now,
-						hash: localHash,
+						fileChanges.push({
+							path: assetPath,
+							content: asset.content,
+							encoding: "base64",
+						});
+					}
+
+					const localHash = settings.useCache
+						? await this.dataStore.loadLocalHash(
+								file.file.path,
+								file.file.stat.mtime,
+							)
+						: null;
+
+					if (localHash) {
+						remoteHashes.push({
+							path: file.file.path,
+							timestamp: now,
+							hash: localHash,
+						});
+					}
+
+					changes.push(...fileChanges);
+					publishedFiles.push(file);
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+
+					failures.push({
+						vaultPath: file.getVaultPath(),
+						error: message,
+					});
+
+					this.eventSink?.emit("publish.file.failed", {
+						path: file.getVaultPath(),
+						error: message,
 					});
 				}
 
 				onProgress?.(index + 1, total);
+			}
+
+			if (files.length > 0 && publishedFiles.length === 0) {
+				this.eventSink?.emit("publish.failed", {
+					error: `All ${failures.length} file(s) failed to compile`,
+				});
+
+				return {
+					success: false,
+					filesPublished: 0,
+					filesDeleted: 0,
+					error: `All ${failures.length} file(s) failed to compile. First error: ${failures[0]?.error ?? "Unknown error"}`,
+					failures,
+				};
 			}
 
 			const assets = await this.collectIntegrationAssets(settings);
@@ -403,7 +443,8 @@ export class Publisher {
 			}
 
 			this.eventSink?.emit("publish.completed", {
-				fileCount: files.length,
+				fileCount: publishedFiles.length,
+				failedCount: failures.length,
 				commitSha: result.sha,
 			});
 
@@ -417,7 +458,7 @@ export class Publisher {
 
 			this.backend.invalidateTreeCache();
 			this.plugin.statusCache.patchPublished(
-				new Set(files.map((f) => f.getVaultPath())),
+				new Set(publishedFiles.map((f) => f.getVaultPath())),
 			);
 			this.backend.refreshTreeCache().catch((error) => {
 				console.debug("Tree cache refresh failed:", error);
@@ -430,8 +471,9 @@ export class Publisher {
 			const publishResult: PublishResult = {
 				success: true,
 				commitSha: result.sha,
-				filesPublished: files.length,
+				filesPublished: publishedFiles.length,
 				filesDeleted: 0,
+				...(failures.length > 0 ? { failures } : {}),
 			};
 
 			if (settings.autoCleanOrphanedMedia) {
@@ -454,6 +496,7 @@ export class Publisher {
 				filesPublished: 0,
 				filesDeleted: 0,
 				error: error instanceof Error ? error.message : String(error),
+				...(failures.length > 0 ? { failures } : {}),
 			};
 		}
 	}

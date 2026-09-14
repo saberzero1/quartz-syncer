@@ -818,11 +818,20 @@ export class BackgroundEngine {
 
 			if (pending.length === 0 && deleted.length === 0) return;
 
+			let published = 0;
+
 			if (pending.length > 0) {
-				await publisher.publishBatch(
+				const result = await publisher.publishBatch(
 					pending,
 					"Auto-published via Quartz Syncer",
 				);
+				published = result.filesPublished;
+
+				for (const failure of result.failures ?? []) {
+					console.error(
+						`Quartz Syncer auto-publish: skipped "${failure.vaultPath}": ${failure.error}`,
+					);
+				}
 			}
 			if (deleted.length > 0) {
 				await publisher.deleteBatch(
@@ -842,7 +851,7 @@ export class BackgroundEngine {
 			}
 
 			console.debug(
-				`Auto-publish: ${pending.length} published, ${deleted.length} deleted`,
+				`Auto-publish: ${published} published, ${deleted.length} deleted`,
 			);
 		} catch (e) {
 			console.debug("Auto-publish failed:", e);

@@ -319,6 +319,139 @@ describe("Publisher", () => {
 		);
 	});
 
+	describe("publishBatch failure isolation", () => {
+		const makeFailingSetup = (failingPaths: string[]) => {
+			const app = new App();
+			const settings = makeSettings({ useCache: false });
+			const plugin = makePlugin(settings);
+			const gitBackend = makeGitBackend();
+			const compiler = {
+				extractBlobLinks: async () => [],
+			} as unknown as SyncerPageCompiler;
+			const dataStore = {
+				loadLocalFile: vi.fn().mockResolvedValue(null),
+				loadLocalHash: vi.fn().mockResolvedValue(null),
+				storeRemoteHash: vi.fn(),
+			} as unknown as DataStore;
+
+			const makeFile = (path: string): PublishFile =>
+				({
+					file: { path, stat: { mtime: 1000 } },
+					getVaultPath: () => path,
+					compile: failingPaths.includes(path)
+						? vi
+								.fn()
+								.mockRejectedValue(new Error(`boom in ${path}`))
+						: vi.fn().mockResolvedValue({
+								getCompiledFile: () => [
+									`content of ${path}`,
+									{ blobs: [] },
+								],
+							}),
+				}) as unknown as PublishFile;
+
+			const backend = new RemotePublishBackend(gitBackend, "main");
+			const publisher = new Publisher(
+				app,
+				plugin,
+				backend,
+				compiler,
+				dataStore,
+			);
+
+			return { publisher, plugin, gitBackend, makeFile };
+		};
+
+		it("publishes healthy files and reports the failed one", async () => {
+			const { publisher, gitBackend, makeFile } = makeFailingSetup([
+				"notes/bad.md",
+			]);
+
+			const result = await publisher.publishBatch([
+				makeFile("notes/a.md"),
+				makeFile("notes/bad.md"),
+				makeFile("notes/b.md"),
+			]);
+
+			expect(result.success).toBe(true);
+			expect(result.filesPublished).toBe(2);
+			expect(result.failures).toEqual([
+				{
+					vaultPath: "notes/bad.md",
+					error: "boom in notes/bad.md",
+				},
+			]);
+
+			const [, , changes] = vi.mocked(gitBackend.writeFiles).mock
+				.calls[0] as unknown as [
+				string,
+				string,
+				Array<{ path: string }>,
+			];
+			expect(changes.map((change) => change.path)).toEqual([
+				"content/notes/a.md",
+				"content/notes/b.md",
+			]);
+		});
+
+		it("does not mark failed files as published", async () => {
+			const { publisher, plugin, makeFile } = makeFailingSetup([
+				"notes/bad.md",
+			]);
+
+			await publisher.publishBatch([
+				makeFile("notes/a.md"),
+				makeFile("notes/bad.md"),
+			]);
+
+			expect(plugin.statusCache.patchPublished).toHaveBeenCalledWith(
+				new Set(["notes/a.md"]),
+			);
+		});
+
+		it("fails the batch without writing when every file fails", async () => {
+			const { publisher, plugin, gitBackend, makeFile } =
+				makeFailingSetup(["notes/a.md", "notes/b.md"]);
+
+			const result = await publisher.publishBatch([
+				makeFile("notes/a.md"),
+				makeFile("notes/b.md"),
+			]);
+
+			expect(result.success).toBe(false);
+			expect(result.filesPublished).toBe(0);
+			expect(result.failures).toHaveLength(2);
+			expect(gitBackend.writeFiles).not.toHaveBeenCalled();
+			expect(plugin.statusCache.patchPublished).not.toHaveBeenCalled();
+		});
+
+		it("omits failures when every file succeeds", async () => {
+			const { publisher, makeFile } = makeFailingSetup([]);
+
+			const result = await publisher.publishBatch([
+				makeFile("notes/a.md"),
+				makeFile("notes/b.md"),
+			]);
+
+			expect(result.success).toBe(true);
+			expect(result.filesPublished).toBe(2);
+			expect(result.failures).toBeUndefined();
+		});
+
+		it("reports progress for failed files so the bar still completes", async () => {
+			const { publisher, makeFile } = makeFailingSetup(["notes/bad.md"]);
+			const progress: number[] = [];
+
+			await publisher.publishBatch(
+				[makeFile("notes/a.md"), makeFile("notes/bad.md")],
+				"msg",
+				(current) => progress.push(current),
+			);
+
+			expect(progress).toEqual([1, 2]);
+		});
+	});
+
 	it("deleteBatch calls deleteFiles with mapped paths", async () => {
 		const app = new App();
 		const settings = makeSettings();
