@@ -99,6 +99,10 @@ export class ActionRegistry {
 				return this.withLock(() =>
 					this.deletePending(action.params.confirm),
 				);
+			case "pub.unpublish":
+				return this.withLock(() =>
+					this.unpublishPaths(action.params.paths),
+				);
 			case "cache.pruneForeign":
 				return this.withLock(() =>
 					this.pruneForeignCaches(action.params?.confirm),
@@ -267,6 +271,43 @@ export class ActionRegistry {
 			return {
 				success: result.success,
 				data: result,
+				error: result.success
+					? undefined
+					: (result.error ?? "Delete failed"),
+			};
+		} catch (error) {
+			return { success: false, error: toErrorMessage(error) };
+		}
+	}
+
+	private async unpublishPaths(
+		requestedPaths: string[],
+	): Promise<ActionResult> {
+		const service = this.getPublicationService();
+		if (!service) {
+			return { success: false, error: "Publisher not available" };
+		}
+
+		try {
+			// Resolve eligibility against current status, not a stale cached selection.
+			const paths = [...new Set(requestedPaths)];
+			const status = await service.getStatus();
+			const published = new Set(
+				status.published.map((file) => file.getVaultPath()),
+			);
+			const unmatched = paths.filter((path) => !published.has(path));
+			if (unmatched.length > 0) {
+				return {
+					success: false,
+					error: "All paths must exactly match currently published notes. Nothing was deleted.",
+					data: { unmatched },
+				};
+			}
+
+			const result = await service.delete(paths);
+			return {
+				success: result.success,
+				data: { ...result, files: paths },
 				error: result.success
 					? undefined
 					: (result.error ?? "Delete failed"),

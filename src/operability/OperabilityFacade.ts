@@ -154,6 +154,7 @@ export class OperabilityFacadeImpl implements IOperabilityFacade {
 				});
 				break;
 			case "pub.delete":
+			case "pub.unpublish":
 				this.eventBuffer.emit("delete.started", {});
 				break;
 			default:
@@ -202,6 +203,7 @@ export class OperabilityFacadeImpl implements IOperabilityFacade {
 				);
 				break;
 			case "pub.delete":
+			case "pub.unpublish":
 				this.eventBuffer.emit(
 					result.success ? "delete.completed" : "delete.failed",
 					{
