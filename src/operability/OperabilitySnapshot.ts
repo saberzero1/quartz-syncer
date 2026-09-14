@@ -149,15 +149,8 @@ function resolveStatusBar(plugin: QuartzSyncer): {
 		return { state: "unconfigured" };
 	}
 
-	try {
-		const statusBar = getter();
-		if (!statusBar) {
-			return { state: "unconfigured" };
-		}
-		return { state: statusBar.currentState };
-	} catch {
-		return { state: "unconfigured" };
-	}
+	const statusBar = getter.call(plugin);
+	return { state: statusBar?.currentState ?? "unconfigured" };
 }
 
 function resolveHasToken(plugin: QuartzSyncer): boolean {

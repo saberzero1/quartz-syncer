@@ -1,6 +1,7 @@
 import { assembleSnapshot } from "src/operability/OperabilitySnapshot";
 import { DEFAULT_SETTINGS } from "src/main";
 import type QuartzSyncer from "src/main";
+import { it } from "vitest";
 
 function makePlugin(
 	overrides: Partial<{
@@ -177,6 +178,63 @@ describe("assembleSnapshot", () => {
 	});
 
 	describe("statusBar", () => {
+		it.each(["ready", "compiling", "error"] as const)(
+			"preserves the plugin receiver when reading %s",
+			(state) => {
+				const plugin = {
+					...makePlugin({
+						gitRemoteUrl: "https://github.com/user/repo.git",
+						hasToken: true,
+					}),
+					statusBarManager: { currentState: state },
+					getStatusBar() {
+						return this.statusBarManager;
+					},
+				};
+				const snapshot = assembleSnapshot(
+					plugin as unknown as QuartzSyncer,
+				);
+				expect(snapshot.settings.configured).toBe(true);
+				expect(snapshot.statusBar.state).toBe(
+					plugin.getStatusBar().currentState,
+				);
+				expect(snapshot.statusBar.state).toBe(state);
+				expect(snapshot.statusBar.state).not.toBe("unconfigured");
+			},
+		);
+
+		it("does not disguise unexpected getter failures as unconfigured", () => {
+			const plugin = makePlugin();
+			plugin.getStatusBar = () => {
+				throw new Error("Status bar getter failed");
+			};
+			expect(() => assembleSnapshot(plugin)).toThrow(
+				"Status bar getter failed",
+			);
+		});
+
+		it("does not disguise currentState failures as unconfigured", () => {
+			const plugin = {
+				...makePlugin(),
+				getStatusBar: () => ({
+					get currentState(): never {
+						throw new Error("Status bar state failed");
+					},
+				}),
+			};
+			expect(() =>
+				assembleSnapshot(plugin as unknown as QuartzSyncer),
+			).toThrow("Status bar state failed");
+		});
+
+		it("defaults to unconfigured when the getter is unavailable", () => {
+			const plugin = { ...makePlugin(), getStatusBar: undefined };
+			const snapshot = assembleSnapshot(
+				plugin as unknown as QuartzSyncer,
+			);
+			expect(snapshot.statusBar.state).toBe("unconfigured");
+		});
+
 		it("reflects statusBar currentState when available", () => {
 			const snapshot = assembleSnapshot(
 				makePlugin({ statusBarState: "ready" }),
