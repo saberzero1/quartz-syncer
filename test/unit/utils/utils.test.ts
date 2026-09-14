@@ -8,10 +8,59 @@ import {
 	sanitizePermalink,
 	escapeRegExp,
 	cleanQueryResult,
+	isWithinVaultPath,
 	type PathRewriteRule,
 } from "src/utils/utils";
 
 describe("utils", () => {
+	describe("isWithinVaultPath", () => {
+		for (const vaultPath of ["/", "", "."]) {
+			it(`treats ${JSON.stringify(vaultPath)} as the whole vault`, () => {
+				expect(isWithinVaultPath("a.md", vaultPath)).toBe(true);
+				expect(isWithinVaultPath("notes/nested/a.md", vaultPath)).toBe(
+					true,
+				);
+			});
+		}
+
+		it("accepts a trailing slash on the configured folder", () => {
+			expect(isWithinVaultPath("notes/a.md", "notes/")).toBe(true);
+			expect(isWithinVaultPath("notes", "notes/")).toBe(true);
+			expect(isWithinVaultPath("notes-old/a.md", "notes/")).toBe(false);
+		});
+
+		it("includes an exact folder match", () => {
+			expect(isWithinVaultPath("notes", "notes")).toBe(true);
+		});
+
+		it("matches folder boundaries rather than shared prefixes", () => {
+			expect(isWithinVaultPath("notes/a.md", "notes")).toBe(true);
+			expect(isWithinVaultPath("notes-old/a.md", "notes")).toBe(false);
+			expect(isWithinVaultPath("notes.md", "notes")).toBe(false);
+		});
+
+		it("normalises leading slashes on both sides", () => {
+			expect(isWithinVaultPath("/vault/notes/a.md", "/vault")).toBe(true);
+			expect(isWithinVaultPath("vault/notes/a.md", "/vault")).toBe(true);
+			expect(isWithinVaultPath("/vault/notes/a.md", "vault")).toBe(true);
+			expect(isWithinVaultPath("/vault-old/a.md", "/vault")).toBe(false);
+		});
+
+		it("includes nested paths only within the configured subtree", () => {
+			expect(isWithinVaultPath("notes/nested/deep/a.md", "notes")).toBe(
+				true,
+			);
+			expect(isWithinVaultPath("notes/nested/a.md", "notes/nested")).toBe(
+				true,
+			);
+			expect(
+				isWithinVaultPath("notes/nested-old/a.md", "notes/nested"),
+			).toBe(false);
+			expect(isWithinVaultPath("notes/a.md", "notes/nested")).toBe(false);
+			expect(isWithinVaultPath("other/notes/a.md", "notes")).toBe(false);
+		});
+	});
+
 	describe("getSyncerPathForNote", () => {
 		const TESTS: Array<{
 			name: string;

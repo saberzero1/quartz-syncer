@@ -11,7 +11,7 @@ import QuartzSyncerSettings from "src/models/settings";
 import { hasPublishFlag } from "src/publishFile/Validator";
 import { FileMetadataManager } from "src/publishFile/FileMetaDataManager";
 import { DataStore } from "src/cache/DataStore";
-import { generateBlobHash } from "src/utils/utils";
+import { generateBlobHash, isWithinVaultPath } from "src/utils/utils";
 import {
 	DATAVIEW_FIELD_REGEX,
 	DATAVIEW_INLINE_FIELD_REGEX,
@@ -286,7 +286,8 @@ export class PublishFile {
 	getVaultPath = () => {
 		if (
 			this.settings.vaultPath !== "/" &&
-			this.file.path.startsWith(this.settings.vaultPath)
+			this.settings.vaultPath !== "." &&
+			isWithinVaultPath(this.file.path, this.settings.vaultPath)
 		) {
 			return this.file.path.replace(this.settings.vaultPath, "");
 		}
