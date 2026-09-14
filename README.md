@@ -62,7 +62,7 @@ Quartz Syncer supports the [Obsidian CLI](https://obsidian.md/cli) (v1.13+) for 
 | `quartz-syncer:status` | Show publish status of all marked notes | `obsidian quartz-syncer:status format=json` |
 | `quartz-syncer:sync` | Publish pending notes and delete removed notes | `obsidian quartz-syncer:sync force` |
 | `quartz-syncer:publish` | Publish pending notes only (no deletions) | `obsidian quartz-syncer:publish` |
-| `quartz-syncer:delete` | Delete removed notes from remote | `obsidian quartz-syncer:delete force` |
+| `quartz-syncer:delete` | Delete removed notes, or explicitly unpublish selected notes | `obsidian quartz-syncer:delete action=unpublish path="notes/post.md" force dry-run` |
 | `quartz-syncer:mark` | Set/unset/toggle publish flag on notes | `obsidian quartz-syncer:mark path="notes/post.md"` |
 | `quartz-syncer:test` | Test Git connection and credentials | `obsidian quartz-syncer:test` |
 | `quartz-syncer:cache` | Manage the plugin cache | `obsidian quartz-syncer:cache action=status` |
@@ -84,13 +84,35 @@ The `config` and `quartz-config` commands default to listing all settings when n
 
 ### Path patterns
 
-The `mark` command supports three path resolution modes:
+The `mark` command and `delete action=unpublish` support three path resolution modes:
 
 - **Exact**: `path="notes/my-post.md"` — Match a single file.
 - **Glob**: `path="notes/**/*.md"` — Match files using glob patterns.
 - **Fuzzy**: `path="~my post"` — Fuzzy search by name (prefix with `~`).
 
 Use `dry-run` to preview matched files before modifying: `obsidian quartz-syncer:mark path="blog/**/*.md" dry-run`
+
+### Unpublishing notes
+
+`delete force` still deletes **only notes removed from the vault**. To remove a currently published note from the selected publishing destination while keeping the vault note, explicitly use `action=unpublish` and a required `path`:
+
+```bash
+obsidian quartz-syncer:delete action=unpublish path="notes/post.md" force dry-run format=json
+obsidian quartz-syncer:delete action=unpublish path="notes/post.md" force verbose
+```
+
+`force` is required even for dry-run. Dry-run lists every matched note without deleting anything. Only currently published (in-sync) notes are eligible; no matches returns an error. Glob/fuzzy execution is blocked if it matches more than 80% of published notes when there are more than five. Dry-run still lists those matches with a warning; narrow the pattern or use exact paths. Supplying `path` without `action=unpublish` is rejected rather than falling back to bulk deletion.
+
+Agents can use the separate operability action with an explicit, non-empty list of exact vault paths:
+
+```javascript
+await window.__QS__.act({
+	name: "pub.unpublish",
+	params: { paths: ["notes/post.md"], confirm: true },
+});
+```
+
+`confirm: true` is mandatory. Every path must match a currently published note or the whole request is rejected; duplicates are removed. No glob expansion occurs in the facade. `pub.delete` remains deleted-only. Unpublishing does not change frontmatter: notes remain publishable and can be published again (including by auto-publish, if enabled). Existing orphan-media auto-cleanup settings still apply to execution, but never to dry-run.
 
 ### Example workflow
 

@@ -37,6 +37,7 @@ export default defineConfig(
 						"vitest.config.ts",
 						"vitest.integration.config.ts",
 						"vitest.e2e.config.ts",
+						"vitest.bench.config.ts",
 					],
 				},
 				tsconfigRootDir: import.meta.dirname,

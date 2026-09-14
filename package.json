@@ -1,6 +1,6 @@
 {
 	"name": "quartz-syncer",
-	"version": "2.0.12",
+	"version": "2.0.14",
 	"type": "module",
 	"main": "main.js",
 	"engines": {
@@ -13,6 +13,7 @@
 		"lint": "eslint .",
 		"test": "npm run test:unit && npm run test:integration",
 		"test:unit": "vitest run",
+		"bench": "vitest bench --config vitest.bench.config.ts",
 		"test:coverage": "vitest run --coverage",
 		"test:integration": "vitest run --config vitest.integration.config.ts",
 		"test:e2e:build": "vitest run --config vitest.e2e.config.ts",
@@ -44,7 +45,7 @@
 	},
 	"dependencies": {
 		"@isomorphic-git/lightning-fs": "^4.7.0",
-		"@quartz-community/remark-obsidian": "^0.2.4",
+		"@quartz-community/remark-obsidian": "^0.2.5",
 		"buffer": "^6.0.3",
 		"diff": "^9.0.0",
 		"isomorphic-git": "https://github.com/saberzero1/isomorphic-git.git",

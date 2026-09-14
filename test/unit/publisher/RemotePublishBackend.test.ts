@@ -145,6 +145,27 @@ describe("RemotePublishBackend", () => {
 		expect(gitBackend.readTree).toHaveBeenCalledWith("main");
 	});
 
+	it("cache-only reads never fetch on a cache miss", async () => {
+		await expect(backend.getCachedTree("main", true)).resolves.toEqual([]);
+		expect(gitBackend.readTree).not.toHaveBeenCalled();
+	});
+
+	it("cache-only reads reuse the existing tree", async () => {
+		const entries: TreeEntry[] = [
+			{ path: "content/image.png", sha: "sha1", type: "blob" },
+		];
+		vi.mocked(gitBackend.readTree).mockResolvedValue(entries);
+		await backend.refreshTreeCache();
+		vi.mocked(gitBackend.readTree).mockClear();
+		await expect(backend.getCachedTree("main", true)).resolves.toEqual(
+			entries,
+		);
+		expect(gitBackend.readTree).not.toHaveBeenCalled();
+		backend.invalidateTreeCache();
+		await expect(backend.getCachedTree("main", true)).resolves.toEqual([]);
+		expect(gitBackend.readTree).not.toHaveBeenCalled();
+	});
+
 	it("refreshTreeCache calls through to tree cache (triggers readTree)", async () => {
 		const entries: TreeEntry[] = [
 			{ path: "content/notes/a.md", sha: "sha1", type: "blob" },

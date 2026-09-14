@@ -95,6 +95,20 @@ afterEach(() => {
 });
 
 describe("LocalPublishBackend repo path handling", () => {
+	it("cache-only reads reuse the tree without scanning on a cache miss", async () => {
+		const backend = new LocalPublishBackend("~/quartz");
+		files.set(
+			"/home/testuser/quartz/content/image.png",
+			new Uint8Array([255]),
+		);
+		await expect(backend.getCachedTree("main", true)).resolves.toEqual([]);
+		const tree = await backend.getCachedTree("main");
+		expect(tree).toHaveLength(1);
+		await expect(backend.getCachedTree("main", true)).resolves.toBe(tree);
+		backend.invalidateTreeCache();
+		await expect(backend.getCachedTree("main", true)).resolves.toEqual([]);
+	});
+
 	it("writes through a tilde repo path", async () => {
 		const backend = new LocalPublishBackend("~/quartz");
 		const result = await backend.writeFiles("main", "msg", [

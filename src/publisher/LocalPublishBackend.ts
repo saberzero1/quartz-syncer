@@ -151,8 +151,9 @@ export class LocalPublishBackend implements PublishBackend {
 		return this.buildTree();
 	}
 
-	async getCachedTree(_ref: string): Promise<TreeEntry[]> {
+	async getCachedTree(_ref: string, cacheOnly = false): Promise<TreeEntry[]> {
 		if (this.cachedTree) return this.cachedTree;
+		if (cacheOnly) return [];
 
 		return this.buildTree();
 	}

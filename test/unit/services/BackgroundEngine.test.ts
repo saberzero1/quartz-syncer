@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App, TFile } from "obsidian";
+import { App, Events, Platform, TFile } from "obsidian";
 import { BackgroundEngine } from "src/services/BackgroundEngine";
+import { PathMapper } from "src/git/PathMapper";
+import type { TreeEntry } from "src/git/types";
+import * as publishCandidates from "src/publishFile/PublishCandidates";
 import * as dataview from "src/compiler/integrations/apis/dataview";
 import type { DatacoreApi } from "src/compiler/integrations/apis/datacore";
 import type { Publisher } from "src/publisher/Publisher";
@@ -105,6 +108,31 @@ const createApp = (files: TFile[] = []): App => {
 	};
 	vaultStub.getFiles = vi.fn().mockReturnValue(files);
 	return app;
+};
+
+const createSummaryContext = (files: TFile[], tree: TreeEntry[] = []) => {
+	const app = createApp(files);
+	app.vault.getMarkdownFiles = vi.fn().mockReturnValue(files);
+	app.vault.getFileByPath = vi.fn(
+		(path: string) => files.find((file) => file.path === path) ?? null,
+	);
+	const plugin = createPluginStub();
+	plugin.settings = {
+		...plugin.settings,
+		vaultPath: "/",
+		allNotesPublishableByDefault: true,
+	};
+	plugin.dataStore.loadLocalHash = vi.fn().mockResolvedValue(null);
+	plugin.dataStore.loadStatusMetadata = vi.fn().mockResolvedValue(new Map());
+	plugin.statusCache.setSummary = vi.fn();
+	const pathMapper = new PathMapper("content");
+	const publisher = createPublisherStub({
+		getCachedTree: vi.fn().mockResolvedValue(tree),
+		getPathMapper: () => pathMapper,
+	});
+	plugin.getPublisher = () => publisher;
+	const engine = new BackgroundEngine(app, plugin);
+	return { app, plugin, publisher, pathMapper, engine };
 };
 
 describe("BackgroundEngine", () => {
@@ -682,7 +710,7 @@ describe("BackgroundEngine", () => {
 			};
 			vi.spyOn(dataview, "getDataviewApi").mockReturnValue(api);
 			// MetadataCache lacks events in the shared mock; reuse its Workspace emitter.
-			const on = vi.fn(app.workspace.on.bind(app.workspace));
+			const on = vi.fn((app.workspace as Events).on.bind(app.workspace));
 			app.metadataCache.on = on;
 			app.metadataCache.offref = app.workspace.offref.bind(app.workspace);
 			return on;
@@ -694,9 +722,12 @@ describe("BackgroundEngine", () => {
 					event: "update" | "initialized",
 					callback: (revision: number) => void,
 				) =>
-					app.workspace.on(event, (...args: unknown[]) => {
-						if (typeof args[0] === "number") callback(args[0]);
-					}),
+					(app.workspace as Events).on(
+						event,
+						(...args: unknown[]) => {
+							if (typeof args[0] === "number") callback(args[0]);
+						},
+					),
 			);
 			const api: DatacoreApi = {
 				core: {
@@ -829,11 +860,16 @@ describe("BackgroundEngine", () => {
 		vi.useRealTimers();
 	});
 
-	it.each([false, true])(
-		"prewarm with publishable metadata candidates honors useCache=%s across batches",
-		async (useCache) => {
+	it.each([
+		[false, false],
+		[false, true],
+		[true, false],
+		[true, true],
+	])(
+		"startup does not enqueue the vault (useCache=%s, allNotesPublishableByDefault=%s)",
+		async (useCache, allNotesPublishableByDefault) => {
 			vi.useFakeTimers();
-			const files = Array.from({ length: 11 }, (_, index) =>
+			const files = Array.from({ length: 10_001 }, (_, index) =>
 				createFile(`notes/published-${index}.md`, 1000),
 			);
 			const app = createApp(files);
@@ -845,6 +881,7 @@ describe("BackgroundEngine", () => {
 			plugin.settings = {
 				...plugin.settings,
 				useCache,
+				allNotesPublishableByDefault,
 				publishFrontmatterKey: "publish",
 			};
 			const engine = new BackgroundEngine(app, plugin);
@@ -853,18 +890,18 @@ describe("BackgroundEngine", () => {
 
 			try {
 				engine.start();
-				await vi.advanceTimersByTimeAsync(51);
+				await vi.advanceTimersByTimeAsync(60_000);
 
-				expect(enqueueSpy.mock.calls).toEqual(
-					useCache ? files.map((file) => [file.path, 0]) : [],
-				);
+				expect(enqueueSpy).not.toHaveBeenCalled();
+				expect(engine.pendingCount).toBe(0);
+				expect(app.vault.getFiles).not.toHaveBeenCalled();
 			} finally {
 				engine.stop();
 			}
 		},
 	);
 
-	it("prewarm enqueues only publishable candidates when useCache is true", () => {
+	it("startup leaves both publishable notes and drafts uncompiled", () => {
 		vi.useFakeTimers();
 
 		const publishedFile = createFile("notes/published.md", 1000);
@@ -905,8 +942,192 @@ describe("BackgroundEngine", () => {
 		engine.start();
 		vi.advanceTimersByTime(40_001);
 
-		const enqueued = enqueueSpy.mock.calls.map((c) => c[0]);
-		expect(enqueued).not.toContain("notes/draft.md");
+		expect(enqueueSpy).not.toHaveBeenCalled();
+		expect(engine.pendingCount).toBe(0);
+		engine.stop();
 		vi.useRealTimers();
 	});
+
+	it("fetches the initial tree without a queue drain and only once", async () => {
+		vi.useFakeTimers();
+		const { engine, publisher, plugin } = createSummaryContext([]);
+		let finishFetch = () => {};
+		vi.mocked(publisher.refreshTreeCache).mockReturnValue(
+			new Promise<void>((resolve) => {
+				finishFetch = resolve;
+			}),
+		);
+
+		try {
+			engine.start();
+			expect(engine.pendingCount).toBe(0);
+			expect(engine.compilationQueue.completedCount).toBe(0);
+			expect(publisher.refreshTreeCache).toHaveBeenCalledTimes(1);
+
+			// Repeated starts and idle callbacks must not duplicate an in-flight fetch.
+			engine.start();
+			engine.compilationQueue.processQueue();
+			expect(publisher.refreshTreeCache).toHaveBeenCalledTimes(1);
+
+			// Activity after the fetch starts must not hold up the initial summary.
+			engine.compilationQueue.pause();
+			engine.compilationQueue.enqueue("notes/later.md");
+			finishFetch();
+			await vi.runAllTimersAsync();
+			expect(engine.pendingCount).toBe(1);
+			expect(plugin.statusCache.setSummary).toHaveBeenCalledTimes(1);
+
+			engine.compilationQueue.resume();
+			await vi.runAllTimersAsync();
+			expect(publisher.refreshTreeCache).toHaveBeenCalledTimes(1);
+		} finally {
+			engine.stop();
+		}
+	});
+
+	it("defers the initial fetch when startup finds a busy queue", async () => {
+		vi.useFakeTimers();
+		const { engine, publisher, plugin } = createSummaryContext([]);
+		engine.compilationQueue.pause();
+		engine.compilationQueue.enqueue("notes/pending.md");
+
+		try {
+			engine.start();
+			await vi.runAllTimersAsync();
+			expect(publisher.refreshTreeCache).not.toHaveBeenCalled();
+
+			engine.compilationQueue.resume();
+			await vi.runAllTimersAsync();
+			expect(publisher.refreshTreeCache).toHaveBeenCalledTimes(1);
+			expect(plugin.statusCache.setSummary).toHaveBeenCalledTimes(1);
+		} finally {
+			engine.stop();
+		}
+	});
+
+	it("only strips vaultPath on a path boundary in the summary", async () => {
+		vi.useFakeTimers();
+		const files = [
+			createFile("notes/a.md", 1000),
+			createFile("notes-old/a.md", 1000),
+		];
+		const { engine, plugin, pathMapper } = createSummaryContext(files);
+		plugin.settings.vaultPath = "notes";
+		// Isolate summary mapping from the candidate collector's own scope filter.
+		const candidatesSpy = vi
+			.spyOn(publishCandidates, "collectCandidatePaths")
+			.mockReturnValue(new Set(files.map((file) => file.path)));
+		const mapSpy = vi.spyOn(pathMapper, "toRepoPath");
+
+		try {
+			engine.start();
+			await vi.runAllTimersAsync();
+			expect(mapSpy.mock.calls).toEqual([["/a.md"], ["notes-old/a.md"]]);
+			expect(plugin.statusCache.setSummary).toHaveBeenCalledWith({
+				unpublished: 2,
+				changed: 0,
+				published: 0,
+				deleted: 0,
+				media: 0,
+				timestamp: expect.any(Number),
+			});
+		} finally {
+			engine.stop();
+			candidatesSpy.mockRestore();
+		}
+	});
+
+	it.each(["/", "", "."])(
+		"preserves whole-vault paths in the summary for vaultPath=%s",
+		async (vaultPath) => {
+			vi.useFakeTimers();
+			const { engine, plugin, pathMapper } = createSummaryContext([
+				createFile("notes/a.md", 1000),
+			]);
+			plugin.settings.vaultPath = vaultPath;
+			const mapSpy = vi.spyOn(pathMapper, "toRepoPath");
+
+			try {
+				engine.start();
+				await vi.runAllTimersAsync();
+				expect(mapSpy).toHaveBeenCalledWith("notes/a.md");
+				expect(plugin.statusCache.setSummary).toHaveBeenCalledTimes(1);
+			} finally {
+				engine.stop();
+			}
+		},
+	);
+
+	it.each([false, true])(
+		"batches hash reads without changing summary counts (mobile=%s)",
+		async (isMobile) => {
+			vi.useFakeTimers();
+			const wasMobile = Platform.isMobileApp;
+			Platform.isMobileApp = isMobile;
+			const files = Array.from({ length: 13 }, (_, index) =>
+				createFile(`notes/${index}.md`, 1000 + index),
+			);
+			const tree: TreeEntry[] = files.slice(0, 12).map((file, index) => ({
+				path: `content/${file.path}`,
+				sha: `sha-${index}`,
+				type: "blob",
+			}));
+			tree.push(
+				{ path: "content/deleted.md", sha: "deleted", type: "blob" },
+				{ path: "content/image.png", sha: "media", type: "blob" },
+				{ path: "content/folder", sha: "folder", type: "tree" },
+				{ path: "quartz.config.yaml", sha: "config", type: "blob" },
+			);
+			const { engine, plugin } = createSummaryContext(files, tree);
+			vi.mocked(plugin.dataStore.loadStatusMetadata).mockImplementation(
+				async (requests) =>
+					new Map(
+						[...requests].reverse().map(({ path }) => {
+							const index = files.findIndex(
+								(file) => file.path === path,
+							);
+							return [
+								path,
+								{
+									localHash:
+										index % 3 === 0
+											? `sha-${index}`
+											: index % 3 === 1
+												? "outdated"
+												: null,
+									mediaLinks: [],
+								},
+							];
+						}),
+					),
+			);
+
+			try {
+				engine.start();
+				await vi.runAllTimersAsync();
+				expect(plugin.dataStore.loadLocalHash).not.toHaveBeenCalled();
+				expect(
+					plugin.dataStore.loadStatusMetadata,
+				).toHaveBeenCalledExactlyOnceWith(
+					files.slice(0, 12).map((file) => ({
+						path: file.path,
+						mtime: file.stat.mtime,
+					})),
+				);
+				expect(
+					plugin.statusCache.setSummary,
+				).toHaveBeenCalledExactlyOnceWith({
+					unpublished: 1,
+					changed: 8,
+					published: 4,
+					deleted: 1,
+					media: 1,
+					timestamp: expect.any(Number),
+				});
+			} finally {
+				engine.stop();
+				Platform.isMobileApp = wasMobile;
+			}
+		},
+	);
 });

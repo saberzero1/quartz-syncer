@@ -107,8 +107,19 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 	},
 	{
 		name: "quartz-syncer:delete",
-		description: "Delete removed notes from remote.",
+		description:
+			"Delete removed notes or explicitly unpublish selected notes.",
 		args: [
+			{
+				name: "action",
+				description:
+					"Omit to delete removed notes; unpublish requires path.",
+			},
+			{
+				name: "path",
+				description:
+					"Published note path, glob, or fuzzy query (~ prefix) for unpublish.",
+			},
 			{ name: "message", description: "Custom commit message." },
 			{ name: "format", description: "Output format (json or text)." },
 		],
@@ -121,7 +132,11 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 			{ name: "verbose", description: "Include file paths." },
 			{ name: "help", description: "Show help for this command." },
 		],
-		examples: ["obsidian quartz-syncer:delete force"],
+		examples: [
+			"obsidian quartz-syncer:delete force",
+			"obsidian quartz-syncer:delete action=unpublish path=notes/post.md force dry-run",
+			"obsidian quartz-syncer:delete action=unpublish path=notes/post.md force",
+		],
 	},
 	{
 		name: "quartz-syncer:mark",

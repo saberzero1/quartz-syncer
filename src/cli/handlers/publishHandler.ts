@@ -121,14 +121,34 @@ export function createPublishHandler(_plugin: QuartzSyncer): CliHandler {
 			return {
 				success: false,
 				error: result.error ?? "Publish failed",
+				...(result.failures
+					? { data: { failures: result.failures } }
+					: {}),
 			};
 		}
+
+		const skipped = result.failures ?? [];
 
 		return {
 			success: true,
 			data: {
 				...result,
-				...(params.verbose ? { files: publishPaths } : {}),
+				...(skipped.length > 0
+					? {
+							skipped: skipped.length,
+							warning: `Skipped ${skipped.length} file(s) that failed to compile`,
+						}
+					: {}),
+				...(params.verbose
+					? {
+							files: publishPaths.filter(
+								(path) =>
+									!skipped.some(
+										(failure) => failure.vaultPath === path,
+									),
+							),
+						}
+					: {}),
 			},
 		};
 	};

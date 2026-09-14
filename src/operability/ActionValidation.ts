@@ -38,6 +38,18 @@ const actionRules: ActionRules = {
 		confirm: confirmation,
 	},
 	"pub.delete": { confirm: confirmation },
+	"pub.unpublish": {
+		paths: {
+			valid: (value) =>
+				Array.isArray(value) &&
+				value.length > 0 &&
+				Array.from(value).every(
+					(path: unknown) =>
+						typeof path === "string" && path.trim().length > 0,
+				),
+		},
+		confirm: confirmation,
+	},
 	"cache.pruneForeign": { confirm: confirmation },
 	"status.refresh": {},
 	"onboarding.start": {},
