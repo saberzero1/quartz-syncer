@@ -13,6 +13,7 @@
 		"lint": "eslint .",
 		"test": "npm run test:unit && npm run test:integration",
 		"test:unit": "vitest run",
+		"bench": "vitest bench --config vitest.bench.config.ts",
 		"test:coverage": "vitest run --coverage",
 		"test:integration": "vitest run --config vitest.integration.config.ts",
 		"test:e2e:build": "vitest run --config vitest.e2e.config.ts",
