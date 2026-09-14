@@ -277,4 +277,290 @@ describe("CompilationQueue", () => {
 			"low-second",
 		]);
 	});
+
+	it("keeps equal-priority items FIFO when more arrive during processing", async () => {
+		const processed: string[] = [];
+		const queue = new CompilationQueue({
+			concurrency: 1,
+			processor: async (path) => {
+				processed.push(path);
+
+				if (path === "first") {
+					queue.enqueue("fourth", 2);
+					queue.enqueue("fifth", 2);
+				}
+			},
+		});
+
+		queue.enqueue("first", 2);
+		queue.enqueue("second", 2);
+		queue.enqueue("third", 2);
+		await vi.advanceTimersByTimeAsync(100);
+		await queue.onIdle();
+
+		expect(processed).toEqual([
+			"first",
+			"second",
+			"third",
+			"fourth",
+			"fifth",
+		]);
+	});
+
+	it("preempts a queued batch with higher-priority arrivals", async () => {
+		const processed: string[] = [];
+		const queue = new CompilationQueue({
+			concurrency: 1,
+			processor: async (path) => {
+				processed.push(path);
+
+				if (path === "batch-0") {
+					queue.enqueue("urgent-first", 5);
+					queue.enqueue("most-urgent", 10);
+					queue.enqueue("urgent-second", 5);
+					queue.enqueue("batch-20");
+				}
+			},
+		});
+		const batch = Array.from({ length: 20 }, (_, i) => `batch-${i}`);
+
+		for (const path of batch) {
+			queue.enqueue(path);
+		}
+
+		await vi.advanceTimersByTimeAsync(100);
+		await queue.onIdle();
+
+		expect(processed).toEqual([
+			"batch-0",
+			"most-urgent",
+			"urgent-first",
+			"urgent-second",
+			...batch.slice(1),
+			"batch-20",
+		]);
+	});
+
+	it("preserves queuedPaths order before and after lazy sorting", async () => {
+		let release: (() => void) | undefined;
+		const processed: string[] = [];
+		const queue = new CompilationQueue({
+			concurrency: 1,
+			processor: async (path) => {
+				processed.push(path);
+
+				if (path === "high-first") {
+					await new Promise<void>((resolve) => {
+						release = resolve;
+					});
+				}
+			},
+		});
+
+		queue.enqueue("low-first", 0);
+		queue.enqueue("high-first", 10);
+		queue.enqueue("low-second", 0);
+		queue.enqueue("high-second", 10);
+		expect(queue.queuedPaths).toEqual([
+			"low-first",
+			"high-first",
+			"low-second",
+			"high-second",
+		]);
+
+		queue.processQueue();
+		expect(queue.queuedPaths).toEqual([
+			"high-second",
+			"low-first",
+			"low-second",
+		]);
+		expect(queue.pendingCount).toBe(3);
+		expect(queue.has("high-first")).toBe(true);
+
+		queue.enqueue("middle", 5);
+		queue.enqueue("low-second", 20);
+		expect(queue.queuedPaths).toEqual([
+			"high-second",
+			"low-first",
+			"low-second",
+			"middle",
+		]);
+
+		release?.();
+		await vi.advanceTimersByTimeAsync(100);
+		await queue.onIdle();
+
+		expect(processed).toEqual([
+			"high-first",
+			"low-second",
+			"high-second",
+			"middle",
+			"low-first",
+		]);
+		expect(queue.queuedPaths).toEqual([]);
+	});
+
+	it("keeps original sequence when a queued path is bumped to a peer's priority", async () => {
+		const processed: string[] = [];
+		let pendingAfterBump = 0;
+		const queue = new CompilationQueue({
+			concurrency: 1,
+			processor: async (path) => {
+				processed.push(path);
+
+				if (path === "blocker") {
+					queue.enqueue("earlier", 5);
+					queue.enqueue("earlier", 2);
+					queue.enqueue("peer", 0);
+					queue.enqueue("blocker", 100);
+					pendingAfterBump = queue.pendingCount;
+				}
+			},
+		});
+
+		queue.enqueue("earlier", 1);
+		queue.enqueue("peer", 5);
+		queue.enqueue("blocker", 10);
+		queue.enqueue("last", 0);
+		await vi.advanceTimersByTimeAsync(100);
+		await queue.onIdle();
+
+		expect(pendingAfterBump).toBe(3);
+		expect(processed).toEqual(["blocker", "earlier", "peer", "last"]);
+	});
+
+	it("fully clears queued state on cancel mid-drain and resolves idle after teardown", async () => {
+		let release: (() => void) | undefined;
+		let activeSignal: AbortSignal | undefined;
+		const processed: string[] = [];
+		const queue = new CompilationQueue({
+			concurrency: 1,
+			processor: async (path, signal) => {
+				processed.push(path);
+
+				if (path === "first") {
+					activeSignal = signal;
+					await new Promise<void>((resolve) => {
+						release = resolve;
+					});
+				}
+			},
+		});
+
+		for (const path of ["first", "second", "third", "fourth"]) {
+			queue.enqueue(path);
+		}
+
+		queue.processQueue();
+		expect(queue["head"]).toBe(1);
+		const idle = vi.fn();
+		const idlePromise = queue.onIdle().then(idle);
+		queue.cancel();
+
+		expect(activeSignal?.aborted).toBe(true);
+		expect(queue.pendingCount).toBe(0);
+		expect(queue.queuedPaths).toEqual([]);
+		expect(queue["queue"]).toHaveLength(0);
+		expect(queue["head"]).toBe(0);
+		expect(queue.has("second")).toBe(false);
+		expect(queue.has("first")).toBe(true);
+		expect(queue.inFlightCount).toBe(1);
+		expect(queue.isProcessing).toBe(true);
+		await Promise.resolve();
+		expect(idle).not.toHaveBeenCalled();
+
+		release?.();
+		await vi.advanceTimersByTimeAsync(100);
+		await idlePromise;
+		expect(idle).toHaveBeenCalledOnce();
+		expect(queue.inFlightCount).toBe(0);
+		expect(queue.isProcessing).toBe(false);
+		expect(queue.has("first")).toBe(false);
+		expect(processed).toEqual(["first"]);
+
+		queue.enqueue("second");
+		await vi.advanceTimersByTimeAsync(100);
+		await queue.onIdle();
+		expect(processed).toEqual(["first", "second"]);
+	});
+
+	it("drains a 10,000-item equal-priority batch without sorting or shifting", () => {
+		const queue = new CompilationQueue();
+		queue.pause();
+		const sort = vi.spyOn(Array.prototype, "sort");
+		const shift = vi.spyOn(Array.prototype, "shift");
+		let ordered = true;
+
+		try {
+			for (let i = 0; i < 10_000; i++) {
+				queue.enqueue(`note-${i}`, 1);
+			}
+
+			for (let i = 0; i < 10_000; i++) {
+				ordered &&= queue["takeNext"]()?.path === `note-${i}`;
+			}
+
+			expect(sort).not.toHaveBeenCalled();
+			expect(shift).not.toHaveBeenCalled();
+		} finally {
+			sort.mockRestore();
+			shift.mockRestore();
+		}
+
+		expect(ordered).toBe(true);
+		expect(queue.pendingCount).toBe(0);
+		expect(queue["queue"]).toHaveLength(0);
+	});
+
+	it("bounds backing storage and releases consumed slots during long push/pop cycles", () => {
+		const queue = new CompilationQueue();
+		queue.pause();
+
+		for (let i = 0; i < 64; i++) {
+			queue.enqueue(`note-${i}`);
+		}
+
+		// Exercise storage directly so timer/processor overhead cannot hide regressions.
+		const sort = vi.spyOn(Array.prototype, "sort");
+		const shift = vi.spyOn(Array.prototype, "shift");
+		let maxLength = 0;
+		let maxDeadPrefix = 0;
+		let ordered = true;
+
+		try {
+			for (let i = 0; i < 10_000; i++) {
+				const item = queue["takeNext"]();
+				ordered &&= item?.path === `note-${i}`;
+				queue.enqueue(`note-${i + 64}`);
+				maxLength = Math.max(maxLength, queue["queue"].length);
+				maxDeadPrefix = Math.max(maxDeadPrefix, queue["head"]);
+			}
+
+			expect(sort).not.toHaveBeenCalled();
+			expect(shift).not.toHaveBeenCalled();
+		} finally {
+			sort.mockRestore();
+			shift.mockRestore();
+		}
+
+		expect(ordered).toBe(true);
+		// Consumed entries are released by compaction, not individually, so the
+		// contract is bounded retention: the dead prefix never outgrows the live
+		// set, capping the backing array at twice the live size.
+		expect(maxDeadPrefix).toBeLessThanOrEqual(64);
+		expect(maxLength).toBeLessThanOrEqual(128);
+		expect(queue.pendingCount).toBe(64);
+		expect(queue.queuedPaths).toEqual(
+			Array.from({ length: 64 }, (_, i) => `note-${10_000 + i}`),
+		);
+
+		while (queue.pendingCount > 0) {
+			queue["takeNext"]();
+		}
+
+		expect(queue["queue"]).toHaveLength(0);
+		expect(queue["head"]).toBe(0);
+		expect(queue.queuedPaths).toEqual([]);
+		expect(queue.has("note-10063")).toBe(false);
+	});
 });
