@@ -9,7 +9,7 @@ import type { IOperabilityEventSink } from "src/operability/types";
 import type { StatusSummary } from "src/services/StatusCacheService";
 import { isMediaFile } from "src/utils/mediaTypes";
 import { isPublishConfigured } from "src/publisher/PublishTargetResolver";
-import { isWithinVaultPath } from "src/utils/utils";
+import { stripVaultPath } from "src/utils/utils";
 
 const PRIORITY_VAULT_CHANGE = 5;
 const PRIORITY_ACTIVE_FILE = 10;
@@ -126,12 +126,7 @@ export class BackgroundEngine {
 				const file = this.app.vault.getFileByPath(filePath);
 				if (!file) continue;
 
-				const vaultPath =
-					settings.vaultPath !== "/" &&
-					settings.vaultPath !== "." &&
-					isWithinVaultPath(file.path, settings.vaultPath)
-						? file.path.replace(settings.vaultPath, "")
-						: file.path;
+				const vaultPath = stripVaultPath(file.path, settings.vaultPath);
 				const repoPath = pathMapper.toRepoPath(vaultPath);
 				localRepoPaths.add(repoPath);
 

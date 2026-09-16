@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createConfigHandler } from "src/cli/handlers/configHandler";
 import { DEFAULT_SETTINGS } from "src/main";
+import { stripVaultPath } from "src/utils/utils";
 import { buildParams, buildPlugin } from "./helpers";
 
 describe("configHandler", () => {
@@ -41,6 +42,49 @@ describe("configHandler", () => {
 		});
 		expect(plugin.settings.gitBranch).toBe("dev");
 		expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
+	});
+
+	// The CLI intentionally does not normalize vaultPath. Publishing tolerates
+	// every spelling via stripVaultPath, so the write path stays generic
+	// instead of special-casing individual keys.
+	it("round-trips vaultPath in any spelling", async () => {
+		for (const value of ["notes", "notes/", "/notes", "./notes", "/"]) {
+			const plugin = buildPlugin();
+			const handler = createConfigHandler(plugin);
+
+			const result = await handler(
+				buildParams({ action: "set", key: "vaultPath", value }),
+			);
+
+			expect(result).toEqual({
+				success: true,
+				data: { key: "vaultPath", value },
+			});
+			expect(plugin.settings.vaultPath).toBe(value);
+
+			const readBack = await handler(
+				buildParams({ action: "get", key: "vaultPath" }),
+			);
+			expect(readBack).toEqual({
+				success: true,
+				data: { key: "vaultPath", value },
+			});
+		}
+	});
+
+	it("strips every CLI-written vaultPath spelling to the same publish path", async () => {
+		for (const value of ["notes", "notes/", "/notes", "./notes"]) {
+			const plugin = buildPlugin();
+			const handler = createConfigHandler(plugin);
+
+			await handler(
+				buildParams({ action: "set", key: "vaultPath", value }),
+			);
+
+			expect(
+				stripVaultPath("notes/a.md", plugin.settings.vaultPath),
+			).toBe("a.md");
+		}
 	});
 
 	it("parses primitive values on set", async () => {

@@ -15,7 +15,7 @@ import {
 	type CompilationMetadata,
 	type QuartzSyncerCache,
 } from "src/cache/DataStore";
-import { generateBlobHash, isWithinVaultPath } from "src/utils/utils";
+import { generateBlobHash, stripVaultPath } from "src/utils/utils";
 import {
 	DATAVIEW_FIELD_REGEX,
 	DATAVIEW_INLINE_FIELD_REGEX,
@@ -290,22 +290,12 @@ export class PublishFile {
 	getPath = () => this.file.path;
 
 	/**
-	 * Returns the vault path of the file.
-	 * If the vault path is not set or the file path does not start with the vault path, it returns the file path.
+	 * Returns the file's path relative to the configured vault root folder.
 	 *
 	 * @returns The vault path of the file as a string.
 	 */
-	getVaultPath = () => {
-		if (
-			this.settings.vaultPath !== "/" &&
-			this.settings.vaultPath !== "." &&
-			isWithinVaultPath(this.file.path, this.settings.vaultPath)
-		) {
-			return this.file.path.replace(this.settings.vaultPath, "");
-		}
-
-		return this.file.path;
-	};
+	getVaultPath = () =>
+		stripVaultPath(this.file.path, this.settings.vaultPath);
 
 	/**
 	 * Retrieves the compiled frontmatter for the file.

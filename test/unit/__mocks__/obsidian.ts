@@ -101,7 +101,25 @@ class MockElement {
 	addEventListener = vi.fn();
 }
 
+type SearchComponentRecord = {
+	inputEl: MockElement;
+	placeholder?: string;
+	value?: string;
+	handler?: (value: string) => unknown;
+};
+
+/**
+ * Search controls rendered since the last reset, so tests can drive the
+ * `onChange` handler a settings page registered.
+ */
+export const searchComponents: SearchComponentRecord[] = [];
+
+export function resetSearchComponents(): void {
+	searchComponents.length = 0;
+}
+
 export class Setting {
+	controlEl = new MockElement();
 	constructor(_containerEl?: MockElement) {}
 	setName = vi.fn().mockReturnThis();
 	setDesc = vi.fn().mockReturnThis();
@@ -115,12 +133,27 @@ export class Setting {
 		return this;
 	});
 	addSearch = vi.fn((callback: (search: unknown) => void) => {
-		callback({
-			inputEl: new MockElement(),
-			setPlaceholder: vi.fn().mockReturnThis(),
-			setValue: vi.fn().mockReturnThis(),
-			onChange: vi.fn().mockReturnThis(),
-		});
+		const record: SearchComponentRecord = { inputEl: new MockElement() };
+
+		const api = {
+			inputEl: record.inputEl,
+			setPlaceholder: vi.fn((value: string) => {
+				record.placeholder = value;
+				return api;
+			}),
+			setValue: vi.fn((value: string) => {
+				record.value = value;
+				return api;
+			}),
+			onChange: vi.fn((handler: (value: string) => unknown) => {
+				record.handler = handler;
+				return api;
+			}),
+		};
+
+		searchComponents.push(record);
+		callback(api);
+
 		return this;
 	});
 	addDropdown = vi.fn((callback: (dropdown: unknown) => void) => {

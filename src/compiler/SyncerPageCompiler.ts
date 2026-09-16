@@ -1,6 +1,6 @@
 import { App, MetadataCache, Vault, getLinkpath } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
-import { escapeRegExp } from "src/utils/utils";
+import { escapeRegExp, stripVaultPath, vaultScope } from "src/utils/utils";
 import { ASSET_EXTENSIONS } from "src/utils/mediaTypes";
 import {
 	FRONTMATTER_REGEX,
@@ -152,20 +152,22 @@ export class SyncerPageCompiler {
 		return [SyncerPageCompiler.escapeTableWikilinks(text), { blobs }];
 	}
 
-	private stripVaultPath(text: string): string {
-		if (this.settings.vaultPath === "/" || this.settings.vaultPath === "") {
+	private stripVaultPathFromLinks(text: string): string {
+		const scope = vaultScope(this.settings.vaultPath);
+
+		if (scope === "") {
 			return text;
 		}
 
+		const prefix = escapeRegExp(`${scope}/`);
+
 		const wikilinkRegex = new RegExp(
-			"\\[\\[" + escapeRegExp(this.settings.vaultPath) + "(.*?)\\]\\]",
+			"\\[\\[" + prefix + "(.*?)\\]\\]",
 			"g",
 		);
 
 		const markdownLinkRegex = new RegExp(
-			"\\[(.*?)\\]\\(" +
-				escapeRegExp(this.settings.vaultPath) +
-				"(.*?)\\)",
+			"\\[(.*?)\\]\\(" + prefix + "(.*?)\\)",
 			"g",
 		);
 
@@ -188,7 +190,7 @@ export class SyncerPageCompiler {
 	 */
 	astTransform: TCompilerStep = (file) => async (text) => {
 		const vaultPath = this.settings.vaultPath;
-		const hasVaultPath = vaultPath !== "/" && vaultPath !== "";
+		const hasVaultPath = vaultScope(vaultPath) !== "";
 
 		const processor = unified()
 			.use(remarkParse)
@@ -206,15 +208,11 @@ export class SyncerPageCompiler {
 
 			if (hasVaultPath) {
 				visit(transformed, "link", (node: Link) => {
-					if (node.url.startsWith(vaultPath)) {
-						node.url = node.url.substring(vaultPath.length);
-					}
+					node.url = stripVaultPath(node.url, vaultPath);
 				});
 
 				visit(transformed, "image", (node: Image) => {
-					if (node.url.startsWith(vaultPath)) {
-						node.url = node.url.substring(vaultPath.length);
-					}
+					node.url = stripVaultPath(node.url, vaultPath);
 				});
 			}
 
@@ -408,7 +406,7 @@ export class SyncerPageCompiler {
 			const cache = this.metadataCache.getCache(filePath);
 
 			if (!cache?.embeds) {
-				return [this.stripVaultPath(text), assets];
+				return [this.stripVaultPathFromLinks(text), assets];
 			}
 
 			let blobText = text;
@@ -523,7 +521,7 @@ export class SyncerPageCompiler {
 				}
 			}
 
-			blobText = this.stripVaultPath(blobText);
+			blobText = this.stripVaultPathFromLinks(blobText);
 
 			return [blobText, assets];
 		};

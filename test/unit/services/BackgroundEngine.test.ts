@@ -1022,7 +1022,7 @@ describe("BackgroundEngine", () => {
 		try {
 			engine.start();
 			await vi.runAllTimersAsync();
-			expect(mapSpy.mock.calls).toEqual([["/a.md"], ["notes-old/a.md"]]);
+			expect(mapSpy.mock.calls).toEqual([["a.md"], ["notes-old/a.md"]]);
 			expect(plugin.statusCache.setSummary).toHaveBeenCalledWith({
 				unpublished: 2,
 				changed: 0,

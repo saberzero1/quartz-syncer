@@ -3,8 +3,11 @@ export class PathMapper {
 
 	toRepoPath(vaultPath: string): string {
 		const folder = this.contentFolder.replace(/^\/|\/$/g, "");
-		if (!folder) return vaultPath;
-		return `${folder}/${vaultPath}`;
+		// A leading slash here would produce `content//note.md`, which is a
+		// different path to the Git tree than `content/note.md`.
+		const path = vaultPath.replace(/^\/+/, "");
+		if (!folder) return path;
+		return `${folder}/${path}`;
 	}
 
 	toVaultPath(repoPath: string): string {
