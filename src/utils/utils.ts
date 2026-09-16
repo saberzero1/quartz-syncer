@@ -1,4 +1,4 @@
-import { sanitizeHTMLToDom, htmlToMarkdown } from "obsidian";
+import { sanitizeHTMLToDom, htmlToMarkdown, normalizePath } from "obsidian";
 
 export interface PathRewriteRule {
 	from: string;
@@ -152,6 +152,28 @@ export function isWithinVaultPath(path: string, vaultPath: string): boolean {
 	const target = path.replace(/^\/+/, "");
 
 	return target === scope || target.startsWith(`${scope}/`);
+}
+
+/**
+ * Converts user input for the vault root folder into its stored form.
+ *
+ * The stored value must carry a trailing slash. Consumers strip the prefix with
+ * a plain `String.replace`, so storing `notes` would turn `notes/a.md` into
+ * `/a.md` and yield `content//a.md` once the repository folder is prepended.
+ *
+ * The trim mirrors {@link isWithinVaultPath}: that function decides whether a
+ * file is in range, and the strip sites then remove this value verbatim, so a
+ * disagreement would let a file pass the test and still keep its prefix.
+ *
+ * @param input - Raw text entered by the user.
+ * @returns `/` for the whole vault, otherwise the folder with a trailing slash.
+ */
+export function normalizeVaultPath(input: string): string {
+	const scope = normalizePath(input.trim()).replace(/^[/.]+|\/+$/g, "");
+
+	if (scope === "") return "/";
+
+	return `${scope}/`;
 }
 
 /**

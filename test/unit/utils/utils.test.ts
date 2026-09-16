@@ -9,6 +9,7 @@ import {
 	escapeRegExp,
 	cleanQueryResult,
 	isWithinVaultPath,
+	normalizeVaultPath,
 	type PathRewriteRule,
 } from "src/utils/utils";
 
@@ -58,6 +59,49 @@ describe("utils", () => {
 			).toBe(false);
 			expect(isWithinVaultPath("notes/a.md", "notes/nested")).toBe(false);
 			expect(isWithinVaultPath("other/notes/a.md", "notes")).toBe(false);
+		});
+	});
+
+	describe("normalizeVaultPath", () => {
+		for (const input of ["/", "", "   ", ".", "./", "//"]) {
+			it(`maps ${JSON.stringify(input)} to the whole vault`, () => {
+				expect(normalizeVaultPath(input)).toBe("/");
+			});
+		}
+
+		it("appends the trailing slash the strip sites depend on", () => {
+			expect(normalizeVaultPath("notes")).toBe("notes/");
+			expect(normalizeVaultPath("notes/nested")).toBe("notes/nested/");
+		});
+
+		it("is idempotent", () => {
+			expect(normalizeVaultPath(normalizeVaultPath("notes"))).toBe(
+				"notes/",
+			);
+			expect(normalizeVaultPath(normalizeVaultPath("/"))).toBe("/");
+		});
+
+		it("strips surrounding whitespace, slashes and dots", () => {
+			expect(normalizeVaultPath("  notes  ")).toBe("notes/");
+			expect(normalizeVaultPath("/notes/")).toBe("notes/");
+			expect(normalizeVaultPath("./notes")).toBe("notes/");
+		});
+
+		it("collapses repeated separators", () => {
+			expect(normalizeVaultPath("notes//nested")).toBe("notes/nested/");
+		});
+
+		// PublishFile and BackgroundEngine strip this value with a plain
+		// String.replace, so whatever isWithinVaultPath accepts must strip to a
+		// clean vault-relative path with no leading slash left behind.
+		it("produces a value that strips cleanly for every in-scope path", () => {
+			for (const input of ["notes", "/notes/", "./notes", "notes//"]) {
+				const stored = normalizeVaultPath(input);
+
+				expect(isWithinVaultPath("notes/a.md", stored)).toBe(true);
+				expect("notes/a.md".replace(stored, "")).toBe("a.md");
+				expect("notes/deep/a.md".replace(stored, "")).toBe("deep/a.md");
+			}
 		});
 	});
 
