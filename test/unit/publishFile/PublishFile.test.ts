@@ -361,7 +361,43 @@ describe("PublishFile", () => {
 			datastore: makeDatastore(),
 		});
 
-		expect(publishFile.getVaultPath()).toBe("/notes/test.md");
+		expect(publishFile.getVaultPath()).toBe("notes/test.md");
+	});
+
+	it("strips the vault path without leaving a leading slash", () => {
+		for (const vaultPath of ["notes", "notes/", "/notes", "./notes"]) {
+			const publishFile = new PublishFile({
+				file: makeFile({
+					path: "notes/deep/test.md",
+					name: "test.md",
+					extension: "md",
+				}),
+				compiler: makeCompiler(["content", { blobs: [] }]),
+				metadataCache: makeMetadataCache({}),
+				vault: new Vault(),
+				settings: { ...baseSettings, vaultPath },
+				datastore: makeDatastore(),
+			});
+
+			expect(publishFile.getVaultPath()).toBe("deep/test.md");
+		}
+	});
+
+	it("leaves paths outside the configured vault folder untouched", () => {
+		const publishFile = new PublishFile({
+			file: makeFile({
+				path: "notes-old/test.md",
+				name: "test.md",
+				extension: "md",
+			}),
+			compiler: makeCompiler(["content", { blobs: [] }]),
+			metadataCache: makeMetadataCache({}),
+			vault: new Vault(),
+			settings: { ...baseSettings, vaultPath: "notes/" },
+			datastore: makeDatastore(),
+		});
+
+		expect(publishFile.getVaultPath()).toBe("notes-old/test.md");
 	});
 
 	it("exposes metadata and block lookups", () => {

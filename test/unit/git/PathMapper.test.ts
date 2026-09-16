@@ -23,6 +23,21 @@ describe("PathMapper", () => {
 			const mapper = new PathMapper("/content/");
 			expect(mapper.toRepoPath("hello.md")).toBe("content/hello.md");
 		});
+
+		it("never emits a doubled separator for a leading-slash path", () => {
+			const mapper = new PathMapper("content");
+
+			expect(mapper.toRepoPath("/hello.md")).toBe("content/hello.md");
+			expect(mapper.toRepoPath("//hello.md")).toBe("content/hello.md");
+			expect(mapper.toRepoPath("/notes/hello.md")).toBe(
+				"content/notes/hello.md",
+			);
+		});
+
+		it("drops a leading slash when the content folder is root", () => {
+			const mapper = new PathMapper("/");
+			expect(mapper.toRepoPath("/hello.md")).toBe("hello.md");
+		});
 	});
 
 	describe("toVaultPath", () => {

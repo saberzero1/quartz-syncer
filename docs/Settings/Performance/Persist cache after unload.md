@@ -7,3 +7,7 @@ publish: true
 tags: [settings/performance]
 default_value: "false"
 ---
+
+> [!WARNING] Removed in v2
+>
+> This setting has been removed in Quartz Syncer v2. The cache persists in IndexedDB independently of the plugin's load state, so it always survives an unload. Use [[Enable caching]] to turn caching on or off.

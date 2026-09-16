@@ -1,4 +1,4 @@
-import { sanitizeHTMLToDom, htmlToMarkdown } from "obsidian";
+import { sanitizeHTMLToDom, htmlToMarkdown, normalizePath } from "obsidian";
 
 export interface PathRewriteRule {
 	from: string;
@@ -131,6 +131,20 @@ export function removeLeadingSlash(path: string): string {
 }
 
 /**
+ * Reduces a configured vault root folder to a bare, slash-free scope.
+ *
+ * Every vault-path operation derives from this so they cannot disagree about
+ * what the user configured. `/`, `""`, `.` and `./` all mean the whole vault
+ * and collapse to `""`.
+ *
+ * @param vaultPath - The configured subfolder, in any of its accepted spellings.
+ * @returns The folder without surrounding slashes or dots, or `""` for the whole vault.
+ */
+export function vaultScope(vaultPath: string): string {
+	return vaultPath.replace(/^[/.]+|\/+$/g, "");
+}
+
+/**
  * Reports whether a vault-relative path sits inside the configured vault
  * subfolder.
  *
@@ -145,13 +159,53 @@ export function removeLeadingSlash(path: string): string {
  * @returns True when the path lies within the configured subfolder.
  */
 export function isWithinVaultPath(path: string, vaultPath: string): boolean {
-	const scope = vaultPath.replace(/^[/.]+|\/+$/g, "");
+	const scope = vaultScope(vaultPath);
 
 	if (scope === "") return true;
 
 	const target = path.replace(/^\/+/, "");
 
 	return target === scope || target.startsWith(`${scope}/`);
+}
+
+/**
+ * Removes the configured vault root folder from a vault-relative path.
+ *
+ * Matching happens on path boundaries, so `notes` never strips a prefix off
+ * `notes-old/a.md`, and the separator is removed with the folder so no leading
+ * slash survives to reach {@link PathMapper.toRepoPath}. Paths outside the
+ * configured folder are returned untouched.
+ *
+ * @param path - The vault-relative path to strip.
+ * @param vaultPath - The configured subfolder, in any accepted spelling.
+ * @returns The path relative to the configured folder.
+ */
+export function stripVaultPath(path: string, vaultPath: string): string {
+	const scope = vaultScope(vaultPath);
+
+	if (scope === "") return path;
+
+	const target = path.replace(/^\/+/, "");
+
+	if (target === scope) return "";
+
+	if (target.startsWith(`${scope}/`)) return target.slice(scope.length + 1);
+
+	return path;
+}
+
+/**
+ * Converts user input for the vault root folder into its stored form.
+ *
+ * @param input - Raw text entered by the user.
+ * @returns `/` for the whole vault, otherwise the folder with a trailing slash.
+ */
+export function normalizeVaultPath(input: string): string {
+	const scope = vaultScope(normalizePath(input.trim()));
+
+	if (scope === "") return "/";
+
+	return `${scope}/`;
 }
 
 /**

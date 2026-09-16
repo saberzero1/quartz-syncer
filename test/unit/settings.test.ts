@@ -231,3 +231,38 @@ describe("SecretStorageService", () => {
 		expect(service.hasToken()).toBe(false);
 	});
 });
+
+describe("vaultPath migration", () => {
+	it("preserves a persisted subfolder through migration to schema v5", async () => {
+		const plugin = createPlugin({
+			settingsSchemaVersion: 2,
+			gitRemoteUrl: "https://github.com/user/repo.git",
+			vaultPath: "notes/",
+		});
+		await plugin.loadSettings();
+
+		expect(plugin.settings.vaultPath).toBe("notes/");
+		expect(plugin.settings.settingsSchemaVersion).toBe(5);
+	});
+
+	it("preserves a nested persisted subfolder", async () => {
+		const plugin = createPlugin({ vaultPath: "notes/nested/" });
+		await plugin.loadSettings();
+
+		expect(plugin.settings.vaultPath).toBe("notes/nested/");
+	});
+
+	it("defaults to the whole vault when never persisted", async () => {
+		const plugin = createPlugin({});
+		await plugin.loadSettings();
+
+		expect(plugin.settings.vaultPath).toBe("/");
+	});
+
+	it("preserves the v1 real-world record", async () => {
+		const plugin = createPlugin(loadFixture("v1-real-data"));
+		await plugin.loadSettings();
+
+		expect(plugin.settings.vaultPath).toBe("/");
+	});
+});

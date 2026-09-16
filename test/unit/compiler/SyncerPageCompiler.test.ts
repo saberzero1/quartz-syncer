@@ -472,6 +472,42 @@ describe("SyncerPageCompiler", () => {
 
 			expect(result).toContain("[My Note](some/note)");
 		});
+
+		it("does nothing when vaultPath is a bare dot", async () => {
+			const { compiler } = makeCompiler({ vaultPath: "." });
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"See [My Note](some/note)",
+			);
+
+			expect(result).toContain("[My Note](some/note)");
+		});
+
+		it("strips an un-normalized vaultPath without leaving a leading slash", async () => {
+			for (const vaultPath of ["garden", "garden/", "/garden"]) {
+				const { compiler } = makeCompiler({ vaultPath });
+				const file = makeMockPublishFile();
+
+				const result = await compiler.astTransform(file)(
+					"See [My Note](garden/my-note)",
+				);
+
+				expect(result).toContain("[My Note](my-note)");
+				expect(result).not.toContain("(/my-note)");
+			}
+		});
+
+		it("does not strip a shared prefix off a sibling folder", async () => {
+			const { compiler } = makeCompiler({ vaultPath: "garden" });
+			const file = makeMockPublishFile();
+
+			const result = await compiler.astTransform(file)(
+				"See [My Note](garden-old/my-note)",
+			);
+
+			expect(result).toContain("[My Note](garden-old/my-note)");
+		});
 	});
 
 	describe("astTransform — callout unescaping", () => {

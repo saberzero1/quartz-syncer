@@ -5,6 +5,8 @@ import { detectGitProvider } from "src/utils/gitProviderDetection";
 import { createGitBackend } from "src/git/GitBackendFactory";
 import { SettingPageBase } from "./SettingPageBase";
 import { resolvePublishTarget } from "src/publisher/PublishTargetResolver";
+import { normalizeVaultPath } from "src/utils/utils";
+import { FolderSuggest } from "./FolderSuggest";
 
 export class GitSettingsPage extends SettingPageBase {
 	private app: App;
@@ -34,6 +36,13 @@ export class GitSettingsPage extends SettingPageBase {
 		this.renderToken();
 		this.renderCorsProxy();
 		this.renderConnectionTest();
+
+		new Setting(this.containerEl)
+			.setName("Vault")
+			.setDesc("Choose which part of your vault is published.")
+			.setHeading();
+
+		this.renderVaultPath();
 	}
 
 	private get settings() {
@@ -271,6 +280,25 @@ export class GitSettingsPage extends SettingPageBase {
 						await this.saveSettings();
 					}),
 			);
+	}
+
+	private renderVaultPath(): void {
+		new Setting(this.containerEl)
+			.setName("Vault root folder")
+			.setDesc(
+				'The folder in your Obsidian vault to sync. Use "/" for the entire vault. The folder itself is not part of the published path.',
+			)
+			.addSearch((search) => {
+				new FolderSuggest(this.app, search.inputEl);
+
+				search
+					.setPlaceholder("/")
+					.setValue(this.settings.vaultPath || "/")
+					.onChange(async (value) => {
+						this.settings.vaultPath = normalizeVaultPath(value);
+						await this.saveSettings();
+					});
+			});
 	}
 
 	private renderConnectionTest(): void {

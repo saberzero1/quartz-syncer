@@ -34,6 +34,16 @@ export function htmlToMarkdown(_html: string): string {
 	return _html;
 }
 
+export function normalizePath(path: string): string {
+	const normalized = path
+		.replace(/([\\/])+/g, "/")
+		.replace(/(^\/+|\/+$)/g, "")
+		.replace(/\u00A0|\u202F/g, " ")
+		.normalize("NFC");
+
+	return normalized === "" ? "/" : normalized;
+}
+
 export function parseYaml(yamlString: string): Record<string, unknown> {
 	const yaml = require("yaml");
 	return yaml.parse(yamlString) as Record<string, unknown>;
@@ -91,7 +101,25 @@ class MockElement {
 	addEventListener = vi.fn();
 }
 
+type SearchComponentRecord = {
+	inputEl: MockElement;
+	placeholder?: string;
+	value?: string;
+	handler?: (value: string) => unknown;
+};
+
+/**
+ * Search controls rendered since the last reset, so tests can drive the
+ * `onChange` handler a settings page registered.
+ */
+export const searchComponents: SearchComponentRecord[] = [];
+
+export function resetSearchComponents(): void {
+	searchComponents.length = 0;
+}
+
 export class Setting {
+	controlEl = new MockElement();
 	constructor(_containerEl?: MockElement) {}
 	setName = vi.fn().mockReturnThis();
 	setDesc = vi.fn().mockReturnThis();
@@ -102,6 +130,30 @@ export class Setting {
 			setValue: vi.fn().mockReturnThis(),
 			onChange: vi.fn().mockReturnThis(),
 		});
+		return this;
+	});
+	addSearch = vi.fn((callback: (search: unknown) => void) => {
+		const record: SearchComponentRecord = { inputEl: new MockElement() };
+
+		const api = {
+			inputEl: record.inputEl,
+			setPlaceholder: vi.fn((value: string) => {
+				record.placeholder = value;
+				return api;
+			}),
+			setValue: vi.fn((value: string) => {
+				record.value = value;
+				return api;
+			}),
+			onChange: vi.fn((handler: (value: string) => unknown) => {
+				record.handler = handler;
+				return api;
+			}),
+		};
+
+		searchComponents.push(record);
+		callback(api);
+
 		return this;
 	});
 	addDropdown = vi.fn((callback: (dropdown: unknown) => void) => {
@@ -128,6 +180,23 @@ export class Setting {
 		});
 		return this;
 	});
+}
+
+export class AbstractInputSuggest<T> {
+	app: App;
+	limit = 100;
+
+	constructor(app: App, _inputEl: HTMLInputElement | HTMLDivElement) {
+		this.app = app;
+	}
+
+	setValue = vi.fn();
+	getValue = vi.fn().mockReturnValue("");
+	onSelect = vi.fn().mockReturnThis();
+	open = vi.fn();
+	close = vi.fn();
+	renderSuggestion(_value: T, _el: HTMLElement): void {}
+	selectSuggestion(_value: T): void {}
 }
 
 export class Modal {
@@ -214,6 +283,7 @@ export class Vault {
 	readBinary = vi.fn().mockResolvedValue(new ArrayBuffer(0));
 	getFileByPath = vi.fn().mockReturnValue(null);
 	getMarkdownFiles = vi.fn().mockReturnValue([]);
+	getAllFolders = vi.fn().mockReturnValue([]);
 	getName = vi.fn().mockReturnValue("test-vault");
 	private listeners = new Map<string, Set<EventRef["callback"]>>();
 

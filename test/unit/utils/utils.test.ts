@@ -9,6 +9,9 @@ import {
 	escapeRegExp,
 	cleanQueryResult,
 	isWithinVaultPath,
+	normalizeVaultPath,
+	stripVaultPath,
+	vaultScope,
 	type PathRewriteRule,
 } from "src/utils/utils";
 
@@ -58,6 +61,134 @@ describe("utils", () => {
 			).toBe(false);
 			expect(isWithinVaultPath("notes/a.md", "notes/nested")).toBe(false);
 			expect(isWithinVaultPath("other/notes/a.md", "notes")).toBe(false);
+		});
+	});
+
+	describe("normalizeVaultPath", () => {
+		for (const input of ["/", "", "   ", ".", "./", "//"]) {
+			it(`maps ${JSON.stringify(input)} to the whole vault`, () => {
+				expect(normalizeVaultPath(input)).toBe("/");
+			});
+		}
+
+		it("appends the trailing slash the strip sites depend on", () => {
+			expect(normalizeVaultPath("notes")).toBe("notes/");
+			expect(normalizeVaultPath("notes/nested")).toBe("notes/nested/");
+		});
+
+		it("is idempotent", () => {
+			expect(normalizeVaultPath(normalizeVaultPath("notes"))).toBe(
+				"notes/",
+			);
+			expect(normalizeVaultPath(normalizeVaultPath("/"))).toBe("/");
+		});
+
+		it("strips surrounding whitespace, slashes and dots", () => {
+			expect(normalizeVaultPath("  notes  ")).toBe("notes/");
+			expect(normalizeVaultPath("/notes/")).toBe("notes/");
+			expect(normalizeVaultPath("./notes")).toBe("notes/");
+		});
+
+		it("collapses repeated separators", () => {
+			expect(normalizeVaultPath("notes//nested")).toBe("notes/nested/");
+		});
+
+		it("produces a value that strips cleanly for every in-scope path", () => {
+			for (const input of ["notes", "/notes/", "./notes", "notes//"]) {
+				const stored = normalizeVaultPath(input);
+
+				expect(isWithinVaultPath("notes/a.md", stored)).toBe(true);
+				expect(stripVaultPath("notes/a.md", stored)).toBe("a.md");
+				expect(stripVaultPath("notes/deep/a.md", stored)).toBe(
+					"deep/a.md",
+				);
+			}
+		});
+	});
+
+	describe("vaultScope", () => {
+		for (const input of ["/", "", ".", "./", "//", "/./"]) {
+			it(`treats ${JSON.stringify(input)} as the whole vault`, () => {
+				expect(vaultScope(input)).toBe("");
+			});
+		}
+
+		it("reduces every spelling of a folder to the same scope", () => {
+			for (const input of ["notes", "notes/", "/notes", "./notes"]) {
+				expect(vaultScope(input)).toBe("notes");
+			}
+		});
+
+		it("preserves nesting", () => {
+			expect(vaultScope("notes/nested/")).toBe("notes/nested");
+		});
+	});
+
+	describe("stripVaultPath", () => {
+		for (const vaultPath of ["/", "", "."]) {
+			it(`returns the path unchanged for vaultPath=${JSON.stringify(vaultPath)}`, () => {
+				expect(stripVaultPath("notes/a.md", vaultPath)).toBe(
+					"notes/a.md",
+				);
+			});
+		}
+
+		it("strips the folder and its separator in every spelling", () => {
+			for (const vaultPath of ["notes", "notes/", "/notes", "./notes"]) {
+				expect(stripVaultPath("notes/a.md", vaultPath)).toBe("a.md");
+			}
+		});
+
+		it("never leaves a leading slash behind", () => {
+			for (const vaultPath of ["notes", "notes/", "/notes", "./notes"]) {
+				expect(
+					stripVaultPath("notes/a.md", vaultPath).startsWith("/"),
+				).toBe(false);
+			}
+		});
+
+		it("strips on a path boundary rather than a shared prefix", () => {
+			expect(stripVaultPath("notes-old/a.md", "notes")).toBe(
+				"notes-old/a.md",
+			);
+			expect(stripVaultPath("notes.md", "notes")).toBe("notes.md");
+		});
+
+		it("leaves out-of-scope paths untouched", () => {
+			expect(stripVaultPath("other/a.md", "notes")).toBe("other/a.md");
+			expect(stripVaultPath("a.md", "notes")).toBe("a.md");
+		});
+
+		it("handles nested scopes and deep paths", () => {
+			expect(stripVaultPath("notes/nested/deep/a.md", "notes")).toBe(
+				"nested/deep/a.md",
+			);
+			expect(
+				stripVaultPath("notes/nested/deep/a.md", "notes/nested"),
+			).toBe("deep/a.md");
+		});
+
+		it("tolerates a leading slash on the path", () => {
+			expect(stripVaultPath("/notes/a.md", "notes")).toBe("a.md");
+		});
+
+		it("agrees with isWithinVaultPath on what is in scope", () => {
+			const paths = [
+				"notes/a.md",
+				"notes/deep/a.md",
+				"notes-old/a.md",
+				"notes.md",
+				"other/a.md",
+			];
+
+			for (const vaultPath of ["notes", "notes/", "/notes", "./notes"]) {
+				for (const path of paths) {
+					const stripped = stripVaultPath(path, vaultPath);
+					const inScope = isWithinVaultPath(path, vaultPath);
+
+					expect(stripped !== path).toBe(inScope);
+				}
+			}
 		});
 	});
 
