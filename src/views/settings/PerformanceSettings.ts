@@ -23,27 +23,6 @@ export function performanceSettingDefinitions(
 					},
 				},
 				{
-					name: "Synchronize cache between devices",
-					desc: "Whether to write the cache to `data.json`. This is useful for syncing the cache across devices.",
-					aliases: ["sync", "data.json", "multi-device"],
-					visible: () => settings.useCache,
-					control: {
-						type: "toggle",
-						key: "syncCache",
-						defaultValue: true,
-					},
-				},
-				{
-					name: "Persist cache after unload",
-					desc: "Whether to persist the cache when the plugin is unloaded. This is useful for users that start Obsidian with the plugin disabled.",
-					visible: () => settings.useCache,
-					control: {
-						type: "toggle",
-						key: "persistCache",
-						defaultValue: false,
-					},
-				},
-				{
 					name: "Clean up caches from other vaults",
 					desc: "Remove cached data left behind by vaults you no longer use or remotes you no longer publish to. You will be asked to review the databases and confirm first.",
 					action: () => {

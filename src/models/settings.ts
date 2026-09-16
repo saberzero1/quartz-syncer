@@ -131,6 +131,13 @@ export default interface QuartzSyncerSettings {
 	createdTimestampKey: string;
 	updatedTimestampKey: string;
 	publishedTimestampKey: string;
+	/**
+	 * @deprecated Deprecated in 2.0. Removed in 2.1.
+	 *
+	 * Passed to Quartz as `TIMESTAMP_FORMAT` before v2. Quartz v5 renders dates
+	 * from its own `locale` configuration, and frontmatter timestamps are
+	 * written as ISO-8601 so Quartz can parse them, so nothing reads this.
+	 */
 	timestampFormat: string;
 
 	/** Performance settings */
@@ -243,3 +250,20 @@ export default interface QuartzSyncerSettings {
 	ENABLE_DEVELOPER_TOOLS?: boolean;
 	devPluginPath?: string;
 }
+
+/**
+ * Settings that are persisted and typed but read by no runtime code.
+ *
+ * They remain on the interface until 2.1 so migrations and existing
+ * `data.json` records keep type-checking. A settings page must never expose a
+ * control for one: the v3 migration deletes these keys, so a toggle bound to
+ * one silently does nothing and is wiped on the next load.
+ */
+export const DEPRECATED_SETTING_KEYS: readonly string[] = [
+	"syncCache",
+	"persistCache",
+	"timestampFormat",
+	"noteSettingsIsInitialized",
+	"lastUpstreamCommitSha",
+	"upgradeCheckStrategy",
+];

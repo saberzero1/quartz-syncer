@@ -7,3 +7,7 @@ publish: true
 tags: [settings/performance]
 default_value: "true"
 ---
+
+> [!WARNING] Removed in v2
+>
+> This setting has been removed in Quartz Syncer v2. The cache is stored in IndexedDB per vault and remote, so a serialized copy in `data.json` is no longer used. Use [[Enable caching]] to turn caching on or off, and "Clean up caches from other vaults" to remove stale databases.
