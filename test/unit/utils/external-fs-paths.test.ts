@@ -24,6 +24,12 @@ const directories: Record<string, Entry[]> = {
 	"/repo/.git": [{ name: "config", kind: "file" }],
 };
 
+// Also accept windows-style paths in the mock
+Object.entries(directories).forEach(([key, value]) => {
+	const winKey = key.replace("/repo", "C:\\repo").replace(/\//g, "\\");
+	directories[winKey] = value;
+});
+
 function toDirent(entry: Entry) {
 	return {
 		name: entry.name,
@@ -36,14 +42,13 @@ function toDirent(entry: Entry) {
 const fsPromisesStub = {
 	readdir: async (target: string) => {
 		const entries = directories[target];
-
 		if (!entries) throw new Error(`ENOENT: ${target}`);
 
 		return entries.map(toDirent);
 	},
 	stat: async (target: string) => ({
-		isDirectory: () => target === "/repo/linked-dir",
-		isFile: () => target !== "/repo/linked-dir",
+		isDirectory: () => target === "/repo/linked-dir" || target === "C:\\repo\\linked-dir",
+		isFile: () => target !== "/repo/linked-dir" && target !== "C:\\repo\\linked-dir",
 	}),
 };
 
