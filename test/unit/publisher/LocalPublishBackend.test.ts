@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import * as nodePath from "node:path";
+import { posix as nodePath } from "node:path";	// Always use posix-style paths even on win32 for these tests.
 import { createHash } from "node:crypto";
 import { Platform } from "obsidian";
 import { LocalPublishBackend } from "src/publisher/LocalPublishBackend";

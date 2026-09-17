@@ -1,12 +1,15 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { platform as osPlatform } from "node:os";
+import { posix } from "node:path";
 import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import { Platform } from "obsidian";
 import { LocalFileSource } from "src/quartz/LocalFileSource";
 import { createTempRepo, cleanupTempRepo } from "./helpers";
 
 const requireFn = createRequire(import.meta.url);
+
+const join = posix.join;	// Always use posix-style paths even on win32 for these tests.
 
 beforeEach(() => {
 	Platform.isDesktopApp = true;
@@ -158,7 +161,12 @@ describe("LocalFileSource", () => {
 			await writeFile(join(repoPath, "other/two.md"), "Two");
 			const source = new LocalFileSource(repoPath);
 			const files = await source.listAllFiles("content");
-			expect(files).toEqual(["content/one.md"]);
+			// posix path mock does not properly apply here, use a platform-specific expect for now.
+			if (osPlatform() === "win32") {
+				expect(files).toEqual(["content\\one.md"]);
+			} else {
+				expect(files).toEqual(["content/one.md"]);
+			}
 		} finally {
 			await cleanupTempRepo(repoPath);
 		}

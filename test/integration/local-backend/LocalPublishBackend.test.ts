@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { posix } from "node:path";
 import { readFile, stat } from "node:fs/promises";
 import { Platform } from "obsidian";
 import { LocalPublishBackend } from "src/publisher/LocalPublishBackend";
 import { createTempRepo, cleanupTempRepo } from "./helpers";
 
 const requireFn = createRequire(import.meta.url);
+
+const join = posix.join;	// Always use posix-style paths even on win32 for these tests.
 
 beforeEach(() => {
 	Platform.isDesktopApp = true;
