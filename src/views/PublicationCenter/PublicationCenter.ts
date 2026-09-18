@@ -30,6 +30,7 @@ import {
 import { ManualSetupModal } from "src/views/ManualSetupModal";
 import { OnboardingWizard } from "src/views/OnboardingWizard/OnboardingWizard";
 import { PublicationTree } from "src/views/PublicationCenter/TreeRenderer";
+import { statusFromSnapshot } from "src/views/PublicationCenter/statusFromSnapshot";
 import {
 	type SelectableCategory,
 	type TreeTab,
@@ -234,7 +235,7 @@ export class PublicationCenter extends Modal {
 		if (snapshot) {
 			this.hasFullStatus = false;
 			this.isRefreshing = true;
-			this.status = this.statusFromSnapshot(snapshot);
+			this.status = statusFromSnapshot(snapshot);
 			this.progressState = { current: 0, total: 0 };
 			this.buildFileMap();
 			this.buildMediaLinksFromSnapshot(snapshot);
@@ -377,24 +378,6 @@ export class PublicationCenter extends Modal {
 			this.refreshingEl?.addClass("qs-hidden");
 			this.updateOperationButtons();
 		}
-	}
-
-	private statusFromSnapshot(snapshot: StatusSnapshot): PublishStatus {
-		const stub = (path: string) =>
-			({
-				file: { path },
-				getVaultPath: () => path,
-			}) as unknown as PublishFile;
-
-		return {
-			unpublished: snapshot.unpublished.map(stub),
-			changed: snapshot.changed.map(stub),
-			published: snapshot.published.map(stub),
-			deleted: [...snapshot.deleted],
-			media: [...snapshot.media],
-			arbitrary: [...snapshot.arbitrary],
-			mediaLinks: new Map(Object.entries(snapshot.mediaLinks)),
-		};
 	}
 
 	private buildMediaLinksFromSnapshot(snapshot: StatusSnapshot): void {
