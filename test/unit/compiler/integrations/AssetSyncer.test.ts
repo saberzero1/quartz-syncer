@@ -114,11 +114,12 @@ describe("AssetSyncer", () => {
 		it("returns filesToDelete with syncer file paths when existing syncer files found", async () => {
 			const settings = makeSettings({ manageSyncerStyles: false });
 			const connection = makeFileSource({
-				listDirectory: vi.fn().mockResolvedValue([
-					{ name: "_dataview.scss", type: "blob" },
-					{ name: "_index.scss", type: "blob" },
-					{ name: "subdir", type: "tree" },
-				]),
+				listAllFiles: vi
+					.fn()
+					.mockResolvedValue([
+						"quartz/styles/syncer/_dataview.scss",
+						"quartz/styles/syncer/_index.scss",
+					]),
 				readFile: vi.fn().mockResolvedValue(null),
 			});
 
@@ -221,6 +222,74 @@ describe("AssetSyncer", () => {
 
 			expect(result.success).toBe(true);
 			expect(result.filesToStage.size).toBe(0);
+		});
+
+		it("deletes syncer style files that are no longer produced this run", async () => {
+			const settings = makeSettings({ manageSyncerStyles: true });
+			vi.mocked(integrationRegistry.getCollectedAssets).mockReturnValue(
+				new Map([
+					[
+						"dataview",
+						{
+							scss: ".dataview { display: block; }",
+						},
+					],
+				]),
+			);
+			const connection = makeFileSource({
+				readFile: vi.fn().mockResolvedValue(null),
+				listAllFiles: vi
+					.fn()
+					.mockResolvedValue([
+						"quartz/styles/syncer/_dataview.scss",
+						"quartz/styles/syncer/_index.scss",
+						"quartz/styles/syncer/_datacore.scss",
+						"quartz/styles/syncer/star_wars_destiny.css",
+					]),
+			});
+
+			const syncer = new AssetSyncer(settings);
+			const result = await syncer.collectAssets(connection);
+
+			expect(result.filesToDelete).toEqual(
+				expect.arrayContaining([
+					"quartz/styles/syncer/_datacore.scss",
+					"quartz/styles/syncer/star_wars_destiny.css",
+				]),
+			);
+			expect(result.filesToDelete).not.toContain(
+				"quartz/styles/syncer/_dataview.scss",
+			);
+			expect(result.filesToDelete).not.toContain(
+				"quartz/styles/syncer/_index.scss",
+			);
+		});
+
+		it("stages binary snippet assets under the syncer directory verbatim", async () => {
+			const settings = makeSettings({
+				manageSyncerStyles: true,
+				useCssSnippets: true,
+			});
+			vi.mocked(integrationRegistry.getCollectedAssets).mockReturnValue(
+				new Map(),
+			);
+			const connection = makeFileSource({
+				readFile: vi.fn().mockResolvedValue(null),
+			});
+			const fontData = new TextEncoder().encode("font-bytes").buffer;
+
+			const syncer = new AssetSyncer(settings);
+			const result = await syncer.collectAssets(
+				connection,
+				new Map([["star_wars_destiny.css", ".swdicon {}"]]),
+				new Map([["fonts/swdestiny.ttf", fontData]]),
+			);
+
+			expect(
+				result.binaryFilesToStage.get(
+					"quartz/styles/syncer/fonts/swdestiny.ttf",
+				),
+			).toBe(fontData);
 		});
 
 		it("adds syncer import to custom.scss when import is missing", async () => {

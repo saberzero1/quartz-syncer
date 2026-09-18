@@ -1,6 +1,14 @@
-import type { SettingDefinitionItem } from "obsidian";
+import type { SettingDefinitionItem, SettingGroupItem } from "obsidian";
+import type QuartzSyncer from "src/main";
+import type { DynamicOptionListState } from "src/views/settings/DynamicToggleSet";
 
-export function integrationSettingDefinitions(): SettingDefinitionItem[] {
+/** Prefix for the synthetic per-file toggle keys read by QuartzSyncerSettingTab. */
+export const CSS_SNIPPET_CONTROL_PREFIX = "cssSnippet::";
+
+export function integrationSettingDefinitions(
+	plugin: QuartzSyncer,
+	cssSnippets: DynamicOptionListState,
+): SettingDefinitionItem[] {
 	return [
 		{
 			type: "group",
@@ -24,7 +32,29 @@ export function integrationSettingDefinitions(): SettingDefinitionItem[] {
 						defaultValue: false,
 					},
 				},
+				{
+					name: "Enable Obsidian CSS Snippets integration",
+					desc: "Publishes .css files from Obsidian's CSS Snippets folder to Quartz.",
+					control: {
+						type: "toggle",
+						key: "useCssSnippets",
+						defaultValue: false,
+					},
+				},
 			],
+		},
+		{
+			type: "group",
+			heading: "Obsidian CSS Snippets",
+			visible: () => plugin.settings.useCssSnippets,
+			extraButtons: [
+				(button) =>
+					button
+						.setIcon("refresh-cw")
+						.setTooltip("Refresh snippet list")
+						.onClick(() => cssSnippets.refresh()),
+			],
+			items: buildCssSnippetItems(cssSnippets),
 		},
 		{
 			type: "group",
@@ -93,4 +123,36 @@ export function integrationSettingDefinitions(): SettingDefinitionItem[] {
 			],
 		},
 	];
+}
+
+function buildCssSnippetItems(
+	cssSnippets: DynamicOptionListState,
+): SettingGroupItem[] {
+	if (cssSnippets.options === null) {
+		return [
+			{
+				name: cssSnippets.loading
+					? "Loading snippets…"
+					: "Snippets not loaded yet.",
+			},
+		];
+	}
+
+	if (cssSnippets.options.length === 0) {
+		return [
+			{
+				name: "No CSS snippets found",
+				desc: "Add snippets in Obsidian's Appearance settings, then refresh.",
+			},
+		];
+	}
+
+	return cssSnippets.options.map((fileName) => ({
+		name: fileName,
+		control: {
+			type: "toggle",
+			key: `${CSS_SNIPPET_CONTROL_PREFIX}${fileName}`,
+			defaultValue: false,
+		},
+	}));
 }

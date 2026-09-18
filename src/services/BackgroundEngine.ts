@@ -8,6 +8,7 @@ import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
 import type { IOperabilityEventSink } from "src/operability/types";
 import type { StatusSummary } from "src/services/StatusCacheService";
 import { isMediaFile } from "src/utils/mediaTypes";
+import { isPathIgnored } from "src/utils/ignoredFolders";
 import { isPublishConfigured } from "src/publisher/PublishTargetResolver";
 import { stripVaultPath } from "src/utils/utils";
 
@@ -123,6 +124,8 @@ export class BackgroundEngine {
 			const remoteBacked: { file: TFile; sha: string }[] = [];
 
 			for (const filePath of candidatePaths) {
+				if (isPathIgnored(filePath, settings.ignoredFolders)) continue;
+
 				const file = this.app.vault.getFileByPath(filePath);
 				if (!file) continue;
 

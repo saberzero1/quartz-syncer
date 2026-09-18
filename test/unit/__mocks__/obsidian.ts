@@ -12,6 +12,10 @@ export const getLinkpath = (link: string): string => {
 	return link.replace(/#.*$/, "");
 };
 
+export function normalizePath(path: string): string {
+	return path.replace(/\\/g, "/").replace(/\/+/g, "/");
+}
+
 export function stringifyYaml(obj: Record<string, unknown>): string {
 	const yaml = require("yaml");
 	return yaml.stringify(obj);
@@ -236,6 +240,8 @@ export function resetPlatform(): void {
 
 export const setIcon = vi.fn();
 
+export const getIcon = vi.fn(() => null);
+
 export class Plugin {
 	app = new App();
 	manifest = { version: "0.0.0", id: "test" };
@@ -285,6 +291,13 @@ export class Vault {
 	getMarkdownFiles = vi.fn().mockReturnValue([]);
 	getAllFolders = vi.fn().mockReturnValue([]);
 	getName = vi.fn().mockReturnValue("test-vault");
+	configDir = ".obsidian";
+	adapter = {
+		list: vi.fn().mockResolvedValue({ files: [], folders: [] }),
+		read: vi.fn().mockResolvedValue(""),
+		readBinary: vi.fn().mockResolvedValue(new ArrayBuffer(0)),
+		exists: vi.fn().mockResolvedValue(false),
+	};
 	private listeners = new Map<string, Set<EventRef["callback"]>>();
 
 	on = vi.fn((event: string, callback: EventRef["callback"]): EventRef => {

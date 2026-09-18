@@ -2,9 +2,11 @@ import {
 	Platform,
 	PluginSettingTab,
 	App,
+	normalizePath,
 	type SettingDefinitionItem,
 } from "obsidian";
 import type QuartzSyncer from "src/main";
+import type QuartzSyncerSettings from "src/models/settings";
 import { createRepositoryAdapter } from "src/cli/handlers/cliUtils";
 import {
 	checkPublishReadiness,
@@ -18,8 +20,20 @@ import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { QuartzPluginUpdateChecker } from "src/quartz/QuartzPluginUpdateChecker";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 import { frontmatterSettingDefinitions } from "src/views/settings/FrontmatterSettings";
-import { integrationSettingDefinitions } from "src/views/settings/IntegrationSettings";
-import { performanceSettingDefinitions } from "src/views/settings/PerformanceSettings";
+import {
+	CSS_SNIPPET_CONTROL_PREFIX,
+	integrationSettingDefinitions,
+} from "src/views/settings/IntegrationSettings";
+import {
+	IGNORED_FOLDER_CONTROL_PREFIX,
+	performanceSettingDefinitions,
+} from "src/views/settings/PerformanceSettings";
+import {
+	applyDynamicToggleValue,
+	DynamicOptionListCache,
+	resolveDynamicToggleValue,
+	type DynamicToggleSetBinding,
+} from "src/views/settings/DynamicToggleSet";
 import { uiSettingDefinitions } from "src/views/settings/UISettings";
 import { GitSettingsPage } from "src/views/settings/GitSettingsPage";
 import { ManualSetupModal } from "src/views/ManualSetupModal";
@@ -38,6 +52,10 @@ type PluginUpdateCache = {
 	updates?: number;
 };
 
+type SettingsKey = keyof QuartzSyncerSettings;
+type SettingsUpdateValue = QuartzSyncerSettings[SettingsKey];
+type SettingsPatch = Partial<Record<SettingsKey, SettingsUpdateValue>>;
+
 /**
  * Quartz Syncer settings tab.
  *
@@ -51,13 +69,102 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 	private pluginUpdateStatus: PluginUpdateCache = {
 		state: "not-checked",
 	};
+	private cssSnippetCache = new DynamicOptionListCache(
+		() => this.listCssSnippetFiles(),
+		() => this.update(),
+	);
+	private ignoredFolderCache = new DynamicOptionListCache(
+		() => this.listVaultFolders(),
+		() => this.update(),
+	);
+	private readonly dynamicToggleBindings: DynamicToggleSetBinding[] = [
+		{
+			prefix: CSS_SNIPPET_CONTROL_PREFIX,
+			getSelected: () => this.plugin.settings.copyCssSnippets,
+			setSelected: async (values) => {
+				this.plugin.settings.copyCssSnippets = values;
+				await this.plugin.saveSettings();
+			},
+		},
+		{
+			prefix: IGNORED_FOLDER_CONTROL_PREFIX,
+			getSelected: () => this.plugin.settings.ignoredFolders,
+			setSelected: async (values) => {
+				this.plugin.settings.ignoredFolders = values;
+				await this.plugin.saveSettings();
+			},
+		},
+	];
 
 	constructor(app: App, plugin: QuartzSyncer) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
+	getControlValue(key: string): unknown {
+		const resolved = resolveDynamicToggleValue(
+			this.dynamicToggleBindings,
+			key,
+		);
+		if (resolved !== undefined) return resolved;
+		return super.getControlValue(key);
+	}
+
+	private updateSetting<K extends SettingsKey>(
+		key: K,
+		value: QuartzSyncerSettings[K],
+	): Promise<void> {
+		this.plugin.settings[key] = value;
+		return this.plugin.saveSettings();
+	}
+
+	// Override the base implementation so dynamic toggle-backed settings and
+	// publish-target changes both persist through saveSettings() instead of the
+	// raw saveData() path, which would skip cache invalidation.
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		const handled = await applyDynamicToggleValue(
+			this.dynamicToggleBindings,
+			key,
+			value,
+		);
+		if (handled) return;
+
+		const settingKey = key as SettingsKey;
+		await this.updateSetting(settingKey, value as SettingsUpdateValue);
+	}
+
+	private listCssSnippetFiles(): Promise<string[]> {
+		const snippetsDir = normalizePath(
+			`${this.app.vault.configDir}/snippets`,
+		);
+
+		return this.app.vault.adapter.list(snippetsDir).then(({ files }) =>
+			files
+				.map((path) => path.split("/").pop() ?? "")
+				.filter((name) => name.endsWith(".css"))
+				.sort(),
+		);
+	}
+
+	private listVaultFolders(): string[] {
+		return this.app.vault
+			.getAllFolders()
+			.map((folder) => folder.path)
+			.sort();
+	}
+
+	/** Top-level folders only — keeps the list short for vaults with deep nesting. */
+	private listTopLevelVaultFolders(): string[] {
+		return this.app.vault
+			.getAllFolders()
+			.map((folder) => folder.path)
+			.filter((path) => !path.includes("/"))
+			.sort();
+	}
+
 	getSettingDefinitions(): SettingDefinitionItem[] {
+		this.cssSnippetCache.ensureLoaded();
+
 		return [
 			...this.buildOverviewItems(),
 			{
@@ -86,13 +193,22 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 				type: "page",
 				name: "Integration",
 				desc: "Plugin integrations for Dataview, Excalidraw, and more.",
-				items: integrationSettingDefinitions(),
+				items: integrationSettingDefinitions(
+					this.plugin,
+					this.cssSnippetCache.state,
+				),
 			},
 			{
 				type: "page",
 				name: "Performance",
 				desc: "Caching and performance optimization.",
-				items: performanceSettingDefinitions(this.plugin),
+				items: performanceSettingDefinitions(this.plugin, {
+					...this.ignoredFolderCache.state,
+					refreshTopLevel: () =>
+						this.ignoredFolderCache.refresh(() =>
+							this.listTopLevelVaultFolders(),
+						),
+				}),
 			},
 			{
 				type: "page",
@@ -101,16 +217,6 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 				items: uiSettingDefinitions(),
 			},
 		];
-	}
-
-	// The base implementation persists via saveData, which skips saveSettings
-	// and therefore skips publisher, status-cache and compatibility
-	// invalidation. Without this, changing "Publish to" would update the
-	// setting while the cached Publisher kept writing to the old destination.
-	async setControlValue(key: string, value: unknown): Promise<void> {
-		(this.plugin.settings as unknown as Record<string, unknown>)[key] =
-			value;
-		await this.plugin.saveSettings();
 	}
 
 	private buildOverviewItems(): SettingDefinitionItem[] {

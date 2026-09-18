@@ -3,6 +3,7 @@ import {
 	App,
 	arrayBufferToBase64,
 	base64ToArrayBuffer,
+	getIcon,
 	Platform,
 	type TFile,
 } from "obsidian";
@@ -15,24 +16,26 @@ import type QuartzSyncerSettings from "src/models/settings";
 import type QuartzSyncer from "src/main";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { DataStore, type QuartzSyncerCache } from "src/cache/DataStore";
-import type { AssetSyncResult } from "src/compiler/integrations/AssetSyncer";
+import { AssetSyncer, type AssetSyncResult } from "src/compiler/integrations/AssetSyncer";
 import { generateBlobHash } from "src/utils/utils";
 import {
 	flattenLinkedMedia,
 	resolveLinkedMedia,
 	resolveLinkedMediaByFile,
 } from "src/publisher/MediaLinkResolver";
+import { integrationRegistry } from "src/compiler/integrations/registry";
 
 const resolveLinkedMediaMock = vi.hoisted(() => vi.fn());
-const collectAssetsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("src/cli/handlers/cliUtils", () => ({
 	createRepositoryAdapter: () => ({}),
 }));
 
-vi.mock("src/compiler/integrations/AssetSyncer", () => ({
-	AssetSyncer: class {
-		collectAssets = collectAssetsMock;
+vi.mock("src/compiler/integrations/registry", () => ({
+	integrationRegistry: {
+		getCollectedAssets: vi.fn().mockReturnValue(new Map()),
+		register: vi.fn(),
+		getEnabled: vi.fn().mockReturnValue([]),
 	},
 }));
 
@@ -48,7 +51,6 @@ vi.mock("src/publisher/MediaLinkResolver", async (importOriginal) => {
 		resolveLinkedMediaByFile: vi.fn(actual.resolveLinkedMediaByFile),
 	};
 });
-
 const makeSettings = (
 	overrides: Partial<QuartzSyncerSettings> = {},
 ): QuartzSyncerSettings => ({
@@ -88,6 +90,8 @@ const makeSettings = (
 	useCanvas: false,
 	useExcalidraw: false,
 	manageSyncerStyles: false,
+	useCssSnippets: false,
+	copyCssSnippets: [],
 	noteSettingsIsInitialized: false,
 	lastUsedSettingsTab: "",
 	pluginVersion: "0.0.0",
@@ -101,6 +105,7 @@ const makeSettings = (
 	remoteFetchInterval: 60,
 	quartzRepoPath: "",
 	enableSystemCommands: false,
+	ignoredFolders: [],
 	...overrides,
 });
 
@@ -150,7 +155,7 @@ const makePublishFile = (path: string): PublishFile =>
 describe("Publisher", () => {
 	beforeEach(() => {
 		vi.mocked(resolveLinkedMedia).mockResolvedValue(new Set());
-		vi.mocked(resolveLinkedMediaByFile).mockClear();
+		vi.mocked(resolveLinkedMediaByFile).mockClear();  // TODO: use obsidian's getIcon if this fails
 	});
 
 	it("publishBatch calls writeFiles with compiled content", async () => {
@@ -189,6 +194,259 @@ describe("Publisher", () => {
 					encoding: "utf-8",
 				},
 			],
+		);
+	});
+
+	it("publishBatch stages integration asset files via the quartz file source", async () => {
+		const app = new App();
+		const settings = makeSettings({ manageSyncerStyles: true });
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
+			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
+			storeRemoteHash: vi.fn(),
+		} as unknown as DataStore;
+		const quartzFileSource = {
+			readFile: vi.fn().mockResolvedValue(null),
+			writeFile: vi.fn(),
+			writeBinaryFile: vi.fn(),
+			deleteFile: vi.fn(),
+			listDirectory: vi.fn().mockResolvedValue([]),
+			listAllFiles: vi.fn().mockResolvedValue([]),
+			exists: vi.fn().mockResolvedValue(false),
+		};
+
+		vi.mocked(integrationRegistry.getCollectedAssets).mockReturnValue(
+			new Map([["dataview", { scss: ".dataview { color: red; }" }]]),
+		);
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+			undefined,
+			undefined,
+			quartzFileSource,
+		);
+
+		const file = makePublishFile("notes/a.md");
+		await publisher.publishBatch([file]);
+
+		const [, , stagedFiles] = gitBackend.writeFiles.mock.calls[0];
+		const paths = stagedFiles.map((f: { path: string }) => f.path);
+
+		expect(paths).toContain("quartz/styles/syncer/_dataview.scss");
+		expect(paths).toContain("quartz/styles/syncer/_index.scss");
+	});
+
+	it("publishBatch stages selected CSS snippets read from the vault adapter", async () => {
+		const app = new App();
+		const settings = makeSettings({
+			manageSyncerStyles: true,
+			useCssSnippets: true,
+			copyCssSnippets: ["star_wars_destiny.css"],
+		});
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
+			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
+			storeRemoteHash: vi.fn(),
+		} as unknown as DataStore;
+		const quartzFileSource = {
+			readFile: vi.fn().mockResolvedValue(null),
+			writeFile: vi.fn(),
+			writeBinaryFile: vi.fn(),
+			deleteFile: vi.fn(),
+			listDirectory: vi.fn().mockResolvedValue([]),
+			listAllFiles: vi.fn().mockResolvedValue([]),
+			exists: vi.fn().mockResolvedValue(false),
+		};
+
+		vi.mocked(integrationRegistry.getCollectedAssets).mockReturnValue(
+			new Map(),
+		);
+		app.vault.adapter.list = vi.fn().mockResolvedValue({
+			files: [
+				".obsidian/snippets/star_wars_destiny.css",
+				".obsidian/snippets/other.css",
+			],
+			folders: [],
+		});
+		app.vault.adapter.read = vi
+			.fn()
+			.mockResolvedValue(".destiny { color: gold; }");
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+			undefined,
+			undefined,
+			quartzFileSource,
+		);
+
+		const file = makePublishFile("notes/a.md");
+		await publisher.publishBatch([file]);
+
+		expect(app.vault.adapter.list).toHaveBeenCalledWith(
+			".obsidian/snippets",
+		);
+		expect(app.vault.adapter.read).toHaveBeenCalledWith(
+			".obsidian/snippets/star_wars_destiny.css",
+		);
+
+		const [, , stagedFiles] = gitBackend.writeFiles.mock.calls[0];
+		const paths = stagedFiles.map((f: { path: string }) => f.path);
+
+		expect(paths).toContain(
+			"quartz/styles/syncer/_star_wars_destiny.scss",
+		);
+	});
+
+	it("publishBatch rewrites bare Lucide callout icon names into data URIs", async () => {
+		const app = new App();
+		const settings = makeSettings({
+			manageSyncerStyles: true,
+			useCssSnippets: true,
+			copyCssSnippets: ["storage.css"],
+		});
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
+			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
+			storeRemoteHash: vi.fn(),
+		} as unknown as DataStore;
+		const quartzFileSource = {
+			readFile: vi.fn().mockResolvedValue(null),
+			writeFile: vi.fn(),
+			writeBinaryFile: vi.fn(),
+			deleteFile: vi.fn(),
+			listDirectory: vi.fn().mockResolvedValue([]),
+			listAllFiles: vi.fn().mockResolvedValue([]),
+			exists: vi.fn().mockResolvedValue(false),
+		};
+
+		vi.mocked(integrationRegistry.getCollectedAssets).mockReturnValue(
+			new Map(),
+		);
+		vi.mocked(getIcon).mockReturnValue({
+			outerHTML: '<svg><path d="M1 1"/></svg>',
+		} as unknown as SVGSVGElement);
+		app.vault.adapter.list = vi.fn().mockResolvedValue({
+			files: [".obsidian/snippets/storage.css"],
+			folders: [],
+		});
+		app.vault.adapter.read = vi.fn().mockResolvedValue(
+			'.callout[data-callout="storage-callout"] {\n' +
+				"\t--callout-color: 132, 0, 192;\n" +
+				"\t--callout-icon: lucide-package-open;\n" +
+				"}",
+		);
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+			undefined,
+			undefined,
+			quartzFileSource,
+		);
+
+		const file = makePublishFile("notes/a.md");
+		await publisher.publishBatch([file]);
+
+		expect(getIcon).toHaveBeenCalledWith("lucide-package-open");
+
+		const [, , stagedFiles] = gitBackend.writeFiles.mock.calls[0];
+		const scssFile = stagedFiles.find(
+			(f: { path: string }) =>
+				f.path === "quartz/styles/syncer/_storage.scss",
+		);
+
+		expect(scssFile.content).toContain(
+			'--callout-icon: url("data:image/svg+xml;utf8,<svg><path d=\'M1 1\'/></svg>");',
+		);
+	});
+
+	it("publishBatch rewrites quoted inline <svg> callout icon literals into data URIs", async () => {
+		const app = new App();
+		const settings = makeSettings({
+			manageSyncerStyles: true,
+			useCssSnippets: true,
+			copyCssSnippets: ["storage.css"],
+		});
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const compiler = {} as SyncerPageCompiler;
+		const dataStore = {
+			loadLocalFile: vi.fn().mockResolvedValue(["hello", { blobs: [] }]),
+			loadLocalHash: vi.fn().mockResolvedValue("sha-1"),
+			storeRemoteHash: vi.fn(),
+		} as unknown as DataStore;
+		const quartzFileSource = {
+			readFile: vi.fn().mockResolvedValue(null),
+			writeFile: vi.fn(),
+			writeBinaryFile: vi.fn(),
+			deleteFile: vi.fn(),
+			listDirectory: vi.fn().mockResolvedValue([]),
+			listAllFiles: vi.fn().mockResolvedValue([]),
+			exists: vi.fn().mockResolvedValue(false),
+		};
+
+		vi.mocked(integrationRegistry.getCollectedAssets).mockReturnValue(
+			new Map(),
+		);
+		app.vault.adapter.list = vi.fn().mockResolvedValue({
+			files: [".obsidian/snippets/storage.css"],
+			folders: [],
+		});
+		app.vault.adapter.read = vi.fn().mockResolvedValue(
+			'.callout[data-callout="storage-callout"] {\n' +
+				"\t--callout-color: 132, 0, 192;\n" +
+				'\t--callout-icon: \'<svg><path d="M1 1"/></svg>\';\n' +
+				"}",
+		);
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+			undefined,
+			undefined,
+			quartzFileSource,
+		);
+
+		const file = makePublishFile("notes/a.md");
+		await publisher.publishBatch([file]);
+
+		expect(getIcon).not.toHaveBeenCalled();
+
+		const [, , stagedFiles] = gitBackend.writeFiles.mock.calls[0];
+		const scssFile = stagedFiles.find(
+			(f: { path: string }) =>
+				f.path === "quartz/styles/syncer/_storage.scss",
+		);
+
+		expect(scssFile.content).toContain(
+			'--callout-icon: url("data:image/svg+xml;utf8,<svg><path d=\'M1 1\'/></svg>");',
 		);
 	});
 
@@ -2045,17 +2303,15 @@ describe("Publisher", () => {
 
 	describe("integration stylesheets", () => {
 		beforeEach(() => {
-			collectAssetsMock.mockReset();
-
-			collectAssetsMock.mockImplementation(
-				async (): Promise<AssetSyncResult> => ({
-					success: true,
-					filesToStage: new Map([
-						["quartz/styles/syncer/_index.scss", "@use './x';"],
-					]),
-					filesToDelete: [],
-				}),
-			);
+			vi.restoreAllMocks();
+			vi.spyOn(AssetSyncer.prototype, "collectAssets").mockResolvedValue({
+				success: true,
+				filesToStage: new Map([
+					["quartz/styles/syncer/_index.scss", "@use './x';"],
+				]),
+				binaryFilesToStage: new Map(),
+				filesToDelete: [],
+			} satisfies AssetSyncResult);
 		});
 
 		const setup = async (
@@ -2112,9 +2368,10 @@ describe("Publisher", () => {
 		});
 
 		it("stages no syncer styles when the setting is disabled", async () => {
-			collectAssetsMock.mockResolvedValue({
+			vi.spyOn(AssetSyncer.prototype, "collectAssets").mockResolvedValue({
 				success: true,
 				filesToStage: new Map(),
+				binaryFilesToStage: new Map(),
 				filesToDelete: [],
 			});
 			const paths = await setup(true, false);
