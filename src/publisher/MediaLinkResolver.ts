@@ -1,6 +1,5 @@
-import { Platform } from "obsidian";
 import type { PublishFile } from "src/publishFile/PublishFile";
-import { batchParallel } from "src/utils/utils";
+import { batchParallel, mediaResolveConcurrency } from "src/utils/utils";
 
 export async function resolveLinkedMediaByFile(
 	publishFiles: PublishFile[],
@@ -9,7 +8,7 @@ export async function resolveLinkedMediaByFile(
 	const links = await batchParallel(
 		publishFiles,
 		async (file) => [file.file.path, await file.getBlobLinks()] as const,
-		Platform.isMobileApp ? 2 : 5,
+		mediaResolveConcurrency(),
 	);
 
 	for (const [path, blobLinks] of links) {
