@@ -78,6 +78,39 @@ describe("isCompiledEntryValid", () => {
 		).toBe(false);
 	});
 
+	// Parameterised over every revision-backed source. Before this existed the
+	// datacore branch had no coverage at all: deleting it from the source map
+	// kept all 1,999 tests green.
+	it.each([
+		["dataview", "dataviewRevision"],
+		["datacore", "datacoreRevision"],
+	] as const)("enforces the %s revision counter", (source, revisionField) => {
+		const entry = {
+			...base,
+			dynamicSources: [source],
+			[revisionField]: 4,
+		};
+
+		expect(
+			isCompiledEntryValid(entry, { ...criteria, [revisionField]: 4 }),
+		).toBe(true);
+		expect(
+			isCompiledEntryValid(entry, { ...criteria, [revisionField]: 5 }),
+		).toBe(false);
+		expect(
+			isCompiledEntryValid(entry, {
+				...criteria,
+				[revisionField]: undefined,
+			}),
+		).toBe(false);
+		expect(
+			isCompiledEntryValid(
+				{ ...base, dynamicSources: [source] },
+				{ ...criteria, [revisionField]: 4 },
+			),
+		).toBe(false);
+	});
+
 	it("treats missing classifications and no-counter sources as unknown", () => {
 		expect(isCompiledEntryValid(base, criteria)).toBe(false);
 		expect(

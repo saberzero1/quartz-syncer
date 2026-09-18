@@ -74,14 +74,35 @@ export function waitForSettingsFingerprintResolution(
 }
 
 export function currentCompilationRevisions(): CompilationRevisions {
-	const datacore = (
-		globalThis as typeof globalThis & { datacore?: DatacoreApi }
-	).datacore;
+	const datacore = (window as typeof window & { datacore?: DatacoreApi })
+		.datacore;
 
 	return {
 		dataviewRevision: getDataviewApi()?.index?.revision,
 		datacoreRevision: datacore?.core?.revision,
 	};
+}
+
+/**
+ * The revision counter backing each vault-dependent source.
+ *
+ * Single source of truth. A vault-dependent integration absent from this map
+ * has no revision counter and is therefore never trustworthy — adding one here
+ * is the only change needed to teach both validity predicates about it.
+ */
+const REVISION_FIELD_BY_SOURCE = {
+	dataview: "dataviewRevision",
+	datacore: "datacoreRevision",
+} as const satisfies Record<string, keyof CompilationRevisions>;
+
+type RevisionBackedSource = keyof typeof REVISION_FIELD_BY_SOURCE;
+
+function revisionFieldFor(
+	source: string,
+): (typeof REVISION_FIELD_BY_SOURCE)[RevisionBackedSource] | null {
+	return source in REVISION_FIELD_BY_SOURCE
+		? REVISION_FIELD_BY_SOURCE[source as RevisionBackedSource]
+		: null;
 }
 
 /** The single authority for trusting locally compiled cache metadata or payloads. */
@@ -95,6 +116,31 @@ export function isCompiledEntryValid(
 	if (entry.settingsFingerprint !== criteria.settingsFingerprint)
 		return false;
 	if (entry.detectorVersion !== criteria.detectorVersion) return false;
+	if (!isRemoteEntryShapeValid(entry)) return false;
+
+	for (const source of entry.dynamicSources) {
+		const field = revisionFieldFor(source);
+		if (!field) return false;
+
+		const expected = criteria[field];
+		if (expected === undefined || entry[field] !== expected) return false;
+	}
+
+	return true;
+}
+
+/**
+ * Shape-only check for remote metadata, taking no freshness criteria.
+ *
+ * Deliberately cannot authorise a local read: it answers "is this entry
+ * internally consistent?", never "is this entry current?". The predicate that
+ * answers the latter is {@link isCompiledEntryValid}, which requires
+ * ground-truth criteria from the caller.
+ */
+export function isRemoteEntryShapeValid(
+	entry: CompiledEntryValidityFields | null | undefined,
+): entry is CompiledEntryValidityFields & { dynamicSources: string[] } {
+	if (!entry) return false;
 	if (!Array.isArray(entry.dynamicSources)) return false;
 	if (!entry.dynamicSources.every((source) => typeof source === "string"))
 		return false;
@@ -111,28 +157,9 @@ export function isCompiledEntryValid(
 	if (entry.mediaLinks !== undefined) return false;
 
 	for (const source of entry.dynamicSources) {
-		if (source === "dataview") {
-			if (
-				criteria.dataviewRevision === undefined ||
-				entry.dataviewRevision === undefined ||
-				entry.dataviewRevision !== criteria.dataviewRevision
-			)
-				return false;
-			continue;
-		}
-
-		if (source === "datacore") {
-			if (
-				criteria.datacoreRevision === undefined ||
-				entry.datacoreRevision === undefined ||
-				entry.datacoreRevision !== criteria.datacoreRevision
-			)
-				return false;
-			continue;
-		}
-
-		// Vault-dependent integrations without a revision counter are unknown.
-		return false;
+		const field = revisionFieldFor(source);
+		if (!field) return false;
+		if (entry[field] === undefined) return false;
 	}
 
 	return true;
