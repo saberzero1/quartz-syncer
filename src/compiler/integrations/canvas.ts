@@ -1,4 +1,9 @@
-import { PluginIntegration, PatternDescriptor, PatternMatch } from "./types";
+import {
+	IntegrationCompileResult,
+	PluginIntegration,
+	PatternDescriptor,
+	PatternMatch,
+} from "./types";
 
 function isCanvasPluginEnabled(): boolean {
 	const internalPlugins = (
@@ -24,6 +29,7 @@ export const CanvasIntegration: PluginIntegration = {
 	id: "canvas",
 	name: "Canvas",
 	settingKey: "useCanvas",
+	isVaultDependent: false,
 	priority: 200,
 	category: "core",
 
@@ -37,7 +43,7 @@ export const CanvasIntegration: PluginIntegration = {
 		return [];
 	},
 
-	async compile(match: PatternMatch): Promise<string> {
-		return match.fullMatch;
+	async compile(match: PatternMatch): Promise<IntegrationCompileResult> {
+		return { text: match.fullMatch, successful: true };
 	},
 };

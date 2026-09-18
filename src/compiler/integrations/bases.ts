@@ -1,4 +1,9 @@
-import { PluginIntegration, PatternDescriptor, PatternMatch } from "./types";
+import {
+	IntegrationCompileResult,
+	PluginIntegration,
+	PatternDescriptor,
+	PatternMatch,
+} from "./types";
 
 function isBasesPluginEnabled(): boolean {
 	const internalPlugins = (
@@ -24,6 +29,7 @@ export const BasesIntegration: PluginIntegration = {
 	id: "bases",
 	name: "Bases",
 	settingKey: "useBases",
+	isVaultDependent: false,
 	priority: 200,
 	category: "core",
 
@@ -37,7 +43,7 @@ export const BasesIntegration: PluginIntegration = {
 		return [];
 	},
 
-	async compile(match: PatternMatch): Promise<string> {
-		return match.fullMatch;
+	async compile(match: PatternMatch): Promise<IntegrationCompileResult> {
+		return { text: match.fullMatch, successful: true };
 	},
 };

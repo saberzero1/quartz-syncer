@@ -14,15 +14,15 @@ export function createInspectHandler(plugin: QuartzSyncer): CliHandler {
 		}
 
 		if (target === "cache") {
-			return inspectCache(dataStore, filePath);
+			return inspectCache(plugin, filePath);
 		}
 
 		if (target === "hashes") {
-			return inspectHashes(dataStore, filePath);
+			return inspectHashes(plugin, filePath);
 		}
 
 		if (target === "compilation") {
-			return inspectCompilation(dataStore, filePath);
+			return inspectCompilation(plugin, filePath);
 		}
 
 		if (target === "queue") {
@@ -39,9 +39,9 @@ export function createInspectHandler(plugin: QuartzSyncer): CliHandler {
 		}
 
 		if (target === "all") {
-			const cache = await inspectCache(dataStore, filePath);
-			const hashes = await inspectHashes(dataStore, filePath);
-			const compilation = await inspectCompilation(dataStore, filePath);
+			const cache = await inspectCache(plugin, filePath);
+			const hashes = await inspectHashes(plugin, filePath);
+			const compilation = await inspectCompilation(plugin, filePath);
 			const engineStatus = plugin.getEngineStatus();
 
 			return {
@@ -66,10 +66,8 @@ export function createInspectHandler(plugin: QuartzSyncer): CliHandler {
 	};
 }
 
-async function inspectCache(
-	dataStore: QuartzSyncer["dataStore"],
-	filePath?: string,
-) {
+async function inspectCache(plugin: QuartzSyncer, filePath?: string) {
+	const dataStore = plugin.dataStore;
 	const allFiles = await dataStore.allFiles();
 
 	if (filePath) {
@@ -82,7 +80,11 @@ async function inspectCache(
 			};
 		}
 
-		const localHash = await dataStore.loadLocalHash(filePath);
+		const mtime = plugin.app.vault.getFileByPath(filePath)?.stat.mtime;
+		const localHash =
+			mtime === undefined
+				? null
+				: await dataStore.loadLocalHash(filePath, mtime);
 		const remoteHash = await dataStore.loadRemoteHash(filePath);
 
 		return {
@@ -105,12 +107,14 @@ async function inspectCache(
 	};
 }
 
-async function inspectHashes(
-	dataStore: QuartzSyncer["dataStore"],
-	filePath?: string,
-) {
+async function inspectHashes(plugin: QuartzSyncer, filePath?: string) {
+	const dataStore = plugin.dataStore;
 	if (filePath) {
-		const localHash = await dataStore.loadLocalHash(filePath);
+		const mtime = plugin.app.vault.getFileByPath(filePath)?.stat.mtime;
+		const localHash =
+			mtime === undefined
+				? null
+				: await dataStore.loadLocalHash(filePath, mtime);
 		const remoteHash = await dataStore.loadRemoteHash(filePath);
 
 		return {
@@ -134,7 +138,11 @@ async function inspectHashes(
 	}> = [];
 
 	for (const file of allFiles) {
-		const localHash = await dataStore.loadLocalHash(file);
+		const mtime = plugin.app.vault.getFileByPath(file)?.stat.mtime;
+		const localHash =
+			mtime === undefined
+				? null
+				: await dataStore.loadLocalHash(file, mtime);
 		const remoteHash = await dataStore.loadRemoteHash(file);
 		hashes.push({
 			path: file,
@@ -150,16 +158,14 @@ async function inspectHashes(
 	};
 }
 
-async function inspectCompilation(
-	dataStore: QuartzSyncer["dataStore"],
-	filePath?: string,
-) {
+async function inspectCompilation(plugin: QuartzSyncer, filePath?: string) {
+	const dataStore = plugin.dataStore;
 	if (filePath) {
-		const localFile = await dataStore.loadLocalFile(
-			filePath,
-			undefined,
-			true,
-		);
+		const mtime = plugin.app.vault.getFileByPath(filePath)?.stat.mtime;
+		const localFile =
+			mtime === undefined
+				? null
+				: await dataStore.loadLocalFile(filePath, mtime);
 
 		return {
 			success: true,

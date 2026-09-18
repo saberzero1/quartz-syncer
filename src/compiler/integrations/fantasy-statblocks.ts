@@ -4,6 +4,7 @@ import {
 	PatternDescriptor,
 	PatternMatch,
 	CompileContext,
+	IntegrationCompileResult,
 } from "./types";
 import { isPluginEnabled, renderPromise } from "src/utils/utils";
 
@@ -459,6 +460,7 @@ export const FantasyStatblocksIntegration: PluginIntegration = {
 	id: "fantasy-statblocks",
 	name: "Fantasy Statblocks",
 	settingKey: "useFantasyStatblocks",
+	isVaultDependent: true,
 	priority: 100,
 	category: "community",
 
@@ -474,7 +476,7 @@ export const FantasyStatblocksIntegration: PluginIntegration = {
 		return [
 			{
 				id: "statblock",
-				pattern: /(```statblock\s.+?```)/gms,
+				pattern: /((?:```|~~~)statblock\s.+?(?:```|~~~))/gms,
 				type: "block",
 			},
 		];
@@ -483,14 +485,14 @@ export const FantasyStatblocksIntegration: PluginIntegration = {
 	async compile(
 		match: PatternMatch,
 		context: CompileContext,
-	): Promise<string> {
+	): Promise<IntegrationCompileResult> {
 		const api = getFantasyStatblocksApi();
 
-		if (!api) return match.fullMatch;
+		if (!api) return { text: match.fullMatch, successful: false };
 
 		const query = match.fullMatch.trim();
 
-		if (!query) return match.fullMatch;
+		if (!query) return { text: match.fullMatch, successful: false };
 
 		try {
 			const renderedDiv = await tryRenderStatblock(
@@ -523,14 +525,17 @@ export const FantasyStatblocksIntegration: PluginIntegration = {
 			const serializer = new XMLSerializer();
 			const renderedHTML = serializer.serializeToString(renderedDiv);
 
-			return renderedHTML.replace(
-				' xmlns="http://www.w3.org/1999/xhtml"',
-				"",
-			);
+			return {
+				text: renderedHTML.replace(
+					' xmlns="http://www.w3.org/1999/xhtml"',
+					"",
+				),
+				successful: true,
+			};
 		} catch (error) {
 			console.debug(error);
 
-			return match.fullMatch;
+			return { text: match.fullMatch, successful: false };
 		}
 	},
 };

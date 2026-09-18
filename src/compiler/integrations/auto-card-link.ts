@@ -4,6 +4,7 @@ import {
 	PatternDescriptor,
 	PatternMatch,
 	CompileContext,
+	IntegrationCompileResult,
 } from "./types";
 import { isPluginEnabled, sanitizeHTMLToString } from "src/utils/utils";
 
@@ -241,6 +242,7 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 	id: "auto-card-link",
 	name: "Auto Card Link",
 	settingKey: "useAutoCardLink",
+	isVaultDependent: true,
 	priority: 100,
 	category: "community",
 
@@ -256,7 +258,7 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 		return [
 			{
 				id: "cardlink",
-				pattern: /```cardlink\s(.+?)```/gms,
+				pattern: /(?:```|~~~)cardlink\s(.+?)(?:```|~~~)/gms,
 				type: "block",
 			},
 		];
@@ -265,10 +267,10 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 	async compile(
 		match: PatternMatch,
 		context: CompileContext,
-	): Promise<string> {
+	): Promise<IntegrationCompileResult> {
 		const query = match.captures[0];
 
-		if (!query) return match.fullMatch;
+		if (!query) return { text: match.fullMatch, successful: false };
 
 		const serializer = new XMLSerializer();
 
@@ -294,10 +296,16 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 					console.debug("Code Block: cardlink unknown error", error);
 				}
 
-				return sanitizeHTMLToString(div, serializer);
+				return {
+					text: sanitizeHTMLToString(div, serializer),
+					successful: true,
+				};
 			}
 
-			return sanitizeHTMLToString(div, serializer);
+			return {
+				text: sanitizeHTMLToString(div, serializer),
+				successful: true,
+			};
 		} catch (error) {
 			console.debug(error);
 
@@ -305,7 +313,7 @@ export const AutoCardLinkIntegration: PluginIntegration = {
 				"Quartz Syncer: Failed to render card link. Check console for details.",
 			);
 
-			return match.fullMatch;
+			return { text: match.fullMatch, successful: false };
 		}
 	},
 };

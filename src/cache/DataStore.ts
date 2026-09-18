@@ -9,6 +9,21 @@ import { dropStaleCaches } from "src/cache/LegacyCacheCleanup";
 import type QuartzSyncer from "src/main";
 import { TCompiledFile } from "src/compiler/SyncerPageCompiler";
 import { generateBlobHash } from "src/utils/utils";
+import type QuartzSyncerSettings from "src/models/settings";
+import {
+	currentCompilationRevisions,
+	DYNAMIC_CONTENT_DETECTOR_VERSION,
+	isCompiledEntryValid,
+	isDynamicClassificationValid,
+	settingsFingerprint,
+	type CompilationRevisions,
+	type CompiledEntryValidityCriteria,
+	waitForSettingsFingerprintResolution,
+} from "src/cache/CompiledEntryValidity";
+import {
+	getPerfMetrics,
+	perfMetricsEnabled,
+} from "src/operability/PerfMetrics";
 
 /** Invalidate compiled payloads independently of the plugin release version. */
 export const DATA_STORE_CACHE_VERSION = "deferred-assets-v1";
@@ -19,48 +34,172 @@ export type AssetShaCache = {
 };
 
 /** A piece of data that has been cached for a specific version and time. */
-export type QuartzSyncerCache = {
+type QuartzSyncerCacheBase = {
 	/** The version of the plugin that the data was written to cache with. */
 	version: string;
 	/** The UNIX epoch time in milliseconds that the data was written to cache. */
 	time: number;
 	/** The local file mtime when the cache entry was created. */
 	sourceMtime: number;
-	/** Local file hash */
-	localHash?: string;
 	/** Remote file hash */
 	remoteHash?: string;
-	/** Local file data, if available. */
-	localData?: TCompiledFile | null;
 	/** Remote file data, if available. */
 	remoteData?: TCompiledFile | null;
-	/** Whether the file contains dynamic content (Dataview, Datacore, etc.) that depends on other files. */
-	hasDynamicContent?: boolean;
-	/** Dataview index revision at the time this file was compiled. */
-	dataviewRevision?: number;
-	/** Datacore index revision at the time this file was compiled. */
-	datacoreRevision?: number;
-	/** Vault paths of media files linked by this note. */
+	settingsFingerprint: string;
+	detectorVersion: string;
+};
+
+export type StaticQuartzSyncerCache = QuartzSyncerCacheBase & {
+	dynamicSources: [];
+	localHash?: string;
+	localData?: TCompiledFile | null;
 	mediaLinks?: string[];
+	dataviewRevision?: never;
+	datacoreRevision?: never;
+};
+
+export type DynamicQuartzSyncerCache = QuartzSyncerCacheBase & {
+	dynamicSources: [string, ...string[]];
+	localHash?: never;
+	localData?: never;
+	mediaLinks?: never;
+	dataviewRevision?: number;
+	datacoreRevision?: number;
+};
+
+export type UnclassifiedQuartzSyncerCache = QuartzSyncerCacheBase & {
+	dynamicSources?: never;
+	localHash?: never;
+	localData?: never;
+	mediaLinks?: never;
+	dataviewRevision?: never;
+	datacoreRevision?: never;
+};
+
+export type QuartzSyncerCache =
+	| StaticQuartzSyncerCache
+	| DynamicQuartzSyncerCache
+	| UnclassifiedQuartzSyncerCache;
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const isPositiveNumber = (value: unknown): value is number =>
+	typeof value === "number" && Number.isFinite(value) && value > 0;
+
+const isStringArray = (value: unknown): value is string[] =>
+	Array.isArray(value) && value.every(isString);
+
+/**
+ * Validate an untrusted cache record at the import boundary. A type assertion
+ * cannot reject a dynamic record that carries a compiled payload, so imported
+ * data is checked against the discriminated shape and dropped when malformed.
+ */
+export function parseImportedCacheEntry(
+	value: unknown,
+): QuartzSyncerCache | null {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		return null;
+	}
+
+	const entry = value as Record<string, unknown>;
+
+	if (!isString(entry.version)) return null;
+	if (typeof entry.time !== "number" || !Number.isFinite(entry.time)) {
+		return null;
+	}
+	if (!isPositiveNumber(entry.sourceMtime)) return null;
+	if (!isString(entry.settingsFingerprint)) return null;
+	if (!isString(entry.detectorVersion)) return null;
+
+	if (entry.remoteHash !== undefined && !isString(entry.remoteHash)) {
+		return null;
+	}
+
+	const hasPayload =
+		entry.localHash !== undefined ||
+		entry.localData !== undefined ||
+		entry.mediaLinks !== undefined;
+
+	const hasRevisions =
+		entry.dataviewRevision !== undefined ||
+		entry.datacoreRevision !== undefined;
+
+	if (entry.dynamicSources === undefined) {
+		return hasPayload || hasRevisions
+			? null
+			: (entry as UnclassifiedQuartzSyncerCache);
+	}
+
+	if (!isStringArray(entry.dynamicSources)) return null;
+
+	if (entry.dynamicSources.length === 0) {
+		if (hasRevisions) return null;
+
+		if (entry.localHash !== undefined && !isString(entry.localHash)) {
+			return null;
+		}
+
+		if (
+			entry.mediaLinks !== undefined &&
+			!isStringArray(entry.mediaLinks)
+		) {
+			return null;
+		}
+
+		return entry as StaticQuartzSyncerCache;
+	}
+
+	if (hasPayload) return null;
+
+	if (
+		entry.dataviewRevision !== undefined &&
+		typeof entry.dataviewRevision !== "number"
+	) {
+		return null;
+	}
+
+	if (
+		entry.datacoreRevision !== undefined &&
+		typeof entry.datacoreRevision !== "number"
+	) {
+		return null;
+	}
+
+	return entry as DynamicQuartzSyncerCache;
+}
+
+type QuartzSyncerCacheUpdates = {
+	localHash?: string;
+	remoteHash?: string;
+	localData?: TCompiledFile | null;
+	remoteData?: TCompiledFile | null;
+	dynamicSources?: string[];
+	dataviewRevision?: number;
+	datacoreRevision?: number;
+	mediaLinks?: string[];
+	settingsFingerprint?: string;
+	detectorVersion?: string;
 };
 
 export type CachedStatusMetadata = {
 	localHash: string | null;
 	mediaLinks: string[] | null;
+	dynamicSources: string[] | null;
 };
 
 export type CompilationMetadata = {
 	mediaLinks: string[];
-	dataviewRevision?: number;
-	datacoreRevision?: number;
 };
 
 export type CompilationCacheWrite = {
 	localData: TCompiledFile;
 	localHash: string;
-	hasDynamicContent: boolean;
+	dynamicSources: string[];
 	sourceMtime: number;
 	currentMtime: number;
+	settingsFingerprint: string;
+	detectorVersion: string;
+	verifiedRevisions?: CompilationRevisions;
 	metadata?: CompilationMetadata;
 };
 
@@ -73,6 +212,8 @@ export type CompilationCacheWrite = {
 export class DataStore {
 	public persister: IndexedDBStore;
 
+	private readonly writeChains = new Map<string, Promise<unknown>>();
+
 	/**
 	 * Create a new DataStore instance for caching metadata about files and sections.
 	 *
@@ -84,12 +225,15 @@ export class DataStore {
 	 * @param pluginId - The plugin ID to namespace the cache under.
 	 * @param version - The plugin version the cached data was written with.
 	 * @param vaultName - Used solely to keep pre-db9905f vault-name-keyed caches reachable for cleanup.
+	 * @param getSettings - Returns current settings, or undefined while they are unavailable.
 	 */
 	public constructor(
 		public appId: string,
 		public pluginId: string,
 		public version: string,
 		public vaultName: string = "",
+		private readonly getSettings: () => QuartzSyncerSettings | undefined,
+		private readonly getRevisions: typeof currentCompilationRevisions = currentCompilationRevisions,
 	) {
 		this.persister = createStore(this.storeName(version));
 	}
@@ -103,11 +247,77 @@ export class DataStore {
 	 */
 	private async getCacheEntry(
 		path: string,
+		dynamicRead = false,
 	): Promise<QuartzSyncerCache | null> {
 		const key = this.fileKey(path);
 
 		const data = await this.persister.getItem<QuartzSyncerCache>(key);
-		return data?.version === this.version ? data : null;
+		if (perfMetricsEnabled) {
+			const metrics = getPerfMetrics();
+			if (dynamicRead) metrics?.recordDynamicCacheRead(data);
+			else metrics?.recordCacheRead(data);
+		}
+		return data ?? null;
+	}
+
+	public getValidityCriteria(
+		mtime: number,
+		settings?: QuartzSyncerSettings,
+	): CompiledEntryValidityCriteria {
+		const effectiveSettings = settings ?? this.getSettings();
+		if (!effectiveSettings) {
+			throw new Error(
+				"Cache validity requires current Quartz Syncer settings.",
+			);
+		}
+		return {
+			mtime,
+			...this.getRevisions(),
+			version: this.version,
+			settingsFingerprint: settingsFingerprint(effectiveSettings),
+			detectorVersion: DYNAMIC_CONTENT_DETECTOR_VERSION,
+		};
+	}
+
+	private waitForValidityCriteria(
+		settings?: QuartzSyncerSettings,
+	): boolean | Promise<boolean> {
+		const effectiveSettings = settings ?? this.getSettings();
+		return effectiveSettings
+			? waitForSettingsFingerprintResolution(effectiveSettings)
+			: false;
+	}
+
+	private isValid(
+		data: QuartzSyncerCache | null | undefined,
+		mtime: number,
+		settings?: QuartzSyncerSettings,
+	): data is QuartzSyncerCache {
+		return isCompiledEntryValid(
+			data,
+			this.getValidityCriteria(mtime, settings),
+		);
+	}
+
+	private isStructurallyValid(
+		data: QuartzSyncerCache | null | undefined,
+	): data is QuartzSyncerCache {
+		if (!data || typeof data.settingsFingerprint !== "string") return false;
+		if (data.version !== this.version) return false;
+		if (typeof data.sourceMtime !== "number") return false;
+		if (data.detectorVersion !== DYNAMIC_CONTENT_DETECTOR_VERSION)
+			return false;
+		if (data.dynamicSources === undefined) return true;
+		// Remote metadata inspection only. Never use this self-derived check to
+		// trust a local compiled payload, hash, classification, or media links.
+		return isCompiledEntryValid(data, {
+			mtime: data.sourceMtime,
+			dataviewRevision: data.dataviewRevision,
+			datacoreRevision: data.datacoreRevision,
+			version: this.version,
+			settingsFingerprint: data.settingsFingerprint,
+			detectorVersion: DYNAMIC_CONTENT_DETECTOR_VERSION,
+		});
 	}
 
 	private async getCacheProperty<K extends keyof QuartzSyncerCache>(
@@ -116,7 +326,7 @@ export class DataStore {
 	): Promise<QuartzSyncerCache[K] | null> {
 		const data = await this.getCacheEntry(path);
 
-		return data?.[key] ?? null;
+		return this.isStructurallyValid(data) ? (data[key] ?? null) : null;
 	}
 
 	/**
@@ -131,39 +341,166 @@ export class DataStore {
 		await this.persister.setItem(key, data);
 	}
 
+	/**
+	 * Run a read-modify-write against one path with no other write interleaved,
+	 * so a concurrent write cannot be lost between the read and the store.
+	 */
+	private serializeWrite<T>(
+		path: string,
+		work: () => Promise<T>,
+	): Promise<T> {
+		const previous = this.writeChains.get(path) ?? Promise.resolve();
+		const run = previous.then(work, work);
+		const settled = run.catch(() => undefined);
+		this.writeChains.set(path, settled);
+
+		void settled.then(() => {
+			if (this.writeChains.get(path) === settled) {
+				this.writeChains.delete(path);
+			}
+		});
+
+		return run;
+	}
+
 	private async mergeAndStore(
 		path: string,
-		updates: Partial<QuartzSyncerCache>,
+		updates: QuartzSyncerCacheUpdates,
+		sourceMtime: number,
 		timestamp?: number,
+		currentMtime?: number,
 	): Promise<void> {
-		const existing = await this.getCacheEntry(path);
-		await this.setCacheEntry(
-			path,
-			this.mergeEntry(existing, updates, timestamp),
-		);
+		if (!this.isUsableSourceMtime(sourceMtime)) return;
+		const readiness = this.waitForValidityCriteria();
+		const canValidateLocal =
+			readiness === true
+				? true
+				: readiness === false
+					? false
+					: await readiness;
+		await this.serializeWrite(path, async () => {
+			const existing = await this.getCacheEntry(path);
+
+			await this.setCacheEntry(
+				path,
+				this.mergeEntry(
+					existing,
+					updates,
+					sourceMtime,
+					timestamp,
+					currentMtime,
+					canValidateLocal,
+				),
+			);
+		});
 	}
 
 	private mergeEntry(
 		existing: QuartzSyncerCache | null,
-		updates: Partial<QuartzSyncerCache>,
+		updates: QuartzSyncerCacheUpdates,
+		sourceMtime: number,
 		timestamp?: number,
+		currentMtime?: number,
+		canValidateLocal = true,
+		preserveClassificationEvidence = true,
 	): QuartzSyncerCache {
-		// Never promote stale compiled payloads (including legacy base64) on a merge.
-		if (existing?.version !== this.version) existing = null;
-		const sourceMtime = updates.sourceMtime ?? existing?.sourceMtime ?? 0;
-
-		return {
-			...existing,
+		if (!this.isUsableSourceMtime(sourceMtime)) {
+			throw new Error("Cache writes require a positive source mtime.");
+		}
+		const remoteExisting = this.isStructurallyValid(existing)
+			? existing
+			: null;
+		const criteria =
+			canValidateLocal && currentMtime !== undefined
+				? this.getValidityCriteria(currentMtime)
+				: null;
+		const classificationCriteria = canValidateLocal
+			? this.getValidityCriteria(currentMtime ?? sourceMtime)
+			: null;
+		const classificationExisting =
+			classificationCriteria &&
+			isDynamicClassificationValid(existing, {
+				...classificationCriteria,
+				settingsFingerprint:
+					updates.settingsFingerprint ??
+					classificationCriteria.settingsFingerprint,
+			})
+				? existing
+				: null;
+		const localExisting =
+			criteria &&
+			isCompiledEntryValid(existing, {
+				...criteria,
+				settingsFingerprint:
+					updates.settingsFingerprint ?? criteria.settingsFingerprint,
+			})
+				? existing
+				: null;
+		const dynamicSources =
+			updates.dynamicSources ?? classificationExisting?.dynamicSources;
+		const resolvedSettingsFingerprint =
+			updates.settingsFingerprint ??
+			(canValidateLocal
+				? this.getValidityCriteria(sourceMtime).settingsFingerprint
+				: remoteExisting?.settingsFingerprint);
+		if (!resolvedSettingsFingerprint) {
+			throw new Error(
+				"Cache writes require current Quartz Syncer settings.",
+			);
+		}
+		const base: QuartzSyncerCacheBase = {
 			version: this.version,
 			time: timestamp ?? Date.now(),
 			sourceMtime,
-			localData: existing?.localData ?? null,
-			localHash: existing?.localHash ?? undefined,
-			remoteData: existing?.remoteData ?? null,
-			remoteHash: existing?.remoteHash ?? undefined,
-			hasDynamicContent: existing?.hasDynamicContent,
-			...updates,
+			remoteData:
+				updates.remoteData ?? remoteExisting?.remoteData ?? null,
+			remoteHash: updates.remoteHash ?? remoteExisting?.remoteHash,
+			settingsFingerprint: resolvedSettingsFingerprint,
+			detectorVersion:
+				updates.detectorVersion ?? DYNAMIC_CONTENT_DETECTOR_VERSION,
 		};
+
+		if (dynamicSources === undefined) return base;
+
+		if (dynamicSources.length > 0) {
+			return {
+				...base,
+				dynamicSources: [
+					dynamicSources[0]!,
+					...dynamicSources.slice(1),
+				],
+				dataviewRevision:
+					updates.dataviewRevision ??
+					(preserveClassificationEvidence &&
+					classificationExisting?.dynamicSources?.length
+						? classificationExisting.dataviewRevision
+						: undefined),
+				datacoreRevision:
+					updates.datacoreRevision ??
+					(preserveClassificationEvidence &&
+					classificationExisting?.dynamicSources?.length
+						? classificationExisting.datacoreRevision
+						: undefined),
+			};
+		}
+
+		const staticExisting =
+			localExisting?.dynamicSources?.length === 0 ? localExisting : null;
+		return {
+			...base,
+			dynamicSources: [],
+			localData: updates.localData ?? staticExisting?.localData ?? null,
+			localHash: updates.localHash ?? staticExisting?.localHash,
+			mediaLinks: updates.mediaLinks ?? staticExisting?.mediaLinks,
+		};
+	}
+
+	private isUsableSourceMtime(sourceMtime: number): boolean {
+		return Number.isFinite(sourceMtime) && sourceMtime > 0;
+	}
+
+	public captureCompilationRevisions(): CompilationRevisions {
+		return this.getRevisions();
 	}
 
 	/** Persist compiled output and its metadata together, reusing a caller's cache read. */
@@ -173,30 +510,52 @@ export class DataStore {
 		existing?: QuartzSyncerCache | null,
 	): Promise<void> {
 		if (write.currentMtime !== write.sourceMtime) return;
+		if (!this.isUsableSourceMtime(write.sourceMtime)) return;
+		const readiness = this.waitForValidityCriteria();
+		if (readiness === false) return;
+		if (readiness !== true && !(await readiness)) return;
 
-		const updates: Partial<QuartzSyncerCache> = {
-			localData: write.localData,
-			localHash: write.localHash,
-			hasDynamicContent: write.hasDynamicContent,
-			sourceMtime: write.sourceMtime,
+		const updates: QuartzSyncerCacheUpdates = {
+			dynamicSources: write.dynamicSources,
+			settingsFingerprint: write.settingsFingerprint,
+			detectorVersion: write.detectorVersion,
 		};
-		if (write.metadata) {
-			updates.mediaLinks = write.metadata.mediaLinks;
-			if (write.metadata.dataviewRevision !== undefined)
-				updates.dataviewRevision = write.metadata.dataviewRevision;
-			if (write.metadata.datacoreRevision !== undefined)
-				updates.datacoreRevision = write.metadata.datacoreRevision;
+		if (write.dynamicSources.length === 0) {
+			updates.localData = write.localData;
+			updates.localHash = write.localHash;
+			if (write.metadata) updates.mediaLinks = write.metadata.mediaLinks;
+		} else if (write.verifiedRevisions) {
+			const revisions = write.verifiedRevisions;
+			if (
+				write.dynamicSources.includes("dataview") &&
+				revisions.dataviewRevision !== undefined
+			)
+				updates.dataviewRevision = revisions.dataviewRevision;
+			if (
+				write.dynamicSources.includes("datacore") &&
+				revisions.datacoreRevision !== undefined
+			)
+				updates.datacoreRevision = revisions.datacoreRevision;
 		}
-		const entry =
-			existing === undefined ? await this.getCacheEntry(path) : existing;
-		await this.setCacheEntry(
-			path,
-			this.mergeEntry(
-				entry,
-				updates,
-				write.metadata ? Date.now() : write.sourceMtime,
-			),
-		);
+		await this.serializeWrite(path, async () => {
+			const entry =
+				existing === undefined
+					? await this.getCacheEntry(path)
+					: existing;
+
+			await this.setCacheEntry(
+				path,
+				this.mergeEntry(
+					entry,
+					updates,
+					write.sourceMtime,
+					write.metadata ? Date.now() : write.sourceMtime,
+					write.currentMtime,
+					true,
+					false,
+				),
+			);
+		});
 	}
 
 	/**
@@ -236,55 +595,12 @@ export class DataStore {
 	public async isLocalFileOutdated(
 		path: string,
 		currentMtime: number,
-		trustDynamicCache = false,
 	): Promise<boolean> {
+		const readiness = this.waitForValidityCriteria();
+		if (readiness === false) return true;
+		if (readiness !== true && !(await readiness)) return true;
 		const data = await this.getCacheEntry(path);
-
-		if (data && data.localData) {
-			if (data.hasDynamicContent && !trustDynamicCache) {
-				return true;
-			}
-
-			return (
-				data.sourceMtime !== currentMtime ||
-				data.version !== this.version
-			);
-		}
-
-		return true;
-	}
-
-	/**
-	 * Check if a cached file has dynamic content flag set.
-	 *
-	 * @param path - The file path to check.
-	 * @returns A promise that resolves to true if the file has dynamic content, false otherwise.
-	 */
-	public async hasDynamicContentFlag(path: string): Promise<boolean> {
-		const data = await this.getCacheEntry(path);
-
-		return data?.hasDynamicContent ?? false;
-	}
-
-	/**
-	 * Collect every cached path flagged as containing dynamic content.
-	 *
-	 * Single cursor pass, not one round-trip per path: callers hold the result
-	 * in memory rather than probing IndexedDB for never-flagged files.
-	 *
-	 * @returns A promise that resolves to the set of vault paths with dynamic content.
-	 */
-	public async getDynamicContentPaths(): Promise<Set<string>> {
-		const paths = new Set<string>();
-
-		await this.persister.iterate<QuartzSyncerCache>(
-			(value: QuartzSyncerCache, key: string) => {
-				if (!key.startsWith("file:")) return;
-				if (value?.hasDynamicContent) paths.add(key.substring(5));
-			},
-		);
-
-		return paths;
+		return !this.isValid(data, currentMtime) || !data.localData;
 	}
 
 	/**
@@ -296,63 +612,25 @@ export class DataStore {
 	public async isRemoteFileOutdated(path: string): Promise<boolean> {
 		const data = await this.getCacheEntry(path);
 
-		if (data && data.remoteData) {
-			return data.version !== this.version;
-		}
-
-		return true; // No cached data found, consider it outdated
-	}
-
-	/**
-	 * Check if the local and remote files are identical in the cache.
-	 *
-	 * @param path - The file path to check for identity.
-	 * @returns A promise that resolves to true if they are identical, false otherwise.
-	 */
-	public async areLocalAndRemoteIdentical(path: string): Promise<boolean> {
-		const data = await this.getCacheEntry(path);
-
-		if (data && data.localData && data.remoteData) {
-			return (
-				data.localHash === data.remoteHash &&
-				data.version === this.version
-			);
-		}
-
-		return false; // No cached data found or hashes do not match
+		return !this.isStructurallyValid(data) || !data.remoteData;
 	}
 
 	/**
 	 * Load a local file from the cache.
 	 *
 	 * @param path - The file path to load the local file for.
-	 * @param currentMtime - The file mtime to validate against (optional).
+	 * @param currentMtime - The current file mtime to validate against.
 	 * @returns A promise that resolves to the local file data, or null if not found.
 	 */
 	public async loadLocalFile(
 		path: string,
-		currentMtime?: number,
-		trustDynamicCache = false,
+		currentMtime: number,
 	): Promise<TCompiledFile | null | undefined> {
+		const readiness = this.waitForValidityCriteria();
+		if (readiness === false) return null;
+		if (readiness !== true && !(await readiness)) return null;
 		const data = await this.getCacheEntry(path);
-
-		if (!data?.localData) {
-			return null;
-		}
-
-		if (data.version !== this.version) {
-			return null;
-		}
-
-		if (data.hasDynamicContent && !trustDynamicCache) {
-			return null;
-		}
-
-		if (currentMtime !== undefined && data.sourceMtime !== currentMtime) {
-			return null;
-		}
-
-		return data.localData;
+		return this.isValid(data, currentMtime) ? data.localData : null;
 	}
 
 	/**
@@ -366,11 +644,7 @@ export class DataStore {
 	): Promise<TCompiledFile | null | undefined> {
 		const data = await this.getCacheEntry(path);
 
-		if (!data || data.version !== this.version) {
-			return null;
-		}
-
-		return data.remoteData;
+		return this.isStructurallyValid(data) ? data.remoteData : null;
 	}
 
 	/**
@@ -379,35 +653,32 @@ export class DataStore {
 	 * @param path - The file path to store the local file for.
 	 * @param sourceMtime - The UNIX epoch time in milliseconds to set for the data.
 	 * @param data - The local file data to store.
-	 * @param hasDynamicContent - Whether the file contains dynamic content (Dataview, Datacore, etc.).
-	 * @param currentMtime - The current file mtime to validate against (optional).
+	 * @param dynamicSources - Integration ids whose output depends on vault state.
+	 * @param currentMtime - The current file mtime to validate against.
 	 */
 	public async storeLocalFile(
 		path: string,
 		sourceMtime: number,
 		data: TCompiledFile,
-		hasDynamicContent?: boolean,
-		currentMtime: number = sourceMtime,
+		dynamicSources: string[],
+		currentMtime: number,
 	): Promise<void> {
 		if (currentMtime !== sourceMtime) {
 			return;
 		}
 
-		const existingData = await this.getCacheEntry(path);
-
-		const localHash =
-			existingData?.localHash ?? (await generateBlobHash(data[0]));
+		const localHash = await generateBlobHash(data[0]);
 
 		await this.mergeAndStore(
 			path,
 			{
 				localData: data,
 				localHash,
-				sourceMtime,
-				hasDynamicContent:
-					hasDynamicContent ?? existingData?.hasDynamicContent,
+				dynamicSources,
 			},
 			sourceMtime,
+			sourceMtime,
+			currentMtime,
 		);
 	}
 
@@ -422,13 +693,16 @@ export class DataStore {
 		path: string,
 		timestamp: number,
 		data: TCompiledFile,
+		currentMtime: number,
 	): Promise<void> {
 		await this.mergeAndStore(
 			path,
 			{
 				remoteData: data,
 			},
+			currentMtime,
 			timestamp,
+			currentMtime,
 		);
 	}
 
@@ -436,28 +710,27 @@ export class DataStore {
 	 * Load the local file hash from the cache.
 	 *
 	 * @param path - The file path to load the local hash for.
-	 * @param currentMtime - The file mtime to validate against (optional).
+	 * @param currentMtime - The current file mtime to validate against.
 	 * @returns A promise that resolves to the local hash, or null if not found.
 	 */
 	public async loadLocalHash(
 		path: string,
-		currentMtime?: number,
+		currentMtime: number,
 	): Promise<string | null | undefined> {
+		const readiness = this.waitForValidityCriteria();
+		if (readiness === false) return null;
+		if (readiness !== true && !(await readiness)) return null;
 		const data = await this.getCacheEntry(path);
 		return this.validLocalHash(data, currentMtime);
 	}
 
 	private validLocalHash(
 		data: QuartzSyncerCache | null,
-		currentMtime?: number,
+		currentMtime: number,
 	): string | null {
-		if (!data?.localHash || data.version !== this.version) {
-			return null;
-		}
-		if (currentMtime !== undefined && data.sourceMtime !== currentMtime) {
-			return null;
-		}
-		return data.localHash;
+		return this.isValid(data, currentMtime) && data.localHash
+			? data.localHash
+			: null;
 	}
 
 	/**
@@ -478,13 +751,15 @@ export class DataStore {
 	 * @param path - The file path to store the local hash for.
 	 * @param sourceMtime - The UNIX epoch time in milliseconds to set for the data.
 	 * @param hash - The hash of the local file.
-	 * @param currentMtime - The current file mtime to validate against (optional).
+	 * @param dynamicSources - Integration ids whose output depends on vault state.
+	 * @param currentMtime - The current file mtime to validate against.
 	 */
 	public async storeLocalHash(
 		path: string,
 		sourceMtime: number,
 		hash: string,
-		currentMtime: number = sourceMtime,
+		dynamicSources: string[],
+		currentMtime: number,
 	): Promise<void> {
 		if (currentMtime !== sourceMtime) {
 			return;
@@ -493,9 +768,11 @@ export class DataStore {
 			path,
 			{
 				localHash: hash,
-				sourceMtime,
+				dynamicSources,
 			},
 			sourceMtime,
+			sourceMtime,
+			currentMtime,
 		);
 	}
 
@@ -511,18 +788,34 @@ export class DataStore {
 		path: string,
 		timestamp: number,
 		hash: string,
+		sourceMtime: number,
+		currentMtime: number,
 	): Promise<void> {
 		await this.mergeAndStore(
 			path,
 			{
 				remoteHash: hash,
 			},
+			sourceMtime,
 			timestamp,
+			sourceMtime === currentMtime ? currentMtime : undefined,
 		);
 	}
 
-	public async storeMediaLinks(path: string, links: string[]): Promise<void> {
-		await this.mergeAndStore(path, { mediaLinks: links });
+	public async storeMediaLinks(
+		path: string,
+		sourceMtime: number,
+		links: string[],
+		currentMtime: number,
+	): Promise<void> {
+		if (sourceMtime !== currentMtime) return;
+		await this.mergeAndStore(
+			path,
+			{ mediaLinks: links },
+			sourceMtime,
+			undefined,
+			currentMtime,
+		);
 	}
 
 	/** Asset keys share the store, but never contain compiled files or bytes. */
@@ -560,8 +853,21 @@ export class DataStore {
 
 	/** Merge bounded batches before writing so publishing retains local cache fields. */
 	public async storeRemoteHashes(
-		entries: Array<{ path: string; timestamp: number; hash: string }>,
+		entries: Array<{
+			path: string;
+			timestamp: number;
+			hash: string;
+			sourceMtime: number;
+			currentMtime: number;
+		}>,
 	): Promise<void> {
+		const readiness = this.waitForValidityCriteria();
+		const canValidateLocal =
+			readiness === true
+				? true
+				: readiness === false
+					? false
+					: await readiness;
 		for (
 			let offset = 0;
 			offset < entries.length;
@@ -575,26 +881,40 @@ export class DataStore {
 			const existing =
 				await this.persister.getMany<QuartzSyncerCache>(keys);
 			const merged = new Map<string, QuartzSyncerCache>();
-			batch.forEach(({ hash, timestamp }, index) => {
-				const key = keys[index]!;
-				merged.set(
-					key,
-					this.mergeEntry(
-						merged.get(key) ?? existing[index] ?? null,
-						{ remoteHash: hash },
-						timestamp,
-					),
-				);
-			});
+			batch.forEach(
+				({ hash, timestamp, sourceMtime, currentMtime }, index) => {
+					if (!this.isUsableSourceMtime(sourceMtime)) return;
+					const key = keys[index]!;
+					merged.set(
+						key,
+						this.mergeEntry(
+							merged.get(key) ?? existing[index] ?? null,
+							{ remoteHash: hash },
+							sourceMtime,
+							timestamp,
+							sourceMtime === currentMtime
+								? currentMtime
+								: undefined,
+							canValidateLocal,
+						),
+					);
+				},
+			);
 			await this.persister.setMany(
 				Array.from(merged, ([key, value]) => ({ key, value })),
 			);
 		}
 	}
 
-	public async loadMediaLinks(path: string): Promise<string[]> {
+	public async loadMediaLinks(
+		path: string,
+		currentMtime: number,
+	): Promise<string[]> {
+		const readiness = this.waitForValidityCriteria();
+		if (readiness === false) return [];
+		if (readiness !== true && !(await readiness)) return [];
 		const data = await this.getCacheEntry(path);
-		return data?.mediaLinks ?? [];
+		return this.isValid(data, currentMtime) ? (data.mediaLinks ?? []) : [];
 	}
 
 	/** Returns null for missing or stale links; an empty array is a cache hit. */
@@ -602,6 +922,9 @@ export class DataStore {
 		path: string,
 		currentMtime: number,
 	): Promise<string[] | null> {
+		const readiness = this.waitForValidityCriteria();
+		if (readiness === false) return null;
+		if (readiness !== true && !(await readiness)) return null;
 		const data = await this.getCacheEntry(path);
 		return this.validMediaLinks(data, currentMtime);
 	}
@@ -610,15 +933,9 @@ export class DataStore {
 		data: QuartzSyncerCache | null,
 		currentMtime: number,
 	): string[] | null {
-		if (
-			!data ||
-			data.version !== this.version ||
-			data.sourceMtime !== currentMtime
-		) {
-			return null;
-		}
-
-		return data.mediaLinks ?? null;
+		return this.isValid(data, currentMtime)
+			? (data.mediaLinks ?? null)
+			: null;
 	}
 
 	/** Read status metadata without retaining compiled content across batches. */
@@ -626,6 +943,23 @@ export class DataStore {
 		files: Array<{ path: string; mtime: number }>,
 	): Promise<Map<string, CachedStatusMetadata>> {
 		const metadata = new Map<string, CachedStatusMetadata>();
+		const readiness = this.waitForValidityCriteria();
+		const resolved =
+			readiness === true
+				? true
+				: readiness === false
+					? false
+					: await readiness;
+		if (!resolved) {
+			for (const { path } of files) {
+				metadata.set(path, {
+					localHash: null,
+					mediaLinks: null,
+					dynamicSources: null,
+				});
+			}
+			return metadata;
+		}
 
 		for (
 			let offset = 0;
@@ -640,44 +974,28 @@ export class DataStore {
 			);
 			batch.forEach(({ path, mtime }, index) => {
 				const data = entries[index] ?? null;
+				const criteria = this.getValidityCriteria(mtime);
+				const compiledValid = isCompiledEntryValid(data, criteria);
+				const classificationValid = isDynamicClassificationValid(
+					data,
+					criteria,
+				);
 				metadata.set(path, {
-					localHash: this.validLocalHash(data, mtime),
-					mediaLinks: this.validMediaLinks(data, mtime),
+					localHash:
+						compiledValid && data?.localHash
+							? data.localHash
+							: null,
+					mediaLinks: compiledValid
+						? (data?.mediaLinks ?? null)
+						: null,
+					dynamicSources: classificationValid
+						? [...data.dynamicSources]
+						: null,
 				});
 			});
 		}
 
 		return metadata;
-	}
-
-	public async storeCompilationRevisions(
-		path: string,
-		dataviewRevision?: number,
-		datacoreRevision?: number,
-	): Promise<void> {
-		const updates: Partial<QuartzSyncerCache> = {};
-
-		if (dataviewRevision !== undefined) {
-			updates.dataviewRevision = dataviewRevision;
-		}
-
-		if (datacoreRevision !== undefined) {
-			updates.datacoreRevision = datacoreRevision;
-		}
-
-		await this.mergeAndStore(path, updates);
-	}
-
-	public async loadCompilationRevisions(path: string): Promise<{
-		dataviewRevision?: number;
-		datacoreRevision?: number;
-	}> {
-		const data = await this.getCacheEntry(path);
-
-		return {
-			dataviewRevision: data?.dataviewRevision,
-			datacoreRevision: data?.datacoreRevision,
-		};
 	}
 
 	/**
@@ -704,8 +1022,14 @@ export class DataStore {
 	 */
 	public async loadFile(
 		path: string,
+		currentMtime: number,
+		settings?: QuartzSyncerSettings,
 	): Promise<QuartzSyncerCache | null | undefined> {
-		return this.getCacheEntry(path);
+		const readiness = this.waitForValidityCriteria(settings);
+		if (readiness === false) return null;
+		if (readiness !== true && !(await readiness)) return null;
+		const data = await this.getCacheEntry(path);
+		return this.isValid(data, currentMtime, settings) ? data : null;
 	}
 
 	/**
@@ -798,10 +1122,14 @@ export class DataStore {
 		plugin: QuartzSyncer,
 	): Promise<void> {
 		const cache = plugin.settings.cache;
-		const data = JSON.parse(cache) as Record<string, QuartzSyncerCache>;
+		const data: unknown = JSON.parse(cache);
+
+		if (typeof data !== "object" || data === null) return;
 
 		for (const [key, value] of Object.entries(data)) {
-			await this.persister.setItem(key, value);
+			const entry = parseImportedCacheEntry(value);
+			if (!entry) continue;
+			await this.persister.setItem(key, entry);
 		}
 
 		await this.setLastUpdateTimestamp(timestamp, plugin);
@@ -839,7 +1167,9 @@ export class DataStore {
 
 		for (const [key, value] of Object.entries(data)) {
 			if (!key.startsWith("file:")) continue;
-			await this.persister.setItem(key, value);
+			const entry = parseImportedCacheEntry(value);
+			if (!entry) continue;
+			await this.persister.setItem(key, entry);
 			count += 1;
 		}
 

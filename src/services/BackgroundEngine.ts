@@ -1,43 +1,34 @@
-import { debounce, Events, TFile, type App, type EventRef } from "obsidian";
+import { TFile, type App, type EventRef } from "obsidian";
 import type QuartzSyncer from "src/main";
 import { CompilationQueue } from "src/services/CompilationQueue";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { getSpecialFileType, PublishFile } from "src/publishFile/PublishFile";
 import { collectCandidatePaths } from "src/publishFile/PublishCandidates";
-import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
 import type { IOperabilityEventSink } from "src/operability/types";
 import type { StatusSummary } from "src/services/StatusCacheService";
 import { isMediaFile } from "src/utils/mediaTypes";
 import { isPublishConfigured } from "src/publisher/PublishTargetResolver";
 import { stripVaultPath } from "src/utils/utils";
+import {
+	getPerfMetrics,
+	perfMetricsEnabled,
+} from "src/operability/PerfMetrics";
 
 const PRIORITY_VAULT_CHANGE = 5;
 const PRIORITY_ACTIVE_FILE = 10;
 
 const STARTUP_GUARD_MS = 30_000;
-const DYNAMIC_REQUEUE_DEBOUNCE_MS = 1_000;
 const VAULT_CHANGE_DEBOUNCE_MS = 2_000;
-
-type DynamicSource = "dataview" | "datacore";
 
 export class BackgroundEngine {
 	private running = false;
 	private vaultEventRefs: EventRef[] = [];
 	private workspaceEventRefs: EventRef[] = [];
-	private metadataCacheEventRefs: EventRef[] = [];
-	private datacoreEventRefs: EventRef[] = [];
 	private extCacheEventRef: EventRef | null = null;
 	private compiler: SyncerPageCompiler | null = null;
 	private lastActiveFilePath: string | null = null;
 	private readonly startupTime = Date.now();
 
-	private dynamicPaths: Set<string> | null = null;
-	private dynamicPathsPromise: Promise<Set<string>> | null = null;
-	private pendingDynamicRevisions = new Map<
-		DynamicSource,
-		number | undefined
-	>();
-	private dynamicRequeueInFlight = false;
 	private pendingVaultChanges = new Set<string>();
 	private vaultChangeTimer: number | null = null;
 
@@ -193,8 +184,6 @@ export class BackgroundEngine {
 		this.app.workspace.onLayoutReady(() => {
 			this.registerVaultListeners();
 			this.registerActiveLeafListener();
-			this.registerDataviewListeners();
-			this.registerDatacoreListeners();
 			this.registerExtCacheListener();
 			this.fetchRemoteTreeOnFirstIdle();
 		});
@@ -204,9 +193,6 @@ export class BackgroundEngine {
 		this.eventSink?.emit("engine.stopped", {});
 		this.running = false;
 		this.compilationQueue.cancel();
-		this.pendingDynamicRevisions.clear();
-		this.dynamicPaths = null;
-		this.dynamicPathsPromise = null;
 		this.pendingVaultChanges.clear();
 
 		if (this.vaultChangeTimer !== null) {
@@ -264,48 +250,37 @@ export class BackgroundEngine {
 		if (!publishFile.shouldPublish()) return;
 
 		const mtime = file.stat.mtime;
-		const cached = await this.plugin.dataStore.loadFile(path);
+		const cached = await this.plugin.dataStore.loadFile(path, mtime);
 
-		if (
-			cached?.localData &&
-			cached.version === this.plugin.dataStore.version
-		) {
-			const mtimeMatch = cached.sourceMtime === mtime;
-
-			if (!cached.hasDynamicContent && mtimeMatch) return;
-
-			if (cached.hasDynamicContent && mtimeMatch) {
-				const dvApi = getDataviewApi();
-				const dcApi = this.getDatacoreApi();
-				const dvCurrent = dvApi?.index?.revision;
-				const dcCurrent = dcApi?.core?.revision;
-
-				const dvMatch =
-					dvCurrent === undefined ||
-					cached.dataviewRevision === dvCurrent;
-				const dcMatch =
-					dcCurrent === undefined ||
-					cached.datacoreRevision === dcCurrent;
-
-				if (dvMatch && dcMatch) return;
-			}
-		}
+		if (cached?.localData) return;
 
 		if (signal.aborted) return;
 
 		try {
-			await publishFile.compile(false, {
+			const metrics = perfMetricsEnabled ? getPerfMetrics() : null;
+			await publishFile.compile({
 				cachedEntry: cached ?? null,
+				onDynamicClassification: metrics
+					? (hasDynamicContent) => {
+							metrics.increment(
+								hasDynamicContent
+									? "dynamicCompileStarts"
+									: "staticCompileStarts",
+							);
+						}
+					: undefined,
 				getMetadata: async () => {
 					const mediaLinks = await publishFile.getBlobLinks();
-					return {
-						mediaLinks,
-						dataviewRevision: getDataviewApi()?.index?.revision,
-						datacoreRevision: this.getDatacoreApi()?.core?.revision,
-					};
+					return { mediaLinks };
 				},
 			});
-			this.setDynamicFlag(path, publishFile.hasDynamicContent);
+			if (metrics) {
+				metrics.increment(
+					publishFile.hasDynamicContent
+						? "dynamicCompileCompletions"
+						: "staticCompileCompletions",
+				);
+			}
 			this.eventSink?.emit("compilation.completed", { path });
 		} catch (error) {
 			if (
@@ -353,8 +328,6 @@ export class BackgroundEngine {
 		this.vaultEventRefs.push(
 			this.app.vault.on("delete", (file) => {
 				if (file instanceof TFile && this.isPublishableFile(file)) {
-					this.dynamicPaths?.delete(file.path);
-
 					this.plugin.dataStore.dropFile(file.path).catch((error) => {
 						console.debug("Failed to drop cache entry:", error);
 					});
@@ -366,8 +339,6 @@ export class BackgroundEngine {
 		this.vaultEventRefs.push(
 			this.app.vault.on("rename", (file, oldPath) => {
 				if (this.isPublishablePath(oldPath)) {
-					this.dynamicPaths?.delete(oldPath);
-
 					this.plugin.dataStore.dropFile(oldPath).catch((error) => {
 						console.debug("Failed to drop cache entry:", error);
 					});
@@ -412,89 +383,6 @@ export class BackgroundEngine {
 		);
 	}
 
-	// --- Dataview listeners ---
-
-	private registerDataviewListeners(): void {
-		if (!this.running) return;
-		if (!this.plugin.settings.useCache) return;
-
-		const dvApi = getDataviewApi();
-
-		if (!dvApi) return;
-
-		const hasRevisionApi =
-			dvApi.index !== undefined &&
-			typeof dvApi.index.revision === "number";
-
-		const debouncedRequeue = debounce(
-			() =>
-				this.requeueDynamicFiles(
-					hasRevisionApi ? dvApi.index?.revision : undefined,
-					"dataview",
-				),
-			DYNAMIC_REQUEUE_DEBOUNCE_MS,
-			true,
-		);
-
-		const onMetadataChange = (...args: unknown[]) => {
-			const type = args[0];
-			const file = args[1];
-
-			if (type !== "update") return;
-			if (!(file instanceof TFile)) return;
-			if (this.isStartupNoise(file)) return;
-
-			debouncedRequeue();
-		};
-
-		const cacheEvents = this.app.metadataCache as Events;
-
-		const initHandler = () => {
-			this.metadataCacheEventRefs.push(
-				cacheEvents.on("dataview:metadata-change", onMetadataChange),
-			);
-		};
-
-		if (dvApi.index?.initialized) {
-			initHandler();
-		} else {
-			this.metadataCacheEventRefs.push(
-				cacheEvents.on("dataview:index-ready", initHandler),
-			);
-		}
-	}
-
-	// --- Datacore listeners ---
-
-	private registerDatacoreListeners(): void {
-		if (!this.running) return;
-		if (!this.plugin.settings.useCache) return;
-
-		const dcApi = this.getDatacoreApi();
-		const core = dcApi?.core;
-
-		if (!core?.on || !core.offref) return;
-
-		let latestRevision: number | undefined;
-
-		const debouncedRequeue = debounce(
-			() => this.requeueDynamicFiles(latestRevision, "datacore"),
-			DYNAMIC_REQUEUE_DEBOUNCE_MS,
-			true,
-		);
-
-		const onUpdate = (revision: number) => {
-			latestRevision = revision;
-			debouncedRequeue();
-		};
-
-		const ref = core.on("update", onUpdate);
-
-		if (ref) {
-			this.datacoreEventRefs.push(ref);
-		}
-	}
-
 	private registerExtCacheListener(): void {
 		if (!this.running) return;
 
@@ -530,128 +418,6 @@ export class BackgroundEngine {
 					onFileUpdated,
 				);
 			});
-		}
-	}
-
-	private getDatacoreApi():
-		| import("src/compiler/integrations/apis/datacore").DatacoreApi
-		| undefined {
-		const dc = (
-			window as unknown as {
-				datacore?: import("src/compiler/integrations/apis/datacore").DatacoreApi;
-			}
-		).datacore;
-
-		return dc;
-	}
-
-	// --- Dynamic file re-enqueue ---
-
-	private async getDynamicPaths(): Promise<Set<string>> {
-		if (this.dynamicPaths) return this.dynamicPaths;
-
-		if (!this.dynamicPathsPromise) {
-			this.dynamicPathsPromise = this.plugin.dataStore
-				.getDynamicContentPaths()
-				.then((paths) => {
-					this.dynamicPaths = paths;
-
-					return paths;
-				})
-				.catch((error) => {
-					console.debug(
-						"Failed to load dynamic content paths:",
-						error,
-					);
-					this.dynamicPathsPromise = null;
-
-					return new Set<string>();
-				});
-		}
-
-		return this.dynamicPathsPromise;
-	}
-
-	private setDynamicFlag(path: string, hasDynamic: boolean): void {
-		void this.getDynamicPaths().then((paths) => {
-			if (hasDynamic) {
-				paths.add(path);
-			} else {
-				paths.delete(path);
-			}
-		});
-	}
-
-	private requeueDynamicFiles(
-		currentRevision: number | undefined,
-		source: DynamicSource,
-	): void {
-		if (!this.plugin.settings.useCache) return;
-		if (!this.running) return;
-
-		this.pendingDynamicRevisions.set(source, currentRevision);
-		void this.drainDynamicRequeues();
-	}
-
-	private async drainDynamicRequeues(): Promise<void> {
-		if (this.dynamicRequeueInFlight) return;
-		this.dynamicRequeueInFlight = true;
-
-		try {
-			while (this.running && this.pendingDynamicRevisions.size > 0) {
-				const pending = [...this.pendingDynamicRevisions];
-				this.pendingDynamicRevisions.clear();
-
-				const paths = await this.getDynamicPaths();
-
-				if (paths.size === 0) continue;
-
-				for (const [source, revision] of pending) {
-					for (const path of [...paths]) {
-						if (!this.running) return;
-
-						await this.checkAndRequeueDynamic(
-							path,
-							revision,
-							source,
-						);
-					}
-				}
-			}
-		} finally {
-			this.dynamicRequeueInFlight = false;
-		}
-	}
-
-	private async checkAndRequeueDynamic(
-		path: string,
-		currentRevision: number | undefined,
-		source: DynamicSource,
-	): Promise<void> {
-		const hasDynamic =
-			await this.plugin.dataStore.hasDynamicContentFlag(path);
-
-		if (!hasDynamic) {
-			this.dynamicPaths?.delete(path);
-
-			return;
-		}
-
-		if (currentRevision === undefined) {
-			this.enqueue(path, PRIORITY_VAULT_CHANGE);
-			return;
-		}
-
-		const stored =
-			await this.plugin.dataStore.loadCompilationRevisions(path);
-
-		const storedRevision =
-			source === "dataview"
-				? stored.dataviewRevision
-				: stored.datacoreRevision;
-
-		if (storedRevision === undefined || currentRevision > storedRevision) {
-			this.enqueue(path, PRIORITY_VAULT_CHANGE);
 		}
 	}
 
@@ -708,6 +474,9 @@ export class BackgroundEngine {
 	// --- Enqueue ---
 
 	private enqueue(path: string, priority: number): void {
+		if (perfMetricsEnabled) {
+			getPerfMetrics()?.increment("enqueueAttempts");
+		}
 		this.compilationQueue.enqueue(path, priority);
 		this.eventSink?.emit("compilation.enqueued", { path });
 		this.updateStatusBar();
@@ -828,20 +597,6 @@ export class BackgroundEngine {
 			this.app.workspace.offref(ref);
 		}
 		this.workspaceEventRefs = [];
-
-		for (const ref of this.metadataCacheEventRefs) {
-			this.app.metadataCache.offref(ref);
-		}
-		this.metadataCacheEventRefs = [];
-
-		const dcApi = this.getDatacoreApi();
-
-		if (dcApi?.core?.offref) {
-			for (const ref of this.datacoreEventRefs) {
-				dcApi.core.offref(ref);
-			}
-		}
-		this.datacoreEventRefs = [];
 
 		if (this.extCacheEventRef) {
 			this.plugin.cacheHandle?.api?.offref(this.extCacheEventRef);

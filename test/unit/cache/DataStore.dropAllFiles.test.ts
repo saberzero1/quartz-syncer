@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DataStore } from "src/cache/DataStore";
+import { DEFAULT_SETTINGS } from "src/main";
+
+const createDataStore = () =>
+	new DataStore("vault", "app", "1.0.0", "", () => DEFAULT_SETTINGS);
 
 const { createInstance, setStore } = vi.hoisted(() => {
 	let currentStore = new Map<string, unknown>();
@@ -47,7 +51,7 @@ describe("DataStore.dropAllFiles()", () => {
 	it.each([false, true])(
 		"removes every seeded file from listing and lookup (updated: %s)",
 		async (updated) => {
-			const store = new DataStore("vault", "app", "1.0.0");
+			const store = createDataStore();
 			const paths = [
 				"notes/a.md",
 				"notes/nested/b.md",
@@ -55,17 +59,30 @@ describe("DataStore.dropAllFiles()", () => {
 			];
 
 			for (const path of paths) {
-				await store.storeLocalHash(path, 1000, `hash:${path}`);
+				await store.storeLocalHash(
+					path,
+					1000,
+					`hash:${path}`,
+					[],
+					1000,
+				);
 			}
 			await store.persister.setItem("data.json", 1000);
 
 			if (updated) {
-				await store.storeLocalHash("notes/a.md", 2000, "updated-hash");
+				await store.storeLocalHash(
+					"notes/a.md",
+					2000,
+					"updated-hash",
+					[],
+					2000,
+				);
 			}
 
 			expect(await store.allFiles()).toEqual(paths);
 			for (const path of paths) {
-				expect(await store.loadFile(path)).toMatchObject({
+				const mtime = updated && path === "notes/a.md" ? 2000 : 1000;
+				expect(await store.loadFile(path, mtime)).toMatchObject({
 					version: "1.0.0",
 					localHash:
 						updated && path === "notes/a.md"
@@ -78,14 +95,14 @@ describe("DataStore.dropAllFiles()", () => {
 
 			expect(await store.allFiles()).toEqual([]);
 			for (const path of paths) {
-				expect(await store.loadFile(path)).toBeNull();
+				expect(await store.loadFile(path, 1000)).toBeNull();
 			}
 			expect(await store.getLastUpdateTimestamp()).toBe(1000);
 
-			const reopened = new DataStore("vault", "app", "1.0.0");
+			const reopened = createDataStore();
 			expect(await reopened.allFiles()).toEqual([]);
 			for (const path of paths) {
-				expect(await reopened.loadFile(path)).toBeNull();
+				expect(await reopened.loadFile(path, 1000)).toBeNull();
 			}
 		},
 	);

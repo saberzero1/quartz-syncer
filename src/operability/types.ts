@@ -54,6 +54,29 @@ export interface OperabilitySnapshot {
 		fileCount: number;
 		lastUpdate: number | null;
 	};
+	perf: {
+		dynamicPathsExamined: number;
+		dynamicCacheReads: number;
+		dynamicCacheBytesRead: number;
+		cacheRecordsRead: number;
+		cacheBytesRead: number;
+		enqueueAttempts: number;
+		enqueueAccepted: number;
+		enqueueDeduped: number;
+		dynamicCompileStarts: number;
+		dynamicCompileCompletions: number;
+		staticCompileStarts: number;
+		staticCompileCompletions: number;
+		integrationMs: number;
+		remarkMs: number;
+		hashMs: number;
+		persistMs: number;
+		queueDrainMs: number;
+		dynamicScanMs: number;
+		longTaskCount: number;
+		longTaskMaxMs: number;
+		longTaskTotalMs: number;
+	} | null;
 	errors: {
 		count: number;
 		latest: string | null;
@@ -117,6 +140,7 @@ export type Action =
 	| { name: "settings.get"; params: { key: string } }
 	| { name: "plugin.reload"; params: { confirm: true } }
 	| { name: "connection.test" }
+	| { name: "perf.reset" }
 	| {
 			name: "env.emulateMobile";
 			params: { enabled: boolean; confirm: true };

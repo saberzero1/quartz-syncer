@@ -668,8 +668,10 @@ export class PublicationCenter extends Modal {
 			const entries = await Promise.all(
 				files.map(async (file) => {
 					const path = file.getVaultPath();
-					const links =
-						await this._plugin.dataStore.loadMediaLinks(path);
+					const links = await this._plugin.dataStore.loadMediaLinks(
+						path,
+						file.file.stat.mtime,
+					);
 					return { path, links };
 				}),
 			);

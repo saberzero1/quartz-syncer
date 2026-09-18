@@ -16,6 +16,10 @@ import { visit } from "unist-util-visit";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { PluginCompiler } from "src/compiler/PluginCompiler";
 import { DataStore } from "src/cache/DataStore";
+import {
+	getPerfMetrics,
+	perfMetricsEnabled,
+} from "src/operability/PerfMetrics";
 
 /**
  * A cached asset reference. Bytes are read only when publishing.
@@ -42,6 +46,11 @@ export interface Assets {
  * The assets are the files that are linked in the text, such as images or other files.
  */
 export type TCompiledFile = [string, Assets];
+
+export interface CompilerInvocationResult {
+	compiledFile: TCompiledFile;
+	successfulVaultDependentExecutions: ReadonlySet<string>;
+}
 
 /**
  * Type for a compiler step.
@@ -121,6 +130,12 @@ export class SyncerPageCompiler {
 	}
 
 	async generateMarkdown(file: PublishFile): Promise<TCompiledFile> {
+		return (await this.generateMarkdownWithEvidence(file)).compiledFile;
+	}
+
+	async generateMarkdownWithEvidence(
+		file: PublishFile,
+	): Promise<CompilerInvocationResult> {
 		const vaultFileText = await file.cachedRead();
 		const fileType = file.getType();
 
@@ -131,13 +146,29 @@ export class SyncerPageCompiler {
 		) {
 			const blobs = await this.resolveEmbeddedAssets(file);
 
-			return [vaultFileText, { blobs }];
+			return {
+				compiledFile: [vaultFileText, { blobs }],
+				successfulVaultDependentExecutions: new Set(),
+			};
 		}
+		let successfulVaultDependentExecutions: ReadonlySet<string> = new Set();
+		const convertIntegrations: TCompilerStep =
+			(publishFile) => async (text) => {
+				const pluginCompiler = new PluginCompiler(
+					this.app,
+					this.settings,
+				);
+				const result =
+					await pluginCompiler.compileWithEvidence(publishFile)(text);
+				successfulVaultDependentExecutions =
+					result.successfulVaultDependentExecutions;
+				return result.text;
+			};
 
 		// ORDER MATTERS!
 		const COMPILE_STEPS: TCompilerStep[] = [
 			this.convertFrontMatter,
-			this.convertIntegrations,
+			convertIntegrations,
 			this.linkTargeting,
 			this.astTransform,
 		];
@@ -149,7 +180,13 @@ export class SyncerPageCompiler {
 
 		const [text, blobs] = await this.convertFileLinks(file)(compiledText);
 
-		return [SyncerPageCompiler.escapeTableWikilinks(text), { blobs }];
+		return {
+			compiledFile: [
+				SyncerPageCompiler.escapeTableWikilinks(text),
+				{ blobs },
+			],
+			successfulVaultDependentExecutions,
+		};
 	}
 
 	private stripVaultPathFromLinks(text: string): string {
@@ -203,6 +240,7 @@ export class SyncerPageCompiler {
 			});
 
 		try {
+			const startedAt = perfMetricsEnabled ? performance.now() : 0;
 			const tree = processor.parse(text);
 			const transformed = await processor.run(tree);
 
@@ -224,6 +262,9 @@ export class SyncerPageCompiler {
 			);
 
 			result = result.replace(/\\\[(\^[\w-]+)\]/g, "[$1]");
+			if (perfMetricsEnabled) {
+				getPerfMetrics()?.addDuration("remarkMs", startedAt);
+			}
 
 			return result;
 		} catch (error) {

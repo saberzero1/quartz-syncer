@@ -1,3 +1,8 @@
+import {
+	getPerfMetrics,
+	perfMetricsEnabled,
+} from "src/operability/PerfMetrics";
+
 type QueueItem = {
 	path: string;
 	priority: number;
@@ -46,12 +51,20 @@ export class CompilationQueue {
 				this.needsSort = true;
 			}
 
+			if (perfMetricsEnabled) {
+				getPerfMetrics()?.increment("enqueueDeduped");
+			}
 			return;
 		}
 
 		// Re-queueing a path that is mid-compile would run the processor twice
 		// for it concurrently.
-		if (this.inFlightPaths.has(path)) return;
+		if (this.inFlightPaths.has(path)) {
+			if (perfMetricsEnabled) {
+				getPerfMetrics()?.increment("enqueueDeduped");
+			}
+			return;
+		}
 
 		const item = { path, priority, sequence: this.sequence++ };
 		const last = this.queue[this.queue.length - 1];
@@ -63,6 +76,9 @@ export class CompilationQueue {
 
 		this.queue.push(item);
 		this.queued.set(path, item);
+		if (perfMetricsEnabled) {
+			getPerfMetrics()?.increment("enqueueAccepted");
+		}
 		this.schedule();
 	}
 
@@ -188,6 +204,7 @@ export class CompilationQueue {
 	}
 
 	private async runItem(item: QueueItem): Promise<void> {
+		const startedAt = perfMetricsEnabled ? performance.now() : 0;
 		try {
 			await this.processor(
 				item.path,
@@ -198,6 +215,9 @@ export class CompilationQueue {
 			this.failedCount += 1;
 			console.debug("Compilation failed for", item.path, error);
 		} finally {
+			if (perfMetricsEnabled) {
+				getPerfMetrics()?.addDuration("queueDrainMs", startedAt);
+			}
 			this.inFlight -= 1;
 			this.inFlightPaths.delete(item.path);
 			this.onStatusChange?.();

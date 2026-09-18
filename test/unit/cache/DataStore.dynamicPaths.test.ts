@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DataStore } from "src/cache/DataStore";
-import type { QuartzSyncerCache } from "src/cache/DataStore";
+import { DataStore, type QuartzSyncerCache } from "src/cache/DataStore";
+import { DEFAULT_SETTINGS } from "src/main";
+import { settingsFingerprint } from "src/cache/CompiledEntryValidity";
+
+const settings = { ...DEFAULT_SETTINGS, useDataview: true, useDatacore: true };
 
 const { createInstance, dropInstance, setStore } = vi.hoisted(() => {
 	let currentStore = new Map<string, unknown>();
@@ -18,13 +21,7 @@ const { createInstance, dropInstance, setStore } = vi.hoisted(() => {
 			return Promise.resolve();
 		}),
 		keys: vi.fn(() => Promise.resolve(Array.from(currentStore.keys()))),
-		iterate: vi.fn(
-			async (callback: (value: unknown, key: string) => void) => {
-				for (const [key, value] of currentStore.entries()) {
-					await callback(value, key);
-				}
-			},
-		),
+		iterate: vi.fn(),
 	}));
 
 	return {
@@ -39,118 +36,143 @@ vi.mock("src/cache/IndexedDBStore", () => ({
 	dropStore: dropInstance,
 }));
 
-const makeEntry = (hasDynamicContent: boolean): QuartzSyncerCache => ({
-	version: "1.0.0",
-	time: 1000,
-	sourceMtime: 1000,
-	hasDynamicContent,
-});
+const createDataStore = (
+	revisions: {
+		dataviewRevision: number | undefined;
+		datacoreRevision: number | undefined;
+	} = { dataviewRevision: 11, datacoreRevision: 17 },
+) =>
+	new DataStore(
+		"vault",
+		"app",
+		"1.0.0",
+		"",
+		() => settings,
+		() => revisions,
+	);
 
-describe("DataStore.getDynamicContentPaths", () => {
+const storedEntry = async (store: DataStore): Promise<QuartzSyncerCache> => {
+	const cache = await store.exportCache();
+	return cache["file:notes/dynamic.md"]!;
+};
+
+const storeCompilation = async (
+	store: DataStore,
+	dynamicSources: string[],
+	currentMtime = 1000,
+): Promise<void> => {
+	const captured = store.captureCompilationRevisions();
+	await store.storeCompilation("notes/dynamic.md", {
+		localData: ["compiled", { blobs: [] }],
+		localHash: "hash",
+		dynamicSources,
+		sourceMtime: 1000,
+		currentMtime,
+		settingsFingerprint: settingsFingerprint(settings),
+		detectorVersion: "vault-dependencies-v2",
+		verifiedRevisions: {
+			dataviewRevision: dynamicSources.includes("dataview")
+				? captured.dataviewRevision
+				: undefined,
+			datacoreRevision: dynamicSources.includes("datacore")
+				? captured.datacoreRevision
+				: undefined,
+		},
+	});
+};
+
+describe("DataStore dynamic compilation metadata", () => {
 	beforeEach(() => {
 		setStore(new Map());
 		createInstance.mockClear();
 		dropInstance.mockClear();
 	});
 
-	it("returns paths whose cache entry has hasDynamicContent true, stripping the file: prefix", async () => {
-		const store = new DataStore("vault", "app", "1.0.0");
-		await store.persister.setItem("file:notes/dynamic.md", makeEntry(true));
-		await store.persister.setItem("file:notes/static.md", makeEntry(false));
+	it("persists verified revisions with the dynamic classification", async () => {
+		const store = createDataStore();
+		await storeCompilation(store, ["dataview", "datacore"]);
 
-		const result = await store.getDynamicContentPaths();
-
-		expect(result).toEqual(new Set(["notes/dynamic.md"]));
+		expect(await storedEntry(store)).toMatchObject({
+			dynamicSources: ["dataview", "datacore"],
+			dataviewRevision: 11,
+			datacoreRevision: 17,
+			sourceMtime: 1000,
+		});
 	});
 
-	it("ignores non-file: keys when scanning", async () => {
-		const store = new DataStore("vault", "app", "1.0.0");
-		await store.persister.setItem("data.json", 1234);
-		await store.persister.setItem("metadata", makeEntry(true));
-		await store.persister.setItem("file:notes/dynamic.md", makeEntry(true));
+	it("stores a static classification without revisions", async () => {
+		const store = createDataStore();
+		await storeCompilation(store, []);
 
-		const result = await store.getDynamicContentPaths();
-
-		expect(result.has("notes/dynamic.md")).toBe(true);
-		expect(result.has("metadata")).toBe(false);
-		expect(result.has("data.json")).toBe(false);
+		const entry = await storedEntry(store);
+		expect(entry.dynamicSources).toEqual([]);
+		expect(entry).not.toHaveProperty("dataviewRevision");
+		expect(entry).not.toHaveProperty("datacoreRevision");
 	});
 
-	it("returns an empty set when no entries have hasDynamicContent true", async () => {
-		const store = new DataStore("vault", "app", "1.0.0");
-		await store.persister.setItem("file:notes/a.md", makeEntry(false));
-		await store.persister.setItem("file:notes/b.md", makeEntry(false));
+	it("stores dynamic classification when revision APIs are unavailable", async () => {
+		const store = createDataStore({
+			dataviewRevision: undefined,
+			datacoreRevision: undefined,
+		});
+		await storeCompilation(store, ["dataview", "datacore"]);
 
-		const result = await store.getDynamicContentPaths();
-
-		expect(result.size).toBe(0);
+		const entry = await storedEntry(store);
+		expect(entry.dynamicSources).toEqual(["dataview", "datacore"]);
+		expect(entry.dataviewRevision).toBeUndefined();
+		expect(entry.datacoreRevision).toBeUndefined();
 	});
 
-	it("returns an empty set when the store has no entries", async () => {
-		const store = new DataStore("vault", "app", "1.0.0");
+	it.each([
+		["dataview", 11, "datacoreRevision"],
+		["datacore", 17, "dataviewRevision"],
+	] as const)(
+		"persists only the verified %s revision without cross-contamination",
+		async (source, revision, absentProperty) => {
+			const store = createDataStore();
+			await storeCompilation(store, [source]);
 
-		const result = await store.getDynamicContentPaths();
+			const entry = await storedEntry(store);
+			expect(entry[`${source}Revision`]).toBe(revision);
+			expect(entry[absentProperty]).toBeUndefined();
+		},
+	);
 
-		expect(result.size).toBe(0);
-	});
-
-	it("performs exactly one persister.iterate() call and zero persister.getItem() calls", async () => {
-		const store = new DataStore("vault", "app", "1.0.0");
-		await store.persister.setItem("file:notes/a.md", makeEntry(true));
-		await store.persister.setItem("file:notes/b.md", makeEntry(false));
-
-		const iterateSpy = vi.spyOn(store.persister, "iterate");
-		const getItemSpy = vi.spyOn(store.persister, "getItem");
-
-		await store.getDynamicContentPaths();
-
-		expect(iterateSpy).toHaveBeenCalledTimes(1);
-		expect(getItemSpy).not.toHaveBeenCalled();
-	});
-
-	it("reflects persisted changes on subsequent scans", async () => {
-		const store = new DataStore("vault", "app", "1.0.0");
-		await store.persister.setItem("file:notes/dynamic.md", makeEntry(true));
-		await store.persister.setItem("file:notes/static.md", makeEntry(false));
-
-		expect(await store.getDynamicContentPaths()).toEqual(
-			new Set(["notes/dynamic.md"]),
+	it("refreshes retained revisions on every dynamic compilation write", async () => {
+		let dataviewRevision = 11;
+		const store = new DataStore(
+			"vault",
+			"app",
+			"1.0.0",
+			"",
+			() => settings,
+			() => ({ dataviewRevision, datacoreRevision: undefined }),
 		);
-		await store.persister.setItem("file:notes/static.md", makeEntry(true));
+		await storeCompilation(store, ["dataview"]);
+		dataviewRevision = 12;
+		await storeCompilation(store, ["dataview"]);
 
-		const result = await store.getDynamicContentPaths();
-
-		expect(result).toEqual(
-			new Set(["notes/dynamic.md", "notes/static.md"]),
-		);
-		expect(store.persister.iterate).toHaveBeenCalledTimes(2);
-		expect(store.persister.getItem).not.toHaveBeenCalled();
+		expect(await storedEntry(store)).toMatchObject({
+			dynamicSources: ["dataview"],
+			dataviewRevision: 12,
+		});
 	});
 
-	it("handles multiple dynamic paths in a single pass", async () => {
-		const store = new DataStore("vault", "app", "1.0.0");
+	it.each([
+		["dataview", 11],
+		["datacore", 17],
+		["dataview", undefined],
+		["datacore", undefined],
+	] as const)(
+		"rejects a stale %s compilation write at revision %s",
+		async (source, revision) => {
+			const store = createDataStore({
+				dataviewRevision: source === "dataview" ? revision : undefined,
+				datacoreRevision: source === "datacore" ? revision : undefined,
+			});
+			await storeCompilation(store, [source], 1001);
 
-		for (let i = 0; i < 5; i++) {
-			await store.persister.setItem(
-				`file:notes/dyn-${i}.md`,
-				makeEntry(true),
-			);
-		}
-		for (let i = 0; i < 3; i++) {
-			await store.persister.setItem(
-				`file:notes/static-${i}.md`,
-				makeEntry(false),
-			);
-		}
-
-		const result = await store.getDynamicContentPaths();
-
-		expect(result.size).toBe(5);
-		for (let i = 0; i < 5; i++) {
-			expect(result.has(`notes/dyn-${i}.md`)).toBe(true);
-		}
-		for (let i = 0; i < 3; i++) {
-			expect(result.has(`notes/static-${i}.md`)).toBe(false);
-		}
-	});
+			expect(await store.exportCache()).toEqual({});
+		},
+	);
 });

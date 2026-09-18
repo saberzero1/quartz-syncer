@@ -4,6 +4,7 @@ import {
 	PatternDescriptor,
 	PatternMatch,
 	CompileContext,
+	IntegrationCompileResult,
 } from "./types";
 import {
 	isPluginEnabled,
@@ -546,6 +547,7 @@ export const DatacoreIntegration: PluginIntegration = {
 	id: "datacore",
 	name: "Datacore",
 	settingKey: "useDatacore",
+	isVaultDependent: true,
 	priority: 100,
 	category: "community",
 
@@ -561,22 +563,22 @@ export const DatacoreIntegration: PluginIntegration = {
 		return [
 			{
 				id: "dc-js",
-				pattern: /```datacorejs\s(.+?)```/gms,
+				pattern: /(?:```|~~~)datacorejs\s(.+?)(?:```|~~~)/gms,
 				type: "block",
 			},
 			{
 				id: "dc-jsx",
-				pattern: /```datacorejsx\s(.+?)```/gms,
+				pattern: /(?:```|~~~)datacorejsx\s(.+?)(?:```|~~~)/gms,
 				type: "block",
 			},
 			{
 				id: "dc-ts",
-				pattern: /```datacorets\s(.+?)```/gms,
+				pattern: /(?:```|~~~)datacorets\s(.+?)(?:```|~~~)/gms,
 				type: "block",
 			},
 			{
 				id: "dc-tsx",
-				pattern: /```datacoretsx\s(.+?)```/gms,
+				pattern: /(?:```|~~~)datacoretsx\s(.+?)(?:```|~~~)/gms,
 				type: "block",
 			},
 		];
@@ -585,14 +587,14 @@ export const DatacoreIntegration: PluginIntegration = {
 	async compile(
 		match: PatternMatch,
 		context: CompileContext,
-	): Promise<string> {
+	): Promise<IntegrationCompileResult> {
 		const dcApi = getDatacoreApi();
 
-		if (!dcApi) return match.fullMatch;
+		if (!dcApi) return { text: match.fullMatch, successful: false };
 
 		const filePath = context.file.getPath();
 		const query = match.captures[0] ?? "";
-		if (!query) return match.fullMatch;
+		if (!query) return { text: match.fullMatch, successful: false };
 		const { isInsideCalloutDepth, finalQuery } = sanitizeQuery(query);
 		const serializer = new XMLSerializer();
 
@@ -629,22 +631,28 @@ export const DatacoreIntegration: PluginIntegration = {
 					);
 					break;
 				default:
-					return match.fullMatch;
+					return { text: match.fullMatch, successful: false };
 			}
 
 			const result = sanitizeHTMLToString(queryResult, serializer);
 
 			if (isInsideCalloutDepth > 0) {
-				return surroundWithCalloutBlock(result, isInsideCalloutDepth);
+				return {
+					text: surroundWithCalloutBlock(
+						result,
+						isInsideCalloutDepth,
+					),
+					successful: true,
+				};
 			}
 
-			return result;
+			return { text: result, successful: true };
 		} catch (error) {
 			console.debug(error);
 
 			new Notice(`Quartz Syncer: Datacore query error: ${String(error)}`);
 
-			return match.fullMatch;
+			return { text: match.fullMatch, successful: false };
 		}
 	},
 };

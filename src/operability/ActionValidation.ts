@@ -67,6 +67,7 @@ const actionRules: ActionRules = {
 	"settings.get": { key: string },
 	"plugin.reload": { confirm: confirmation },
 	"connection.test": {},
+	"perf.reset": {},
 	"env.emulateMobile": {
 		enabled: boolean,
 		confirm: {

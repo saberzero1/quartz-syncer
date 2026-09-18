@@ -114,7 +114,8 @@ describe("DatacoreIntegration", () => {
 
 		const result = await DatacoreIntegration.compile(match, context);
 
-		expect(result).toBe("compiled result");
+		expect(result.text).toBe("compiled result");
+		expect(result.successful).toBe(true);
 		expect(api.executeJs).toHaveBeenCalledWith(
 			"LIST",
 			expect.objectContaining({

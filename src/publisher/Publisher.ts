@@ -140,9 +140,7 @@ export class Publisher {
 	}
 
 	private async compileAndHashSingle(file: PublishFile): Promise<string> {
-		const compiled = await file.compile(
-			this.compilationQueue !== undefined,
-		);
+		const compiled = await file.compile();
 		const hash = await generateBlobHash(compiled.getCompiledFile()[0]);
 		return hash;
 	}
@@ -295,7 +293,6 @@ export class Publisher {
 			const compiled = await this.dataStore.loadLocalFile(
 				file.file.path,
 				file.file.stat.mtime,
-				true,
 			);
 
 			if (!compiled) return null;
@@ -315,8 +312,8 @@ export class Publisher {
 		const settings = this.plugin.settings;
 		const changes: FileChange[] = [];
 		const remoteHashes: Array<{
-			path: string;
-			timestamp: number;
+			file: PublishFile;
+			sourceMtime: number;
 			hash: string;
 		}> = [];
 		const now = Date.now();
@@ -352,12 +349,11 @@ export class Publisher {
 						? await this.dataStore.loadLocalFile(
 								file.file.path,
 								file.file.stat.mtime,
-								true,
 							)
 						: null;
 
 					if (!storedFile) {
-						const compiled = await file.compile(true);
+						const compiled = await file.compile();
 						storedFile = compiled.getCompiledFile();
 					}
 
@@ -468,8 +464,8 @@ export class Publisher {
 
 					if (localHash) {
 						remoteHashes.push({
-							path: file.file.path,
-							timestamp: now,
+							file,
+							sourceMtime: file.file.stat.mtime,
 							hash: localHash,
 						});
 					}
@@ -548,7 +544,15 @@ export class Publisher {
 			});
 
 			if (remoteHashes.length > 0) {
-				await this.dataStore.storeRemoteHashes(remoteHashes);
+				await this.dataStore.storeRemoteHashes(
+					remoteHashes.map(({ file, sourceMtime, hash }) => ({
+						path: file.file.path,
+						timestamp: now,
+						hash,
+						sourceMtime,
+						currentMtime: file.file.stat.mtime,
+					})),
+				);
 			}
 
 			this.backend.invalidateTreeCache();
@@ -812,7 +816,43 @@ export class Publisher {
 		this.compilationQueue?.pause();
 
 		try {
-			const linkedMedia = await resolveLinkedMedia(candidates);
+			if (!settings.useCache) {
+				return {
+					success: false,
+					filesPublished: 0,
+					filesDeleted: 0,
+					error: "Skipping orphan cleanup: compiled media links are unavailable while the cache is disabled.",
+				};
+			}
+
+			const metadata = settings.useCache
+				? await this.dataStore.loadStatusMetadata(
+						candidates.map(({ file }) => ({
+							path: file.path,
+							mtime: file.stat.mtime,
+						})),
+					)
+				: new Map<string, CachedStatusMetadata>();
+			const unresolved = candidates.filter((file) => {
+				const entry = metadata.get(file.file.path);
+				return !entry || entry.mediaLinks === null;
+			});
+			if (unresolved.length > 0) {
+				return {
+					success: false,
+					filesPublished: 0,
+					filesDeleted: 0,
+					error: `Skipping orphan cleanup: compiled media links are unavailable for ${unresolved.length} publishable file(s), including ${unresolved[0]!.file.path}.`,
+				};
+			}
+			const linkedMedia = settings.useCache
+				? flattenLinkedMedia(
+						await this.resolveMediaLinksIncremental(
+							candidates,
+							metadata,
+						),
+					)
+				: await resolveLinkedMedia(candidates);
 			const remoteTree = await this.backend.getCachedTree(
 				settings.gitBranch,
 			);

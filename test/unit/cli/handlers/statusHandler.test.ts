@@ -52,7 +52,7 @@ describe("statusHandler", () => {
 		const fileA = {
 			getVaultPath: () => "a.md",
 			shouldPublish: () => true,
-			file: { path: "a.md" },
+			file: { path: "a.md", stat: { mtime: 1000 } },
 		};
 		const publisher = {
 			getPublishStatus: vi.fn(async () => ({
@@ -88,5 +88,9 @@ describe("statusHandler", () => {
 			publishFlag: true,
 			hasMedia: true,
 		});
+		expect(plugin.dataStore.loadLocalFile).toHaveBeenCalledWith(
+			"a.md",
+			1000,
+		);
 	});
 });

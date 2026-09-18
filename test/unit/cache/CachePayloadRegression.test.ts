@@ -115,6 +115,8 @@ describe("compiled cache payload regression", () => {
 			"self-contained-cache-test",
 			"quartz-syncer",
 			DATA_STORE_CACHE_VERSION,
+			"",
+			() => settings,
 		);
 		const compiler = new SyncerPageCompiler(
 			app,
@@ -170,7 +172,7 @@ describe("compiled cache payload regression", () => {
 				settings,
 				datastore,
 			});
-			const compiled = await note.compile(false, {
+			const compiled = await note.compile({
 				getMetadata: async () => ({
 					mediaLinks: await compiler.extractBlobLinks(note),
 				}),
@@ -181,6 +183,7 @@ describe("compiled cache payload regression", () => {
 					file.path,
 					MTIME,
 					compiled.getCompiledFile(),
+					file.stat.mtime,
 				);
 		}
 		for (const [key] of vi.mocked(datastore.persister.setItem).mock.calls) {

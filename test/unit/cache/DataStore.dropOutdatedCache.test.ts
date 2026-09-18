@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DataStore } from "src/cache/DataStore";
+import { DEFAULT_SETTINGS } from "src/main";
 
 const { createInstance, dropInstance, setStore, setDatabases } = vi.hoisted(
 	() => {
@@ -71,7 +72,13 @@ describe("DataStore.dropOutdatedCache()", () => {
 	});
 
 	it("returns early without enumerating when indexedDB is undefined", async () => {
-		const store = new DataStore(VAULT, APP_ID, VERSION);
+		const store = new DataStore(
+			VAULT,
+			APP_ID,
+			VERSION,
+			"",
+			() => DEFAULT_SETTINGS,
+		);
 
 		const original = globalThis.indexedDB;
 
@@ -93,7 +100,13 @@ describe("DataStore.dropOutdatedCache()", () => {
 	});
 
 	it("returns early without enumerating when indexedDB.databases is unavailable", async () => {
-		const store = new DataStore(VAULT, APP_ID, VERSION);
+		const store = new DataStore(
+			VAULT,
+			APP_ID,
+			VERSION,
+			"",
+			() => DEFAULT_SETTINGS,
+		);
 
 		Object.defineProperty(globalThis, "indexedDB", {
 			value: {},
@@ -119,7 +132,13 @@ describe("DataStore.dropOutdatedCache()", () => {
 		});
 		dropInstance.mockResolvedValue(undefined);
 
-		const store = new DataStore(VAULT, APP_ID, VERSION);
+		const store = new DataStore(
+			VAULT,
+			APP_ID,
+			VERSION,
+			"",
+			() => DEFAULT_SETTINGS,
+		);
 		await store.dropOutdatedCache();
 
 		expect(dropInstance).toHaveBeenCalledTimes(1);
@@ -144,7 +163,13 @@ describe("DataStore.dropOutdatedCache()", () => {
 		});
 		dropInstance.mockResolvedValue(undefined);
 
-		const store = new DataStore(VAULT, APP_ID, VERSION);
+		const store = new DataStore(
+			VAULT,
+			APP_ID,
+			VERSION,
+			"",
+			() => DEFAULT_SETTINGS,
+		);
 		await store.dropOutdatedCache();
 
 		expect(dropInstance).toHaveBeenCalledTimes(1);
@@ -193,7 +218,13 @@ describe("DataStore.dropOutdatedCache()", () => {
 			configurable: true,
 		});
 
-		const dropOutdated = new DataStore(VAULT, APP_ID, VERSION);
+		const dropOutdated = new DataStore(
+			VAULT,
+			APP_ID,
+			VERSION,
+			"",
+			() => DEFAULT_SETTINGS,
+		);
 		const methodPromise = dropOutdated.dropOutdatedCache();
 
 		await Promise.resolve();
@@ -251,7 +282,13 @@ describe("DataStore.dropOutdatedCache()", () => {
 			.mockRejectedValueOnce(new Error("blocked"))
 			.mockResolvedValueOnce(undefined);
 
-		const store = new DataStore(VAULT, APP_ID, VERSION);
+		const store = new DataStore(
+			VAULT,
+			APP_ID,
+			VERSION,
+			"",
+			() => DEFAULT_SETTINGS,
+		);
 
 		await expect(store.dropOutdatedCache()).resolves.toBeUndefined();
 
@@ -281,7 +318,13 @@ describe("DataStore.dropOutdatedCache()", () => {
 				}),
 		);
 
-		const store = new DataStore(VAULT, APP_ID, VERSION);
+		const store = new DataStore(
+			VAULT,
+			APP_ID,
+			VERSION,
+			"",
+			() => DEFAULT_SETTINGS,
+		);
 		let done = false;
 		const methodPromise = store.dropOutdatedCache().then(() => {
 			done = true;
