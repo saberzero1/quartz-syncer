@@ -27,6 +27,7 @@ export class BackgroundEngine {
 	private extCacheEventRef: EventRef | null = null;
 	private compiler: SyncerPageCompiler | null = null;
 	private lastActiveFilePath: string | null = null;
+	private deferredActiveFiles = new Set<string>();
 	private readonly startupTime = Date.now();
 
 	private pendingVaultChanges = new Set<string>();
@@ -194,6 +195,7 @@ export class BackgroundEngine {
 		this.running = false;
 		this.compilationQueue.cancel();
 		this.pendingVaultChanges.clear();
+		this.deferredActiveFiles.clear();
 
 		if (this.vaultChangeTimer !== null) {
 			window.clearTimeout(this.vaultChangeTimer);
@@ -234,7 +236,16 @@ export class BackgroundEngine {
 
 		const activeFilePath = this.app.workspace.getActiveFile?.()?.path;
 
-		if (activeFilePath === path) return;
+		// Compiling the file the user is typing in wastes work that the next
+		// keystroke invalidates. The request is deferred rather than dropped, so
+		// it still compiles once the file is no longer active.
+		if (activeFilePath === path) {
+			this.deferredActiveFiles.add(path);
+
+			return;
+		}
+
+		this.deferredActiveFiles.delete(path);
 
 		const compiler = this.getOrCreateCompiler();
 
@@ -379,6 +390,13 @@ export class BackgroundEngine {
 				if (previousPath && previousPath !== currentPath) {
 					this.enqueue(previousPath, PRIORITY_ACTIVE_FILE);
 				}
+
+				for (const deferred of [...this.deferredActiveFiles]) {
+					if (deferred === currentPath) continue;
+
+					this.deferredActiveFiles.delete(deferred);
+					this.enqueue(deferred, PRIORITY_ACTIVE_FILE);
+				}
 			}),
 		);
 	}
@@ -477,7 +495,7 @@ export class BackgroundEngine {
 		if (perfMetricsEnabled) {
 			getPerfMetrics()?.increment("enqueueAttempts");
 		}
-		this.compilationQueue.enqueue(path, priority);
+		this.compilationQueue.invalidate(path, priority);
 		this.eventSink?.emit("compilation.enqueued", { path });
 		this.updateStatusBar();
 	}

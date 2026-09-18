@@ -20,6 +20,7 @@ export class CompilationQueue {
 	private head = 0;
 	private queued = new Map<string, QueueItem>();
 	private inFlightPaths = new Set<string>();
+	private dirtyWhileInFlight = new Map<string, number>();
 	private needsSort = false;
 	private inFlight = 0;
 	private sequence = 0;
@@ -80,6 +81,32 @@ export class CompilationQueue {
 			getPerfMetrics()?.increment("enqueueAccepted");
 		}
 		this.schedule();
+	}
+
+	/**
+	 * Queue a path whose source changed, even if it is currently compiling.
+	 *
+	 * The in-flight run read the file before the change, so its result is
+	 * already stale. `enqueue()` drops such a request to avoid running the
+	 * processor twice concurrently, which would otherwise leave the change
+	 * uncompiled until something else touched the file. This records it and
+	 * reruns once the current run finishes. It is deliberately separate from
+	 * `enqueue()`: a processor that re-queues its own path would loop forever.
+	 */
+	invalidate(path: string, priority = 0): void {
+		if (this.inFlightPaths.has(path)) {
+			this.dirtyWhileInFlight.set(
+				path,
+				Math.max(
+					this.dirtyWhileInFlight.get(path) ?? priority,
+					priority,
+				),
+			);
+
+			return;
+		}
+
+		this.enqueue(path, priority);
 	}
 
 	has(path: string): boolean {
@@ -152,6 +179,7 @@ export class CompilationQueue {
 		this.queue = [];
 		this.head = 0;
 		this.queued.clear();
+		this.dirtyWhileInFlight.clear();
 		this.needsSort = false;
 		this.abortController?.abort();
 	}
@@ -220,6 +248,14 @@ export class CompilationQueue {
 			}
 			this.inFlight -= 1;
 			this.inFlightPaths.delete(item.path);
+
+			const dirtyPriority = this.dirtyWhileInFlight.get(item.path);
+
+			if (dirtyPriority !== undefined) {
+				this.dirtyWhileInFlight.delete(item.path);
+				this.enqueue(item.path, dirtyPriority);
+			}
+
 			this.onStatusChange?.();
 			this.schedule();
 		}

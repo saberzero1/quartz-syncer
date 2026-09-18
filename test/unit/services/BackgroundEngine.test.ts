@@ -749,6 +749,43 @@ describe("BackgroundEngine", () => {
 		}
 	});
 
+	it("compiles a deferred active file once it is no longer active", async () => {
+		const active = createFile("notes/active.md", 1000);
+		const other = createFile("notes/other.md", 1000);
+		const app = createApp([active, other]);
+		// No active file when the listener registers, so `previousPath` stays
+		// null and the active-leaf handler cannot re-queue the file on its own.
+		app.workspace.getActiveFile = vi.fn().mockReturnValue(null);
+		app.workspace.onLayoutReady = vi.fn((callback: () => void) =>
+			callback(),
+		);
+
+		const plugin = createPluginStub();
+		const engine = new BackgroundEngine(app, plugin);
+
+		try {
+			engine.start();
+
+			const queue = engine["compilationQueue"] as CompilationQueue;
+
+			app.workspace.getActiveFile = vi.fn().mockReturnValue(active);
+
+			await engine["compileFile"](
+				active.path,
+				new AbortController().signal,
+			);
+
+			expect(queue.has(active.path)).toBe(false);
+
+			app.workspace.getActiveFile = vi.fn().mockReturnValue(other);
+			(app.workspace as Events).trigger("active-leaf-change");
+
+			expect(queue.has(active.path)).toBe(true);
+		} finally {
+			engine.stop();
+		}
+	});
+
 	describe("dynamic revision isolation", () => {
 		type DynamicSource = "dataview" | "datacore";
 		type Regime = "steady" | "post-invalidation" | "timeout";

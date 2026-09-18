@@ -249,6 +249,64 @@ describe("CompilationQueue", () => {
 		expect(started).toEqual(["notes/a.md"]);
 	});
 
+	it("reruns a path invalidated while it was in flight", async () => {
+		let release: (() => void) | undefined;
+		const started: string[] = [];
+
+		const queue = new CompilationQueue({
+			concurrency: 1,
+			processor: async (path) => {
+				started.push(path);
+
+				if (started.length === 1) {
+					await new Promise<void>((resolve) => {
+						release = resolve;
+					});
+				}
+			},
+		});
+
+		queue.enqueue("notes/a.md");
+		await vi.advanceTimersByTimeAsync(10);
+		expect(started).toEqual(["notes/a.md"]);
+
+		queue.invalidate("notes/a.md", 7);
+		expect(queue.pendingCount).toBe(0);
+
+		release?.();
+		await vi.advanceTimersByTimeAsync(100);
+
+		expect(started).toEqual(["notes/a.md", "notes/a.md"]);
+	});
+
+	it("drops a pending invalidation when the queue is cancelled", async () => {
+		let release: (() => void) | undefined;
+		const started: string[] = [];
+
+		const queue = new CompilationQueue({
+			concurrency: 1,
+			processor: async (path) => {
+				started.push(path);
+
+				if (started.length === 1) {
+					await new Promise<void>((resolve) => {
+						release = resolve;
+					});
+				}
+			},
+		});
+
+		queue.enqueue("notes/a.md");
+		await vi.advanceTimersByTimeAsync(10);
+		queue.invalidate("notes/a.md");
+		queue.cancel();
+
+		release?.();
+		await vi.advanceTimersByTimeAsync(100);
+
+		expect(started).toEqual(["notes/a.md"]);
+	});
+
 	it("keeps priority-then-sequence ordering when sorting lazily", async () => {
 		const processed: string[] = [];
 
