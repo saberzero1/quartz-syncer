@@ -315,6 +315,9 @@ export class SyncerPageCompiler {
 
 	private static readonly ASSET_EXTENSIONS = ASSET_EXTENSIONS;
 
+	private static readonly GENERATED_EMBED_PATTERN =
+		/!\[\[([^\]|#]+)(?:[^\]]*)?\]\]|!\[[^\]]*\]\(([^)\s]+)\)/g;
+
 	/**
 	 * Escape unescaped pipes inside wikilinks on table rows so that
 	 * Quartz does not misinterpret them as cell separators.
@@ -562,8 +565,64 @@ export class SyncerPageCompiler {
 				}
 			}
 
+			this.collectGeneratedAssets(file, blobText, assets);
+
 			blobText = this.stripVaultPathFromLinks(blobText);
 
 			return [blobText, assets];
 		};
+
+	/**
+	 * Collect assets that only exist in compiled output.
+	 *
+	 * Obsidian's `cache.embeds` describes the note's source, so media rendered
+	 * by a Dataview or Datacore query is invisible to it and would never be
+	 * staged for publish. Only dynamic notes are scanned: a static note's
+	 * compiled embeds are already fully described by its source metadata.
+	 */
+	private collectGeneratedAssets(
+		file: PublishFile,
+		compiledText: string,
+		assets: Array<DeferredAsset>,
+	): void {
+		if (!file.hasDynamicContent) return;
+
+		const filePath = file.getPath();
+		const known = new Set(assets.map((asset) => asset.vaultPath));
+
+		for (const match of compiledText.matchAll(
+			SyncerPageCompiler.GENERATED_EMBED_PATTERN,
+		)) {
+			const link = (match[1] ?? match[2] ?? "").split("#")[0]?.trim();
+
+			if (!link) continue;
+
+			try {
+				const linkedFile = this.metadataCache.getFirstLinkpathDest(
+					getLinkpath(link),
+					filePath,
+				);
+
+				if (!linkedFile) continue;
+
+				if (
+					!SyncerPageCompiler.ASSET_EXTENSIONS.has(
+						linkedFile.extension,
+					)
+				) {
+					continue;
+				}
+
+				if (known.has(linkedFile.path)) continue;
+
+				known.add(linkedFile.path);
+				assets.push({
+					path: linkedFile.path,
+					vaultPath: linkedFile.path,
+				});
+			} catch {
+				continue;
+			}
+		}
+	}
 }

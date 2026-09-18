@@ -83,6 +83,7 @@ export class PublicationCenter extends Modal {
 	private diffMode: DiffViewMode = "split";
 	private inlineScrollSync: ReturnType<typeof renderDiffView> = null;
 	private diffStatsAbort: AbortController | null = null;
+	private dynamicResolveAbort: AbortController | null = null;
 	private refreshingEl: HTMLSpanElement | null = null;
 
 	constructor(
@@ -103,6 +104,7 @@ export class PublicationCenter extends Modal {
 		this.renderLoadingState();
 
 		this._plugin.pauseAutoPublish();
+		this._plugin.getPublisher()?.beginDynamicSession();
 
 		this.scope.register([], "Escape", () => {
 			this.close();
@@ -126,6 +128,9 @@ export class PublicationCenter extends Modal {
 			.getEventSink()
 			?.emit("ui.modal.closed", { name: "publication-center" });
 		this._plugin.resumeAutoPublish();
+		this._plugin.getPublisher()?.endDynamicSession();
+		this.dynamicResolveAbort?.abort();
+		this.dynamicResolveAbort = null;
 		this.diffStatsAbort?.abort();
 		this.diffStatsAbort = null;
 		this.publicationTree?.unmount();
@@ -257,6 +262,61 @@ export class PublicationCenter extends Modal {
 		this.treeState.setKnownFiles(this.getKnownFilePaths());
 		this.renderShell(true);
 		this.updateTreeState();
+		this.startDynamicResolution(publisher);
+	}
+
+	private startDynamicResolution(
+		publisher: ReturnType<QuartzSyncer["getPublisher"]> & object,
+	): void {
+		const status = this.status;
+		const dynamic = status?.dynamic;
+
+		this.dynamicResolveAbort?.abort();
+
+		if (!status || !dynamic || dynamic.size === 0) {
+			this.dynamicResolveAbort = null;
+
+			return;
+		}
+
+		const controller = new AbortController();
+		this.dynamicResolveAbort = controller;
+
+		const pending = [...status.changed, ...status.published].filter(
+			(file) => dynamic.has(file.getVaultPath()),
+		);
+
+		void publisher.resolveDynamicClassification(
+			pending,
+			(vaultPath, published) =>
+				this.applyResolvedClassification(vaultPath, published),
+			controller.signal,
+		);
+	}
+
+	private applyResolvedClassification(
+		vaultPath: string,
+		published: boolean,
+	): void {
+		const status = this.status;
+
+		if (!status) return;
+
+		const from = published ? status.changed : status.published;
+		const to = published ? status.published : status.changed;
+		const index = from.findIndex(
+			(file) => file.getVaultPath() === vaultPath,
+		);
+
+		if (index === -1) return;
+
+		const [file] = from.splice(index, 1);
+
+		if (file) to.push(file);
+
+		status.dynamic?.delete(vaultPath);
+		this.publicationTree?.markResolved(vaultPath);
+		this.updateTreeState();
 	}
 
 	private async fetchAndCacheStatus(
@@ -300,6 +360,7 @@ export class PublicationCenter extends Modal {
 			this.treeState.setKnownFiles(this.getKnownFilePaths());
 			this.renderShell(true);
 			this.updateTreeState();
+			this.startDynamicResolution(publisher);
 
 			for (const path of selectedPaths) {
 				if (this.treeState.hasFile(path)) {

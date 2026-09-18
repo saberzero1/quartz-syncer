@@ -537,8 +537,17 @@ export class BackgroundEngine {
 
 			if (!publisher) return;
 
+			publisher.beginDynamicSession();
+
 			const status = await publisher.getPublishStatus();
-			const pending = [...status.unpublished, ...status.changed];
+			const candidates = [...status.unpublished, ...status.changed];
+			const dynamic = status.dynamic;
+			const pending =
+				this.plugin.settings.autoPublishDynamicNotes || !dynamic
+					? candidates
+					: candidates.filter(
+							(file) => !dynamic.has(file.getVaultPath()),
+						);
 			const deleted = status.deleted;
 
 			if (pending.length === 0 && deleted.length === 0) return;
@@ -581,6 +590,7 @@ export class BackgroundEngine {
 		} catch (e) {
 			console.debug("Auto-publish failed:", e);
 		} finally {
+			this.plugin.getPublisher()?.endDynamicSession();
 			this.autoPublishing = false;
 		}
 	}

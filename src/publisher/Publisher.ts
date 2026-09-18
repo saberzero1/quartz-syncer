@@ -7,7 +7,12 @@ import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import { PathMapper } from "src/git/PathMapper";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { collectCandidatePaths } from "src/publishFile/PublishCandidates";
-import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
+import {
+	SyncerPageCompiler,
+	type TCompiledFile,
+} from "src/compiler/SyncerPageCompiler";
+import { DynamicCompilationSession } from "src/services/DynamicCompilationSession";
+import type { CompiledEntryValidityCriteria } from "src/cache/CompiledEntryValidity";
 import {
 	DataStore,
 	type AssetShaCache,
@@ -53,6 +58,8 @@ export class Publisher {
 	) {
 		this.pathMapper = new PathMapper(plugin.settings.contentFolder);
 	}
+
+	private readonly dynamicSession = new DynamicCompilationSession();
 
 	get isLocal(): boolean {
 		return this.backend.isLocal;
@@ -139,9 +146,98 @@ export class Publisher {
 		return result.success ? result : null;
 	}
 
+	beginDynamicSession(): void {
+		this.dynamicSession.clear();
+	}
+
+	endDynamicSession(): void {
+		this.dynamicSession.clear();
+	}
+
+	invalidateDynamicSession(path: string): void {
+		this.dynamicSession.invalidate(path);
+	}
+
+	get dynamicSessionSize(): number {
+		return this.dynamicSession.size;
+	}
+
+	private sessionCriteria(
+		file: PublishFile,
+	): CompiledEntryValidityCriteria | null {
+		try {
+			return this.dataStore.getValidityCriteria(file.file.stat.mtime);
+		} catch {
+			return null;
+		}
+	}
+
+	private async compileForSession(file: PublishFile): Promise<TCompiledFile> {
+		const criteria = this.sessionCriteria(file);
+
+		if (!criteria) {
+			return (await file.compile()).getCompiledFile();
+		}
+
+		const reused = this.dynamicSession.get(file.file.path, criteria);
+
+		if (reused) return reused;
+
+		const compiled = (await file.compile()).getCompiledFile();
+		this.dynamicSession.set(file.file.path, compiled, criteria);
+
+		return compiled;
+	}
+
+	/**
+	 * Classify dynamic notes one at a time, yielding between each.
+	 *
+	 * A dynamic note's category cannot be read from a durable hash, so it is
+	 * only knowable by compiling. Resolution is therefore driven by an explicit
+	 * caller — an open Publication Center — and stops as soon as that caller
+	 * aborts, rather than running unattended in the background.
+	 */
+	async resolveDynamicClassification(
+		files: PublishFile[],
+		onResolved: (vaultPath: string, published: boolean) => void,
+		signal?: AbortSignal,
+	): Promise<void> {
+		if (files.length === 0) return;
+
+		const remoteTree = await this.backend.getCachedTree(
+			this.plugin.settings.gitBranch,
+		);
+		const remoteIndex = buildRemoteIndex(remoteTree, this.pathMapper);
+
+		for (const file of files) {
+			if (signal?.aborted) return;
+
+			const vaultPath = file.getVaultPath();
+
+			try {
+				const compiled = await this.compileForSession(file);
+				const hash = await generateBlobHash(compiled[0]);
+				const remote = remoteIndex.content.get(
+					this.pathMapper.toRepoPath(vaultPath),
+				);
+
+				if (signal?.aborted) return;
+
+				onResolved(vaultPath, !!remote && remote.sha === hash);
+			} catch (error) {
+				console.debug(
+					`Quartz Syncer: could not resolve "${vaultPath}":`,
+					error,
+				);
+			}
+
+			await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+		}
+	}
+
 	private async compileAndHashSingle(file: PublishFile): Promise<string> {
-		const compiled = await file.compile();
-		const hash = await generateBlobHash(compiled.getCompiledFile()[0]);
+		const compiled = await this.compileForSession(file);
+		const hash = await generateBlobHash(compiled[0]);
 		return hash;
 	}
 
@@ -166,6 +262,36 @@ export class Publisher {
 			},
 			concurrency,
 		);
+
+		return mediaLinks;
+	}
+
+	/**
+	 * Resolve linked media for orphan cleanup, which deletes files.
+	 *
+	 * A cache miss here means the note is dynamic, and its source embeds omit
+	 * anything a query renders. Falling back to source-only extraction would
+	 * report query-rendered media as unlinked and delete it, so compiled output
+	 * is used instead — it is the only complete answer.
+	 */
+	private async resolveMediaLinksForCleanup(
+		files: PublishFile[],
+		metadata: Map<string, CachedStatusMetadata>,
+	): Promise<Map<string, string[]>> {
+		const mediaLinks = new Map<string, string[]>();
+
+		for (const file of files) {
+			const cachedLinks = metadata.get(file.file.path)?.mediaLinks;
+			const links =
+				cachedLinks ??
+				(await this.compileForSession(file))[1].blobs.map(
+					(asset) => asset.vaultPath,
+				);
+
+			if (links.length > 0) {
+				mediaLinks.set(file.file.path, links);
+			}
+		}
 
 		return mediaLinks;
 	}
@@ -220,6 +346,20 @@ export class Publisher {
 						Platform.isMobileApp ? 1 : 2,
 					);
 
+			const dynamic = new Set<string>();
+
+			if (settings.useCache) {
+				for (const { file } of remoteBacked) {
+					const sources = metadata.get(
+						file.file.path,
+					)?.dynamicSources;
+
+					if (sources === null || (sources?.length ?? 0) > 0) {
+						dynamic.add(file.getVaultPath());
+					}
+				}
+			}
+
 			remoteBacked.forEach(({ file, sha }, index) => {
 				const localHash = hashes[index];
 
@@ -258,6 +398,7 @@ export class Publisher {
 				media,
 				arbitrary,
 				mediaLinks,
+				dynamic,
 			};
 		} finally {
 			this.compilationQueue?.resume();
@@ -295,9 +436,9 @@ export class Publisher {
 				file.file.stat.mtime,
 			);
 
-			if (!compiled) return null;
+			if (compiled) return compiled[0];
 
-			return compiled[0];
+			return (await this.compileForSession(file))[0];
 		} catch {
 			return null;
 		}
@@ -353,8 +494,7 @@ export class Publisher {
 						: null;
 
 					if (!storedFile) {
-						const compiled = await file.compile();
-						storedFile = compiled.getCompiledFile();
+						storedFile = await this.compileForSession(file);
 					}
 
 					const [text, assets] = storedFile;
@@ -833,21 +973,9 @@ export class Publisher {
 						})),
 					)
 				: new Map<string, CachedStatusMetadata>();
-			const unresolved = candidates.filter((file) => {
-				const entry = metadata.get(file.file.path);
-				return !entry || entry.mediaLinks === null;
-			});
-			if (unresolved.length > 0) {
-				return {
-					success: false,
-					filesPublished: 0,
-					filesDeleted: 0,
-					error: `Skipping orphan cleanup: compiled media links are unavailable for ${unresolved.length} publishable file(s), including ${unresolved[0]!.file.path}.`,
-				};
-			}
 			const linkedMedia = settings.useCache
 				? flattenLinkedMedia(
-						await this.resolveMediaLinksIncremental(
+						await this.resolveMediaLinksForCleanup(
 							candidates,
 							metadata,
 						),

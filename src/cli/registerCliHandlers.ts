@@ -482,10 +482,19 @@ export function registerCliHandlers(
 			);
 		}
 		const handler = handlers[command];
-		const result = handler
-			? await handler(params)
-			: missingCommand(command);
-		return formatCliOutput(result, format);
+
+		if (!handler) {
+			return formatCliOutput(missingCommand(command), format);
+		}
+
+		const publisher = plugin.getPublisher();
+		publisher?.beginDynamicSession();
+
+		try {
+			return formatCliOutput(await handler(params), format);
+		} finally {
+			publisher?.endDynamicSession();
+		}
 	};
 
 	for (const entry of COMMAND_REGISTRY) {

@@ -197,6 +197,158 @@ describe("Publisher", () => {
 		);
 	});
 
+	it("stops resolving dynamic notes as soon as the caller aborts", async () => {
+		const app = new App();
+		const settings = makeSettings({ useCache: true, useDataview: true });
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const dataStore = new DataStore(
+			"abort-vault",
+			"plugin",
+			"1.0.0",
+			"",
+			() => settings,
+		);
+		const compiler = {
+			generateMarkdown: vi.fn().mockResolvedValue(["out", { blobs: [] }]),
+			generateMarkdownWithEvidence: vi.fn().mockResolvedValue({
+				compiledFile: ["out", { blobs: [] }],
+				successfulVaultDependentExecutions: new Set<string>(),
+			}),
+			extractBlobLinks: vi.fn().mockResolvedValue([]),
+		} as unknown as SyncerPageCompiler;
+
+		const makeDynamic = (path: string) =>
+			({
+				getVaultPath: () => path,
+				file: {
+					path,
+					stat: { mtime: 1000 },
+				},
+				compile: vi.fn().mockResolvedValue({
+					getCompiledFile: () => ["out", { blobs: [] }],
+				}),
+			}) as unknown as PublishFile;
+
+		const publisher = new Publisher(
+			app,
+			plugin,
+			new RemotePublishBackend(gitBackend, "main"),
+			compiler,
+			dataStore,
+		);
+
+		const controller = new AbortController();
+		const resolved: string[] = [];
+
+		await publisher.resolveDynamicClassification(
+			[makeDynamic("a.md"), makeDynamic("b.md"), makeDynamic("c.md")],
+			(vaultPath) => {
+				resolved.push(vaultPath);
+				controller.abort();
+			},
+			controller.signal,
+		);
+
+		expect(resolved).toEqual(["a.md"]);
+	});
+
+	it("compiles a dynamic note once across diff and publish in one session", async () => {
+		const app = new App();
+		const settings = makeSettings({ useCache: true, useDataview: true });
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		const note = {
+			path: "notes/dynamic.md",
+			name: "dynamic.md",
+			extension: "md",
+			stat: { mtime: 1000, ctime: 1000, size: 32 },
+		} as TFile;
+		app.vault.cachedRead = vi
+			.fn()
+			.mockResolvedValue("```dataview\nLIST\n```");
+		app.metadataCache.getCache = vi.fn().mockReturnValue({
+			frontmatter: { publish: true },
+		});
+		const dataStore = new DataStore(
+			"session-reuse-vault",
+			"plugin",
+			"1.0.0",
+			"",
+			() => settings,
+			() => ({ dataviewRevision: 42, datacoreRevision: undefined }),
+		);
+		const cache = new Map<string, unknown>();
+		dataStore.persister = {
+			getItem: async <T>(key: string) =>
+				(cache.get(key) as T | undefined) ?? null,
+			getMany: async <T>(keys: string[]) =>
+				keys.map((key) => (cache.get(key) as T | undefined) ?? null),
+			setItem: async <T>(key: string, value: T) => {
+				cache.set(key, value);
+			},
+			setMany: async <T>(entries: Array<{ key: string; value: T }>) => {
+				for (const { key, value } of entries) cache.set(key, value);
+			},
+			removeItem: async (key: string) => {
+				cache.delete(key);
+			},
+			keys: async () => [...cache.keys()],
+			iterate: async <T>(callback: (value: T, key: string) => void) => {
+				for (const [key, value] of cache) callback(value as T, key);
+			},
+			close: () => undefined,
+		} satisfies IndexedDBStore;
+		const compiler = {
+			generateMarkdown: vi
+				.fn()
+				.mockResolvedValue(["fresh output", { blobs: [] }]),
+			generateMarkdownWithEvidence: vi.fn().mockResolvedValue({
+				compiledFile: ["fresh output", { blobs: [] }],
+				successfulVaultDependentExecutions: new Set(["dataview"]),
+			}),
+			extractBlobLinks: vi.fn().mockResolvedValue([]),
+		} as unknown as SyncerPageCompiler;
+		const file = new PublishFile({
+			file: note,
+			vault: app.vault,
+			metadataCache: app.metadataCache,
+			settings,
+			compiler,
+			datastore: dataStore,
+		});
+		const previousApp = window.app;
+		Object.assign(window, {
+			app: { plugins: { plugins: { dataview: { settings: {} } } } },
+		});
+
+		try {
+			const publisher = new Publisher(
+				app,
+				plugin,
+				new RemotePublishBackend(gitBackend, "main"),
+				compiler,
+				dataStore,
+			);
+
+			publisher.beginDynamicSession();
+
+			const diffContent = await publisher.getLocalCompiledContent(file);
+			const result = await publisher.publishBatch([file]);
+
+			expect(diffContent).toBe("fresh output");
+			expect(result.success).toBe(true);
+			expect(
+				compiler.generateMarkdownWithEvidence,
+			).toHaveBeenCalledOnce();
+
+			publisher.endDynamicSession();
+			expect(publisher.dynamicSessionSize).toBe(0);
+		} finally {
+			Object.assign(window, { app: previousApp });
+		}
+	});
+
 	it("foreground publish preserves current dynamic compilation revisions", async () => {
 		const app = new App();
 		const settings = makeSettings({ useCache: true, useDataview: true });
@@ -2151,7 +2303,7 @@ describe("Publisher", () => {
 			]);
 		});
 
-		it("skips cleanup when real source-only extraction cannot establish a dynamic note's compiled links", async () => {
+		it("protects query-rendered media while still deleting a genuine orphan", async () => {
 			const app = new App();
 			const settings = makeSettings({
 				useCache: true,
@@ -2162,26 +2314,48 @@ describe("Publisher", () => {
 				path: "notes/dynamic.md",
 				name: "dynamic.md",
 				extension: "md",
-				stat: { mtime: 1000 },
+				stat: { mtime: 1000, ctime: 1000, size: 40 },
 			} as TFile;
 			const sourceImage = {
 				path: "images/source.png",
 				name: "source.png",
 				extension: "png",
-				stat: { mtime: 1000 },
+				stat: { mtime: 1000, ctime: 1000, size: 10 },
 			} as TFile;
-			app.vault.getFiles = vi.fn().mockReturnValue([note, sourceImage]);
+			const queryImage = {
+				path: "images/query-output.png",
+				name: "query-output.png",
+				extension: "png",
+				stat: { mtime: 1000, ctime: 1000, size: 10 },
+			} as TFile;
+
+			app.vault.getFiles = vi
+				.fn()
+				.mockReturnValue([note, sourceImage, queryImage]);
 			app.vault.getMarkdownFiles = vi.fn().mockReturnValue([note]);
 			app.vault.getFileByPath = vi.fn((path: string) =>
 				path === note.path
 					? note
 					: path === sourceImage.path
 						? sourceImage
-						: null,
+						: path === queryImage.path
+							? queryImage
+							: null,
 			);
+			// The query renders an embed that the note's source never mentions.
+			app.vault.cachedRead = vi
+				.fn()
+				.mockResolvedValue(
+					"```dataview\nLIST\n```\n\n![[images/query-output.png]]\n",
+				);
 			app.metadataCache.getCache = vi.fn().mockReturnValue({
 				frontmatter: { publish: true },
-				embeds: [{ link: "images/source.png" }],
+				embeds: [
+					{
+						link: "images/source.png",
+						original: "![[images/source.png]]",
+					},
+				],
 			});
 			app.metadataCache.getFileCache = vi.fn().mockReturnValue({
 				frontmatter: { publish: true },
@@ -2189,27 +2363,55 @@ describe("Publisher", () => {
 			app.metadataCache.getFirstLinkpathDest = vi
 				.fn()
 				.mockImplementation((path: string) =>
-					path === "images/source.png" ? sourceImage : null,
+					path === "images/source.png"
+						? sourceImage
+						: path === "images/query-output.png"
+							? queryImage
+							: null,
 				);
+			app.metadataCache.fileToLinktext = vi
+				.fn()
+				.mockImplementation((file: TFile) => file.path);
+
 			const dataStore = new DataStore(
-				"vault",
+				"cleanup-restored-vault",
 				"plugin",
 				"1.0.0",
 				"",
 				() => settings,
 				() => ({ dataviewRevision: 2, datacoreRevision: 8 }),
 			);
-			vi.spyOn(dataStore.persister, "getMany").mockResolvedValue([
-				{
-					version: "1.0.0",
-					time: 1000,
-					sourceMtime: 1000,
-					settingsFingerprint: settingsFingerprint(settings),
-					detectorVersion: DYNAMIC_CONTENT_DETECTOR_VERSION,
-					dynamicSources: ["dataview"],
-					dataviewRevision: 1,
+			const cleanupCache = new Map<string, unknown>();
+			dataStore.persister = {
+				getItem: async <T>(key: string) =>
+					(cleanupCache.get(key) as T | undefined) ?? null,
+				getMany: async <T>(keys: string[]) =>
+					keys.map(
+						(key) =>
+							(cleanupCache.get(key) as T | undefined) ?? null,
+					),
+				setItem: async <T>(key: string, value: T) => {
+					cleanupCache.set(key, value);
 				},
-			]);
+				setMany: async <T>(
+					entries: Array<{ key: string; value: T }>,
+				) => {
+					for (const { key, value } of entries)
+						cleanupCache.set(key, value);
+				},
+				removeItem: async (key: string) => {
+					cleanupCache.delete(key);
+				},
+				keys: async () => [...cleanupCache.keys()],
+				iterate: async <T>(
+					callback: (value: T, key: string) => void,
+				) => {
+					for (const [key, value] of cleanupCache)
+						callback(value as T, key);
+				},
+				close: () => undefined,
+			} satisfies IndexedDBStore;
+
 			const compiler = new SyncerPageCompiler(
 				app,
 				app.vault,
@@ -2229,6 +2431,11 @@ describe("Publisher", () => {
 						type: "blob",
 						sha: "live",
 					},
+					{
+						path: "content/images/orphan.png",
+						type: "blob",
+						sha: "orphan",
+					},
 				]),
 			});
 			const publisher = new Publisher(
@@ -2239,28 +2446,13 @@ describe("Publisher", () => {
 				dataStore,
 			);
 
-			const sourceOnlyLinks = await compiler.extractBlobLinks(
-				new PublishFile({
-					file: note,
-					compiler,
-					vault: app.vault,
-					metadataCache: app.metadataCache,
-					settings,
-					datastore: dataStore,
-				}),
-			);
-			expect(sourceOnlyLinks).toEqual(["images/source.png"]);
-
 			const result = await publisher.cleanOrphanedMedia();
 
-			expect(gitBackend.deleteFiles).not.toHaveBeenCalled();
-			expect(result).toMatchObject({
-				success: false,
-				filesDeleted: 0,
-			});
-			expect(result?.error).toContain(
-				"compiled media links are unavailable",
-			);
+			const deleted = vi.mocked(gitBackend.deleteFiles).mock
+				.calls[0]?.[2] as string[] | undefined;
+
+			expect(result?.success).toBe(true);
+			expect(deleted).toEqual(["content/images/orphan.png"]);
 		});
 
 		it("omits cache misses whose fresh extraction finds no links", async () => {

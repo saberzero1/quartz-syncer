@@ -106,6 +106,7 @@ export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	/** Performance settings */
 	useCache: true,
 	autoCleanOrphanedMedia: false,
+	autoPublishDynamicNotes: false,
 	syncCache: true,
 	persistCache: false,
 	cacheTimestamp: 0,

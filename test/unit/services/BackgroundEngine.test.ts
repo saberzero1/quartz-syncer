@@ -48,6 +48,8 @@ const createAutoPublishPluginStub = (
 			deleteBatch: vi.fn().mockResolvedValue({ success: true }),
 			cleanOrphanedMedia: vi.fn().mockResolvedValue(null),
 			refreshTreeCache: vi.fn().mockResolvedValue(undefined),
+			beginDynamicSession: vi.fn(),
+			endDynamicSession: vi.fn(),
 			...publisherOverrides,
 		}),
 		settings: { useCache: true, autoCleanOrphanedMedia: false },
@@ -80,6 +82,8 @@ const createPublisherStub = (
 		deleteBatch: vi.fn().mockResolvedValue({ success: true }),
 		cleanOrphanedMedia: vi.fn().mockResolvedValue(null),
 		refreshTreeCache: vi.fn().mockResolvedValue(undefined),
+		beginDynamicSession: vi.fn(),
+		endDynamicSession: vi.fn(),
 		...overrides,
 	} as unknown as Publisher;
 };
@@ -194,6 +198,50 @@ describe("BackgroundEngine", () => {
 		await vi.advanceTimersByTimeAsync(60_000);
 
 		expect(publisher.getPublishStatus).toHaveBeenCalledTimes(1);
+		vi.useRealTimers();
+	});
+
+	it.each([
+		{
+			enabled: false,
+			expected: ["notes/static.md"],
+			label: "excludes dynamic notes by default",
+		},
+		{
+			enabled: true,
+			expected: ["notes/static.md", "notes/dynamic.md"],
+			label: "includes dynamic notes when opted in",
+		},
+	])("auto-publish $label", async ({ enabled, expected }) => {
+		vi.useFakeTimers();
+		const app = createApp();
+		const staticFile = {
+			getVaultPath: () => "notes/static.md",
+		} as unknown as PublishFile;
+		const dynamicFile = {
+			getVaultPath: () => "notes/dynamic.md",
+		} as unknown as PublishFile;
+		const publisher = createPublisherStub({
+			getPublishStatus: vi.fn().mockResolvedValue({
+				unpublished: [staticFile],
+				changed: [dynamicFile],
+				published: [],
+				deleted: [],
+				dynamic: new Set(["notes/dynamic.md"]),
+			}),
+		});
+		const plugin = createAutoPublishPluginStub();
+		plugin.getPublisher = () => publisher;
+		plugin.settings.autoPublishDynamicNotes = enabled;
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.startAutoPublish(1);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		const published = vi.mocked(publisher.publishBatch).mock
+			.calls[0]?.[0] as PublishFile[] | undefined;
+
+		expect(published?.map((file) => file.getVaultPath())).toEqual(expected);
 		vi.useRealTimers();
 	});
 

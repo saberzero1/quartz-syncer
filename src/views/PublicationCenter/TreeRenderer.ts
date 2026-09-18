@@ -94,6 +94,7 @@ export class PublicationTree {
 	private categoryRows = new Map<SelectableCategory, CategoryRow>();
 	private categoryTrees = new Map<SelectableCategory, TreeNode>();
 	private emptyFilterEl: HTMLDivElement | null = null;
+	private checkingPaths: ReadonlySet<string> = new Set<string>();
 
 	constructor(
 		private containerEl: HTMLElement,
@@ -101,8 +102,13 @@ export class PublicationTree {
 		private options: RenderOptions,
 	) {}
 
+	markResolved(path: string): void {
+		this.fileRows.get(path)?.row.removeAttribute("data-qs-checking");
+	}
+
 	mount(status: PublishStatus): void {
 		this.unmount();
+		this.checkingPaths = status.dynamic ?? new Set<string>();
 		const visibleCategories = this.treeState.getVisibleCategories();
 		const entries = buildEntries(status, visibleCategories);
 		this.treeState.setEntries(entries);
@@ -380,7 +386,14 @@ export class PublicationTree {
 		const category = node.category ?? "published";
 
 		const row = containerEl.createDiv({ cls: "tree-item tree-file" });
-		row.setAttrs(qsDom("pub-row", { path: node.path }));
+		row.setAttrs(
+			qsDom("pub-row", {
+				path: node.path,
+				...(this.checkingPaths.has(node.path)
+					? { checking: "true" }
+					: {}),
+			}),
+		);
 		row.style.paddingLeft = `${level * 16}px`;
 
 		const checkbox = row.createEl("input", {

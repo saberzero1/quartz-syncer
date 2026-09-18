@@ -45,6 +45,21 @@ export function performanceSettingDefinitions(
 						defaultValue: false,
 					},
 				},
+				{
+					name: "Auto-publish notes with queries",
+					desc: "When enabled, automatic publishing also includes notes containing Dataview or Datacore queries. These notes are recompiled on every run, because their output depends on the rest of the vault. Leave disabled to publish them manually.",
+					aliases: [
+						"dataview",
+						"datacore",
+						"dynamic",
+						"auto-publish",
+					],
+					control: {
+						type: "toggle",
+						key: "autoPublishDynamicNotes",
+						defaultValue: false,
+					},
+				},
 			],
 		},
 		{
