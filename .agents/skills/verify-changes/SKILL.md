@@ -31,7 +31,7 @@ Activate after any code change that affects runtime behavior — source files in
 
 **Suppress GTK warnings.** Always append `2>/dev/null` to every `obsidian` CLI command. Linux produces GTK/Electron warnings that clutter output.
 
-**Async eval loses return values.** `obsidian eval` cannot capture return values from async code. Use the IIFE + `console.log` pattern:
+**Async eval needs the IIFE + `console.log` pattern.** Top-level `await` produces no output:
 ```bash
 # WRONG — returns nothing:
 obsidian eval code="await window.__QS__.act({name:'pub.open'})" 2>/dev/null
@@ -45,6 +45,24 @@ Synchronous calls return values directly:
 obsidian eval code="typeof window.__QS__" 2>/dev/null
 # => object
 ```
+
+**`obsidian eval` only captures output emitted within ~5–15 ms.** The limit is duration, not asynchrony: microtasks and sub-frame timers resolve in time, real waits do not. Output logged after `eval` returns is silently lost — an empty result, not an error.
+
+Actions that do real work may or may not print depending on cache warmth, so **never read missing output as failure.** Confirm with a follow-up synchronous query instead:
+```bash
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'pub.open'});console.log(JSON.stringify(r))})()" 2>/dev/null
+sleep 2
+obsidian dev:dom selector='[data-qs="pub-center"]' total 2>/dev/null   # this is the real check
+```
+
+For anything that deliberately waits, stash the result and read it back synchronously:
+```bash
+obsidian eval code="window.__probe='pending';(async()=>{/* ...slow work... */ window.__probe=JSON.stringify(result)})()" 2>/dev/null
+sleep 5
+obsidian eval code="window.__probe" 2>/dev/null
+```
+
+**`JSON.stringify` throws on `status.refresh`.** Its `data` is a live `PublishStatus` holding `PublishFile` objects with circular references. Log a projection, not the whole result. `snapshot()` is always safe to stringify.
 
 ## Workflow
 
@@ -111,7 +129,7 @@ Based on what was changed:
 
 **Compiler/frontmatter changes:** Refresh status and check file counts.
 ```bash
-obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'status.refresh'});console.log(JSON.stringify(r))})()" 2>/dev/null
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'status.refresh'});console.log(JSON.stringify({success:r.success,counts:{unpublished:r.data.unpublished.length,changed:r.data.changed.length,published:r.data.published.length,deleted:r.data.deleted.length}}))})()" 2>/dev/null
 obsidian eval code="JSON.stringify(window.__QS__.snapshot().publishStatus)" 2>/dev/null
 ```
 
@@ -158,7 +176,8 @@ obsidian dev:screenshot path=/tmp/hub-verify.png 2>/dev/null
 - Do NOT omit `2>/dev/null` — GTK warnings will pollute output parsing.
 - Do NOT skip the reload step — Obsidian caches the old plugin code until disabled/enabled.
 - Do NOT assume the plugin loaded correctly just because the build succeeded.
-- Do NOT use `await` at the top level of `obsidian eval` — it loses return values. Use the IIFE pattern.
+- Do NOT use `await` at the top level of `obsidian eval` — it produces no output. Use the IIFE pattern.
+- Do NOT treat missing eval output as failure — it usually means the work outlasted the ~5–15 ms capture window. Verify with a synchronous follow-up query.
 - Do NOT set input `.value` without `dispatchEvent(new Event('input', { bubbles: true }))` — event listeners won't fire.
 - Do NOT modify code and re-verify without rebuilding AND reloading.
 

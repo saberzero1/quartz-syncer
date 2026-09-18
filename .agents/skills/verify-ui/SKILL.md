@@ -44,6 +44,8 @@ Activate when:
 obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'pub.open'});console.log(JSON.stringify(r))})()" 2>/dev/null
 ```
 
+**Missing eval output is not failure.** `obsidian eval` only captures what is logged within ~5–15 ms. Modal-opening actions frequently outlast that — `pub.open` prints `{"success":true}` on a warm status and prints nothing on a cold tree. The DOM query that follows is the real check, which is why every workflow below pairs an action with a `dev:dom` assertion.
+
 **Setting input values.** DOM `.value` assignment does NOT trigger event listeners. Always dispatch an input event:
 ```bash
 obsidian eval code="const el=document.querySelector('[data-qs=\"hub-setup-clone-url\"]');el.value='https://example.com/repo.git';el.dispatchEvent(new Event('input',{bubbles:true}))" 2>/dev/null
