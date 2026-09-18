@@ -33,6 +33,15 @@ export class BackgroundEngine {
 	private pendingVaultChanges = new Set<string>();
 	private vaultChangeTimer: number | null = null;
 
+	/**
+	 * Aborted by `stop()`, to cancel long work that runs outside the queue.
+	 *
+	 * `compilationQueue.cancel()` only reaches queued compilations. Auto-clean
+	 * runs on the auto-publish path instead, so without this it would keep
+	 * compiling and deleting after the plugin is disabled.
+	 */
+	private lifecycle = new AbortController();
+
 	readonly compilationQueue: CompilationQueue;
 	private initialFetchDone = false;
 
@@ -182,6 +191,10 @@ export class BackgroundEngine {
 		this.eventSink?.emit("engine.started", {});
 		this.running = true;
 
+		if (this.lifecycle.signal.aborted) {
+			this.lifecycle = new AbortController();
+		}
+
 		this.app.workspace.onLayoutReady(() => {
 			this.registerVaultListeners();
 			this.registerActiveLeafListener();
@@ -193,6 +206,7 @@ export class BackgroundEngine {
 	stop(): void {
 		this.eventSink?.emit("engine.stopped", {});
 		this.running = false;
+		this.lifecycle.abort();
 		this.compilationQueue.cancel();
 		this.pendingVaultChanges.clear();
 		this.deferredActiveFiles.clear();
@@ -568,7 +582,11 @@ export class BackgroundEngine {
 						);
 			const deleted = status.deleted;
 
-			if (pending.length === 0 && deleted.length === 0) return;
+			// Deliberately not an early return. Orphaned media is usually
+			// created *by* the previous publish, so gating cleanup on there
+			// being new work leaves those orphans until some unrelated change
+			// happens — and never, on a vault that has gone quiet.
+			const hasPublishWork = pending.length > 0 || deleted.length > 0;
 
 			let published = 0;
 
@@ -593,7 +611,9 @@ export class BackgroundEngine {
 			}
 
 			if (this.plugin.settings.autoCleanOrphanedMedia) {
-				const cleanResult = await publisher.cleanOrphanedMedia();
+				const cleanResult = await publisher.cleanOrphanedMedia(
+					this.lifecycle.signal,
+				);
 				if (cleanResult && !cleanResult.success) {
 					console.debug(
 						"Auto-clean orphaned media failed:",
@@ -602,9 +622,11 @@ export class BackgroundEngine {
 				}
 			}
 
-			console.debug(
-				`Auto-publish: ${published} published, ${deleted.length} deleted`,
-			);
+			if (hasPublishWork) {
+				console.debug(
+					`Auto-publish: ${published} published, ${deleted.length} deleted`,
+				);
+			}
 		} catch (e) {
 			console.debug("Auto-publish failed:", e);
 		} finally {

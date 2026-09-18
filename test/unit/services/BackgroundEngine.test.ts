@@ -274,6 +274,126 @@ describe("BackgroundEngine", () => {
 		vi.useRealTimers();
 	});
 
+	it("auto-clean still runs when there is nothing to publish or delete", async () => {
+		vi.useFakeTimers();
+		const app = createApp();
+		const publisher = createPublisherStub({
+			getPublishStatus: vi.fn().mockResolvedValue({
+				unpublished: [],
+				changed: [],
+				published: [],
+				deleted: [],
+			}),
+		});
+		const plugin = createAutoPublishPluginStub();
+		plugin.getPublisher = () => publisher;
+		plugin.settings.autoCleanOrphanedMedia = true;
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.startAutoPublish(1);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		// Orphans are typically produced by the previous publish, so a quiet
+		// vault is exactly when cleanup still needs to happen.
+		expect(publisher.cleanOrphanedMedia).toHaveBeenCalledTimes(1);
+		expect(publisher.publishBatch).not.toHaveBeenCalled();
+		expect(publisher.deleteBatch).not.toHaveBeenCalled();
+
+		engine.stop();
+		vi.useRealTimers();
+	});
+
+	it("does not clean when the setting is disabled and nothing is pending", async () => {
+		vi.useFakeTimers();
+		const app = createApp();
+		const publisher = createPublisherStub({
+			getPublishStatus: vi.fn().mockResolvedValue({
+				unpublished: [],
+				changed: [],
+				published: [],
+				deleted: [],
+			}),
+		});
+		const plugin = createAutoPublishPluginStub();
+		plugin.getPublisher = () => publisher;
+		plugin.settings.autoCleanOrphanedMedia = false;
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.startAutoPublish(1);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		expect(publisher.cleanOrphanedMedia).not.toHaveBeenCalled();
+
+		engine.stop();
+		vi.useRealTimers();
+	});
+
+	it("auto-clean receives a lifecycle signal that stop() aborts", async () => {
+		vi.useFakeTimers();
+		const app = createApp();
+		// Auto-clean sits behind the "nothing pending" early return, so the
+		// status must be non-empty for the branch to be reached at all.
+		const publisher = createPublisherStub({
+			getPublishStatus: vi.fn().mockResolvedValue({
+				unpublished: ["notes/a.md"],
+				changed: [],
+				published: [],
+				deleted: [],
+			}),
+		});
+		const plugin = createAutoPublishPluginStub();
+		plugin.getPublisher = () => publisher;
+		plugin.settings.autoCleanOrphanedMedia = true;
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.startAutoPublish(1);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		const signal = vi.mocked(publisher.cleanOrphanedMedia).mock
+			.calls[0]?.[0] as AbortSignal | undefined;
+
+		expect(signal).toBeInstanceOf(AbortSignal);
+		expect(signal?.aborted).toBe(false);
+
+		engine.stop();
+
+		// The queue cancel path does not reach auto-clean, so without the
+		// lifecycle controller this stays false and cleanup runs on unload.
+		expect(signal?.aborted).toBe(true);
+		vi.useRealTimers();
+	});
+
+	it("restarting the engine issues a fresh, unaborted lifecycle signal", async () => {
+		vi.useFakeTimers();
+		const app = createApp();
+		const publisher = createPublisherStub({
+			getPublishStatus: vi.fn().mockResolvedValue({
+				unpublished: ["notes/a.md"],
+				changed: [],
+				published: [],
+				deleted: [],
+			}),
+		});
+		const plugin = createAutoPublishPluginStub();
+		plugin.getPublisher = () => publisher;
+		plugin.settings.autoCleanOrphanedMedia = true;
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.start();
+		engine.stop();
+		engine.start();
+
+		engine.startAutoPublish(1);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		const signal = vi.mocked(publisher.cleanOrphanedMedia).mock
+			.calls[0]?.[0] as AbortSignal | undefined;
+
+		expect(signal?.aborted).toBe(false);
+		engine.stop();
+		vi.useRealTimers();
+	});
+
 	it("auto-publish skips when paused", async () => {
 		vi.useFakeTimers();
 		const app = createApp();
