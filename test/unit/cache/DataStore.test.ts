@@ -10,7 +10,10 @@ import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { DEFAULT_SETTINGS } from "src/main";
 import { generateBlobHash } from "src/utils/utils";
-import { settingsFingerprint } from "src/cache/CompiledEntryValidity";
+import {
+	DYNAMIC_CONTENT_DETECTOR_VERSION,
+	settingsFingerprint,
+} from "src/cache/CompiledEntryValidity";
 
 const { createInstance, dropInstance, setStore } = vi.hoisted(() => {
 	let currentStore = new Map<string, unknown>();
@@ -1502,5 +1505,56 @@ describe("DataStore", () => {
 		const imported = await importedStore.exportCache();
 
 		expect(imported).toEqual(exported);
+	});
+
+	describe("remote-only accessor isolation", () => {
+		// Structurally valid, but its local criteria are stale: the entry was
+		// compiled at mtime 20 while the vault file now reports 2000.
+		const seedStaleLocalEntry = () => {
+			const store = new DataStore(
+				"vault",
+				"app",
+				"1.0.0",
+				"",
+				() => DEFAULT_SETTINGS,
+			);
+			const entry: QuartzSyncerCache = {
+				version: "1.0.0",
+				time: 10,
+				sourceMtime: 20,
+				settingsFingerprint: settingsFingerprint(DEFAULT_SETTINGS),
+				detectorVersion: DYNAMIC_CONTENT_DETECTOR_VERSION,
+				dynamicSources: [],
+				localData: ["local", { blobs: [] }],
+				localHash: "local-hash",
+				remoteData: ["remote", { blobs: [] }],
+				remoteHash: "remote-hash",
+				mediaLinks: ["images/a.png"],
+			};
+			setStore(new Map([[store.fileKey("note.md"), entry]]));
+
+			return store;
+		};
+
+		it("still serves remote reads", async () => {
+			const store = seedStaleLocalEntry();
+
+			expect(await store.loadRemoteHash("note.md")).toBe("remote-hash");
+			expect(await store.loadRemoteFile("note.md")).toEqual([
+				"remote",
+				{ blobs: [] },
+			]);
+		});
+
+		it("refuses every local read from that same entry", async () => {
+			const store = seedStaleLocalEntry();
+
+			expect(await store.loadLocalHash("note.md", 2000)).toBeNull();
+			expect(await store.loadLocalFile("note.md", 2000)).toBeFalsy();
+			expect(
+				await store.loadCachedMediaLinks("note.md", 2000),
+			).toBeNull();
+			expect(await store.loadFile("note.md", 2000)).toBeNull();
+		});
 	});
 });

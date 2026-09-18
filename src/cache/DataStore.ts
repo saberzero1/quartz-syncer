@@ -15,6 +15,7 @@ import {
 	DYNAMIC_CONTENT_DETECTOR_VERSION,
 	isCompiledEntryValid,
 	isDynamicClassificationValid,
+	isRemoteEntryShapeValid,
 	settingsFingerprint,
 	type CompilationRevisions,
 	type CompiledEntryValidityCriteria,
@@ -80,6 +81,15 @@ export type QuartzSyncerCache =
 	| StaticQuartzSyncerCache
 	| DynamicQuartzSyncerCache
 	| UnclassifiedQuartzSyncerCache;
+
+/**
+ * Cache keys readable without ground-truth freshness criteria.
+ *
+ * Do not widen. Adding a local key (`localData`, `localHash`, `mediaLinks`)
+ * turns the remote accessor back into a local-payload trust path, which is the
+ * hole the previous `keyof QuartzSyncerCache` generic left open.
+ */
+export type RemoteOnlyCacheKey = "remoteData" | "remoteHash";
 
 const isString = (value: unknown): value is string => typeof value === "string";
 
@@ -299,7 +309,7 @@ export class DataStore {
 		);
 	}
 
-	private isStructurallyValid(
+	private isRemoteMetadataValid(
 		data: QuartzSyncerCache | null | undefined,
 	): data is QuartzSyncerCache {
 		if (!data || typeof data.settingsFingerprint !== "string") return false;
@@ -308,25 +318,17 @@ export class DataStore {
 		if (data.detectorVersion !== DYNAMIC_CONTENT_DETECTOR_VERSION)
 			return false;
 		if (data.dynamicSources === undefined) return true;
-		// Remote metadata inspection only. Never use this self-derived check to
-		// trust a local compiled payload, hash, classification, or media links.
-		return isCompiledEntryValid(data, {
-			mtime: data.sourceMtime,
-			dataviewRevision: data.dataviewRevision,
-			datacoreRevision: data.datacoreRevision,
-			version: this.version,
-			settingsFingerprint: data.settingsFingerprint,
-			detectorVersion: DYNAMIC_CONTENT_DETECTOR_VERSION,
-		});
+
+		return isRemoteEntryShapeValid(data);
 	}
 
-	private async getCacheProperty<K extends keyof QuartzSyncerCache>(
+	private async getRemoteOnlyProperty<K extends RemoteOnlyCacheKey>(
 		path: string,
 		key: K,
 	): Promise<QuartzSyncerCache[K] | null> {
 		const data = await this.getCacheEntry(path);
 
-		return this.isStructurallyValid(data) ? (data[key] ?? null) : null;
+		return this.isRemoteMetadataValid(data) ? (data[key] ?? null) : null;
 	}
 
 	/**
@@ -407,7 +409,7 @@ export class DataStore {
 		if (!this.isUsableSourceMtime(sourceMtime)) {
 			throw new Error("Cache writes require a positive source mtime.");
 		}
-		const remoteExisting = this.isStructurallyValid(existing)
+		const remoteExisting = this.isRemoteMetadataValid(existing)
 			? existing
 			: null;
 		const criteria =
@@ -612,7 +614,7 @@ export class DataStore {
 	public async isRemoteFileOutdated(path: string): Promise<boolean> {
 		const data = await this.getCacheEntry(path);
 
-		return !this.isStructurallyValid(data) || !data.remoteData;
+		return !this.isRemoteMetadataValid(data) || !data.remoteData;
 	}
 
 	/**
@@ -644,7 +646,7 @@ export class DataStore {
 	): Promise<TCompiledFile | null | undefined> {
 		const data = await this.getCacheEntry(path);
 
-		return this.isStructurallyValid(data) ? data.remoteData : null;
+		return this.isRemoteMetadataValid(data) ? data.remoteData : null;
 	}
 
 	/**
@@ -742,7 +744,7 @@ export class DataStore {
 	public async loadRemoteHash(
 		path: string,
 	): Promise<string | null | undefined> {
-		return this.getCacheProperty(path, "remoteHash");
+		return this.getRemoteOnlyProperty(path, "remoteHash");
 	}
 
 	/**
