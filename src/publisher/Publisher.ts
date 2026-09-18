@@ -35,7 +35,11 @@ import {
 	resolveLinkedMediaByFile,
 } from "src/publisher/MediaLinkResolver";
 import type { CompilationQueue } from "src/services/CompilationQueue";
-import { batchParallel, generateBlobHash } from "src/utils/utils";
+import {
+	batchParallel,
+	generateBlobHash,
+	mediaResolveConcurrency,
+} from "src/utils/utils";
 import { V4_ARBITRARY_PUBLISH_BLOCKED } from "src/quartz/QuartzCompatibility";
 import {
 	AssetSyncer,
@@ -246,7 +250,6 @@ export class Publisher {
 		metadata: Map<string, CachedStatusMetadata>,
 	): Promise<Map<string, string[]>> {
 		const mediaLinks = new Map<string, string[]>();
-		const concurrency = Platform.isMobileApp ? 2 : 5;
 
 		await batchParallel(
 			files,
@@ -260,7 +263,7 @@ export class Publisher {
 
 				return undefined;
 			},
-			concurrency,
+			mediaResolveConcurrency(),
 		);
 
 		return mediaLinks;
@@ -277,21 +280,30 @@ export class Publisher {
 	private async resolveMediaLinksForCleanup(
 		files: PublishFile[],
 		metadata: Map<string, CachedStatusMetadata>,
+		signal?: AbortSignal,
 	): Promise<Map<string, string[]>> {
 		const mediaLinks = new Map<string, string[]>();
 
-		for (const file of files) {
-			const cachedLinks = metadata.get(file.file.path)?.mediaLinks;
-			const links =
-				cachedLinks ??
-				(await this.compileForSession(file))[1].blobs.map(
-					(asset) => asset.vaultPath,
-				);
+		await batchParallel(
+			files,
+			async (file) => {
+				if (signal?.aborted) return undefined;
 
-			if (links.length > 0) {
-				mediaLinks.set(file.file.path, links);
-			}
-		}
+				const cachedLinks = metadata.get(file.file.path)?.mediaLinks;
+				const links =
+					cachedLinks ??
+					(await this.compileForSession(file))[1].blobs.map(
+						(asset) => asset.vaultPath,
+					);
+
+				if (links.length > 0) {
+					mediaLinks.set(file.file.path, links);
+				}
+
+				return undefined;
+			},
+			mediaResolveConcurrency(),
+		);
 
 		return mediaLinks;
 	}
@@ -949,7 +961,9 @@ export class Publisher {
 		}
 	}
 
-	async cleanOrphanedMedia(): Promise<PublishResult | null> {
+	async cleanOrphanedMedia(
+		signal?: AbortSignal,
+	): Promise<PublishResult | null> {
 		const settings = this.plugin.settings;
 		const candidates = this.collectCandidates(settings);
 
@@ -978,9 +992,13 @@ export class Publisher {
 						await this.resolveMediaLinksForCleanup(
 							candidates,
 							metadata,
+							signal,
 						),
 					)
 				: await resolveLinkedMedia(candidates);
+
+			if (signal?.aborted) return null;
+
 			const remoteTree = await this.backend.getCachedTree(
 				settings.gitBranch,
 			);

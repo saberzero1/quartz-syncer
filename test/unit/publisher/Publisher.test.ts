@@ -2446,7 +2446,10 @@ describe("Publisher", () => {
 				dataStore,
 			);
 
-			const result = await publisher.cleanOrphanedMedia();
+			// A live, never-aborted signal must not change the outcome.
+			const result = await publisher.cleanOrphanedMedia(
+				new AbortController().signal,
+			);
 
 			const deleted = vi.mocked(gitBackend.deleteFiles).mock
 				.calls[0]?.[2] as string[] | undefined;
@@ -2581,6 +2584,304 @@ describe("Publisher", () => {
 				}
 			},
 		);
+	});
+
+	describe("cleanOrphanedMedia concurrency and abort", () => {
+		const setupCleanup = (
+			noteCount: number,
+			extraRemoteMedia: string[],
+		) => {
+			const app = new App();
+			const settings = makeSettings({
+				useCache: true,
+				useDataview: true,
+				autoCleanOrphanedMedia: true,
+			});
+			const plugin = makePlugin(settings);
+
+			const notes = Array.from(
+				{ length: noteCount },
+				(_, index) =>
+					({
+						path: `notes/${index}.md`,
+						name: `${index}.md`,
+						extension: "md",
+						stat: { mtime: 1000, ctime: 1000, size: 10 },
+					}) as TFile,
+			);
+			const images = Array.from(
+				{ length: noteCount },
+				(_, index) =>
+					({
+						path: `images/${index}.png`,
+						name: `${index}.png`,
+						extension: "png",
+						stat: { mtime: 1000, ctime: 1000, size: 10 },
+					}) as TFile,
+			);
+
+			app.vault.getFiles = vi.fn().mockReturnValue([...notes, ...images]);
+			app.vault.getMarkdownFiles = vi.fn().mockReturnValue(notes);
+			app.vault.getFileByPath = vi.fn(
+				(path: string) =>
+					[...notes, ...images].find((file) => file.path === path) ??
+					null,
+			);
+			app.vault.cachedRead = vi.fn().mockResolvedValue("body\n");
+			app.metadataCache.getCache = vi
+				.fn()
+				.mockReturnValue({ frontmatter: { publish: true } });
+			app.metadataCache.getFileCache = vi
+				.fn()
+				.mockReturnValue({ frontmatter: { publish: true } });
+
+			const store = new Map<string, unknown>();
+			const dataStore = new DataStore(
+				"cleanup-abort-vault",
+				"plugin",
+				"1.0.0",
+				"",
+				() => settings,
+				() => ({ dataviewRevision: 2, datacoreRevision: 8 }),
+			);
+			dataStore.persister = {
+				getItem: async <T>(key: string) =>
+					(store.get(key) as T | undefined) ?? null,
+				getMany: async <T>(keys: string[]) =>
+					keys.map(
+						(key) => (store.get(key) as T | undefined) ?? null,
+					),
+				setItem: async <T>(key: string, value: T) => {
+					store.set(key, value);
+				},
+				setMany: async <T>(
+					entries: Array<{ key: string; value: T }>,
+				) => {
+					for (const { key, value } of entries) store.set(key, value);
+				},
+				removeItem: async (key: string) => {
+					store.delete(key);
+				},
+				keys: async () => [...store.keys()],
+				iterate: async <T>(
+					callback: (value: T, key: string) => void,
+				) => {
+					for (const [key, value] of store) callback(value as T, key);
+				},
+				close: () => undefined,
+			} satisfies IndexedDBStore;
+
+			// No cached media links, so every note falls through to a compile.
+			vi.spyOn(dataStore, "loadStatusMetadata").mockResolvedValue(
+				new Map(),
+			);
+
+			const compileFor = (file: PublishFile) => {
+				const index = notes.findIndex(
+					(note) => note.path === file.file.path,
+				);
+
+				return {
+					compiledFile: [
+						"out",
+						{
+							blobs: [
+								{
+									vaultPath: `images/${index}.png`,
+									repoPath: `content/images/${index}.png`,
+									content: "",
+								},
+							],
+						},
+					] as unknown as ReturnType<PublishFile["getCompiledFile"]>,
+					successfulVaultDependentExecutions: new Set<string>(),
+				};
+			};
+
+			const generateMarkdownWithEvidence = vi.fn(
+				async (file: PublishFile) => compileFor(file),
+			);
+			const compiler = {
+				generateMarkdownWithEvidence,
+				extractBlobLinks: vi.fn().mockResolvedValue([]),
+			} as unknown as SyncerPageCompiler;
+
+			const gitBackend = makeGitBackend({
+				readTree: vi.fn().mockResolvedValue([
+					...images.map((image) => ({
+						path: `content/${image.path}`,
+						type: "blob",
+						sha: image.name,
+					})),
+					...extraRemoteMedia.map((path) => ({
+						path: `content/${path}`,
+						type: "blob",
+						sha: path,
+					})),
+				] as TreeEntry[]),
+			});
+
+			const publisher = new Publisher(
+				app,
+				plugin,
+				new RemotePublishBackend(gitBackend, "main"),
+				compiler,
+				dataStore,
+			);
+
+			return { publisher, generateMarkdownWithEvidence, gitBackend };
+		};
+
+		it.each([false, true])(
+			"bounds cleanup compile concurrency (mobile=%s)",
+			async (isMobile) => {
+				const wasMobile = Platform.isMobileApp;
+				Platform.isMobileApp = isMobile;
+
+				try {
+					const { publisher, generateMarkdownWithEvidence } =
+						setupCleanup(13, []);
+					let active = 0;
+					let maximum = 0;
+
+					generateMarkdownWithEvidence.mockImplementation(
+						async (file: PublishFile) => {
+							active++;
+							maximum = Math.max(maximum, active);
+							await new Promise((resolve) =>
+								setTimeout(resolve, 0),
+							);
+							active--;
+
+							return {
+								compiledFile: ["out", { blobs: [] }],
+								successfulVaultDependentExecutions: new Set(),
+							} as unknown as Awaited<
+								ReturnType<typeof generateMarkdownWithEvidence>
+							>;
+						},
+					);
+
+					await publisher.cleanOrphanedMedia();
+
+					expect(maximum).toBe(isMobile ? 2 : 5);
+					expect(generateMarkdownWithEvidence).toHaveBeenCalledTimes(
+						13,
+					);
+				} finally {
+					Platform.isMobileApp = wasMobile;
+				}
+			},
+		);
+
+		it("stops issuing compiles once the caller aborts", async () => {
+			const wasMobile = Platform.isMobileApp;
+			Platform.isMobileApp = false;
+
+			try {
+				const { publisher, generateMarkdownWithEvidence } =
+					setupCleanup(13, []);
+				const controller = new AbortController();
+
+				generateMarkdownWithEvidence.mockImplementation(async () => {
+					controller.abort();
+
+					return {
+						compiledFile: ["out", { blobs: [] }],
+						successfulVaultDependentExecutions: new Set(),
+					} as unknown as Awaited<
+						ReturnType<typeof generateMarkdownWithEvidence>
+					>;
+				});
+
+				await publisher.cleanOrphanedMedia(controller.signal);
+
+				// One chunk of 5 is already in flight when the abort lands;
+				// every later chunk must short-circuit.
+				expect(
+					generateMarkdownWithEvidence.mock.calls.length,
+				).toBeLessThanOrEqual(5);
+				expect(
+					generateMarkdownWithEvidence.mock.calls.length,
+				).toBeLessThan(13);
+			} finally {
+				Platform.isMobileApp = wasMobile;
+			}
+		});
+
+		it("deletes nothing when aborted mid-resolution", async () => {
+			const { publisher, generateMarkdownWithEvidence, gitBackend } =
+				setupCleanup(4, ["images/orphan.png"]);
+			const controller = new AbortController();
+			const original =
+				generateMarkdownWithEvidence.getMockImplementation();
+
+			generateMarkdownWithEvidence.mockImplementation(
+				async (file: PublishFile) => {
+					controller.abort();
+
+					return original!(file);
+				},
+			);
+
+			const result = await publisher.cleanOrphanedMedia(
+				controller.signal,
+			);
+
+			expect(result).toBeNull();
+			expect(gitBackend.deleteFiles).not.toHaveBeenCalled();
+		});
+
+		it("lets an in-flight compile finish, then discards its result", async () => {
+			const { publisher, generateMarkdownWithEvidence, gitBackend } =
+				setupCleanup(4, ["images/orphan.png"]);
+			const controller = new AbortController();
+			let started = 0;
+			let finished = 0;
+
+			generateMarkdownWithEvidence.mockImplementation(async () => {
+				started++;
+				controller.abort();
+				await new Promise((resolve) => setTimeout(resolve, 0));
+				finished++;
+
+				return {
+					compiledFile: ["out", { blobs: [] }],
+					successfulVaultDependentExecutions: new Set(),
+				} as unknown as Awaited<
+					ReturnType<typeof generateMarkdownWithEvidence>
+				>;
+			});
+
+			const result = await publisher.cleanOrphanedMedia(
+				controller.signal,
+			);
+
+			// The contract is "stop issuing compiles", not "cancel running
+			// ones": work already in flight runs to completion, and it is the
+			// post-compile signal check that throws the result away.
+			expect(started).toBeGreaterThan(0);
+			expect(finished).toBe(started);
+			expect(result).toBeNull();
+			expect(gitBackend.deleteFiles).not.toHaveBeenCalled();
+		});
+
+		it("still deletes the orphan when the signal never aborts", async () => {
+			const { publisher, gitBackend } = setupCleanup(4, [
+				"images/orphan.png",
+			]);
+			const controller = new AbortController();
+
+			const result = await publisher.cleanOrphanedMedia(
+				controller.signal,
+			);
+
+			const deleted = vi.mocked(gitBackend.deleteFiles).mock
+				.calls[0]?.[2] as string[] | undefined;
+
+			expect(result?.success).toBe(true);
+			expect(deleted).toEqual(["content/images/orphan.png"]);
+		});
 	});
 
 	describe("integration stylesheets", () => {
