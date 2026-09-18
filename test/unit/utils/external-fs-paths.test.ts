@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as nodePath from "node:path";
+import * as nodeOs from "node:os";
 import { Platform } from "obsidian";
 import {
 	resolveExternalPath,
@@ -23,6 +24,12 @@ const directories: Record<string, Entry[]> = {
 	"/repo/.git": [{ name: "config", kind: "file" }],
 };
 
+// Also accept windows-style paths in the mock
+Object.entries(directories).forEach(([key, value]) => {
+	const winKey = key.replace("/repo", "C:\\repo").replace(/\//g, "\\");
+	directories[winKey] = value;
+});
+
 function toDirent(entry: Entry) {
 	return {
 		name: entry.name,
@@ -35,14 +42,13 @@ function toDirent(entry: Entry) {
 const fsPromisesStub = {
 	readdir: async (target: string) => {
 		const entries = directories[target];
-
 		if (!entries) throw new Error(`ENOENT: ${target}`);
 
 		return entries.map(toDirent);
 	},
 	stat: async (target: string) => ({
-		isDirectory: () => target === "/repo/linked-dir",
-		isFile: () => target !== "/repo/linked-dir",
+		isDirectory: () => target === "/repo/linked-dir" || target === "C:\\repo\\linked-dir",
+		isFile: () => target !== "/repo/linked-dir" && target !== "C:\\repo\\linked-dir",
 	}),
 };
 
@@ -62,17 +68,41 @@ afterEach(() => {
 	Platform.isDesktopApp = true;
 });
 
+type ResolveExternalPathAnswers = {
+	expandTilde: string;
+	normalizeTrailingSeparator: string;
+	absolutePath: string;
+};
+
+function getResolveExternalPathAnswers(): ResolveExternalPathAnswers {
+	if (nodeOs.platform() === "win32") {
+		return {
+			expandTilde: "C:\\home\\testuser\\quartz",
+			normalizeTrailingSeparator: "C:\\repo",
+			absolutePath: "C:\\repo\\content",
+		};
+	}
+	else {
+		return {
+			expandTilde: "/home/testuser/quartz",
+			normalizeTrailingSeparator: "/repo",
+			absolutePath: "/repo/content",
+		};
+	}
+}
+
 describe("resolveExternalPath", () => {
+	const answers = getResolveExternalPathAnswers();
 	it("expands a tilde into an absolute path", () => {
-		expect(resolveExternalPath("~/quartz")).toBe("/home/testuser/quartz");
+			expect(resolveExternalPath("~/quartz")).toBe(answers.expandTilde);
 	});
 
 	it("normalizes a trailing separator", () => {
-		expect(resolveExternalPath("/repo/")).toBe("/repo");
+		expect(resolveExternalPath("/repo/")).toBe(answers.normalizeTrailingSeparator);
 	});
 
 	it("leaves an absolute path unchanged", () => {
-		expect(resolveExternalPath("/repo/content")).toBe("/repo/content");
+		expect(resolveExternalPath("/repo/content")).toBe(answers.absolutePath);
 	});
 
 	it("returns the input untouched on mobile", () => {
@@ -81,22 +111,49 @@ describe("resolveExternalPath", () => {
 	});
 });
 
+type ResolveWithinAnswers = {
+	pathInsideBase: string;
+	tildeBase: string;
+	trailingSeparator: string;
+	filenameDots: string;
+}
+
+function getResolveWithinAnswers(): ResolveWithinAnswers {
+	if (nodeOs.platform() === "win32") {
+		return {
+			pathInsideBase: "C:\\repo\\content\\note.md",
+			tildeBase: "C:\\home\\testuser\\quartz\\content\\note.md",
+			trailingSeparator: "C:\\repo\\content\\note.md",
+			filenameDots: "C:\\repo\\note..md",
+		};
+	}
+	else {
+		return {
+			pathInsideBase: "/repo/content/note.md",
+			tildeBase: "/home/testuser/quartz/content/note.md",
+			trailingSeparator: "/repo/content/note.md",
+			filenameDots: "/repo/note..md",
+		};
+	}
+}
+
 describe("resolveWithin", () => {
+	const answers = getResolveWithinAnswers();
 	it("resolves a path inside the base", () => {
 		expect(resolveWithin("/repo", "content/note.md")).toBe(
-			"/repo/content/note.md",
+			answers.pathInsideBase,
 		);
 	});
 
 	it("resolves against a tilde base", () => {
 		expect(resolveWithin("~/quartz", "content/note.md")).toBe(
-			"/home/testuser/quartz/content/note.md",
+			answers.tildeBase,
 		);
 	});
 
 	it("resolves against a base with a trailing separator", () => {
 		expect(resolveWithin("/repo/", "content/note.md")).toBe(
-			"/repo/content/note.md",
+			answers.trailingSeparator,
 		);
 	});
 
@@ -118,7 +175,7 @@ describe("resolveWithin", () => {
 	});
 
 	it("allows a filename that merely contains dots", () => {
-		expect(resolveWithin("/repo", "note..md")).toBe("/repo/note..md");
+		expect(resolveWithin("/repo", "note..md")).toBe(answers.filenameDots);
 	});
 
 	it("returns null on mobile", () => {

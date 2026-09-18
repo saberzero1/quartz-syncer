@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { posix } from "node:path";
 import { readFile, stat } from "node:fs/promises";
 import { Platform } from "obsidian";
 import { LocalPublishBackend } from "src/publisher/LocalPublishBackend";
 import { createTempRepo, cleanupTempRepo } from "./helpers";
 
 const requireFn = createRequire(import.meta.url);
+
+const join = posix.join;	// Always use posix-style paths even on win32 for these tests.
 
 beforeEach(() => {
 	Platform.isDesktopApp = true;
@@ -26,10 +28,10 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/note.md", content: "Hello world" },
+				{ path: join("content", "note.md"), content: "Hello world" },
 			]);
 			const stored = await readFile(
-				join(repoPath, "content/note.md"),
+				join(repoPath, "content", "note.md"),
 				"utf-8",
 			);
 			expect(stored).toBe("Hello world");
@@ -46,12 +48,12 @@ describe("LocalPublishBackend", () => {
 			const base64 = Buffer.from(payload).toString("base64");
 			await backend.writeFiles("main", "msg", [
 				{
-					path: "content/blob.bin",
+					path: join("content", "blob.bin"),
 					content: base64,
 					encoding: "base64",
 				},
 			]);
-			const stored = await readFile(join(repoPath, "content/blob.bin"));
+			const stored = await readFile(join(repoPath, "content", "blob.bin"));
 			expect(Array.from(stored)).toEqual(Array.from(payload));
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -64,9 +66,9 @@ describe("LocalPublishBackend", () => {
 			const backend = new LocalPublishBackend(repoPath);
 			const payload = new Uint8Array([9, 8, 7]);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/buffer.bin", content: payload },
+				{ path: join("content", "buffer.bin"), content: payload },
 			]);
-			const stored = await readFile(join(repoPath, "content/buffer.bin"));
+			const stored = await readFile(join(repoPath, "content", "buffer.bin"));
 			expect(Array.from(stored)).toEqual(Array.from(payload));
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -79,12 +81,12 @@ describe("LocalPublishBackend", () => {
 			const backend = new LocalPublishBackend(repoPath);
 			await backend.writeFiles("main", "msg", [
 				{
-					path: "content/sub/dir/note.md",
+					path: join("content", "sub", "dir", "note.md"),
 					content: "Nested",
 				},
 			]);
 			const stored = await readFile(
-				join(repoPath, "content/sub/dir/note.md"),
+				join(repoPath, "content", "sub", "dir", "note.md"),
 				"utf-8",
 			);
 			expect(stored).toBe("Nested");
@@ -98,20 +100,20 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/one.md", content: "One" },
-				{ path: "content/two.md", content: "Two" },
-				{ path: "assets/three.txt", content: "Three" },
+				{ path: join("content", "one.md"), content: "One" },
+				{ path: join("content", "two.md"), content: "Two" },
+				{ path: join("assets", "three.txt"), content: "Three" },
 			]);
 			const storedOne = await readFile(
-				join(repoPath, "content/one.md"),
+				join(repoPath, "content", "one.md"),
 				"utf-8",
 			);
 			const storedTwo = await readFile(
-				join(repoPath, "content/two.md"),
+				join(repoPath, "content", "two.md"),
 				"utf-8",
 			);
 			const storedThree = await readFile(
-				join(repoPath, "assets/three.txt"),
+				join(repoPath, "assets", "three.txt"),
 				"utf-8",
 			);
 			expect(storedOne).toBe("One");
@@ -127,13 +129,13 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/overwrite.md", content: "First" },
+				{ path: join("content", "overwrite.md"), content: "First" },
 			]);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/overwrite.md", content: "Second" },
+				{ path: join("content", "overwrite.md"), content: "Second" },
 			]);
 			const stored = await readFile(
-				join(repoPath, "content/overwrite.md"),
+				join(repoPath, "content", "overwrite.md"),
 				"utf-8",
 			);
 			expect(stored).toBe("Second");
@@ -147,11 +149,11 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/delete.md", content: "Delete" },
+				{ path: join("content", "delete.md"), content: "Delete" },
 			]);
-			await backend.deleteFiles("main", "msg", ["content/delete.md"]);
+			await backend.deleteFiles("main", "msg", [join("content", "delete.md")]);
 			await expect(
-				stat(join(repoPath, "content/delete.md")),
+				stat(join(repoPath, "content", "delete.md")),
 			).rejects.toThrow();
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -163,22 +165,22 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/a.md", content: "A" },
-				{ path: "content/b.md", content: "B" },
-				{ path: "content/c.md", content: "C" },
+				{ path: join("content", "a.md"), content: "A" },
+				{ path: join("content", "b.md"), content: "B" },
+				{ path: join("content", "c.md"), content: "C" },
 			]);
 			await backend.deleteFiles("main", "msg", [
-				"content/a.md",
-				"content/c.md",
+				join("content", "a.md"),
+				join("content", "c.md"),
 			]);
 			await expect(
-				stat(join(repoPath, "content/a.md")),
+				stat(join(repoPath, "content", "a.md")),
 			).rejects.toThrow();
 			await expect(
-				stat(join(repoPath, "content/c.md")),
+				stat(join(repoPath, "content", "c.md")),
 			).rejects.toThrow();
 			const remaining = await readFile(
-				join(repoPath, "content/b.md"),
+				join(repoPath, "content", "b.md"),
 				"utf-8",
 			);
 			expect(remaining).toBe("B");
@@ -207,12 +209,12 @@ describe("LocalPublishBackend", () => {
 			const base64 = Buffer.from(bytes).toString("base64");
 			await backend.writeFiles("main", "msg", [
 				{
-					path: "content/blob.dat",
+					path: join("content", "blob.dat"),
 					content: base64,
 					encoding: "base64",
 				},
 			]);
-			const blob = await backend.readBlob("content/blob.dat");
+			const blob = await backend.readBlob(join("content", "blob.dat"));
 			expect(Array.from(blob)).toEqual(Array.from(bytes));
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -225,7 +227,7 @@ describe("LocalPublishBackend", () => {
 			const backend = new LocalPublishBackend(repoPath);
 			const before = await backend.getCachedTree("main");
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/new.md", content: "New" },
+				{ path: join("content", "new.md"), content: "New" },
 			]);
 			const after = await backend.getCachedTree("main");
 			expect(before.length).toBe(0);
@@ -240,10 +242,10 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/to-delete.md", content: "Gone" },
+				{ path: join("content", "to-delete.md"), content: "Gone" },
 			]);
 			const before = await backend.getCachedTree("main");
-			await backend.deleteFiles("main", "msg", ["content/to-delete.md"]);
+			await backend.deleteFiles("main", "msg", [join("content", "to-delete.md")]);
 			const after = await backend.getCachedTree("main");
 			expect(before.length).toBe(1);
 			expect(after.length).toBe(0);
@@ -257,14 +259,14 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/one.md", content: "One" },
-				{ path: "content/two.md", content: "Two" },
-				{ path: "content/three.md", content: "Three" },
+				{ path: join("content", "one.md"), content: "One" },
+				{ path: join("content", "two.md"), content: "Two" },
+				{ path: join("content", "three.md"), content: "Three" },
 			]);
 			const tree = await backend.getTree("main");
 			const paths = tree.map((entry) => entry.path).sort();
 			expect(paths).toEqual(
-				["content/one.md", "content/three.md", "content/two.md"].sort(),
+				[join("content", "one.md"), join("content", "three.md"), join("content", "two.md")].sort(),
 			);
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -276,11 +278,11 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/subdir/file.md", content: "File" },
+				{ path: join("content", "subdir", "file.md"), content: "File" },
 			]);
 			const tree = await backend.getTree("main");
 			expect(tree).toHaveLength(1);
-			expect(tree[0]?.path).toBe("content/subdir/file.md");
+			expect(tree[0]?.path).toBe(join("content", "subdir", "file.md"));
 		} finally {
 			await cleanupTempRepo(repoPath);
 		}
@@ -291,7 +293,7 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/cache.md", content: "Cache" },
+				{ path: join("content", "cache.md"), content: "Cache" },
 			]);
 			const first = await backend.getCachedTree("main");
 			const second = await backend.getCachedTree("main");
@@ -306,7 +308,7 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			await expect(
-				backend.readBlob("content/missing.bin"),
+				backend.readBlob(join("content", "missing.bin")),
 			).rejects.toThrow("Failed to read file: content/missing.bin");
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -318,7 +320,7 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			const result = await backend.writeFiles("main", "msg", [
-				{ path: "content/sha.md", content: "Sha" },
+				{ path: join("content", "sha.md"), content: "Sha" },
 			]);
 			expect(result).toEqual({ sha: "local" });
 		} finally {
@@ -331,10 +333,10 @@ describe("LocalPublishBackend", () => {
 		try {
 			const backend = new LocalPublishBackend(repoPath);
 			await backend.writeFiles("main", "msg", [
-				{ path: "content/remove.md", content: "Remove" },
+				{ path: join("content", "remove.md"), content: "Remove" },
 			]);
 			const result = await backend.deleteFiles("main", "msg", [
-				"content/remove.md",
+				join("content", "remove.md"),
 			]);
 			expect(result).toEqual({ sha: "local" });
 		} finally {
