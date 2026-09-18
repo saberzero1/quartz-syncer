@@ -10,7 +10,9 @@ import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkStringify from "remark-stringify";
 import remarkFrontmatter from "remark-frontmatter";
-import remarkObsidian from "@quartz-community/remark-obsidian";
+import remarkObsidian, {
+	collectEmbedPaths,
+} from "@quartz-community/remark-obsidian";
 import type { Root, Link, Image } from "mdast";
 import { visit } from "unist-util-visit";
 import { PublishFile } from "src/publishFile/PublishFile";
@@ -225,6 +227,14 @@ export class SyncerPageCompiler {
 	 * Parses text with remark-obsidian, strips comments (built-in tree transform),
 	 * and strips vault path prefix from link/image URLs.
 	 */
+	private parseForEmbedScan(text: string): Root {
+		return unified()
+			.use(remarkParse)
+			.use(remarkFrontmatter, ["yaml"])
+			.use(remarkObsidian)
+			.parse(text);
+	}
+
 	astTransform: TCompilerStep = (file) => async (text) => {
 		const vaultPath = this.settings.vaultPath;
 		const hasVaultPath = vaultScope(vaultPath) !== "";
@@ -314,9 +324,6 @@ export class SyncerPageCompiler {
 	};
 
 	private static readonly ASSET_EXTENSIONS = ASSET_EXTENSIONS;
-
-	private static readonly GENERATED_EMBED_PATTERN =
-		/!\[\[([^\]|#]+)(?:[^\]]*)?\]\]|!\[[^\]]*\]\(([^)\s]+)\)/g;
 
 	/**
 	 * Escape unescaped pipes inside wikilinks on table rows so that
@@ -590,10 +597,10 @@ export class SyncerPageCompiler {
 		const filePath = file.getPath();
 		const known = new Set(assets.map((asset) => asset.vaultPath));
 
-		for (const match of compiledText.matchAll(
-			SyncerPageCompiler.GENERATED_EMBED_PATTERN,
+		for (const target of collectEmbedPaths(
+			this.parseForEmbedScan(compiledText),
 		)) {
-			const link = (match[1] ?? match[2] ?? "").split("#")[0]?.trim();
+			const link = target.split("#")[0]?.trim();
 
 			if (!link) continue;
 
