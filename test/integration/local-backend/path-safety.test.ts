@@ -108,7 +108,7 @@ describe("Local backend path safety", () => {
 
 	it("allows safe filenames with double dots", async () => {
 		const repoPath = await createTempRepo();
-		const filePath = "notes/file..name.md";
+		const filePath = join("notes", "file..name.md");
 		try {
 			await mkdir(join(repoPath, "notes"), { recursive: true });
 			await writeFile(join(repoPath, filePath), "safe", "utf-8");

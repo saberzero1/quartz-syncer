@@ -25,10 +25,13 @@ const directories: Record<string, Entry[]> = {
 };
 
 // Also accept windows-style paths in the mock
-Object.entries(directories).forEach(([key, value]) => {
-	const winKey = key.replace("/repo", "C:\\repo").replace(/\//g, "\\");
-	directories[winKey] = value;
-});
+if (nodeOs.platform() === "win32") {
+	Object.entries(directories).forEach(([key, value]) => {
+		directories[nodePath.resolve(key)] = value;
+		delete directories[key];
+	});
+}
+
 
 function toDirent(entry: Entry) {
 	return {
@@ -68,41 +71,18 @@ afterEach(() => {
 	Platform.isDesktopApp = true;
 });
 
-type ResolveExternalPathAnswers = {
-	expandTilde: string;
-	normalizeTrailingSeparator: string;
-	absolutePath: string;
-};
-
-function getResolveExternalPathAnswers(): ResolveExternalPathAnswers {
-	if (nodeOs.platform() === "win32") {
-		return {
-			expandTilde: "C:\\home\\testuser\\quartz",
-			normalizeTrailingSeparator: "C:\\repo",
-			absolutePath: "C:\\repo\\content",
-		};
-	}
-	else {
-		return {
-			expandTilde: "/home/testuser/quartz",
-			normalizeTrailingSeparator: "/repo",
-			absolutePath: "/repo/content",
-		};
-	}
-}
 
 describe("resolveExternalPath", () => {
-	const answers = getResolveExternalPathAnswers();
 	it("expands a tilde into an absolute path", () => {
-			expect(resolveExternalPath("~/quartz")).toBe(answers.expandTilde);
+			expect(resolveExternalPath("~/quartz")).toBe(nodePath.resolve("/home/testuser/quartz"));
 	});
 
 	it("normalizes a trailing separator", () => {
-		expect(resolveExternalPath("/repo/")).toBe(answers.normalizeTrailingSeparator);
+		expect(resolveExternalPath("/repo/")).toBe(nodePath.resolve("/repo"));
 	});
 
 	it("leaves an absolute path unchanged", () => {
-		expect(resolveExternalPath("/repo/content")).toBe(answers.absolutePath);
+		expect(resolveExternalPath("/repo/content")).toBe(nodePath.resolve("/repo/content"));
 	});
 
 	it("returns the input untouched on mobile", () => {
@@ -111,49 +91,22 @@ describe("resolveExternalPath", () => {
 	});
 });
 
-type ResolveWithinAnswers = {
-	pathInsideBase: string;
-	tildeBase: string;
-	trailingSeparator: string;
-	filenameDots: string;
-}
-
-function getResolveWithinAnswers(): ResolveWithinAnswers {
-	if (nodeOs.platform() === "win32") {
-		return {
-			pathInsideBase: "C:\\repo\\content\\note.md",
-			tildeBase: "C:\\home\\testuser\\quartz\\content\\note.md",
-			trailingSeparator: "C:\\repo\\content\\note.md",
-			filenameDots: "C:\\repo\\note..md",
-		};
-	}
-	else {
-		return {
-			pathInsideBase: "/repo/content/note.md",
-			tildeBase: "/home/testuser/quartz/content/note.md",
-			trailingSeparator: "/repo/content/note.md",
-			filenameDots: "/repo/note..md",
-		};
-	}
-}
-
 describe("resolveWithin", () => {
-	const answers = getResolveWithinAnswers();
 	it("resolves a path inside the base", () => {
 		expect(resolveWithin("/repo", "content/note.md")).toBe(
-			answers.pathInsideBase,
+			nodePath.resolve("/repo/content/note.md"),
 		);
 	});
 
 	it("resolves against a tilde base", () => {
 		expect(resolveWithin("~/quartz", "content/note.md")).toBe(
-			answers.tildeBase,
+			nodePath.resolve("/home/testuser/quartz/content/note.md"),
 		);
 	});
 
 	it("resolves against a base with a trailing separator", () => {
 		expect(resolveWithin("/repo/", "content/note.md")).toBe(
-			answers.trailingSeparator,
+			nodePath.resolve("/repo/content/note.md"),
 		);
 	});
 
@@ -175,7 +128,7 @@ describe("resolveWithin", () => {
 	});
 
 	it("allows a filename that merely contains dots", () => {
-		expect(resolveWithin("/repo", "note..md")).toBe(answers.filenameDots);
+		expect(resolveWithin("/repo", "note..md")).toBe(nodePath.resolve("/repo/note..md"));
 	});
 
 	it("returns null on mobile", () => {

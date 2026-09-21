@@ -1,15 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createRequire } from "node:module";
-import { platform as osPlatform } from "node:os";
-import { posix } from "node:path";
+import { join } from "node:path";
 import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import { Platform } from "obsidian";
 import { LocalFileSource } from "src/quartz/LocalFileSource";
 import { createTempRepo, cleanupTempRepo } from "./helpers";
 
 const requireFn = createRequire(import.meta.url);
-
-const join = posix.join;	// Always use posix-style paths even on win32 for these tests.
 
 beforeEach(() => {
 	Platform.isDesktopApp = true;
@@ -28,9 +25,9 @@ describe("LocalFileSource", () => {
 		const repoPath = await createTempRepo();
 		try {
 			await mkdir(join(repoPath, "notes"), { recursive: true });
-			await writeFile(join(repoPath, "notes/read.md"), "Read", "utf-8");
+			await writeFile(join(repoPath, "notes", "read.md"), "Read", "utf-8");
 			const source = new LocalFileSource(repoPath);
-			const content = await source.readFile("notes/read.md");
+			const content = await source.readFile(join("notes", "read.md"));
 			expect(content).toBe("Read");
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -41,7 +38,7 @@ describe("LocalFileSource", () => {
 		const repoPath = await createTempRepo();
 		try {
 			const source = new LocalFileSource(repoPath);
-			const content = await source.readFile("notes/missing.md");
+			const content = await source.readFile(join("notes", "missing.md"));
 			expect(content).toBeNull();
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -52,9 +49,9 @@ describe("LocalFileSource", () => {
 		const repoPath = await createTempRepo();
 		try {
 			const source = new LocalFileSource(repoPath);
-			await source.writeFile("notes/write.md", "Write");
+			await source.writeFile(join("notes", "write.md"), "Write");
 			const stored = await readFile(
-				join(repoPath, "notes/write.md"),
+				join(repoPath, "notes", "write.md"),
 				"utf-8",
 			);
 			expect(stored).toBe("Write");
@@ -67,9 +64,9 @@ describe("LocalFileSource", () => {
 		const repoPath = await createTempRepo();
 		try {
 			const source = new LocalFileSource(repoPath);
-			await source.writeFile("content/sub/dir/note.md", "Nested");
+			await source.writeFile(join("content", "sub", "dir", "note.md"), "Nested");
 			const stored = await readFile(
-				join(repoPath, "content/sub/dir/note.md"),
+				join(repoPath, "content", "sub", "dir", "note.md"),
 				"utf-8",
 			);
 			expect(stored).toBe("Nested");
@@ -83,8 +80,8 @@ describe("LocalFileSource", () => {
 		try {
 			const source = new LocalFileSource(repoPath);
 			const payload = new Uint8Array([5, 6, 7]);
-			await source.writeBinaryFile("assets/blob.bin", payload);
-			const stored = await readFile(join(repoPath, "assets/blob.bin"));
+			await source.writeBinaryFile(join("assets", "blob.bin"), payload);
+			const stored = await readFile(join(repoPath, "assets", "blob.bin"));
 			expect(Array.from(stored)).toEqual(Array.from(payload));
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -95,11 +92,11 @@ describe("LocalFileSource", () => {
 		const repoPath = await createTempRepo();
 		try {
 			await mkdir(join(repoPath, "notes"), { recursive: true });
-			await writeFile(join(repoPath, "notes/delete.md"), "Delete");
+			await writeFile(join(repoPath, "notes", "delete.md"), "Delete");
 			const source = new LocalFileSource(repoPath);
-			await source.deleteFile("notes/delete.md");
+			await source.deleteFile(join("notes", "delete.md"));
 			await expect(
-				stat(join(repoPath, "notes/delete.md")),
+				stat(join(repoPath, "notes", "delete.md")),
 			).rejects.toThrow();
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -110,8 +107,8 @@ describe("LocalFileSource", () => {
 		const repoPath = await createTempRepo();
 		try {
 			const source = new LocalFileSource(repoPath);
-			await expect(source.deleteFile("notes/missing.md")).rejects.toThrow(
-				"Failed to delete file: notes/missing.md",
+			await expect(source.deleteFile(join("notes", "missing.md"))).rejects.toThrow(
+				`Failed to delete file: ${join("notes", "missing.md")}`,
 			);
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -121,8 +118,8 @@ describe("LocalFileSource", () => {
 	it("lists directory entries with types", async () => {
 		const repoPath = await createTempRepo();
 		try {
-			await mkdir(join(repoPath, "content/subdir"), { recursive: true });
-			await writeFile(join(repoPath, "content/file.md"), "File");
+			await mkdir(join(repoPath, "content", "subdir"), { recursive: true });
+			await writeFile(join(repoPath, "content", "file.md"), "File");
 			const source = new LocalFileSource(repoPath);
 			const entries = await source.listDirectory("content");
 			const entryMap = new Map(
@@ -139,13 +136,13 @@ describe("LocalFileSource", () => {
 		const repoPath = await createTempRepo();
 		try {
 			await mkdir(join(repoPath, "content"), { recursive: true });
-			await writeFile(join(repoPath, "content/one.md"), "One");
-			await mkdir(join(repoPath, "content/sub"), { recursive: true });
-			await writeFile(join(repoPath, "content/sub/two.md"), "Two");
+			await writeFile(join(repoPath, "content", "one.md"), "One");
+			await mkdir(join(repoPath, "content", "sub"), { recursive: true });
+			await writeFile(join(repoPath, "content", "sub", "two.md"), "Two");
 			const source = new LocalFileSource(repoPath);
 			const files = (await source.listAllFiles()).sort();
 			expect(files).toEqual(
-				["content/one.md", "content/sub/two.md"].sort(),
+				[join("content", "one.md"), join("content", "sub", "two.md")].sort(),
 			);
 		} finally {
 			await cleanupTempRepo(repoPath);
@@ -156,17 +153,12 @@ describe("LocalFileSource", () => {
 		const repoPath = await createTempRepo();
 		try {
 			await mkdir(join(repoPath, "content"), { recursive: true });
-			await writeFile(join(repoPath, "content/one.md"), "One");
+			await writeFile(join(repoPath, "content", "one.md"), "One");
 			await mkdir(join(repoPath, "other"), { recursive: true });
-			await writeFile(join(repoPath, "other/two.md"), "Two");
+			await writeFile(join(repoPath, "other", "two.md"), "Two");
 			const source = new LocalFileSource(repoPath);
 			const files = await source.listAllFiles("content");
-			// posix path mock does not properly apply here, use a platform-specific expect for now.
-			if (osPlatform() === "win32") {
-				expect(files).toEqual(["content\\one.md"]);
-			} else {
-				expect(files).toEqual(["content/one.md"]);
-			}
+			expect(files).toEqual([join("content", "one.md")]);
 		} finally {
 			await cleanupTempRepo(repoPath);
 		}
@@ -176,9 +168,9 @@ describe("LocalFileSource", () => {
 		const repoPath = await createTempRepo();
 		try {
 			await mkdir(join(repoPath, "notes"), { recursive: true });
-			await writeFile(join(repoPath, "notes/exists.md"), "Exists");
+			await writeFile(join(repoPath, "notes", "exists.md"), "Exists");
 			const source = new LocalFileSource(repoPath);
-			expect(await source.exists("notes/exists.md")).toBe(true);
+			expect(await source.exists(join("notes", "exists.md"))).toBe(true);
 		} finally {
 			await cleanupTempRepo(repoPath);
 		}
