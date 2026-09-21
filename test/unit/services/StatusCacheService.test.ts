@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { StatusCacheService } from "src/services/StatusCacheService";
+import {
+	StatusCacheService,
+	STATUS_SNAPSHOT_VERSION,
+} from "src/services/StatusCacheService";
 import type { PublishFile } from "src/publishFile/PublishFile";
 import type { PublishStatus } from "src/publisher/types";
 
@@ -195,6 +198,48 @@ describe("StatusCacheService", () => {
 			"media/img.png": ["notes/a.md"],
 		});
 		expect(snapshot.timestamp).toEqual(expect.any(Number));
+	});
+
+	it("setStatus persists the dynamic set as an array", async () => {
+		const service = new StatusCacheService("app-id", "app");
+		service.setStatus(buildStatus({ dynamic: new Set(["notes/b.md"]) }));
+
+		await flushPromises();
+
+		const snapshot = getStore().get("status-snapshot") as {
+			dynamic: string[];
+		};
+
+		expect(Array.isArray(snapshot.dynamic)).toBe(true);
+		expect(snapshot.dynamic).toEqual(["notes/b.md"]);
+	});
+
+	it("setStatus stamps the current snapshot schema version", async () => {
+		const service = new StatusCacheService("app-id", "app");
+		service.setStatus(buildStatus());
+
+		await flushPromises();
+
+		const snapshot = getStore().get("status-snapshot") as {
+			schemaVersion: number;
+		};
+
+		expect(snapshot.schemaVersion).toBe(STATUS_SNAPSHOT_VERSION);
+	});
+
+	it("setStatus persists an empty dynamic set rather than omitting it", async () => {
+		const service = new StatusCacheService("app-id", "app");
+		service.setStatus(buildStatus({ dynamic: new Set() }));
+
+		await flushPromises();
+
+		const snapshot = getStore().get("status-snapshot") as {
+			dynamic: string[];
+		};
+
+		// Omitting the key here would be indistinguishable from a snapshot
+		// written before the field existed, which restores as fully dynamic.
+		expect(snapshot.dynamic).toEqual([]);
 	});
 
 	it("setStatus handles missing mediaLinks", async () => {

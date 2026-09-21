@@ -1289,6 +1289,75 @@ describe("SyncerPageCompiler", () => {
 		});
 	});
 
+	describe("query-generated assets", () => {
+		const makeDynamicFile = (compiledText: string) =>
+			Object.assign(
+				makeMockPublishFile({ cachedReadValue: compiledText }),
+				{ hasDynamicContent: true },
+			);
+
+		const imageFile = {
+			path: "images/query-output.png",
+			extension: "png",
+		} as TFile;
+
+		it("collects an embed that only exists in compiled output", async () => {
+			const mc = new MetadataCache();
+			(mc.getCache as Mock).mockReturnValue({ embeds: [] });
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(link: string) =>
+					link === "images/query-output.png" ? imageFile : null,
+			);
+
+			const { compiler } = makeCompiler({}, mc);
+			const file = makeDynamicFile("![[images/query-output.png]]");
+
+			const [, assets] = await compiler.convertFileLinks(file)(
+				"![[images/query-output.png]]",
+			);
+
+			expect(assets.map((asset) => asset.vaultPath)).toEqual([
+				"images/query-output.png",
+			]);
+		});
+
+		it("ignores an embed inside a fenced code block", async () => {
+			const mc = new MetadataCache();
+			(mc.getCache as Mock).mockReturnValue({ embeds: [] });
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(link: string) =>
+					link === "images/query-output.png" ? imageFile : null,
+			);
+
+			const { compiler } = makeCompiler({}, mc);
+			const fenced = [
+				"```md",
+				"![[images/query-output.png]]",
+				"```",
+			].join("\n");
+			const file = makeDynamicFile(fenced);
+
+			const [, assets] = await compiler.convertFileLinks(file)(fenced);
+
+			expect(assets).toEqual([]);
+		});
+
+		it("does not scan compiled output for a static note", async () => {
+			const mc = new MetadataCache();
+			(mc.getCache as Mock).mockReturnValue({ embeds: [] });
+			(mc.getFirstLinkpathDest as Mock).mockReturnValue(imageFile);
+
+			const { compiler } = makeCompiler({}, mc);
+			const file = makeMockPublishFile();
+
+			const [, assets] = await compiler.convertFileLinks(file)(
+				"![[images/query-output.png]]",
+			);
+
+			expect(assets).toEqual([]);
+		});
+	});
+
 	describe("runCompilerSteps", () => {
 		it("chains multiple steps in order", async () => {
 			const { compiler } = makeCompiler();

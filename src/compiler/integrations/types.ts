@@ -47,12 +47,18 @@ export interface CompileContext {
 	file: PublishFile;
 }
 
+export interface IntegrationCompileResult {
+	text: string;
+	successful: boolean;
+}
+
 export type IntegrationCategory = "core" | "community";
 
 export interface PluginIntegration {
 	readonly id: string;
 	readonly name: string;
 	readonly settingKey: keyof QuartzSyncerSettings;
+	readonly isVaultDependent: boolean;
 	readonly priority: number;
 	readonly assets: QuartzAssets;
 	readonly category: IntegrationCategory;
@@ -74,9 +80,12 @@ export interface PluginIntegration {
 	 * Compile a pattern match into output text.
 	 * @param match - The matched pattern with captures
 	 * @param context - Compilation context with app and file references
-	 * @returns Compiled output text
+	 * @returns Compiled output and explicit execution status
 	 */
-	compile(match: PatternMatch, context: CompileContext): Promise<string>;
+	compile(
+		match: PatternMatch,
+		context: CompileContext,
+	): Promise<IntegrationCompileResult>;
 
 	/**
 	 * Optional: Check if this integration should transform the entire file.

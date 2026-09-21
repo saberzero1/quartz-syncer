@@ -10,6 +10,7 @@ import {
 	surveyForeignCaches,
 } from "src/cache/LegacyCacheCleanup";
 import { parseGitFsGeneration } from "src/git/backends/GitFsName";
+import { DEFAULT_SETTINGS } from "src/main";
 
 const { createInstance, dropInstance } = vi.hoisted(() => ({
 	createInstance: vi.fn(() => ({})),
@@ -513,6 +514,7 @@ describe("legacy cache cleanup", () => {
 			scope.pluginId,
 			scope.version,
 			scope.vaultName,
+			() => DEFAULT_SETTINGS,
 		);
 
 		await expect(store.dropOutdatedCache()).resolves.toBeUndefined();

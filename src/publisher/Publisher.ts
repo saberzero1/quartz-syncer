@@ -7,7 +7,12 @@ import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import { PathMapper } from "src/git/PathMapper";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { collectCandidatePaths } from "src/publishFile/PublishCandidates";
-import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
+import {
+	SyncerPageCompiler,
+	type TCompiledFile,
+} from "src/compiler/SyncerPageCompiler";
+import { DynamicCompilationSession } from "src/services/DynamicCompilationSession";
+import type { CompiledEntryValidityCriteria } from "src/cache/CompiledEntryValidity";
 import {
 	DataStore,
 	type AssetShaCache,
@@ -30,7 +35,11 @@ import {
 	resolveLinkedMediaByFile,
 } from "src/publisher/MediaLinkResolver";
 import type { CompilationQueue } from "src/services/CompilationQueue";
-import { batchParallel, generateBlobHash } from "src/utils/utils";
+import {
+	batchParallel,
+	generateBlobHash,
+	mediaResolveConcurrency,
+} from "src/utils/utils";
 import { V4_ARBITRARY_PUBLISH_BLOCKED } from "src/quartz/QuartzCompatibility";
 import {
 	AssetSyncer,
@@ -53,6 +62,8 @@ export class Publisher {
 	) {
 		this.pathMapper = new PathMapper(plugin.settings.contentFolder);
 	}
+
+	private readonly dynamicSession = new DynamicCompilationSession();
 
 	get isLocal(): boolean {
 		return this.backend.isLocal;
@@ -139,11 +150,98 @@ export class Publisher {
 		return result.success ? result : null;
 	}
 
-	private async compileAndHashSingle(file: PublishFile): Promise<string> {
-		const compiled = await file.compile(
-			this.compilationQueue !== undefined,
+	beginDynamicSession(): void {
+		this.dynamicSession.clear();
+	}
+
+	endDynamicSession(): void {
+		this.dynamicSession.clear();
+	}
+
+	invalidateDynamicSession(path: string): void {
+		this.dynamicSession.invalidate(path);
+	}
+
+	get dynamicSessionSize(): number {
+		return this.dynamicSession.size;
+	}
+
+	private sessionCriteria(
+		file: PublishFile,
+	): CompiledEntryValidityCriteria | null {
+		try {
+			return this.dataStore.getValidityCriteria(file.file.stat.mtime);
+		} catch {
+			return null;
+		}
+	}
+
+	private async compileForSession(file: PublishFile): Promise<TCompiledFile> {
+		const criteria = this.sessionCriteria(file);
+
+		if (!criteria) {
+			return (await file.compile()).getCompiledFile();
+		}
+
+		const reused = this.dynamicSession.get(file.file.path, criteria);
+
+		if (reused) return reused;
+
+		const compiled = (await file.compile()).getCompiledFile();
+		this.dynamicSession.set(file.file.path, compiled, criteria);
+
+		return compiled;
+	}
+
+	/**
+	 * Classify dynamic notes one at a time, yielding between each.
+	 *
+	 * A dynamic note's category cannot be read from a durable hash, so it is
+	 * only knowable by compiling. Resolution is therefore driven by an explicit
+	 * caller — an open Publication Center — and stops as soon as that caller
+	 * aborts, rather than running unattended in the background.
+	 */
+	async resolveDynamicClassification(
+		files: PublishFile[],
+		onResolved: (vaultPath: string, published: boolean) => void,
+		signal?: AbortSignal,
+	): Promise<void> {
+		if (files.length === 0) return;
+
+		const remoteTree = await this.backend.getCachedTree(
+			this.plugin.settings.gitBranch,
 		);
-		const hash = await generateBlobHash(compiled.getCompiledFile()[0]);
+		const remoteIndex = buildRemoteIndex(remoteTree, this.pathMapper);
+
+		for (const file of files) {
+			if (signal?.aborted) return;
+
+			const vaultPath = file.getVaultPath();
+
+			try {
+				const compiled = await this.compileForSession(file);
+				const hash = await generateBlobHash(compiled[0]);
+				const remote = remoteIndex.content.get(
+					this.pathMapper.toRepoPath(vaultPath),
+				);
+
+				if (signal?.aborted) return;
+
+				onResolved(vaultPath, !!remote && remote.sha === hash);
+			} catch (error) {
+				console.debug(
+					`Quartz Syncer: could not resolve "${vaultPath}":`,
+					error,
+				);
+			}
+
+			await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+		}
+	}
+
+	private async compileAndHashSingle(file: PublishFile): Promise<string> {
+		const compiled = await this.compileForSession(file);
+		const hash = await generateBlobHash(compiled[0]);
 		return hash;
 	}
 
@@ -152,7 +250,6 @@ export class Publisher {
 		metadata: Map<string, CachedStatusMetadata>,
 	): Promise<Map<string, string[]>> {
 		const mediaLinks = new Map<string, string[]>();
-		const concurrency = Platform.isMobileApp ? 2 : 5;
 
 		await batchParallel(
 			files,
@@ -166,7 +263,46 @@ export class Publisher {
 
 				return undefined;
 			},
-			concurrency,
+			mediaResolveConcurrency(),
+		);
+
+		return mediaLinks;
+	}
+
+	/**
+	 * Resolve linked media for orphan cleanup, which deletes files.
+	 *
+	 * A cache miss here means the note is dynamic, and its source embeds omit
+	 * anything a query renders. Falling back to source-only extraction would
+	 * report query-rendered media as unlinked and delete it, so compiled output
+	 * is used instead — it is the only complete answer.
+	 */
+	private async resolveMediaLinksForCleanup(
+		files: PublishFile[],
+		metadata: Map<string, CachedStatusMetadata>,
+		signal?: AbortSignal,
+	): Promise<Map<string, string[]>> {
+		const mediaLinks = new Map<string, string[]>();
+
+		await batchParallel(
+			files,
+			async (file) => {
+				if (signal?.aborted) return undefined;
+
+				const cachedLinks = metadata.get(file.file.path)?.mediaLinks;
+				const links =
+					cachedLinks ??
+					(await this.compileForSession(file))[1].blobs.map(
+						(asset) => asset.vaultPath,
+					);
+
+				if (links.length > 0) {
+					mediaLinks.set(file.file.path, links);
+				}
+
+				return undefined;
+			},
+			mediaResolveConcurrency(),
 		);
 
 		return mediaLinks;
@@ -222,6 +358,20 @@ export class Publisher {
 						Platform.isMobileApp ? 1 : 2,
 					);
 
+			const dynamic = new Set<string>();
+
+			if (settings.useCache) {
+				for (const { file } of remoteBacked) {
+					const sources = metadata.get(
+						file.file.path,
+					)?.dynamicSources;
+
+					if (sources === null || (sources?.length ?? 0) > 0) {
+						dynamic.add(file.getVaultPath());
+					}
+				}
+			}
+
 			remoteBacked.forEach(({ file, sha }, index) => {
 				const localHash = hashes[index];
 
@@ -260,6 +410,7 @@ export class Publisher {
 				media,
 				arbitrary,
 				mediaLinks,
+				dynamic,
 			};
 		} finally {
 			this.compilationQueue?.resume();
@@ -295,12 +446,11 @@ export class Publisher {
 			const compiled = await this.dataStore.loadLocalFile(
 				file.file.path,
 				file.file.stat.mtime,
-				true,
 			);
 
-			if (!compiled) return null;
+			if (compiled) return compiled[0];
 
-			return compiled[0];
+			return (await this.compileForSession(file))[0];
 		} catch {
 			return null;
 		}
@@ -315,8 +465,8 @@ export class Publisher {
 		const settings = this.plugin.settings;
 		const changes: FileChange[] = [];
 		const remoteHashes: Array<{
-			path: string;
-			timestamp: number;
+			file: PublishFile;
+			sourceMtime: number;
 			hash: string;
 		}> = [];
 		const now = Date.now();
@@ -352,13 +502,11 @@ export class Publisher {
 						? await this.dataStore.loadLocalFile(
 								file.file.path,
 								file.file.stat.mtime,
-								true,
 							)
 						: null;
 
 					if (!storedFile) {
-						const compiled = await file.compile(true);
-						storedFile = compiled.getCompiledFile();
+						storedFile = await this.compileForSession(file);
 					}
 
 					const [text, assets] = storedFile;
@@ -468,8 +616,8 @@ export class Publisher {
 
 					if (localHash) {
 						remoteHashes.push({
-							path: file.file.path,
-							timestamp: now,
+							file,
+							sourceMtime: file.file.stat.mtime,
 							hash: localHash,
 						});
 					}
@@ -548,7 +696,15 @@ export class Publisher {
 			});
 
 			if (remoteHashes.length > 0) {
-				await this.dataStore.storeRemoteHashes(remoteHashes);
+				await this.dataStore.storeRemoteHashes(
+					remoteHashes.map(({ file, sourceMtime, hash }) => ({
+						path: file.file.path,
+						timestamp: now,
+						hash,
+						sourceMtime,
+						currentMtime: file.file.stat.mtime,
+					})),
+				);
 			}
 
 			this.backend.invalidateTreeCache();
@@ -805,14 +961,44 @@ export class Publisher {
 		}
 	}
 
-	async cleanOrphanedMedia(): Promise<PublishResult | null> {
+	async cleanOrphanedMedia(
+		signal?: AbortSignal,
+	): Promise<PublishResult | null> {
 		const settings = this.plugin.settings;
 		const candidates = this.collectCandidates(settings);
 
 		this.compilationQueue?.pause();
 
 		try {
-			const linkedMedia = await resolveLinkedMedia(candidates);
+			if (!settings.useCache) {
+				return {
+					success: false,
+					filesPublished: 0,
+					filesDeleted: 0,
+					error: "Skipping orphan cleanup: compiled media links are unavailable while the cache is disabled.",
+				};
+			}
+
+			const metadata = settings.useCache
+				? await this.dataStore.loadStatusMetadata(
+						candidates.map(({ file }) => ({
+							path: file.path,
+							mtime: file.stat.mtime,
+						})),
+					)
+				: new Map<string, CachedStatusMetadata>();
+			const linkedMedia = settings.useCache
+				? flattenLinkedMedia(
+						await this.resolveMediaLinksForCleanup(
+							candidates,
+							metadata,
+							signal,
+						),
+					)
+				: await resolveLinkedMedia(candidates);
+
+			if (signal?.aborted) return null;
+
 			const remoteTree = await this.backend.getCachedTree(
 				settings.gitBranch,
 			);

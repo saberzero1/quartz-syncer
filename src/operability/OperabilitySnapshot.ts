@@ -3,6 +3,7 @@ import type QuartzSyncer from "src/main";
 import type { EventBuffer } from "./EventBuffer";
 import type { OperabilitySnapshot } from "./types";
 import { resolvePublishTarget } from "src/publisher/PublishTargetResolver";
+import { getPerfMetrics } from "./PerfMetrics";
 
 type BackgroundEngineLike = {
 	isRunning: boolean;
@@ -81,6 +82,7 @@ export function assembleSnapshot(
 			fileCount: cacheFileCount,
 			lastUpdate: cacheTimestamp > 0 ? cacheTimestamp : null,
 		},
+		perf: getPerfMetrics()?.dump() ?? null,
 		errors: {
 			count: 0,
 			latest: null,

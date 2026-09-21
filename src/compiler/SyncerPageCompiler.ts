@@ -10,12 +10,18 @@ import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkStringify from "remark-stringify";
 import remarkFrontmatter from "remark-frontmatter";
-import remarkObsidian from "@quartz-community/remark-obsidian";
+import remarkObsidian, {
+	collectEmbedPaths,
+} from "@quartz-community/remark-obsidian";
 import type { Root, Link, Image } from "mdast";
 import { visit } from "unist-util-visit";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { PluginCompiler } from "src/compiler/PluginCompiler";
 import { DataStore } from "src/cache/DataStore";
+import {
+	getPerfMetrics,
+	perfMetricsEnabled,
+} from "src/operability/PerfMetrics";
 
 /**
  * A cached asset reference. Bytes are read only when publishing.
@@ -42,6 +48,11 @@ export interface Assets {
  * The assets are the files that are linked in the text, such as images or other files.
  */
 export type TCompiledFile = [string, Assets];
+
+export interface CompilerInvocationResult {
+	compiledFile: TCompiledFile;
+	successfulVaultDependentExecutions: ReadonlySet<string>;
+}
 
 /**
  * Type for a compiler step.
@@ -121,6 +132,12 @@ export class SyncerPageCompiler {
 	}
 
 	async generateMarkdown(file: PublishFile): Promise<TCompiledFile> {
+		return (await this.generateMarkdownWithEvidence(file)).compiledFile;
+	}
+
+	async generateMarkdownWithEvidence(
+		file: PublishFile,
+	): Promise<CompilerInvocationResult> {
 		const vaultFileText = await file.cachedRead();
 		const fileType = file.getType();
 
@@ -131,13 +148,29 @@ export class SyncerPageCompiler {
 		) {
 			const blobs = await this.resolveEmbeddedAssets(file);
 
-			return [vaultFileText, { blobs }];
+			return {
+				compiledFile: [vaultFileText, { blobs }],
+				successfulVaultDependentExecutions: new Set(),
+			};
 		}
+		let successfulVaultDependentExecutions: ReadonlySet<string> = new Set();
+		const convertIntegrations: TCompilerStep =
+			(publishFile) => async (text) => {
+				const pluginCompiler = new PluginCompiler(
+					this.app,
+					this.settings,
+				);
+				const result =
+					await pluginCompiler.compileWithEvidence(publishFile)(text);
+				successfulVaultDependentExecutions =
+					result.successfulVaultDependentExecutions;
+				return result.text;
+			};
 
 		// ORDER MATTERS!
 		const COMPILE_STEPS: TCompilerStep[] = [
 			this.convertFrontMatter,
-			this.convertIntegrations,
+			convertIntegrations,
 			this.linkTargeting,
 			this.astTransform,
 		];
@@ -149,7 +182,13 @@ export class SyncerPageCompiler {
 
 		const [text, blobs] = await this.convertFileLinks(file)(compiledText);
 
-		return [SyncerPageCompiler.escapeTableWikilinks(text), { blobs }];
+		return {
+			compiledFile: [
+				SyncerPageCompiler.escapeTableWikilinks(text),
+				{ blobs },
+			],
+			successfulVaultDependentExecutions,
+		};
 	}
 
 	private stripVaultPathFromLinks(text: string): string {
@@ -188,6 +227,14 @@ export class SyncerPageCompiler {
 	 * Parses text with remark-obsidian, strips comments (built-in tree transform),
 	 * and strips vault path prefix from link/image URLs.
 	 */
+	private parseForEmbedScan(text: string): Root {
+		return unified()
+			.use(remarkParse)
+			.use(remarkFrontmatter, ["yaml"])
+			.use(remarkObsidian)
+			.parse(text);
+	}
+
 	astTransform: TCompilerStep = (file) => async (text) => {
 		const vaultPath = this.settings.vaultPath;
 		const hasVaultPath = vaultScope(vaultPath) !== "";
@@ -203,6 +250,7 @@ export class SyncerPageCompiler {
 			});
 
 		try {
+			const startedAt = perfMetricsEnabled ? performance.now() : 0;
 			const tree = processor.parse(text);
 			const transformed = await processor.run(tree);
 
@@ -224,6 +272,9 @@ export class SyncerPageCompiler {
 			);
 
 			result = result.replace(/\\\[(\^[\w-]+)\]/g, "[$1]");
+			if (perfMetricsEnabled) {
+				getPerfMetrics()?.addDuration("remarkMs", startedAt);
+			}
 
 			return result;
 		} catch (error) {
@@ -521,8 +572,64 @@ export class SyncerPageCompiler {
 				}
 			}
 
+			this.collectGeneratedAssets(file, blobText, assets);
+
 			blobText = this.stripVaultPathFromLinks(blobText);
 
 			return [blobText, assets];
 		};
+
+	/**
+	 * Collect assets that only exist in compiled output.
+	 *
+	 * Obsidian's `cache.embeds` describes the note's source, so media rendered
+	 * by a Dataview or Datacore query is invisible to it and would never be
+	 * staged for publish. Only dynamic notes are scanned: a static note's
+	 * compiled embeds are already fully described by its source metadata.
+	 */
+	private collectGeneratedAssets(
+		file: PublishFile,
+		compiledText: string,
+		assets: Array<DeferredAsset>,
+	): void {
+		if (!file.hasDynamicContent) return;
+
+		const filePath = file.getPath();
+		const known = new Set(assets.map((asset) => asset.vaultPath));
+
+		for (const target of collectEmbedPaths(
+			this.parseForEmbedScan(compiledText),
+		)) {
+			const link = target.split("#")[0]?.trim();
+
+			if (!link) continue;
+
+			try {
+				const linkedFile = this.metadataCache.getFirstLinkpathDest(
+					getLinkpath(link),
+					filePath,
+				);
+
+				if (!linkedFile) continue;
+
+				if (
+					!SyncerPageCompiler.ASSET_EXTENSIONS.has(
+						linkedFile.extension,
+					)
+				) {
+					continue;
+				}
+
+				if (known.has(linkedFile.path)) continue;
+
+				known.add(linkedFile.path);
+				assets.push({
+					path: linkedFile.path,
+					vaultPath: linkedFile.path,
+				});
+			} catch {
+				continue;
+			}
+		}
+	}
 }

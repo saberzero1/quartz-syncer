@@ -4,11 +4,16 @@ import { DataviewIntegration } from "src/compiler/integrations/dataview";
 import type { PatternMatch } from "src/compiler/integrations/types";
 import type { PublishFile } from "src/publishFile/PublishFile";
 import type { DataviewApi } from "src/compiler/integrations/apis/dataview";
-import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
+import {
+	getDataviewApi,
+	getEffectiveDataviewSyntax,
+} from "src/compiler/integrations/apis/dataview";
 import { PublishFile as PublishFileImpl } from "src/publishFile/PublishFile";
 import type QuartzSyncerSettings from "src/models/settings";
 import type { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import type { DataStore } from "src/cache/DataStore";
+import { PluginCompiler } from "src/compiler/PluginCompiler";
+import { integrationRegistry } from "src/compiler/integrations";
 
 vi.mock("src/utils/utils", async () => {
 	const actual =
@@ -29,9 +34,12 @@ vi.mock("src/utils/utils", async () => {
 
 vi.mock("src/compiler/integrations/apis/dataview", () => ({
 	getDataviewApi: vi.fn(),
+	getEffectiveDataviewSyntax: vi.fn(),
+	isDataviewSyntaxResolved: vi.fn().mockReturnValue(true),
 }));
 
 const mockedGetDataviewApi = vi.mocked(getDataviewApi);
+const mockedGetEffectiveDataviewSyntax = vi.mocked(getEffectiveDataviewSyntax);
 
 const makeApi = (): DataviewApi => ({
 	settings: {
@@ -121,6 +129,11 @@ const makePublishFile = (
 describe("DataviewIntegration", () => {
 	beforeEach(() => {
 		mockedGetDataviewApi.mockReset();
+		mockedGetEffectiveDataviewSyntax.mockReturnValue({
+			dataviewJsKeyword: "dataviewjs",
+			inlineQueryPrefix: "=",
+			inlineJsQueryPrefix: "$=",
+		});
 	});
 
 	it("pattern matching detects ```dataview blocks", () => {
@@ -135,6 +148,14 @@ describe("DataviewIntegration", () => {
 		expect(
 			"```dataview\nTABLE\n```".match(blockPattern?.pattern ?? /$^/),
 		).not.toBeNull();
+	});
+
+	it("returns all pattern ids when the Dataview API is unavailable", () => {
+		mockedGetDataviewApi.mockReturnValue(undefined);
+
+		expect(
+			DataviewIntegration.getPatterns().map((pattern) => pattern.id),
+		).toEqual(["dv-block", "dv-js-block", "dv-inline", "dv-inline-js"]);
 	});
 
 	it("pattern matching detects inline `= ` queries", () => {
@@ -216,11 +237,49 @@ describe("DataviewIntegration", () => {
 
 		const result = await DataviewIntegration.compile(match, context);
 
-		expect(result).toBe("Rendered markdown");
+		expect(result.text).toBe("Rendered markdown");
+		expect(result.successful).toBe(true);
 		expect(api.tryQueryMarkdown).toHaveBeenCalledWith(
 			"LIST",
 			"notes/test.md",
 		);
+	});
+
+	it("compiles a multi-line Dataview block", async () => {
+		const api = makeApi();
+		api.tryQueryMarkdown = vi.fn().mockResolvedValue("Rendered markdown");
+		mockedGetDataviewApi.mockReturnValue(api);
+		const enabledSpy = vi
+			.spyOn(integrationRegistry, "getEnabled")
+			.mockReturnValue([DataviewIntegration]);
+		const dynamicSpy = vi
+			.spyOn(integrationRegistry, "getVaultDependentEnabled")
+			.mockReturnValue([DataviewIntegration]);
+		const publishFile = Object.assign(
+			Object.create(PublishFileImpl.prototype),
+			{
+				dynamicSources: ["dataview"],
+				getPath: () => "notes/test.md",
+			},
+		) as PublishFileImpl;
+
+		try {
+			const result = await new PluginCompiler(
+				new App(),
+				makeSettings(),
+			).compile(publishFile)(
+				'```dataview\nTABLE file.name\nFROM "notes"\n```',
+			);
+
+			expect(result).toBe("Rendered markdown");
+			expect(api.tryQueryMarkdown).toHaveBeenCalledWith(
+				expect.stringContaining('TABLE file.name\nFROM "notes"'),
+				"notes/test.md",
+			);
+		} finally {
+			enabledSpy.mockRestore();
+			dynamicSpy.mockRestore();
+		}
 	});
 
 	it("compile handles API not available gracefully", async () => {
@@ -248,7 +307,8 @@ describe("DataviewIntegration", () => {
 
 		const result = await DataviewIntegration.compile(match, context);
 
-		expect(result).toBe(match.fullMatch);
+		expect(result.text).toBe(match.fullMatch);
+		expect(result.successful).toBe(false);
 	});
 
 	it("isAvailable returns false when Dataview plugin not installed", () => {

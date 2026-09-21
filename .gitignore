@@ -26,6 +26,7 @@ bun.lock
 .env
 .obsidian-cache
 .sisyphus/
+.omo/
 .opencode/
 test/e2e/quartz-build/.quartz-cache/
 test-vault/.obsidian/plugins/

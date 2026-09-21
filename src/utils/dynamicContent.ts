@@ -1,56 +1,85 @@
-import { getDataviewApi } from "src/compiler/integrations/apis/dataview";
-import { escapeRegExp } from "src/utils/utils";
+import { integrationRegistry } from "src/compiler/integrations";
+import type { PatternDescriptor } from "src/compiler/integrations/types";
+import QuartzSyncerSettings from "src/models/settings";
 
-/**
- * Checks if the given text contains dynamic content that depends on other files.
- * Dynamic content includes Dataview and Datacore queries that may produce different
- * output based on the state of other files in the vault.
- *
- * @param text - The raw text content to check for dynamic queries.
- * @returns True if the text contains dynamic content, false otherwise.
- */
-export function hasDynamicContent(text: string): boolean {
-	if (/```dataview\s/ms.test(text)) return true;
+interface DetectionPattern {
+	integrationId: string;
+	descriptor: PatternDescriptor;
+}
 
-	if (/```datacorejs\s/ms.test(text)) return true;
+interface CachedDetectionPatterns {
+	signature: string;
+	patterns: DetectionPattern[];
+}
 
-	if (/```datacorejsx\s/ms.test(text)) return true;
+let cachedPatterns: CachedDetectionPatterns | undefined;
 
-	if (/```datacorets\s/ms.test(text)) return true;
+const ALL_VAULT_DEPENDENT_ENABLED = {
+	useDataview: true,
+	useDatacore: true,
+	useFantasyStatblocks: true,
+	useAutoCardLink: true,
+} as QuartzSyncerSettings;
 
-	if (/```datacoretsx\s/ms.test(text)) return true;
+const FENCED_CODE_BLOCK =
+	/(^|\n)(`{3,}|~{3,})[^\r\n]*(?:\r?\n)[\s\S]*?\2(?=\r?$)/gm;
 
-	const dvApi = getDataviewApi();
-
-	if (dvApi) {
-		const dataviewJsPrefix =
-			dvApi.settings.dataviewJsKeyword || "dataviewjs";
-
-		const dataViewJsRegex = new RegExp(
-			"```" + escapeRegExp(dataviewJsPrefix) + "\\s",
-			"ms",
+function getDetectionPatterns(
+	settings: QuartzSyncerSettings,
+): DetectionPattern[] {
+	const candidates = integrationRegistry
+		.getVaultDependentEnabled(settings)
+		.flatMap((integration) =>
+			integration.getPatterns().map((descriptor) => ({
+				integrationId: integration.id,
+				descriptor,
+			})),
 		);
+	const signature = candidates
+		.map(
+			({ integrationId, descriptor }) =>
+				`${integrationId}\u0000${descriptor.id}\u0000${descriptor.type}\u0000${descriptor.pattern.source}\u0000${descriptor.pattern.flags}`,
+		)
+		.join("\u0001");
 
-		if (dataViewJsRegex.test(text)) return true;
-
-		const inlineQueryPrefix = dvApi.settings.inlineQueryPrefix || "=";
-
-		const inlineDataViewRegex = new RegExp(
-			"`" + escapeRegExp(inlineQueryPrefix) + "(?!=).+?`",
-			"ms",
-		);
-
-		if (inlineDataViewRegex.test(text)) return true;
-
-		const inlineJsQueryPrefix = dvApi.settings.inlineJsQueryPrefix || "$=";
-
-		const inlineJsDataViewRegex = new RegExp(
-			"`" + escapeRegExp(inlineJsQueryPrefix) + ".+?`",
-			"ms",
-		);
-
-		if (inlineJsDataViewRegex.test(text)) return true;
+	if (cachedPatterns?.signature === signature) {
+		return cachedPatterns.patterns;
 	}
 
-	return false;
+	cachedPatterns = { signature, patterns: candidates };
+	return candidates;
+}
+
+/**
+ * Checks whether enabled vault-dependent integrations can handle content in the note.
+ * Availability is deliberately ignored because this classification is persisted.
+ */
+export function hasDynamicContent(
+	text: string,
+	settings: QuartzSyncerSettings = ALL_VAULT_DEPENDENT_ENABLED,
+): boolean {
+	return getDynamicSources(text, settings).length > 0;
+}
+
+export function getDynamicSources(
+	text: string,
+	settings: QuartzSyncerSettings = ALL_VAULT_DEPENDENT_ENABLED,
+): string[] {
+	const patterns = getDetectionPatterns(settings);
+	let textWithoutFencedCode: string | undefined;
+	const sources = new Set<string>();
+
+	for (const { integrationId, descriptor } of patterns) {
+		const input =
+			descriptor.type === "inline"
+				? (textWithoutFencedCode ??= text.replace(
+						FENCED_CODE_BLOCK,
+						"",
+					))
+				: text;
+
+		if (input.search(descriptor.pattern) !== -1) sources.add(integrationId);
+	}
+
+	return [...sources].sort();
 }

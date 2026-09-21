@@ -17,6 +17,7 @@ import type { PublicationCenterManager } from "src/operability/PublicationCenter
 import type { QuartzHubManager } from "src/operability/QuartzHubManager";
 import { validateAction } from "./ActionValidation";
 import { resolvePublishTarget } from "src/publisher/PublishTargetResolver";
+import { getPerfMetrics } from "./PerfMetrics";
 
 type PublishStatusSummary = {
 	unpublished: number;
@@ -78,6 +79,8 @@ export class ActionRegistry {
 				return this.withLock(() => this.refreshStatus());
 			case "connection.test":
 				return this.withLock(() => this.testConnection());
+			case "perf.reset":
+				return this.resetPerfMetrics();
 			case "settings.get":
 				return this.getSetting(action.params.key);
 			case "settings.set":
@@ -692,6 +695,16 @@ export class ActionRegistry {
 
 		appWithEmulate.emulateMobile(enabled);
 		return { success: true, data: { mobileEmulation: enabled } };
+	}
+
+	private resetPerfMetrics(): ActionResult {
+		if (!__DEV__)
+			return { success: false, error: "Performance metrics unavailable" };
+		const metrics = getPerfMetrics();
+		if (!metrics)
+			return { success: false, error: "Performance metrics unavailable" };
+		metrics.reset();
+		return { success: true, data: metrics.dump() };
 	}
 
 	private getPluginManager(): PluginManagerLike | null {

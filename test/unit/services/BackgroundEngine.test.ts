@@ -1,13 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { App, Events, Platform, TFile } from "obsidian";
 import { BackgroundEngine } from "src/services/BackgroundEngine";
 import { PathMapper } from "src/git/PathMapper";
 import type { TreeEntry } from "src/git/types";
 import * as publishCandidates from "src/publishFile/PublishCandidates";
-import * as dataview from "src/compiler/integrations/apis/dataview";
-import type { DatacoreApi } from "src/compiler/integrations/apis/datacore";
 import type { Publisher } from "src/publisher/Publisher";
 import type QuartzSyncer from "src/main";
+import {
+	disablePerfMetrics,
+	enablePerfMetrics,
+} from "src/operability/PerfMetrics";
+import { createBackgroundCacheFixture } from "../../bench/background-cache-fixture";
 
 const createPluginStub = (): QuartzSyncer => {
 	return {
@@ -18,12 +21,6 @@ const createPluginStub = (): QuartzSyncer => {
 		dataStore: {
 			dropFile: vi.fn().mockResolvedValue(undefined),
 			isLocalFileOutdated: vi.fn().mockResolvedValue(true),
-			hasDynamicContentFlag: vi.fn().mockResolvedValue(false),
-			getDynamicContentPaths: vi
-				.fn()
-				.mockResolvedValue(new Set<string>()),
-			loadCompilationRevisions: vi.fn().mockResolvedValue({}),
-			storeCompilationRevisions: vi.fn().mockResolvedValue(undefined),
 		},
 		statusCache: {
 			markStale: vi.fn(),
@@ -51,18 +48,14 @@ const createAutoPublishPluginStub = (
 			deleteBatch: vi.fn().mockResolvedValue({ success: true }),
 			cleanOrphanedMedia: vi.fn().mockResolvedValue(null),
 			refreshTreeCache: vi.fn().mockResolvedValue(undefined),
+			beginDynamicSession: vi.fn(),
+			endDynamicSession: vi.fn(),
 			...publisherOverrides,
 		}),
 		settings: { useCache: true, autoCleanOrphanedMedia: false },
 		dataStore: {
 			dropFile: vi.fn().mockResolvedValue(undefined),
 			isLocalFileOutdated: vi.fn().mockResolvedValue(true),
-			hasDynamicContentFlag: vi.fn().mockResolvedValue(false),
-			getDynamicContentPaths: vi
-				.fn()
-				.mockResolvedValue(new Set<string>()),
-			loadCompilationRevisions: vi.fn().mockResolvedValue({}),
-			storeCompilationRevisions: vi.fn().mockResolvedValue(undefined),
 		},
 		statusCache: {
 			markStale: vi.fn(),
@@ -89,6 +82,8 @@ const createPublisherStub = (
 		deleteBatch: vi.fn().mockResolvedValue({ success: true }),
 		cleanOrphanedMedia: vi.fn().mockResolvedValue(null),
 		refreshTreeCache: vi.fn().mockResolvedValue(undefined),
+		beginDynamicSession: vi.fn(),
+		endDynamicSession: vi.fn(),
 		...overrides,
 	} as unknown as Publisher;
 };
@@ -107,6 +102,9 @@ const createApp = (files: TFile[] = []): App => {
 		getFiles?: () => TFile[];
 	};
 	vaultStub.getFiles = vi.fn().mockReturnValue(files);
+	app.vault.getFileByPath = vi.fn(
+		(path: string) => files.find((file) => file.path === path) ?? null,
+	);
 	return app;
 };
 
@@ -203,6 +201,50 @@ describe("BackgroundEngine", () => {
 		vi.useRealTimers();
 	});
 
+	it.each([
+		{
+			enabled: false,
+			expected: ["notes/static.md"],
+			label: "excludes dynamic notes by default",
+		},
+		{
+			enabled: true,
+			expected: ["notes/static.md", "notes/dynamic.md"],
+			label: "includes dynamic notes when opted in",
+		},
+	])("auto-publish $label", async ({ enabled, expected }) => {
+		vi.useFakeTimers();
+		const app = createApp();
+		const staticFile = {
+			getVaultPath: () => "notes/static.md",
+		} as unknown as PublishFile;
+		const dynamicFile = {
+			getVaultPath: () => "notes/dynamic.md",
+		} as unknown as PublishFile;
+		const publisher = createPublisherStub({
+			getPublishStatus: vi.fn().mockResolvedValue({
+				unpublished: [staticFile],
+				changed: [dynamicFile],
+				published: [],
+				deleted: [],
+				dynamic: new Set(["notes/dynamic.md"]),
+			}),
+		});
+		const plugin = createAutoPublishPluginStub();
+		plugin.getPublisher = () => publisher;
+		plugin.settings.autoPublishDynamicNotes = enabled;
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.startAutoPublish(1);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		const published = vi.mocked(publisher.publishBatch).mock
+			.calls[0]?.[0] as PublishFile[] | undefined;
+
+		expect(published?.map((file) => file.getVaultPath())).toEqual(expected);
+		vi.useRealTimers();
+	});
+
 	it("auto-publish publishes and deletes in one run", async () => {
 		vi.useFakeTimers();
 		const app = createApp();
@@ -229,6 +271,126 @@ describe("BackgroundEngine", () => {
 			["notes/c.md"],
 			"Auto-deleted via Quartz Syncer",
 		);
+		vi.useRealTimers();
+	});
+
+	it("auto-clean still runs when there is nothing to publish or delete", async () => {
+		vi.useFakeTimers();
+		const app = createApp();
+		const publisher = createPublisherStub({
+			getPublishStatus: vi.fn().mockResolvedValue({
+				unpublished: [],
+				changed: [],
+				published: [],
+				deleted: [],
+			}),
+		});
+		const plugin = createAutoPublishPluginStub();
+		plugin.getPublisher = () => publisher;
+		plugin.settings.autoCleanOrphanedMedia = true;
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.startAutoPublish(1);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		// Orphans are typically produced by the previous publish, so a quiet
+		// vault is exactly when cleanup still needs to happen.
+		expect(publisher.cleanOrphanedMedia).toHaveBeenCalledTimes(1);
+		expect(publisher.publishBatch).not.toHaveBeenCalled();
+		expect(publisher.deleteBatch).not.toHaveBeenCalled();
+
+		engine.stop();
+		vi.useRealTimers();
+	});
+
+	it("does not clean when the setting is disabled and nothing is pending", async () => {
+		vi.useFakeTimers();
+		const app = createApp();
+		const publisher = createPublisherStub({
+			getPublishStatus: vi.fn().mockResolvedValue({
+				unpublished: [],
+				changed: [],
+				published: [],
+				deleted: [],
+			}),
+		});
+		const plugin = createAutoPublishPluginStub();
+		plugin.getPublisher = () => publisher;
+		plugin.settings.autoCleanOrphanedMedia = false;
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.startAutoPublish(1);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		expect(publisher.cleanOrphanedMedia).not.toHaveBeenCalled();
+
+		engine.stop();
+		vi.useRealTimers();
+	});
+
+	it("auto-clean receives a lifecycle signal that stop() aborts", async () => {
+		vi.useFakeTimers();
+		const app = createApp();
+		// Auto-clean sits behind the "nothing pending" early return, so the
+		// status must be non-empty for the branch to be reached at all.
+		const publisher = createPublisherStub({
+			getPublishStatus: vi.fn().mockResolvedValue({
+				unpublished: ["notes/a.md"],
+				changed: [],
+				published: [],
+				deleted: [],
+			}),
+		});
+		const plugin = createAutoPublishPluginStub();
+		plugin.getPublisher = () => publisher;
+		plugin.settings.autoCleanOrphanedMedia = true;
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.startAutoPublish(1);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		const signal = vi.mocked(publisher.cleanOrphanedMedia).mock
+			.calls[0]?.[0] as AbortSignal | undefined;
+
+		expect(signal).toBeInstanceOf(AbortSignal);
+		expect(signal?.aborted).toBe(false);
+
+		engine.stop();
+
+		// The queue cancel path does not reach auto-clean, so without the
+		// lifecycle controller this stays false and cleanup runs on unload.
+		expect(signal?.aborted).toBe(true);
+		vi.useRealTimers();
+	});
+
+	it("restarting the engine issues a fresh, unaborted lifecycle signal", async () => {
+		vi.useFakeTimers();
+		const app = createApp();
+		const publisher = createPublisherStub({
+			getPublishStatus: vi.fn().mockResolvedValue({
+				unpublished: ["notes/a.md"],
+				changed: [],
+				published: [],
+				deleted: [],
+			}),
+		});
+		const plugin = createAutoPublishPluginStub();
+		plugin.getPublisher = () => publisher;
+		plugin.settings.autoCleanOrphanedMedia = true;
+		const engine = new BackgroundEngine(app, plugin);
+
+		engine.start();
+		engine.stop();
+		engine.start();
+
+		engine.startAutoPublish(1);
+		await vi.advanceTimersByTimeAsync(60_000);
+
+		const signal = vi.mocked(publisher.cleanOrphanedMedia).mock
+			.calls[0]?.[0] as AbortSignal | undefined;
+
+		expect(signal?.aborted).toBe(false);
+		engine.stop();
 		vi.useRealTimers();
 	});
 
@@ -663,201 +825,466 @@ describe("BackgroundEngine", () => {
 		vi.useRealTimers();
 	});
 
-	it("does not call hasDynamicContentFlag when useCache is false and a dataview-like event would fire", async () => {
-		vi.useFakeTimers();
-		const app = createApp();
-		const plugin = createAutoPublishPluginStub();
-		plugin.settings = { ...plugin.settings, useCache: false };
+	it("counts a directly edited dynamic compile from source classification", async () => {
+		vi.useFakeTimers({
+			toFake: ["Date", "setTimeout", "clearTimeout"],
+		});
+		const fixture = createBackgroundCacheFixture(1, 1);
+		const previousApp = window.app;
+		Object.assign(window, {
+			app: {
+				plugins: {
+					plugins: { dataview: { api: fixture.dataviewApi } },
+				},
+			},
+		});
+		const metrics = enablePerfMetrics();
+		const engine = new BackgroundEngine(fixture.app, fixture.plugin);
 
-		const engine = new BackgroundEngine(app, plugin);
-		engine.start();
-		vi.advanceTimersByTime(40_001);
+		try {
+			engine.start();
+			await vi.advanceTimersByTimeAsync(40_001);
+			metrics.reset();
 
-		await vi.runAllTimersAsync();
+			const dynamicFile = fixture.dynamicFiles[0]!;
+			dynamicFile.stat.mtime = 2_000;
+			fixture.app.vault.trigger("modify", dynamicFile);
+			await vi.advanceTimersByTimeAsync(5_000);
+			while (
+				engine.compilationQueue.pendingCount > 0 ||
+				engine.compilationQueue.inFlightCount > 0
+			) {
+				await vi.advanceTimersByTimeAsync(10);
+			}
 
-		expect(plugin.dataStore.hasDynamicContentFlag).not.toHaveBeenCalled();
-		vi.useRealTimers();
+			const dump = metrics.dump();
+			expect(dump.dynamicCompileStarts).toBe(1);
+			expect(dump.dynamicCompileCompletions).toBe(1);
+			expect(dump.staticCompileStarts).toBe(0);
+			expect(dump.staticCompileCompletions).toBe(0);
+		} finally {
+			engine.stop();
+			disablePerfMetrics();
+			Object.assign(window, { app: previousApp });
+		}
 	});
 
-	describe("dynamic cache guards", () => {
-		let app: App;
-		let plugin: QuartzSyncer;
-		let engine: BackgroundEngine;
+	it("compiles a deferred active file once it is no longer active", async () => {
+		const active = createFile("notes/active.md", 1000);
+		const other = createFile("notes/other.md", 1000);
+		const app = createApp([active, other]);
+		// No active file when the listener registers, so `previousPath` stays
+		// null and the active-leaf handler cannot re-queue the file on its own.
+		app.workspace.getActiveFile = vi.fn().mockReturnValue(null);
+		app.workspace.onLayoutReady = vi.fn((callback: () => void) =>
+			callback(),
+		);
 
-		beforeEach(() => {
-			vi.useFakeTimers();
-			app = createApp();
-			plugin = createPluginStub();
-			engine = new BackgroundEngine(app, plugin);
-			engine.compilationQueue.pause();
-		});
+		const plugin = createPluginStub();
+		const engine = new BackgroundEngine(app, plugin);
 
-		afterEach(() => {
+		try {
+			engine.start();
+
+			const queue = engine["compilationQueue"] as CompilationQueue;
+
+			app.workspace.getActiveFile = vi.fn().mockReturnValue(active);
+
+			await engine["compileFile"](
+				active.path,
+				new AbortController().signal,
+			);
+
+			expect(queue.has(active.path)).toBe(false);
+
+			app.workspace.getActiveFile = vi.fn().mockReturnValue(other);
+			(app.workspace as Events).trigger("active-leaf-change");
+
+			expect(queue.has(active.path)).toBe(true);
+		} finally {
 			engine.stop();
-			vi.restoreAllMocks();
-			vi.unstubAllGlobals();
-			vi.useRealTimers();
-		});
+		}
+	});
 
-		const installDataview = (initialized = true) => {
-			const api: dataview.DataviewApi = {
-				settings: {},
-				index: { initialized, revision: 2 },
-				page: vi.fn(),
-				tryEvaluate: vi.fn(),
-				executeJs: vi.fn().mockResolvedValue(undefined),
-				tryQueryMarkdown: vi.fn().mockResolvedValue(""),
-			};
-			vi.spyOn(dataview, "getDataviewApi").mockReturnValue(api);
-			// MetadataCache lacks events in the shared mock; reuse its Workspace emitter.
-			const on = vi.fn((app.workspace as Events).on.bind(app.workspace));
-			app.metadataCache.on = on;
-			app.metadataCache.offref = app.workspace.offref.bind(app.workspace);
-			return on;
+	describe("dynamic revision isolation", () => {
+		type DynamicSource = "dataview" | "datacore";
+		type Regime = "steady" | "post-invalidation" | "timeout";
+
+		const cases = [
+			["dataview", "steady"],
+			["datacore", "steady"],
+			["dataview", "post-invalidation"],
+			["datacore", "post-invalidation"],
+			["dataview", "timeout"],
+			["datacore", "timeout"],
+		] as const satisfies ReadonlyArray<readonly [DynamicSource, Regime]>;
+
+		const triggerRevision = (
+			fixture: ReturnType<typeof createBackgroundCacheFixture>,
+			source: DynamicSource,
+			revision: number,
+			datacoreCore: { triggerUpdate(revision: number): void },
+		): void => {
+			if (source === "dataview") {
+				(fixture.app.workspace as Events).trigger(
+					"dataview:metadata-change",
+					"update",
+					fixture.staticFiles[0],
+				);
+				return;
+			}
+			datacoreCore.triggerUpdate(revision);
 		};
 
-		const installDatacore = () => {
-			const on = vi.fn(
-				(
-					event: "update" | "initialized",
-					callback: (revision: number) => void,
-				) =>
-					(app.workspace as Events).on(
-						event,
-						(...args: unknown[]) => {
-							if (typeof args[0] === "number") callback(args[0]);
+		it.each(cases)(
+			"%s %s revision performs zero fan-out work and preserves static compilation",
+			async (source, regime) => {
+				vi.useFakeTimers({
+					toFake: ["Date", "setTimeout", "clearTimeout"],
+				});
+				const previousApp = window.app;
+				const windowWithDatacore = window as typeof window & {
+					datacore?: unknown;
+				};
+				const previousDatacore = windowWithDatacore.datacore;
+				Object.assign(window, {
+					app: {
+						plugins: {
+							plugins: { dataview: { settings: {} } },
+						},
+					},
+				});
+				const fixture = createBackgroundCacheFixture(
+					regime === "steady"
+						? 3
+						: regime === "post-invalidation"
+							? 2
+							: 0,
+					regime === "post-invalidation" || regime === "timeout"
+						? 3
+						: 1,
+				);
+				const dataviewPlugin =
+					regime === "timeout" ? {} : { api: fixture.dataviewApi };
+				let datacoreUpdate: ((revision: number) => void) | undefined;
+				const datacoreCore = {
+					revision: 2,
+					on: vi.fn(
+						(
+							event: string,
+							callback: (revision: number) => void,
+						) => {
+							if (event === "update") datacoreUpdate = callback;
+							return fixture.app.workspace.on(
+								"window-open",
+								() => undefined,
+							);
 						},
 					),
-			);
-			const api: DatacoreApi = {
-				core: {
-					revision: 2,
-					on,
-					offref: app.workspace.offref.bind(app.workspace),
-				},
-				executeJs: vi.fn(),
-				executeJsx: vi.fn(),
-				executeTs: vi.fn(),
-				executeTsx: vi.fn(),
-			};
-			vi.stubGlobal("datacore", api);
-			return on;
-		};
-
-		it.each([true, false])(
-			"does not register dataview listeners when useCache is false (initialized=%s)",
-			(initialized) => {
-				const on = installDataview(initialized);
-				plugin.settings.useCache = false;
-
-				engine.start();
-
-				expect(on.mock.calls.map(([event]) => event)).toEqual([]);
-			},
-		);
-
-		it.each([
-			[true, "dataview:metadata-change"],
-			[false, "dataview:index-ready"],
-		] as const)(
-			"registers dataview listeners when useCache is true (initialized=%s)",
-			(initialized, event) => {
-				const on = installDataview(initialized);
-
-				engine.start();
-
-				expect(on).toHaveBeenCalledTimes(1);
-				expect(on).toHaveBeenCalledWith(event, expect.any(Function));
-			},
-		);
-
-		it("does not register datacore listeners when useCache is false", () => {
-			const on = installDatacore();
-			plugin.settings.useCache = false;
-
-			engine.start();
-
-			expect(on.mock.calls.map(([event]) => event)).toEqual([]);
-		});
-
-		it("registers datacore listeners when useCache is true", () => {
-			const on = installDatacore();
-
-			engine.start();
-
-			expect(on).toHaveBeenCalledTimes(1);
-			expect(on).toHaveBeenCalledWith("update", expect.any(Function));
-		});
-
-		it.each([
-			["dataview", false],
-			["dataview", true],
-			["datacore", false],
-			["datacore", true],
-		] as const)(
-			"%s dynamic requeue honors useCache=%s after listener registration",
-			async (source, useCache) => {
-				if (source === "dataview") installDataview();
-				else installDatacore();
-				vi.mocked(
-					plugin.dataStore.getDynamicContentPaths,
-				).mockResolvedValue(new Set(["notes/dynamic.md"]));
-				vi.mocked(
-					plugin.dataStore.hasDynamicContentFlag,
-				).mockResolvedValue(true);
-				vi.mocked(
-					plugin.dataStore.loadCompilationRevisions,
-				).mockResolvedValue({
-					dataviewRevision: 1,
-					datacoreRevision: 1,
+					offref: vi.fn(),
+					triggerUpdate(revision: number): void {
+						datacoreUpdate?.(revision);
+					},
+				};
+				Object.assign(window, {
+					app: {
+						plugins: { plugins: { dataview: dataviewPlugin } },
+					},
+					datacore: {
+						core: datacoreCore,
+						executeJs: vi.fn(),
+						executeJsx: vi.fn(),
+						executeTs: vi.fn(),
+						executeTsx: vi.fn(),
+					},
 				});
-				const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
-				engine.start();
-				await vi.advanceTimersByTimeAsync(30_001);
-				expect(enqueueSpy).toHaveBeenCalledTimes(0);
 
-				// Keep the installed listener alive so the requeue guard is reachable.
-				plugin.settings.useCache = useCache;
-				if (source === "dataview") {
-					app.workspace.trigger(
-						"dataview:metadata-change",
-						"update",
-						createFile("notes/changed.md", Date.now()),
-					);
-				} else {
-					app.workspace.trigger("update", 2);
+				if (source === "datacore") {
+					for (const file of fixture.dynamicFiles) {
+						const entry = fixture.persister.values.get(
+							`file:${file.path}`,
+						);
+						if (entry && typeof entry === "object") {
+							fixture.persister.values.set(`file:${file.path}`, {
+								...entry,
+								dynamicSources: ["datacore"],
+								dataviewRevision: undefined,
+								datacoreRevision: 1,
+							});
+						}
+					}
 				}
-				await vi.advanceTimersByTimeAsync(1_001);
 
-				expect(enqueueSpy.mock.calls).toEqual(
-					useCache ? [["notes/dynamic.md", 5]] : [],
+				if (regime === "post-invalidation") {
+					for (const file of fixture.staticFiles) {
+						const key = `file:${file.path}`;
+						const entry = fixture.persister.values.get(key);
+						if (entry && typeof entry === "object") {
+							fixture.persister.values.set(key, {
+								...entry,
+								detectorVersion: "invalidated",
+							});
+						}
+					}
+				}
+
+				const metrics = enablePerfMetrics();
+				const engine = new BackgroundEngine(
+					fixture.app,
+					fixture.plugin,
 				);
-				expect(
-					plugin.dataStore.getDynamicContentPaths,
-				).toHaveBeenCalledTimes(useCache ? 1 : 0);
+
+				try {
+					engine.start();
+					await vi.advanceTimersByTimeAsync(40_001);
+					metrics.reset();
+
+					triggerRevision(fixture, source, 2, datacoreCore);
+					await vi.advanceTimersByTimeAsync(5_000);
+					if (regime === "timeout") {
+						triggerRevision(fixture, source, 3, datacoreCore);
+						await vi.advanceTimersByTimeAsync(5_000);
+					}
+
+					const revisionDump = metrics.dump();
+					expect(revisionDump.dynamicPathsExamined).toBe(0);
+					expect(revisionDump.dynamicCacheReads).toBe(0);
+					expect(revisionDump.enqueueAttempts).toBe(0);
+					expect(revisionDump.dynamicCompileStarts).toBe(0);
+					expect(revisionDump.dynamicCompileCompletions).toBe(0);
+					if (regime === "post-invalidation") {
+						for (const file of fixture.staticFiles) {
+							const key = `file:${file.path}`;
+							const entry = fixture.persister.values.get(key);
+							if (entry && typeof entry === "object") {
+								fixture.persister.values.set(key, {
+									...entry,
+									detectorVersion: "vault-dependencies-v2",
+								});
+							}
+						}
+						metrics.reset();
+						triggerRevision(fixture, source, 3, datacoreCore);
+						await vi.advanceTimersByTimeAsync(5_000);
+						const convergedDump = metrics.dump();
+						expect(convergedDump.dynamicPathsExamined).toBe(0);
+						expect(convergedDump.dynamicCacheReads).toBe(0);
+						expect(convergedDump.enqueueAttempts).toBe(0);
+						expect(convergedDump.dynamicCompileStarts).toBe(0);
+						expect(convergedDump.dynamicCompileCompletions).toBe(0);
+					}
+
+					if (regime === "timeout") {
+						Object.assign(window, {
+							app: {
+								plugins: {
+									plugins: {
+										dataview: { api: fixture.dataviewApi },
+									},
+								},
+							},
+						});
+					}
+					metrics.reset();
+					fixture.modifyUnrelatedStaticNote();
+					await vi.advanceTimersByTimeAsync(5_000);
+					while (
+						engine.compilationQueue.pendingCount > 0 ||
+						engine.compilationQueue.inFlightCount > 0
+					) {
+						await vi.advanceTimersByTimeAsync(10);
+					}
+
+					const staticDump = metrics.dump();
+					expect(staticDump.enqueueAttempts).toBe(1);
+					expect(staticDump.staticCompileStarts).toBe(1);
+					expect(staticDump.staticCompileCompletions).toBe(1);
+					expect(staticDump.dynamicCompileStarts).toBe(0);
+					expect(staticDump.dynamicCompileCompletions).toBe(0);
+				} finally {
+					engine.stop();
+					disablePerfMetrics();
+					Object.assign(window, {
+						app: previousApp,
+						datacore: previousDatacore,
+					});
+					vi.useRealTimers();
+				}
 			},
 		);
 	});
 
-	it("does not call vault.getMarkdownFiles during the dynamic-requeue path when getDynamicContentPaths returns known paths", async () => {
-		vi.useFakeTimers();
-		const app = createApp();
-		const plugin = createAutoPublishPluginStub();
-		plugin.settings = { ...plugin.settings, useCache: true };
+	it("remains idle across a bounded polling window without vault activity", async () => {
+		vi.useFakeTimers({
+			toFake: [
+				"Date",
+				"setTimeout",
+				"clearTimeout",
+				"setInterval",
+				"clearInterval",
+			],
+		});
+		const previousApp = window.app;
+		const fixture = createBackgroundCacheFixture(3, 1);
+		Object.assign(window, {
+			app: {
+				plugins: {
+					plugins: { dataview: { api: fixture.dataviewApi } },
+				},
+			},
+		});
+		const metrics = enablePerfMetrics();
+		const engine = new BackgroundEngine(fixture.app, fixture.plugin);
+		const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
 
-		const knownDynamicPaths = new Set(["notes/dynamic.md"]);
-		plugin.dataStore.getDynamicContentPaths = vi
-			.fn()
-			.mockResolvedValue(knownDynamicPaths);
+		try {
+			engine.start();
+			await vi.advanceTimersByTimeAsync(40_001);
+			metrics.reset();
+			enqueueSpy.mockClear();
 
-		const engine = new BackgroundEngine(app, plugin);
+			await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
 
-		const getMarkdownSpy = vi.spyOn(app.vault, "getMarkdownFiles");
+			const dump = metrics.dump();
+			expect(dump.dynamicPathsExamined).toBe(0);
+			expect(dump.dynamicCacheReads).toBe(0);
+			expect(dump.enqueueAttempts).toBe(0);
+			expect(dump.dynamicCompileStarts).toBe(0);
+			expect(dump.dynamicCompileCompletions).toBe(0);
+			expect(dump.dynamicScanMs).toBe(0);
+			expect(enqueueSpy).not.toHaveBeenCalled();
+		} finally {
+			engine.stop();
+			disablePerfMetrics();
+			Object.assign(window, { app: previousApp });
+		}
+	});
 
-		await vi.runAllTimersAsync();
+	describe("dynamic listener removal", () => {
+		type Source = "dataview" | "datacore";
 
-		expect(getMarkdownSpy).not.toHaveBeenCalled();
-		vi.useRealTimers();
+		const triggerSource = (app: App, source: Source): void => {
+			if (source === "dataview") {
+				(app.workspace as Events).trigger(
+					"dataview:metadata-change",
+					"update",
+					createFile("notes/changed.md", Date.now()),
+				);
+				return;
+			}
+			(app.workspace as Events).trigger("update", 2);
+		};
+
+		it.each([
+			["dataview", true],
+			["dataview", false],
+			["datacore", true],
+			["datacore", false],
+		] as const)(
+			"does not register a %s listener when useCache=%s",
+			(source, useCache) => {
+				vi.useFakeTimers();
+				const app = createApp();
+				const plugin = createPluginStub();
+				plugin.settings.useCache = useCache;
+				const dataviewOn = vi.fn();
+				app.metadataCache.on = dataviewOn;
+				const datacoreOn = vi.fn();
+				const previousDatacore = (
+					window as typeof window & { datacore?: unknown }
+				).datacore;
+				Object.assign(window, {
+					datacore: {
+						core: { revision: 2, on: datacoreOn, offref: vi.fn() },
+					},
+				});
+				const engine = new BackgroundEngine(app, plugin);
+
+				try {
+					engine.start();
+					expect(
+						source === "dataview" ? dataviewOn : datacoreOn,
+					).not.toHaveBeenCalled();
+				} finally {
+					engine.stop();
+					Object.assign(window, { datacore: previousDatacore });
+				}
+			},
+		);
+
+		it.each(["dataview", "datacore"] as const)(
+			"a %s revision does not enumerate vault files",
+			(source) => {
+				vi.useFakeTimers();
+				const app = createApp([createFile("notes/dynamic.md", 1000)]);
+				const engine = new BackgroundEngine(app, createPluginStub());
+				engine.start();
+				vi.mocked(app.vault.getFiles).mockClear();
+
+				triggerSource(app, source);
+
+				expect(app.vault.getFiles).not.toHaveBeenCalled();
+				engine.stop();
+			},
+		);
+
+		it.each([
+			["dataview", true],
+			["dataview", false],
+			["datacore", true],
+			["datacore", false],
+		] as const)(
+			"a %s revision performs no classification reads when useCache=%s",
+			(source, useCache) => {
+				vi.useFakeTimers();
+				const app = createApp([createFile("notes/dynamic.md", 1000)]);
+				const plugin = createPluginStub();
+				plugin.settings.useCache = useCache;
+				const engine = new BackgroundEngine(app, plugin);
+				const metrics = enablePerfMetrics();
+				try {
+					engine.start();
+					triggerSource(app, source);
+
+					expect(metrics.dump().dynamicCacheReads).toBe(0);
+				} finally {
+					engine.stop();
+					disablePerfMetrics();
+				}
+			},
+		);
+
+		it.each(["dataview", "datacore"] as const)(
+			"a %s revision does not enqueue compilation",
+			(source) => {
+				vi.useFakeTimers();
+				const app = createApp([createFile("notes/dynamic.md", 1000)]);
+				const engine = new BackgroundEngine(app, createPluginStub());
+				const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
+				engine.start();
+
+				triggerSource(app, source);
+
+				expect(enqueueSpy).not.toHaveBeenCalled();
+				engine.stop();
+			},
+		);
+
+		it.each(["dataview", "datacore"] as const)(
+			"a %s revision remains inert after engine stop",
+			(source) => {
+				vi.useFakeTimers();
+				const app = createApp([createFile("notes/dynamic.md", 1000)]);
+				const engine = new BackgroundEngine(app, createPluginStub());
+				const enqueueSpy = vi.spyOn(engine.compilationQueue, "enqueue");
+				engine.start();
+				engine.stop();
+
+				triggerSource(app, source);
+
+				expect(enqueueSpy).not.toHaveBeenCalled();
+			},
+		);
 	});
 
 	it.each([
@@ -1096,6 +1523,7 @@ describe("BackgroundEngine", () => {
 												? "outdated"
 												: null,
 									mediaLinks: [],
+									dynamicSources: [],
 								},
 							];
 						}),

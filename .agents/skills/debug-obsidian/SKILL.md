@@ -25,6 +25,8 @@ When the plugin isn't behaving correctly in Obsidian, systematically collect dia
 - Console capture requires `obsidian dev:debug on 2>/dev/null` (once per session).
 - Always append `2>/dev/null` to all `obsidian` CLI commands to suppress GTK/Electron warnings.
 - Always use the IIFE + `console.log` pattern for async eval: `obsidian eval code="(async()=>{const r=await ...;console.log(JSON.stringify(r))})()" 2>/dev/null`
+- `obsidian eval` only captures output logged within ~5–15 ms. Slow work prints nothing — that is not an error. Stash to a global and read it back with a second, synchronous eval.
+- `JSON.stringify` throws on `status.refresh` (circular `PublishFile` refs). Log a projection; `snapshot()` is always safe.
 - If `window.__QS__` is undefined, the plugin may be running a production build without `ENABLE_DEVELOPER_TOOLS`. Rebuild with `npm run build:dev` and reload. If still unavailable, fall back to direct `app.plugins.plugins['quartz-syncer']` access for raw state inspection.
 
 ## When to Activate
@@ -127,7 +129,7 @@ obsidian dev:dom selector='.modal' total 2>/dev/null
 ```bash
 obsidian eval code="JSON.stringify(window.__QS__.snapshot().publishStatus?.stale)" 2>/dev/null
 # If true, status needs refresh:
-obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'status.refresh'});console.log(JSON.stringify(r))})()" 2>/dev/null
+obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'status.refresh'});console.log(JSON.stringify({success:r.success,counts:{unpublished:r.data.unpublished.length,changed:r.data.changed.length,published:r.data.published.length,deleted:r.data.deleted.length}}))})()" 2>/dev/null
 ```
 
 ### Step 6: Wait for conditions
@@ -172,6 +174,7 @@ obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'env.emulat
 
 - Do NOT omit `2>/dev/null` — GTK warnings pollute output parsing.
 - Do NOT use top-level `await` in eval — use the IIFE pattern.
+- Do NOT conclude an action failed because eval printed nothing — confirm with a synchronous follow-up query first.
 - Do NOT start changing code before understanding the root cause.
 - Do NOT ignore console errors even if the facade reports no errors — they may come from different sources.
 - Do NOT assume the plugin is broken if the facade is unavailable — check if ENABLE_DEVELOPER_TOOLS is enabled.

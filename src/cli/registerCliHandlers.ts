@@ -1,10 +1,5 @@
 import type QuartzSyncer from "src/main";
-import type {
-	CliHandler,
-	CliParams,
-	CliResult,
-	CommandMeta,
-} from "src/cli/types";
+import type { CliHandler, CliParams, CommandMeta } from "src/cli/types";
 import { formatCliOutput } from "src/cli/formatOutput";
 import { createStatusHandler } from "src/cli/handlers/statusHandler";
 import { createSyncHandler } from "src/cli/handlers/syncHandler";
@@ -33,7 +28,7 @@ import type {
 	CliFlags as ObsidianCliFlags,
 } from "obsidian";
 
-const COMMAND_REGISTRY: CommandMeta[] = [
+export const COMMAND_REGISTRY = [
 	{
 		name: "quartz-syncer",
 		description: "List available Quartz Syncer commands.",
@@ -57,6 +52,7 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 			"obsidian quartz-syncer:status",
 			"obsidian quartz-syncer:status format=json",
 		],
+		compiles: true,
 	},
 	{
 		name: "quartz-syncer:sync",
@@ -78,6 +74,7 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 			"obsidian quartz-syncer:sync",
 			"obsidian quartz-syncer:sync force",
 		],
+		compiles: true,
 	},
 	{
 		name: "quartz-syncer:publish",
@@ -104,6 +101,7 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 			{ name: "help", description: "Show help for this command." },
 		],
 		examples: ["obsidian quartz-syncer:publish"],
+		compiles: true,
 	},
 	{
 		name: "quartz-syncer:delete",
@@ -137,6 +135,7 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 			"obsidian quartz-syncer:delete action=unpublish path=notes/post.md force dry-run",
 			"obsidian quartz-syncer:delete action=unpublish path=notes/post.md force",
 		],
+		compiles: true,
 	},
 	{
 		name: "quartz-syncer:mark",
@@ -389,6 +388,7 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 			"obsidian quartz-syncer:media action=orphaned",
 			"obsidian quartz-syncer:media action=clean force",
 		],
+		compiles: true,
 	},
 	{
 		name: "quartz-syncer:diff",
@@ -402,6 +402,7 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 			"obsidian quartz-syncer:diff",
 			"obsidian quartz-syncer:diff path=notes/post.md",
 		],
+		compiles: true,
 	},
 	{
 		name: "quartz-syncer:validate",
@@ -431,12 +432,28 @@ const COMMAND_REGISTRY: CommandMeta[] = [
 			"obsidian quartz-syncer:inspect target=cache path=notes/post.md",
 		],
 	},
-];
+] as const satisfies readonly CommandMeta[];
+
+/**
+ * Every registered command name.
+ *
+ * Derived from the registry so `handlers` below cannot drift from it: a
+ * missing or misspelled key is a compile error, not a runtime
+ * "Unknown CLI command".
+ */
+export type CommandName = (typeof COMMAND_REGISTRY)[number]["name"];
+
+/** Commands that can compile, and therefore need a dynamic session. */
+export const COMPILE_CAPABLE_COMMANDS: ReadonlySet<CommandName> = new Set(
+	(COMMAND_REGISTRY as readonly CommandMeta[])
+		.filter((entry) => entry.compiles)
+		.map((entry) => entry.name as CommandName),
+);
 
 export function registerCliHandlers(
 	plugin: QuartzSyncer,
-): Record<string, CliHandler> {
-	const handlers: Record<string, CliHandler> = {
+): Record<CommandName, CliHandler> {
+	const handlers: Record<CommandName, CliHandler> = {
 		"quartz-syncer": createBaseHandler(),
 		"quartz-syncer:status": createStatusHandler(plugin),
 		"quartz-syncer:sync": createSyncHandler(plugin),
@@ -462,7 +479,7 @@ export function registerCliHandlers(
 	};
 
 	const handleCommand = async (
-		command: string,
+		command: CommandName,
 		rawParams: Record<string, string> | undefined,
 	): Promise<string> => {
 		const params = normalizeCliParams(rawParams);
@@ -482,10 +499,19 @@ export function registerCliHandlers(
 			);
 		}
 		const handler = handlers[command];
-		const result = handler
-			? await handler(params)
-			: missingCommand(command);
-		return formatCliOutput(result, format);
+
+		if (!COMPILE_CAPABLE_COMMANDS.has(command)) {
+			return formatCliOutput(await handler(params), format);
+		}
+
+		const publisher = plugin.getPublisher();
+		publisher?.beginDynamicSession();
+
+		try {
+			return formatCliOutput(await handler(params), format);
+		} finally {
+			publisher?.endDynamicSession();
+		}
 	};
 
 	for (const entry of COMMAND_REGISTRY) {
@@ -538,13 +564,6 @@ function normalizeCliParams(
 	}
 
 	return { args, flags, verbose: flags.has("verbose") };
-}
-
-function missingCommand(command: string): CliResult {
-	return {
-		success: false,
-		error: `Unknown CLI command: ${command}`,
-	};
 }
 
 function createBaseHandler(): CliHandler {

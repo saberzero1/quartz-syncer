@@ -2,9 +2,19 @@ import { describe, expect, it, vi } from "vitest";
 import { IntegrationRegistry } from "src/compiler/integrations/registry";
 import type { PluginIntegration } from "src/compiler/integrations/types";
 import type QuartzSyncerSettings from "src/models/settings";
+import {
+	AutoCardLinkIntegration,
+	BasesIntegration,
+	CanvasIntegration,
+	DatacoreIntegration,
+	DataviewIntegration,
+	ExcalidrawIntegration,
+	FantasyStatblocksIntegration,
+} from "src/compiler/integrations";
 
 const baseSettings: QuartzSyncerSettings = {
 	settingsSchemaVersion: 2,
+	publishTarget: "remote",
 	gitRemoteUrl: "",
 	gitBranch: "v4",
 	gitCorsProxyUrl: "",
@@ -40,6 +50,7 @@ const baseSettings: QuartzSyncerSettings = {
 	useFantasyStatblocks: false,
 	useBases: false,
 	useCanvas: false,
+	autoCleanOrphanedMedia: false,
 	manageSyncerStyles: true,
 	noteSettingsIsInitialized: false,
 	lastUsedSettingsTab: "git",
@@ -47,6 +58,9 @@ const baseSettings: QuartzSyncerSettings = {
 	lastUpstreamCommitSha: "",
 	upgradeCheckStrategy: "version",
 	diffViewStyle: "auto",
+	diffContextLines: 3,
+	allowArbitraryFilePublishing: false,
+	arbitraryPublishPaths: [],
 	autoPublishInterval: 0,
 	remoteFetchInterval: 60,
 	quartzRepoPath: "",
@@ -67,6 +81,7 @@ const makeIntegration = (
 	id: "integration",
 	name: "Integration",
 	settingKey: "useDataview",
+	isVaultDependent: true,
 	priority: 100,
 	assets: {},
 	category: "core",
@@ -77,6 +92,35 @@ const makeIntegration = (
 });
 
 describe("IntegrationRegistry", () => {
+	it("requires integrations to declare vault dependence", () => {
+		type IsOptional<T, K extends keyof T> =
+			object extends Pick<T, K> ? true : false;
+		type AssertFalse<T extends false> = T;
+		const isOptional: AssertFalse<
+			IsOptional<PluginIntegration, "isVaultDependent">
+		> = false;
+		const value: PluginIntegration["isVaultDependent"] = true;
+
+		expect(isOptional).toBe(false);
+		expect(value).toBe(true);
+	});
+
+	it("declares vault dependence for every registered integration", () => {
+		expect(
+			[
+				DataviewIntegration,
+				DatacoreIntegration,
+				FantasyStatblocksIntegration,
+				AutoCardLinkIntegration,
+			].every((integration) => integration.isVaultDependent),
+		).toBe(true);
+		expect(
+			[BasesIntegration, CanvasIntegration, ExcalidrawIntegration].every(
+				(integration) => !integration.isVaultDependent,
+			),
+		).toBe(true);
+	});
+
 	it("registers integrations successfully", () => {
 		const registry = new IntegrationRegistry();
 		const integration = makeIntegration({ id: "alpha" });
@@ -155,6 +199,39 @@ describe("IntegrationRegistry", () => {
 		);
 
 		expect(result).toEqual([enabled]);
+	});
+
+	it("includes unavailable vault-dependent integrations for detection", () => {
+		const registry = new IntegrationRegistry();
+		const isAvailable = vi.fn().mockReturnValue(false);
+		const unavailable = makeIntegration({ isAvailable });
+		const staticIntegration = makeIntegration({
+			id: "static",
+			isVaultDependent: false,
+			settingKey: "useDatacore",
+		});
+
+		registry.register(unavailable);
+		registry.register(staticIntegration);
+
+		const result = registry.getVaultDependentEnabled(
+			makeSettings({ useDataview: true, useDatacore: true }),
+		);
+
+		expect(result).toEqual([unavailable]);
+		expect(isAvailable).not.toHaveBeenCalled();
+	});
+
+	it("continues to exclude unavailable integrations from compilation", () => {
+		const registry = new IntegrationRegistry();
+		const unavailable = makeIntegration({
+			isAvailable: vi.fn().mockReturnValue(false),
+		});
+		registry.register(unavailable);
+
+		expect(
+			registry.getEnabled(makeSettings({ useDataview: true })),
+		).toEqual([]);
 	});
 
 	it("getByCategory works correctly", () => {

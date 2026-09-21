@@ -15,7 +15,19 @@ export type CliHandler = (params: CliParams) => Promise<CliResult>;
 export type CommandMeta = {
 	name: string;
 	description: string;
-	args: Array<{ name: string; description: string; required?: boolean }>;
-	flags: Array<{ name: string; description: string }>;
-	examples: string[];
+	args: ReadonlyArray<{
+		name: string;
+		description: string;
+		required?: boolean;
+	}>;
+	flags: ReadonlyArray<{ name: string; description: string }>;
+	examples: readonly string[];
+	/**
+	 * Whether this command can compile notes.
+	 *
+	 * Only these commands open a dynamic compilation session at dispatch, which
+	 * is also what forces a Publisher to be constructed. Leave unset for
+	 * commands that never compile.
+	 */
+	compiles?: boolean;
 };

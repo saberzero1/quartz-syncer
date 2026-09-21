@@ -1,3 +1,8 @@
+import {
+	getPerfMetrics,
+	perfMetricsEnabled,
+} from "src/operability/PerfMetrics";
+
 export interface IndexedDBStore {
 	getItem<T>(key: string): Promise<T | null>;
 	getMany<T>(keys: string[]): Promise<Array<T | null>>;
@@ -98,7 +103,13 @@ export function createStore(name: string): IndexedDBStore {
 					.slice(offset, offset + CACHE_READ_BATCH_SIZE)
 					.map((key) => wrap<unknown>(store.get(key)));
 				const batch = await Promise.all(pending);
-				for (const value of batch) results.push((value as T) ?? null);
+				for (const value of batch) {
+					const result = (value as T) ?? null;
+					if (perfMetricsEnabled) {
+						getPerfMetrics()?.recordCacheRead(result);
+					}
+					results.push(result);
+				}
 			}
 
 			return results;

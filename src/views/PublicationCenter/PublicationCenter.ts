@@ -30,6 +30,7 @@ import {
 import { ManualSetupModal } from "src/views/ManualSetupModal";
 import { OnboardingWizard } from "src/views/OnboardingWizard/OnboardingWizard";
 import { PublicationTree } from "src/views/PublicationCenter/TreeRenderer";
+import { statusFromSnapshot } from "src/views/PublicationCenter/statusFromSnapshot";
 import {
 	type SelectableCategory,
 	type TreeTab,
@@ -83,6 +84,7 @@ export class PublicationCenter extends Modal {
 	private diffMode: DiffViewMode = "split";
 	private inlineScrollSync: ReturnType<typeof renderDiffView> = null;
 	private diffStatsAbort: AbortController | null = null;
+	private dynamicResolveAbort: AbortController | null = null;
 	private refreshingEl: HTMLSpanElement | null = null;
 
 	constructor(
@@ -103,6 +105,7 @@ export class PublicationCenter extends Modal {
 		this.renderLoadingState();
 
 		this._plugin.pauseAutoPublish();
+		this._plugin.getPublisher()?.beginDynamicSession();
 
 		this.scope.register([], "Escape", () => {
 			this.close();
@@ -126,6 +129,9 @@ export class PublicationCenter extends Modal {
 			.getEventSink()
 			?.emit("ui.modal.closed", { name: "publication-center" });
 		this._plugin.resumeAutoPublish();
+		this._plugin.getPublisher()?.endDynamicSession();
+		this.dynamicResolveAbort?.abort();
+		this.dynamicResolveAbort = null;
 		this.diffStatsAbort?.abort();
 		this.diffStatsAbort = null;
 		this.publicationTree?.unmount();
@@ -229,7 +235,7 @@ export class PublicationCenter extends Modal {
 		if (snapshot) {
 			this.hasFullStatus = false;
 			this.isRefreshing = true;
-			this.status = this.statusFromSnapshot(snapshot);
+			this.status = statusFromSnapshot(snapshot);
 			this.progressState = { current: 0, total: 0 };
 			this.buildFileMap();
 			this.buildMediaLinksFromSnapshot(snapshot);
@@ -256,6 +262,61 @@ export class PublicationCenter extends Modal {
 		await this.buildMediaLinksMap();
 		this.treeState.setKnownFiles(this.getKnownFilePaths());
 		this.renderShell(true);
+		this.updateTreeState();
+		this.startDynamicResolution(publisher);
+	}
+
+	private startDynamicResolution(
+		publisher: ReturnType<QuartzSyncer["getPublisher"]> & object,
+	): void {
+		const status = this.status;
+		const dynamic = status?.dynamic;
+
+		this.dynamicResolveAbort?.abort();
+
+		if (!status || !dynamic || dynamic.size === 0) {
+			this.dynamicResolveAbort = null;
+
+			return;
+		}
+
+		const controller = new AbortController();
+		this.dynamicResolveAbort = controller;
+
+		const pending = [...status.changed, ...status.published].filter(
+			(file) => dynamic.has(file.getVaultPath()),
+		);
+
+		void publisher.resolveDynamicClassification(
+			pending,
+			(vaultPath, published) =>
+				this.applyResolvedClassification(vaultPath, published),
+			controller.signal,
+		);
+	}
+
+	private applyResolvedClassification(
+		vaultPath: string,
+		published: boolean,
+	): void {
+		const status = this.status;
+
+		if (!status) return;
+
+		const from = published ? status.changed : status.published;
+		const to = published ? status.published : status.changed;
+		const index = from.findIndex(
+			(file) => file.getVaultPath() === vaultPath,
+		);
+
+		if (index === -1) return;
+
+		const [file] = from.splice(index, 1);
+
+		if (file) to.push(file);
+
+		status.dynamic?.delete(vaultPath);
+		this.publicationTree?.markResolved(vaultPath);
 		this.updateTreeState();
 	}
 
@@ -300,6 +361,7 @@ export class PublicationCenter extends Modal {
 			this.treeState.setKnownFiles(this.getKnownFilePaths());
 			this.renderShell(true);
 			this.updateTreeState();
+			this.startDynamicResolution(publisher);
 
 			for (const path of selectedPaths) {
 				if (this.treeState.hasFile(path)) {
@@ -316,24 +378,6 @@ export class PublicationCenter extends Modal {
 			this.refreshingEl?.addClass("qs-hidden");
 			this.updateOperationButtons();
 		}
-	}
-
-	private statusFromSnapshot(snapshot: StatusSnapshot): PublishStatus {
-		const stub = (path: string) =>
-			({
-				file: { path },
-				getVaultPath: () => path,
-			}) as unknown as PublishFile;
-
-		return {
-			unpublished: snapshot.unpublished.map(stub),
-			changed: snapshot.changed.map(stub),
-			published: snapshot.published.map(stub),
-			deleted: [...snapshot.deleted],
-			media: [...snapshot.media],
-			arbitrary: [...snapshot.arbitrary],
-			mediaLinks: new Map(Object.entries(snapshot.mediaLinks)),
-		};
 	}
 
 	private buildMediaLinksFromSnapshot(snapshot: StatusSnapshot): void {
@@ -668,8 +712,10 @@ export class PublicationCenter extends Modal {
 			const entries = await Promise.all(
 				files.map(async (file) => {
 					const path = file.getVaultPath();
-					const links =
-						await this._plugin.dataStore.loadMediaLinks(path);
+					const links = await this._plugin.dataStore.loadMediaLinks(
+						path,
+						file.file.stat.mtime,
+					);
 					return { path, links };
 				}),
 			);

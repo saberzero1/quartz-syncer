@@ -1,4 +1,9 @@
-import { sanitizeHTMLToDom, htmlToMarkdown, normalizePath } from "obsidian";
+import {
+	sanitizeHTMLToDom,
+	htmlToMarkdown,
+	normalizePath,
+	Platform,
+} from "obsidian";
 
 export interface PathRewriteRule {
 	from: string;
@@ -739,6 +744,18 @@ async function batchParallel<T, R>(
 	return results;
 }
 
+/**
+ * Concurrency for resolving media links, where a unit of work may be a compile.
+ *
+ * Must stay a function: the platform flag is reassigned by tests, so a module
+ * constant would capture the wrong value at import time.
+ *
+ * @returns The maximum number of notes to resolve in parallel.
+ */
+function mediaResolveConcurrency(): number {
+	return Platform.isMobileApp ? 2 : 5;
+}
+
 export {
 	generateBlobHash,
 	generateUrlPath,
@@ -757,4 +774,5 @@ export {
 	removeUnwantedElements,
 	svgToData,
 	batchParallel,
+	mediaResolveConcurrency,
 };

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createInspectHandler } from "src/cli/handlers/inspectHandler";
 import type { DataStore } from "src/cache/DataStore";
 import { buildParams, buildPlugin } from "./helpers";
+import { App, TFile } from "obsidian";
 
 describe("inspectHandler", () => {
 	beforeEach(() => {
@@ -50,6 +51,11 @@ describe("inspectHandler", () => {
 	});
 
 	it("includes queue data when target is all", async () => {
+		const app = new App();
+		const file = new TFile();
+		file.path = "a.md";
+		file.stat = { mtime: 1000, ctime: 1000, size: 0 };
+		app.vault.getFileByPath = vi.fn(() => file);
 		const dataStore = {
 			allFiles: vi.fn(async () => ["a.md"]),
 			loadLocalHash: vi.fn(async () => "hash"),
@@ -57,6 +63,7 @@ describe("inspectHandler", () => {
 			loadLocalFile: vi.fn(async () => ["content", { blobs: [] }]),
 		} as unknown as DataStore;
 		const plugin = buildPlugin({
+			app,
 			dataStore,
 			getEngineStatus: vi.fn(() => ({
 				running: false,
@@ -76,6 +83,7 @@ describe("inspectHandler", () => {
 			pending: 0,
 			autoPublish: true,
 		});
+		expect(dataStore.loadLocalHash).toHaveBeenCalledWith("a.md", 1000);
 	});
 
 	it("returns an error for unknown targets", async () => {

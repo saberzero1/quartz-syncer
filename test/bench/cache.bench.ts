@@ -31,6 +31,9 @@ test("cache composition and entry deserialization", async ({ bench }) => {
 			version: DATA_STORE_CACHE_VERSION,
 			time: 1_700_000_000_000,
 			sourceMtime: 1_700_000_000_000,
+			settingsFingerprint: "benchmark-settings",
+			detectorVersion: "vault-dependencies-v2",
+			dynamicSources: [],
 			localHash: "a".repeat(40),
 			localData: [
 				CACHE_NOTE_BODY + (asset ? `\n![[${asset.path}]]\n` : ""),
@@ -41,7 +44,6 @@ test("cache composition and entry deserialization", async ({ bench }) => {
 				},
 			],
 			remoteData: null,
-			hasDynamicContent: false,
 			mediaLinks: asset ? [asset.path] : [],
 		};
 		return { key: `file:${file.path}`, entry };

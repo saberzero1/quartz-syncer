@@ -20,7 +20,21 @@ export interface StatusSummary {
 	timestamp: number;
 }
 
+/**
+ * Schema version for persisted snapshots.
+ *
+ * Bump whenever a field is added, removed, or changes meaning, and handle the
+ * older value in `statusFromSnapshot`. Absent means version 1 — snapshots
+ * written before this field existed.
+ */
+export const STATUS_SNAPSHOT_VERSION = 2;
+
 export interface StatusSnapshot {
+	/**
+	 * Schema version. Optional only so that v1 snapshots still parse; every
+	 * snapshot this code writes sets it.
+	 */
+	schemaVersion?: number;
 	/** Destination this snapshot was computed against. */
 	destination: string;
 	unpublished: string[];
@@ -30,6 +44,14 @@ export interface StatusSnapshot {
 	media: MediaEntry[];
 	arbitrary: ArbitraryFileEntry[];
 	mediaLinks: Record<string, string[]>;
+	/**
+	 * Vault paths needing dynamic resolution, persisted as an array.
+	 *
+	 * Optional because snapshots written before this field existed have no way
+	 * to express it. Absent must be read as "unknown" (therefore dynamic), not
+	 * as "none" — see `statusFromSnapshot`.
+	 */
+	dynamic?: string[];
 	timestamp: number;
 }
 
@@ -258,6 +280,7 @@ export class StatusCacheService {
 
 	private async persistSnapshot(status: PublishStatus): Promise<void> {
 		const snapshot: StatusSnapshot = {
+			schemaVersion: STATUS_SNAPSHOT_VERSION,
 			destination: this.destination,
 			unpublished: status.unpublished.map((f) => f.getVaultPath()),
 			changed: status.changed.map((f) => f.getVaultPath()),
@@ -266,6 +289,7 @@ export class StatusCacheService {
 			media: status.media.map((m) => ({ ...m })),
 			arbitrary: status.arbitrary.map((a) => ({ ...a })),
 			mediaLinks: Object.fromEntries(status.mediaLinks ?? []),
+			dynamic: [...(status.dynamic ?? [])],
 			timestamp: Date.now(),
 		};
 

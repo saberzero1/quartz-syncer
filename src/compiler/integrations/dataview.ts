@@ -4,6 +4,7 @@ import {
 	PatternDescriptor,
 	PatternMatch,
 	CompileContext,
+	IntegrationCompileResult,
 } from "./types";
 import {
 	escapeRegExp,
@@ -14,26 +15,28 @@ import {
 } from "src/utils/utils";
 import {
 	type DataviewApi,
+	getEffectiveDataviewSyntax,
 	getDataviewApi,
+	isDataviewSyntaxResolved,
 } from "src/compiler/integrations/apis/dataview";
 
 function tryDVEvaluate(
 	query: string,
 	filePath: string,
 	dvApi: DataviewApi,
-): string | undefined | null {
-	let result = "";
-
+): IntegrationCompileResult {
 	try {
 		const dataviewResult = dvApi.tryEvaluate(query.trim(), {
 			this: dvApi.page(filePath) ?? {},
 		});
-		result = dataviewResult?.toString() ?? "";
+		return {
+			text: dataviewResult?.toString() ?? "",
+			successful: true,
+		};
 	} catch (e) {
 		console.debug("dvapi.tryEvaluate did not yield any result", e);
+		return { text: "", successful: false };
 	}
-
-	return result;
 }
 
 async function tryExecuteJs(
@@ -63,6 +66,7 @@ export const DataviewIntegration: PluginIntegration = {
 	id: "dataview",
 	name: "Dataview",
 	settingKey: "useDataview",
+	isVaultDependent: true,
 	priority: 100,
 	category: "community",
 
@@ -73,68 +77,76 @@ export const DataviewIntegration: PluginIntegration = {
 	},
 
 	getPatterns(): PatternDescriptor[] {
-		const dvApi = getDataviewApi();
-
-		const patterns: PatternDescriptor[] = [
-			{
-				id: "dv-block",
-				pattern: /```dataview\s(.+?)```/gms,
-				type: "block",
-			},
-		];
-
-		if (dvApi) {
-			const jsKeyword = dvApi.settings.dataviewJsKeyword || "dataviewjs";
-			const inlinePrefix = dvApi.settings.inlineQueryPrefix || "=";
-			const inlineJsPrefix = dvApi.settings.inlineJsQueryPrefix || "$=";
-
-			patterns.push(
+		if (isDataviewSyntaxResolved() === false) {
+			// Dataview is installed but has not loaded its persisted settings yet.
+			// Any non-empty note could contain user-configured syntax, so detection
+			// must stay conservative until those settings resolve.
+			return [
 				{
-					id: "dv-js-block",
-					pattern: new RegExp(
-						"```" + escapeRegExp(jsKeyword) + "\\s(.+?)```",
-						"gms",
-					),
+					id: "dv-unresolved",
+					pattern: /[\s\S]/m,
 					type: "block",
 				},
-				{
-					id: "dv-inline",
-					pattern: new RegExp(
-						"`" + escapeRegExp(inlinePrefix) + "(?!=)(.+?)`",
-						"gms",
-					),
-					type: "inline",
-				},
-				{
-					id: "dv-inline-js",
-					pattern: new RegExp(
-						"`" + escapeRegExp(inlineJsPrefix) + "(.+?)`",
-						"gms",
-					),
-					type: "inline",
-				},
-			);
+			];
 		}
 
-		return patterns;
+		const {
+			dataviewJsKeyword: jsKeyword,
+			inlineQueryPrefix: inlinePrefix,
+			inlineJsQueryPrefix: inlineJsPrefix,
+		} = getEffectiveDataviewSyntax();
+
+		return [
+			{
+				id: "dv-block",
+				pattern: /(?:```|~~~)dataview\s(.+?)(?:```|~~~)/gms,
+				type: "block",
+			},
+			{
+				id: "dv-js-block",
+				pattern: new RegExp(
+					"(?:```|~~~)" +
+						escapeRegExp(jsKeyword) +
+						"\\s(.+?)(?:```|~~~)",
+					"gms",
+				),
+				type: "block",
+			},
+			{
+				id: "dv-inline",
+				pattern: new RegExp(
+					"`" +
+						escapeRegExp(inlinePrefix) +
+						"(?![=>])([^`\\r\\n]+?)`",
+					"gm",
+				),
+				type: "inline",
+			},
+			{
+				id: "dv-inline-js",
+				pattern: new RegExp(
+					"`" + escapeRegExp(inlineJsPrefix) + "([^`\\r\\n]+?)`",
+					"gm",
+				),
+				type: "inline",
+			},
+		];
 	},
 
 	async compile(
 		match: PatternMatch,
 		context: CompileContext,
-	): Promise<string> {
+	): Promise<IntegrationCompileResult> {
 		const dvApi = getDataviewApi();
 
-		if (!dvApi) return match.fullMatch;
+		if (!dvApi) return { text: match.fullMatch, successful: false };
 
 		const filePath = context.file.getPath();
 		const query = match.captures[0] ?? "";
-		if (!query) return match.fullMatch;
+		if (!query) return { text: match.fullMatch, successful: false };
 		const { isInsideCalloutDepth, finalQuery } = sanitizeQuery(query);
 
 		try {
-			let result: string | undefined | null = "";
-
 			switch (match.descriptor.id) {
 				case "dv-block": {
 					let markdown = await dvApi.tryQueryMarkdown(
@@ -149,33 +161,37 @@ export const DataviewIntegration: PluginIntegration = {
 						);
 					}
 
-					return markdown;
+					return { text: markdown, successful: true };
 				}
 
 				case "dv-js-block": {
-					return (
-						(await tryExecuteJs(finalQuery, filePath, dvApi)) ?? ""
-					);
+					return {
+						text:
+							(await tryExecuteJs(finalQuery, filePath, dvApi)) ??
+							"",
+						successful: true,
+					};
 				}
 
 				case "dv-inline": {
-					result = tryDVEvaluate(query.trim(), filePath, dvApi);
-
-					return result?.toString() ?? "";
+					return tryDVEvaluate(query.trim(), filePath, dvApi);
 				}
 
 				case "dv-inline-js": {
-					result = tryDVEvaluate(query, filePath, dvApi);
+					const evaluated = tryDVEvaluate(query, filePath, dvApi);
 
-					if (!result) {
-						result = await tryExecuteJs(query, filePath, dvApi);
+					if (!evaluated.successful || !evaluated.text) {
+						return {
+							text: await tryExecuteJs(query, filePath, dvApi),
+							successful: true,
+						};
 					}
 
-					return result ?? "Unable to render query";
+					return evaluated;
 				}
 
 				default:
-					return match.fullMatch;
+					return { text: match.fullMatch, successful: false };
 			}
 		} catch (e) {
 			console.debug(e);
@@ -184,7 +200,7 @@ export const DataviewIntegration: PluginIntegration = {
 				"Quartz Syncer: Unable to render Dataview query. Please update the Dataview plugin to the latest version.",
 			);
 
-			return match.fullMatch;
+			return { text: match.fullMatch, successful: false };
 		}
 	},
 };

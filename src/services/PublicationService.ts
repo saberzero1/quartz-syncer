@@ -63,8 +63,8 @@ export class PublicationService {
 		);
 	}
 
-	async cleanOrphanedMedia(): Promise<void> {
-		await this.publisher.cleanOrphanedMedia();
+	async cleanOrphanedMedia(signal?: AbortSignal): Promise<void> {
+		await this.publisher.cleanOrphanedMedia(signal);
 	}
 
 	get isLocal(): boolean {

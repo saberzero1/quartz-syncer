@@ -144,6 +144,8 @@ export default interface QuartzSyncerSettings {
 	useCache: boolean;
 	/** Automatically remove orphaned media after publishing */
 	autoCleanOrphanedMedia: boolean;
+	/** Include notes with Dataview or Datacore queries in automatic publishing */
+	autoPublishDynamicNotes: boolean;
 	/**
 	 * @deprecated Deprecated in 2.0. Removed in 2.1.
 	 */

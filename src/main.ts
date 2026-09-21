@@ -49,6 +49,10 @@ import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
 import { HubDetectionCache } from "src/services/HubDetectionCache";
 import { QuartzCompatibility } from "src/quartz/QuartzCompatibility";
 import { CacheMaintenanceService } from "src/services/CacheMaintenanceService";
+import {
+	disablePerfMetrics,
+	enablePerfMetrics,
+} from "src/operability/PerfMetrics";
 
 /**
  * QuartzSyncer plugin settings.
@@ -102,6 +106,7 @@ export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	/** Performance settings */
 	useCache: true,
 	autoCleanOrphanedMedia: false,
+	autoPublishDynamicNotes: false,
 	syncCache: true,
 	persistCache: false,
 	cacheTimestamp: 0,
@@ -228,6 +233,7 @@ export default class QuartzSyncer extends Plugin {
 
 		if (__DEV__ || this.settings.ENABLE_DEVELOPER_TOOLS === true) {
 			this.eventSink = new EventBuffer(500);
+			if (__DEV__) enablePerfMetrics();
 		}
 
 		if (shouldShowMigrationNotice(previousVersion, this.appVersion)) {
@@ -239,6 +245,7 @@ export default class QuartzSyncer extends Plugin {
 			this.manifest.id,
 			`${this.appVersion}-${DATA_STORE_CACHE_VERSION}`,
 			this.app.vault.getName(),
+			() => this.settings,
 		);
 
 		void this.dataStore.dropOutdatedCache().catch((error) => {
@@ -375,6 +382,7 @@ export default class QuartzSyncer extends Plugin {
 	}
 
 	onunload() {
+		disablePerfMetrics();
 		this.operabilityFacade?.shutdown();
 		window.__QS__ = undefined;
 		this.operabilityFacade = null;

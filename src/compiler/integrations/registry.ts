@@ -27,6 +27,14 @@ export class IntegrationRegistry {
 			.sort((a, b) => a.priority - b.priority);
 	}
 
+	getVaultDependentEnabled(
+		settings: QuartzSyncerSettings,
+	): PluginIntegration[] {
+		return this.integrations
+			.filter((i) => settings[i.settingKey] && i.isVaultDependent)
+			.sort((a, b) => a.priority - b.priority);
+	}
+
 	getAvailable(): PluginIntegration[] {
 		return this.integrations.filter((i) => i.isAvailable());
 	}

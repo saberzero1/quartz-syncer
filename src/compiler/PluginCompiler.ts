@@ -8,6 +8,10 @@ import {
 	CompileContext,
 	PluginIntegration,
 } from "./integrations";
+import {
+	getPerfMetrics,
+	perfMetricsEnabled,
+} from "src/operability/PerfMetrics";
 
 export class PluginCompiler {
 	app: App;
@@ -19,12 +23,33 @@ export class PluginCompiler {
 	}
 
 	compile: TCompilerStep = (file: PublishFile) => {
+		return async (text: string) =>
+			(await this.compileWithEvidence(file)(text)).text;
+	};
+
+	compileWithEvidence = (file: PublishFile) => {
 		return async (text: string) => {
+			const startedAt = perfMetricsEnabled ? performance.now() : 0;
 			let compiledText = text;
 
+			const vaultDependentIntegrations =
+				integrationRegistry.getVaultDependentEnabled(this.settings);
+			const availableAtStart = new Set(
+				vaultDependentIntegrations
+					.filter((integration) => integration.isAvailable())
+					.map((integration) => integration.id),
+			);
 			const enabledIntegrations = integrationRegistry.getEnabled(
 				this.settings,
 			);
+			const enabledVaultDependent = new Set(
+				enabledIntegrations
+					.filter((integration) => integration.isVaultDependent)
+					.map((integration) => integration.id),
+			);
+			const observedVaultDependent = new Set<string>();
+			const successfulVaultDependent = new Set<string>();
+			const failedVaultDependent = new Set<string>();
 
 			const context: CompileContext = {
 				app: this.app,
@@ -38,18 +63,64 @@ export class PluginCompiler {
 						compiledText,
 						context,
 					);
+
+					if (integration.isVaultDependent) {
+						observedVaultDependent.add(integration.id);
+						failedVaultDependent.add(integration.id);
+					}
 				}
 			}
 
 			for (const integration of enabledIntegrations) {
-				compiledText = await this.compilePatterns(
+				const result = await this.compilePatterns(
 					integration,
 					compiledText,
 					context,
 				);
+				compiledText = result.text;
+				if (result.matched && integration.isVaultDependent) {
+					observedVaultDependent.add(integration.id);
+					if (result.failed) {
+						failedVaultDependent.add(integration.id);
+						successfulVaultDependent.delete(integration.id);
+					} else if (!failedVaultDependent.has(integration.id)) {
+						successfulVaultDependent.add(integration.id);
+					}
+				}
 			}
 
-			return compiledText;
+			const availableAtEnd = new Set(
+				vaultDependentIntegrations
+					.filter((integration) => integration.isAvailable())
+					.map((integration) => integration.id),
+			);
+			for (const source of successfulVaultDependent) {
+				if (
+					!availableAtStart.has(source) ||
+					!availableAtEnd.has(source)
+				) {
+					successfulVaultDependent.delete(source);
+				}
+			}
+			const allVaultDependentAvailable = vaultDependentIntegrations.every(
+				(integration) =>
+					availableAtStart.has(integration.id) &&
+					enabledVaultDependent.has(integration.id) &&
+					availableAtEnd.has(integration.id) &&
+					!failedVaultDependent.has(integration.id),
+			);
+			file.correctDynamicContentAfterCompile(
+				observedVaultDependent,
+				allVaultDependentAvailable,
+			);
+			if (perfMetricsEnabled) {
+				getPerfMetrics()?.addDuration("integrationMs", startedAt);
+			}
+
+			return {
+				text: compiledText,
+				successfulVaultDependentExecutions: successfulVaultDependent,
+			};
 		};
 	};
 
@@ -57,8 +128,10 @@ export class PluginCompiler {
 		integration: PluginIntegration,
 		text: string,
 		context: CompileContext,
-	): Promise<string> {
+	): Promise<{ text: string; matched: boolean; failed: boolean }> {
 		let compiledText = text;
+		let matched = false;
+		let failed = false;
 		const patterns = integration.getPatterns();
 
 		for (const descriptor of patterns) {
@@ -82,19 +155,18 @@ export class PluginCompiler {
 			}
 
 			for (const patternMatch of matches) {
-				const replacement = await integration.compile(
-					patternMatch,
-					context,
-				);
+				matched = true;
+				const result = await integration.compile(patternMatch, context);
+				if (!result.successful) failed = true;
 
 				compiledText = compiledText.replace(
 					patternMatch.fullMatch,
-					replacement,
+					result.text,
 				);
 			}
 		}
 
-		return compiledText;
+		return { text: compiledText, matched, failed };
 	}
 
 	getEnabledIntegrations(): PluginIntegration[] {

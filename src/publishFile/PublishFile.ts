@@ -2,6 +2,7 @@ import { MetadataCache, TFile, Vault } from "obsidian";
 import {
 	SyncerPageCompiler,
 	TCompiledFile,
+	type CompilerInvocationResult,
 } from "src/compiler/SyncerPageCompiler";
 import {
 	FrontmatterCompiler,
@@ -15,12 +16,23 @@ import {
 	type CompilationMetadata,
 	type QuartzSyncerCache,
 } from "src/cache/DataStore";
+import {
+	type CompilationRevisions,
+	DYNAMIC_CONTENT_DETECTOR_VERSION,
+	isCompiledEntryValid,
+	settingsFingerprint,
+	waitForSettingsFingerprintResolution,
+} from "src/cache/CompiledEntryValidity";
 import { generateBlobHash, stripVaultPath } from "src/utils/utils";
 import {
 	DATAVIEW_FIELD_REGEX,
 	DATAVIEW_INLINE_FIELD_REGEX,
 } from "src/utils/regexes";
-import { hasDynamicContent } from "src/utils/dynamicContent";
+import { getDynamicSources } from "src/utils/dynamicContent";
+import {
+	getPerfMetrics,
+	perfMetricsEnabled,
+} from "src/operability/PerfMetrics";
 
 /**
  * Determines the special file type from a TFile, if any.
@@ -61,6 +73,7 @@ interface IPublishFileProps {
 interface CompilationCacheOptions {
 	cachedEntry?: QuartzSyncerCache | null;
 	getMetadata?: () => Promise<CompilationMetadata>;
+	onDynamicClassification?: (hasDynamicContent: boolean) => void;
 }
 
 /**
@@ -80,7 +93,11 @@ export class PublishFile {
 	// Access props and other file metadata
 	meta: FileMetadataManager;
 	datastore: DataStore;
-	hasDynamicContent = false;
+	dynamicSources: string[] = [];
+
+	get hasDynamicContent(): boolean {
+		return this.dynamicSources.length > 0;
+	}
 
 	constructor({
 		file,
@@ -108,24 +125,62 @@ export class PublishFile {
 	 * @returns A promise that resolves to a CompiledPublishFile instance.
 	 */
 	async compile(
-		trustDynamicCache = false,
 		cacheOptions: CompilationCacheOptions = {},
 	): Promise<CompiledPublishFile> {
 		let compiledFile: TCompiledFile;
 		const sourceMtime = this.file.stat.mtime;
 
 		if (this.settings.useCache) {
+			const readiness = waitForSettingsFingerprintResolution(
+				this.settings,
+			);
+			const fingerprintResolved =
+				readiness === true
+					? true
+					: readiness === false
+						? false
+						: await readiness;
+			if (!fingerprintResolved) {
+				const rawContent = await this.vault.cachedRead(this.file);
+				this.dynamicSources = getDynamicSources(
+					rawContent,
+					this.settings,
+				);
+				cacheOptions.onDynamicClassification?.(this.hasDynamicContent);
+				const unresolvedFile =
+					await this.compiler.generateMarkdown(this);
+				if (!unresolvedFile) {
+					throw new Error(
+						`Failed to compile file: ${this.file.path}. Compiler returned null.`,
+					);
+				}
+				return new CompiledPublishFile(
+					{
+						file: this.file,
+						compiler: this.compiler,
+						metadataCache: this.metadataCache,
+						vault: this.vault,
+						settings: this.settings,
+						datastore: this.datastore,
+					},
+					unresolvedFile,
+				);
+			}
 			const cached =
 				cacheOptions.cachedEntry === undefined
-					? ((await this.datastore.loadFile(this.file.path)) ?? null)
+					? ((await this.datastore.loadFile(
+							this.file.path,
+							sourceMtime,
+							this.settings,
+						)) ?? null)
 					: cacheOptions.cachedEntry;
 			const cachedFile = cached?.localData;
-			const outdated =
-				!cached ||
-				cached.version !== this.datastore.version ||
-				cached.sourceMtime !== sourceMtime ||
-				(!!cached.hasDynamicContent && !trustDynamicCache);
-			this.hasDynamicContent = cached?.hasDynamicContent ?? false;
+			const criteria = this.datastore.getValidityCriteria(
+				sourceMtime,
+				this.settings,
+			);
+			const outdated = !isCompiledEntryValid(cached, criteria);
+			this.dynamicSources = cached?.dynamicSources ?? [];
 
 			let storedFile = null;
 
@@ -133,9 +188,17 @@ export class PublishFile {
 				storedFile = cachedFile;
 			} else {
 				const rawContent = await this.vault.cachedRead(this.file);
-				const isDynamic = hasDynamicContent(rawContent);
+				this.dynamicSources = getDynamicSources(
+					rawContent,
+					this.settings,
+				);
+				cacheOptions.onDynamicClassification?.(this.hasDynamicContent);
 
-				storedFile = await this.compiler.generateMarkdown(this);
+				const revisionsAtStart =
+					this.datastore.captureCompilationRevisions();
+				const compilation = await this.generateMarkdownWithEvidence();
+				storedFile = compilation.compiledFile;
+				const dynamicSources = [...this.dynamicSources];
 
 				if (!storedFile) {
 					throw new Error(
@@ -143,24 +206,46 @@ export class PublishFile {
 					);
 				}
 
+				const hashStartedAt = perfMetricsEnabled
+					? performance.now()
+					: 0;
 				const localHash = await generateBlobHash(storedFile[0]);
+				if (perfMetricsEnabled) {
+					getPerfMetrics()?.addDuration("hashMs", hashStartedAt);
+				}
 				const metadata = await cacheOptions.getMetadata?.();
 				const currentMtime = this.file.stat.mtime;
-
-				await this.datastore.storeCompilation(
-					this.file.path,
-					{
-						localData: storedFile,
-						localHash,
-						hasDynamicContent: isDynamic,
-						sourceMtime,
-						currentMtime,
-						metadata,
-					},
-					cached,
+				const revisionsAtEnd =
+					this.datastore.captureCompilationRevisions();
+				const verifiedRevisions = this.verifyCompilationRevisions(
+					revisionsAtStart,
+					revisionsAtEnd,
+					dynamicSources,
+					compilation.successfulVaultDependentExecutions,
 				);
+
+				const persistStartedAt = perfMetricsEnabled
+					? performance.now()
+					: 0;
+				await this.datastore.storeCompilation(this.file.path, {
+					localData: storedFile,
+					localHash,
+					dynamicSources,
+					sourceMtime,
+					currentMtime,
+					settingsFingerprint: settingsFingerprint(this.settings),
+					detectorVersion: DYNAMIC_CONTENT_DETECTOR_VERSION,
+					verifiedRevisions,
+					metadata,
+				});
+				if (perfMetricsEnabled) {
+					getPerfMetrics()?.addDuration(
+						"persistMs",
+						persistStartedAt,
+					);
+				}
 				if (currentMtime === sourceMtime)
-					this.hasDynamicContent = isDynamic;
+					this.dynamicSources = dynamicSources;
 			}
 
 			compiledFile = storedFile;
@@ -179,6 +264,58 @@ export class PublishFile {
 			},
 			compiledFile,
 		);
+	}
+
+	private async generateMarkdownWithEvidence(): Promise<CompilerInvocationResult> {
+		if (typeof this.compiler.generateMarkdownWithEvidence === "function") {
+			return this.compiler.generateMarkdownWithEvidence(this);
+		}
+		return {
+			compiledFile: await this.compiler.generateMarkdown(this),
+			successfulVaultDependentExecutions: new Set(),
+		};
+	}
+
+	private verifyCompilationRevisions(
+		before: CompilationRevisions,
+		after: CompilationRevisions,
+		dynamicSources: string[],
+		successfulVaultDependentExecutions: ReadonlySet<string>,
+	): CompilationRevisions {
+		const verified: CompilationRevisions = {
+			dataviewRevision: undefined,
+			datacoreRevision: undefined,
+		};
+		if (
+			dynamicSources.includes("dataview") &&
+			successfulVaultDependentExecutions.has("dataview") &&
+			before.dataviewRevision !== undefined &&
+			before.dataviewRevision === after.dataviewRevision
+		) {
+			verified.dataviewRevision = before.dataviewRevision;
+		}
+		if (
+			dynamicSources.includes("datacore") &&
+			successfulVaultDependentExecutions.has("datacore") &&
+			before.datacoreRevision !== undefined &&
+			before.datacoreRevision === after.datacoreRevision
+		) {
+			verified.datacoreRevision = before.datacoreRevision;
+		}
+		return verified;
+	}
+
+	correctDynamicContentAfterCompile(
+		observedVaultDependent: ReadonlySet<string>,
+		allVaultDependentAvailable: boolean,
+	): void {
+		if (observedVaultDependent.size > 0) {
+			this.dynamicSources = [
+				...new Set([...this.dynamicSources, ...observedVaultDependent]),
+			].sort();
+		} else if (allVaultDependentAvailable) {
+			this.dynamicSources = [];
+		}
 	}
 
 	/**

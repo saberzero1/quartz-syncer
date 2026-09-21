@@ -25,6 +25,12 @@ export interface PublishStatus {
 	media: MediaEntry[];
 	arbitrary: ArbitraryFileEntry[];
 	mediaLinks?: Map<string, string[]>;
+	/**
+	 * Vault paths whose output depends on the wider vault and therefore cannot
+	 * be classified from a durable hash. An unknown classification is included
+	 * here, matching the safe direction used throughout the cache layer.
+	 */
+	dynamic?: Set<string>;
 }
 
 export interface PublishFailure {
