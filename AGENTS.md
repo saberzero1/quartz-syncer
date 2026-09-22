@@ -64,6 +64,20 @@ Uses persistent shell + `PublicationTree` class with keyed DOM row maps. State c
 
 Commands are defined in `COMMAND_REGISTRY` in `src/cli/registerCliHandlers.ts`. The CLI itself is desktop-only — no `Platform.isDesktopApp` checks in handlers.
 
+### Argument and flag contract
+
+Obsidian hands over `CliData`, a flat `Record<string, string | 'true'>`. A bare flag (`force`) and an explicit `value=true` both arrive as the string `"true"`; `value=` arrives as `""`. The payload alone cannot tell a flag from a value.
+
+`COMMAND_REGISTRY` is what resolves that ambiguity, so its `args`/`flags` split is load-bearing for parsing, not just for help text:
+
+- Declare every value-taking parameter under `args`. `normalizeCliParams()` preserves whatever such a parameter was given, including `"true"` and `""`. Omit it and `value=true` is silently reclassified as a flag, making the value unreachable.
+- Declare every boolean parameter under `flags`. Undeclared names fall back to "flag-shaped values become flags".
+- A name must never appear in both lists for the same command. A test pins this.
+
+An explicit `force=false` deliberately stays out of `flags`, leaving destructive commands disarmed. Do not "simplify" this by classifying declared flags by name.
+
+Tests that build `CliParams` by hand bypass normalization entirely, so they cannot catch parsing bugs. Parsing regressions belong in `test/unit/cli/registerCliHandlers.test.ts`, which dispatches raw `CliData` through the registered callback.
+
 ## Quartz v5
 
 Quartz v5 uses `quartz.config.default.yaml` as the base configuration. `quartz.config.yaml` is optional — it contains user overrides only. If absent, Quartz falls back to the default. Do not assume `quartz.config.yaml` exists in a fresh Quartz repo.
