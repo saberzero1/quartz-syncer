@@ -3,15 +3,26 @@ import type { CliData as ObsidianCliData } from "obsidian";
 import {
 	COMMAND_REGISTRY,
 	COMPILE_CAPABLE_COMMANDS,
+	normalizeCliParams,
 	registerCliHandlers,
 } from "src/cli/registerCliHandlers";
 import type QuartzSyncer from "src/main";
+import type { CommandMeta } from "src/cli/types";
 import type { Publisher } from "src/publisher/Publisher";
 import { buildPlugin } from "./handlers/helpers";
 
-vi.mock("src/cli/handlers/cliUtils", () => ({
+vi.mock("src/cli/handlers/cliUtils", async (importOriginal) => ({
+	...(await importOriginal<typeof import("src/cli/handlers/cliUtils")>()),
 	createRepositoryAdapter: () => ({}),
 }));
+
+const metaFor = (name: string): CommandMeta => {
+	const meta = COMMAND_REGISTRY.find((entry) => entry.name === name);
+
+	if (!meta) throw new Error(`not in registry: ${name}`);
+
+	return meta;
+};
 
 type Dispatch = (data: ObsidianCliData) => Promise<string>;
 
@@ -58,6 +69,7 @@ const setup = (publisherOverrides: Partial<Publisher> = {}) => {
 
 	return {
 		registered,
+		plugin,
 		getPublisher,
 		beginDynamicSession,
 		endDynamicSession,
@@ -142,6 +154,43 @@ describe("registerCliHandlers dispatch", () => {
 		expect(parsed.data.flags.map((flag) => flag.name)).toContain("force");
 	});
 
+	// Obsidian delivers `value=true` as the string "true", byte-identical to a
+	// bare flag. Normalizing that into `flags` made every boolean setting
+	// impossible to enable from the CLI, `ENABLE_DEVELOPER_TOOLS` included.
+	it("sets a boolean setting to true through the full dispatch path", async () => {
+		const { registered, plugin } = setup();
+
+		const output = await dispatch(registered, "quartz-syncer:config", {
+			action: "set",
+			key: "enableSystemCommands",
+			value: "true",
+			format: "json",
+		} as unknown as ObsidianCliData);
+
+		expect(JSON.parse(output)).toEqual({
+			success: true,
+			data: { key: "enableSystemCommands", value: true },
+		});
+		expect(plugin.settings.enableSystemCommands).toBe(true);
+	});
+
+	it("clears a string setting to empty through the full dispatch path", async () => {
+		const { registered, plugin } = setup();
+
+		const output = await dispatch(registered, "quartz-syncer:config", {
+			action: "set",
+			key: "gitBranch",
+			value: "",
+			format: "json",
+		} as unknown as ObsidianCliData);
+
+		expect(JSON.parse(output)).toEqual({
+			success: true,
+			data: { key: "gitBranch", value: "" },
+		});
+		expect(plugin.settings.gitBranch).toBe("");
+	});
+
 	it("emits JSON only when format=json is requested", async () => {
 		const { registered } = setup();
 
@@ -211,5 +260,116 @@ describe("registerCliHandlers dispatch", () => {
 		expect(endDynamicSession.mock.calls.length).toBe(
 			beginDynamicSession.mock.calls.length,
 		);
+	});
+});
+
+describe("normalizeCliParams", () => {
+	// The whole classification rests on this: Obsidian cannot distinguish a
+	// bare flag from `name=true`, so the registry has to, and it only can
+	// while no single name means both things.
+	it("never declares a name as both an argument and a flag", () => {
+		for (const entry of COMMAND_REGISTRY) {
+			const flagNames: string[] = entry.flags.map((flag) => flag.name);
+			const collisions = entry.args
+				.map((arg) => arg.name as string)
+				.filter((name) => flagNames.includes(name));
+
+			expect({ command: entry.name, collisions }).toEqual({
+				command: entry.name,
+				collisions: [],
+			});
+		}
+	});
+
+	it.each(["true", "false", "", "0", "a=b"])(
+		"keeps %j as the value of a declared argument",
+		(given) => {
+			const params = normalizeCliParams(
+				{ action: "set", key: "useDataview", value: given },
+				metaFor("quartz-syncer:config"),
+			);
+
+			expect(params.args.value).toBe(given);
+			expect(params.flags.has("value")).toBe(false);
+		},
+	);
+
+	it("treats a bare declared flag as a flag", () => {
+		const params = normalizeCliParams(
+			{ action: "reset", force: "true" },
+			metaFor("quartz-syncer:config"),
+		);
+
+		expect(params.flags.has("force")).toBe(true);
+		expect(params.args.force).toBeUndefined();
+	});
+
+	// `force=false` arrives as the string "false", which is not flag-shaped,
+	// so it must stay out of `flags` and leave the destructive path disarmed.
+	it("does not arm a destructive flag given an explicit false", () => {
+		const params = normalizeCliParams(
+			{ action: "unpublish", path: "notes/post.md", force: "false" },
+			metaFor("quartz-syncer:delete"),
+		);
+
+		expect(params.flags.has("force")).toBe(false);
+	});
+
+	it("keeps quartz-sync's true/false arguments as values", () => {
+		const params = normalizeCliParams(
+			{ commit: "true", push: "true", pull: "false" },
+			metaFor("quartz-syncer:quartz-sync"),
+		);
+
+		expect(params.args).toMatchObject({
+			commit: "true",
+			push: "true",
+			pull: "false",
+		});
+		expect([...params.flags]).toEqual([]);
+	});
+
+	it("falls back to flag classification for undeclared names", () => {
+		const params = normalizeCliParams(
+			{ mystery: "true", riddle: "answer" },
+			metaFor("quartz-syncer:status"),
+		);
+
+		expect(params.flags.has("mystery")).toBe(true);
+		expect(params.args.riddle).toBe("answer");
+	});
+
+	it("derives verbose from the flag set", () => {
+		const meta = metaFor("quartz-syncer:status");
+
+		expect(normalizeCliParams({ verbose: "true" }, meta).verbose).toBe(
+			true,
+		);
+
+		expect(normalizeCliParams({ format: "json" }, meta).verbose).toBe(
+			false,
+		);
+	});
+
+	it("returns empty params when Obsidian passes no data", () => {
+		const params = normalizeCliParams(undefined, metaFor("quartz-syncer"));
+
+		expect(params).toEqual({
+			args: {},
+			flags: new Set(),
+			verbose: false,
+		});
+	});
+
+	// Defensive path: Obsidian splits `name=value` itself today. If it ever
+	// stops, the value still has to survive whole, further `=` included.
+	it("splits a key that still carries its own value", () => {
+		const params = normalizeCliParams(
+			{ "value=a=b": "true" },
+			metaFor("quartz-syncer:config"),
+		);
+
+		expect(params.args.value).toBe("a=b");
+		expect(params.flags.has("value")).toBe(false);
 	});
 });

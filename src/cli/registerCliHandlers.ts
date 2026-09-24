@@ -482,12 +482,10 @@ export function registerCliHandlers(
 		command: CommandName,
 		rawParams: Record<string, string> | undefined,
 	): Promise<string> => {
-		const params = normalizeCliParams(rawParams);
+		const meta = COMMAND_REGISTRY.find((entry) => entry.name === command);
+		const params = normalizeCliParams(rawParams, meta);
 		const format = params.args.format === "json" ? "json" : "text";
 		if (params.flags.has("help")) {
-			const meta = COMMAND_REGISTRY.find(
-				(entry) => entry.name === command,
-			);
 			return formatCliOutput(
 				meta
 					? { success: true, data: meta }
@@ -530,8 +528,55 @@ export function registerCliHandlers(
 	return handlers;
 }
 
-function normalizeCliParams(
+/** Values Obsidian cannot distinguish from a bare boolean flag. */
+function isFlagShaped(
+	value: string | undefined,
+): value is undefined | "" | "true" {
+	return value === undefined || value === "" || value === "true";
+}
+
+/**
+ * Reunite a key that still carries its own value.
+ *
+ * Obsidian splits `name=value` on the first `=` before handing the data over,
+ * so this only fires if that ever stops being true. Splitting on the first
+ * `=` rather than every `=` keeps `value=a=b` intact.
+ */
+function splitRawParam(
+	rawKey: string,
+	rawValue: string | undefined,
+): [string, string | undefined] {
+	const key = rawKey.trim();
+	const value = rawValue?.trim();
+	const separator = key.indexOf("=");
+
+	if (separator <= 0 || !isFlagShaped(value)) {
+		return [key, value];
+	}
+
+	const parsedKey = key.slice(0, separator).trim();
+	const parsedValue = key.slice(separator + 1).trim();
+
+	return parsedKey && parsedValue ? [parsedKey, parsedValue] : [key, value];
+}
+
+/**
+ * Split Obsidian's flat CLI data into value-carrying arguments and boolean
+ * flags.
+ *
+ * Obsidian types this data as `Record<string, string | 'true'>`: a bare flag
+ * (`force`) and an explicit `value=true` both arrive as the string `"true"`,
+ * so the payload alone cannot tell them apart. The command registry can — it
+ * already declares which names take a value, and no name is both an argument
+ * and a flag — so a declared argument keeps whatever it was given, including
+ * `"true"` and the empty string.
+ *
+ * Without `meta` (an unregistered command) there is nothing to disambiguate
+ * with, so flag-shaped values fall back to being flags.
+ */
+export function normalizeCliParams(
 	rawParams: Record<string, string> | undefined,
+	meta: CommandMeta | undefined,
 ): CliParams {
 	const args: Record<string, string> = {};
 	const flags = new Set<string>();
@@ -540,27 +585,22 @@ function normalizeCliParams(
 		return { args, flags, verbose: false };
 	}
 
-	for (const [key, value] of Object.entries(rawParams)) {
-		const trimmedKey = key.trim();
-		const trimmedValue = value?.trim();
+	const valueTakingArgs = new Set(meta?.args.map((arg) => arg.name) ?? []);
 
-		if (
-			trimmedKey.includes("=") &&
-			(!trimmedValue || trimmedValue === "true")
-		) {
-			const [parsedKey, parsedValue] = trimmedKey.split("=", 2);
-			if (parsedKey && parsedValue) {
-				args[parsedKey] = parsedValue;
-				continue;
-			}
-		}
+	for (const [rawKey, rawValue] of Object.entries(rawParams)) {
+		const [key, value] = splitRawParam(rawKey, rawValue);
 
-		if (!trimmedValue || trimmedValue === "true") {
-			flags.add(trimmedKey);
+		if (valueTakingArgs.has(key)) {
+			args[key] = value ?? "";
 			continue;
 		}
 
-		args[trimmedKey] = trimmedValue;
+		if (isFlagShaped(value)) {
+			flags.add(key);
+			continue;
+		}
+
+		args[key] = value;
 	}
 
 	return { args, flags, verbose: flags.has("verbose") };
