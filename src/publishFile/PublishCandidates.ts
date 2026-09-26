@@ -1,4 +1,5 @@
 import { TFile, type App } from "obsidian";
+import { isExcludedVaultPath } from "./ExcludedFolders";
 import type QuartzSyncer from "src/main";
 import QuartzSyncerSettings from "src/models/settings";
 import { getSpecialFileType } from "src/publishFile/PublishFile";
@@ -107,5 +108,7 @@ export function collectCandidatePaths(
 		}
 	}
 
-	return paths;
+	return new Set(
+		[...paths].filter((path) => !isExcludedVaultPath(path, settings)),
+	);
 }

@@ -1388,3 +1388,50 @@ describe("SyncerPageCompiler", () => {
 		});
 	});
 });
+
+describe("excluded source and references", () => {
+	it("rejects a private source before reading it", async () => {
+		const { compiler } = makeCompiler({ excludedFolders: "Private" });
+		const file = makeMockPublishFile({ path: "Private/journal.md" });
+		await expect(compiler.generateMarkdown(file)).rejects.toThrow(
+			"excluded folder",
+		);
+		expect(file.cachedRead).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"![[Private/journal#Heading]]",
+		"![[scan.png]]",
+		"![scan](Private/scan.png)",
+	])("blocks private embeds in fresh source: %s", async (text) => {
+		const { compiler, metadataCache } = makeCompiler({
+			excludedFolders: "Private",
+		});
+		vi.mocked(metadataCache.getFirstLinkpathDest).mockReturnValue({
+			path: "Private/scan.png",
+		} as TFile);
+		const file = makeMockPublishFile({ cachedReadValue: text });
+		await expect(compiler.generateMarkdown(file)).rejects.toThrow(
+			"excluded folder",
+		);
+	});
+
+	it("blocks private canvas file nodes", async () => {
+		const { compiler, metadataCache } = makeCompiler({
+			excludedFolders: "Private",
+			useCanvas: true,
+		});
+		vi.mocked(metadataCache.getFirstLinkpathDest).mockReturnValue({
+			path: "Private/journal.md",
+		} as TFile);
+		const file = makeMockPublishFile({
+			cachedReadValue: JSON.stringify({
+				nodes: [{ type: "file", file: "Private/journal.md" }],
+			}),
+		});
+		vi.mocked(file.getType).mockReturnValue("canvas");
+		await expect(compiler.generateMarkdown(file)).rejects.toThrow(
+			"excluded folder",
+		);
+	});
+});

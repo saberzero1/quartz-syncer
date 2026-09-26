@@ -82,6 +82,8 @@ export default interface QuartzSyncerSettings {
 
 	/** Vault path settings */
 	vaultPath: string;
+	/** Newline-separated, vault-relative folders excluded from publishing. */
+	excludedFolders?: string;
 
 	/**
 	 * @deprecated Use gitRemoteUrl instead. Kept for migration from pre-v4.

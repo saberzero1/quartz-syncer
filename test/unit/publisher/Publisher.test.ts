@@ -2966,3 +2966,106 @@ describe("Publisher", () => {
 		});
 	});
 });
+
+describe("publisher exclusion boundary", () => {
+	function fixture(excludedFolders = "Private") {
+		const app = new App();
+		const settings = makeSettings({ excludedFolders });
+		const plugin = makePlugin(settings);
+		const git = makeGitBackend();
+		const dataStore = {
+			loadLocalFile: vi.fn().mockResolvedValue(["public", { blobs: [] }]),
+			loadLocalHash: vi.fn().mockResolvedValue(null),
+		} as unknown as DataStore;
+		const publisher = new Publisher(
+			app,
+			plugin,
+			new RemotePublishBackend(git, "main"),
+			{} as SyncerPageCompiler,
+			dataStore,
+		);
+		return { app, settings, plugin, git, dataStore, publisher };
+	}
+
+	it.each([false, true])(
+		"rejects excluded notes at the writer with mobile=%s",
+		async (mobile) => {
+			const original = Platform.isMobileApp;
+			Platform.isMobileApp = mobile;
+			try {
+				const { publisher, git, dataStore } = fixture();
+				const result = await publisher.publishBatch([
+					makePublishFile("Private/journal.md"),
+				]);
+				expect(result.success).toBe(false);
+				expect(result.error).toContain("excluded folder");
+				expect(dataStore.loadLocalFile).not.toHaveBeenCalled();
+				expect(git.writeFiles).not.toHaveBeenCalled();
+			} finally {
+				Platform.isMobileApp = original;
+			}
+		},
+	);
+
+	it("rejects excluded cached attachments before reading bytes and aborts the whole batch", async () => {
+		const { publisher, git, dataStore, app } = fixture();
+		vi.mocked(dataStore.loadLocalFile)
+			.mockResolvedValueOnce(["safe", { blobs: [] }])
+			.mockResolvedValueOnce([
+				"image",
+				{
+					blobs: [
+						{
+							path: "Images/scan.png",
+							vaultPath: "Private/scan.png",
+						},
+					],
+				},
+			]);
+		const result = await publisher.publishBatch([
+			makePublishFile("safe.md"),
+			makePublishFile("image.md"),
+		]);
+		expect(result.success).toBe(false);
+		expect(result.error).toContain("Private/scan.png");
+		expect(app.vault.readBinary).not.toHaveBeenCalled();
+		expect(git.writeFiles).not.toHaveBeenCalled();
+	});
+
+	it("stops if exclusions change during preparation", async () => {
+		const { publisher, git, dataStore, plugin } = fixture("");
+		vi.mocked(dataStore.loadLocalFile).mockImplementation(async () => {
+			plugin.settings = {
+				...plugin.settings,
+				excludedFolders: "Private",
+			};
+			return ["public", { blobs: [] }];
+		});
+		const result = await publisher.publishBatch([
+			makePublishFile("public.md"),
+		]);
+		expect(result.success).toBe(false);
+		expect(git.writeFiles).not.toHaveBeenCalled();
+	});
+
+	it.each(["Private/secret.md", "content/Private/secret.md"])(
+		"cannot bypass exclusions via arbitrary publishing: %s",
+		async (repoPath) => {
+			const { publisher, git } = fixture();
+			const result = await publisher.publishArbitraryFiles([
+				{ repoPath, content: "secret", encoding: "utf-8" },
+			]);
+			expect(result.success).toBe(false);
+			expect(git.writeFiles).not.toHaveBeenCalled();
+		},
+	);
+
+	it("keeps allowed publishing functional", async () => {
+		const { publisher, git } = fixture();
+		expect(
+			(await publisher.publishBatch([makePublishFile("Books/note.md")]))
+				.success,
+		).toBe(true);
+		expect(git.writeFiles).toHaveBeenCalledOnce();
+	});
+});
