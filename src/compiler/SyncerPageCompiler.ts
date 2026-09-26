@@ -16,6 +16,10 @@ import remarkObsidian, {
 import type { Root, Link, Image } from "mdast";
 import { visit } from "unist-util-visit";
 import { PublishFile } from "src/publishFile/PublishFile";
+import {
+	assertVaultPathAllowed,
+	hasExcludedFolders,
+} from "src/publishFile/ExcludedFolders";
 import { PluginCompiler } from "src/compiler/PluginCompiler";
 import { DataStore } from "src/cache/DataStore";
 import {
@@ -138,7 +142,9 @@ export class SyncerPageCompiler {
 	async generateMarkdownWithEvidence(
 		file: PublishFile,
 	): Promise<CompilerInvocationResult> {
+		assertVaultPathAllowed(file.getPath(), this.settings);
 		const vaultFileText = await file.cachedRead();
+		this.assertReferencesAllowed(file, vaultFileText);
 		const fileType = file.getType();
 
 		if (
@@ -180,6 +186,7 @@ export class SyncerPageCompiler {
 			COMPILE_STEPS,
 		)(vaultFileText);
 
+		this.assertReferencesAllowed(file, compiledText);
 		const [text, blobs] = await this.convertFileLinks(file)(compiledText);
 
 		return {
@@ -189,6 +196,39 @@ export class SyncerPageCompiler {
 			],
 			successfulVaultDependentExecutions,
 		};
+	}
+
+	/** Check fresh source, not only Obsidian's potentially stale embed cache. */
+	private assertReferencesAllowed(file: PublishFile, text: string): void {
+		if (!hasExcludedFolders(this.settings)) return;
+		let targets: string[];
+		if (file.getType() === "canvas") {
+			const canvas = JSON.parse(text) as {
+				nodes?: Array<{ type?: string; file?: string }>;
+			};
+			targets = (canvas.nodes ?? []).flatMap((node) =>
+				node.type === "file" && typeof node.file === "string"
+					? [node.file]
+					: [],
+			);
+		} else {
+			targets = collectEmbedPaths(this.parseForEmbedScan(text));
+			if (file.getType() === "excalidraw") {
+				targets.push(
+					...(
+						this.metadataCache.getCache(file.getPath())?.links ?? []
+					).map((link) => link.link),
+				);
+			}
+		}
+		for (const target of targets) {
+			const link = getLinkpath(target);
+			const resolved = this.metadataCache.getFirstLinkpathDest(
+				link,
+				file.getPath(),
+			);
+			if (resolved) assertVaultPathAllowed(resolved.path, this.settings);
+		}
 	}
 
 	private stripVaultPathFromLinks(text: string): string {

@@ -72,6 +72,7 @@ export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	gitProviderHint: "github",
 
 	vaultPath: "/",
+	excludedFolders: "",
 
 	// Deprecated fields kept for migration
 	githubRepo: undefined,

@@ -5,6 +5,10 @@ import type { FileChange } from "src/git/types";
 import type { PublishBackend } from "src/publisher/PublishBackend";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
 import { PathMapper } from "src/git/PathMapper";
+import {
+	assertVaultPathAllowed,
+	ExcludedFolderError,
+} from "src/publishFile/ExcludedFolders";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { collectCandidatePaths } from "src/publishFile/PublishCandidates";
 import {
@@ -463,6 +467,7 @@ export class Publisher {
 	): Promise<PublishResult> {
 		this.eventSink?.emit("publish.started", { fileCount: files.length });
 		const settings = this.plugin.settings;
+		const exclusionPolicy = settings.excludedFolders ?? "";
 		const changes: FileChange[] = [];
 		const remoteHashes: Array<{
 			file: PublishFile;
@@ -476,6 +481,7 @@ export class Publisher {
 		const publishedFiles: PublishFile[] = [];
 		const failures: PublishFailure[] = [];
 		const stagedAssetPaths = new Set<string>();
+		const stagedSourcePaths = new Set<string>();
 		const assetShas = new Map<string, AssetShaCache>();
 		const loadedAssetPaths = new Set<string>();
 		const updatedAssetShas = new Map<string, AssetShaCache>();
@@ -498,6 +504,10 @@ export class Publisher {
 				const fileAssetPaths = new Set<string>();
 
 				try {
+					assertVaultPathAllowed(
+						file.file.path,
+						this.plugin.settings,
+					);
 					let storedFile = settings.useCache
 						? await this.dataStore.loadLocalFile(
 								file.file.path,
@@ -544,6 +554,11 @@ export class Publisher {
 					});
 
 					for (const asset of assets.blobs) {
+						assertVaultPathAllowed(
+							asset.vaultPath,
+							this.plugin.settings,
+						);
+						stagedSourcePaths.add(asset.vaultPath);
 						const assetPath = this.pathMapper.toRepoPath(
 							this.toVaultRelativePath(asset.path),
 						);
@@ -628,6 +643,8 @@ export class Publisher {
 					}
 					publishedFiles.push(file);
 				} catch (error) {
+					// A policy violation aborts the entire batch before any write.
+					if (error instanceof ExcludedFolderError) throw error;
 					const message =
 						error instanceof Error ? error.message : String(error);
 
@@ -675,6 +692,17 @@ export class Publisher {
 				}
 			}
 
+			if (
+				(this.plugin.settings.excludedFolders ?? "") !== exclusionPolicy
+			) {
+				throw new ExcludedFolderError(
+					"Excluded folders changed during publishing. Review the batch again.",
+				);
+			}
+			for (const file of files)
+				assertVaultPathAllowed(file.file.path, this.plugin.settings);
+			for (const path of stagedSourcePaths)
+				assertVaultPathAllowed(path, this.plugin.settings);
 			const result = await this.backend.writeFiles(
 				settings.gitBranch,
 				commitMessage,
@@ -929,6 +957,17 @@ export class Publisher {
 		}));
 
 		try {
+			for (const file of files) {
+				assertVaultPathAllowed(file.repoPath, this.plugin.settings);
+				if (this.pathMapper.isInContentFolder(file.repoPath)) {
+					const relative = this.pathMapper.toVaultPath(file.repoPath);
+					const root = this.plugin.settings.vaultPath;
+					assertVaultPathAllowed(
+						`${root}/${relative}`,
+						this.plugin.settings,
+					);
+				}
+			}
 			const result = await this.backend.writeFiles(
 				settings.gitBranch,
 				commitMessage,

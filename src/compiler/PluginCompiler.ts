@@ -1,6 +1,10 @@
 import { TCompilerStep } from "src/compiler/SyncerPageCompiler";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { App } from "obsidian";
+import {
+	ExcludedFolderError,
+	hasExcludedFolders,
+} from "src/publishFile/ExcludedFolders";
 import QuartzSyncerSettings from "src/models/settings";
 import {
 	integrationRegistry,
@@ -58,6 +62,7 @@ export class PluginCompiler {
 
 			for (const integration of enabledIntegrations) {
 				if (integration.shouldTransformFile?.(file)) {
+					this.assertIntegrationAllowed(integration);
 					compiledText = await integration.transformFile!(
 						file,
 						compiledText,
@@ -155,6 +160,7 @@ export class PluginCompiler {
 			}
 
 			for (const patternMatch of matches) {
+				this.assertIntegrationAllowed(integration);
 				matched = true;
 				const result = await integration.compile(patternMatch, context);
 				if (!result.successful) failed = true;
@@ -167,6 +173,14 @@ export class PluginCompiler {
 		}
 
 		return { text: compiledText, matched, failed };
+	}
+
+	private assertIntegrationAllowed(integration: PluginIntegration): void {
+		if (integration.isVaultDependent && hasExcludedFolders(this.settings)) {
+			throw new ExcludedFolderError(
+				`Cannot compile ${integration.id} queries while excluded folders are configured: query results may contain excluded content. Replace the query with reviewed static content.`,
+			);
+		}
 	}
 
 	getEnabledIntegrations(): PluginIntegration[] {
