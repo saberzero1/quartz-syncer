@@ -221,6 +221,7 @@ export function renderOverviewTab(
 			const stopButton = serveRow.valueEl.createEl("button", {
 				text: "Stop",
 			});
+			stopButton.setAttrs(qsDom("hub-action", { value: "stop" }));
 			stopButton.addEventListener("click", () => {
 				plugin.quartzRunner?.stopServe();
 				serveRow.row.remove();

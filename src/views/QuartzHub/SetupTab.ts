@@ -40,6 +40,7 @@ export function renderSetupTab(
 		cls: "qs-hub-setup-status",
 		text: "Detecting...",
 	});
+	linkStatus.setAttrs(qsDom("hub-setup-status"));
 
 	const linkButton = linkSection.createEl("button", { text: "Link" });
 	linkButton.setAttrs(qsDom("hub-setup-link"));

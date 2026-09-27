@@ -5,6 +5,7 @@ import type {
 } from "src/quartz/QuartzPluginRegistry";
 import type { QuartzV5Config } from "src/quartz/QuartzConfigTypes";
 import { getPluginSourceKey } from "src/quartz/QuartzPluginUtils";
+import { qsDom } from "src/operability/DomContract";
 import type { IOperabilityEventSink } from "src/operability/types";
 
 type InstallPluginFn = (source: string) => Promise<void>;
@@ -41,6 +42,7 @@ export class PluginBrowserModal extends Modal {
 	async onOpen(): Promise<void> {
 		this.eventSink?.emit("ui.modal.opened", { name: "plugin-browser" });
 		this.modalEl.addClass("quartz-syncer-plugin-browser");
+		this.modalEl.setAttrs(qsDom("plugin-browser"));
 		this.titleEl.setText("Community plugin browser");
 		void this.loadAndRender();
 	}
@@ -74,9 +76,10 @@ export class PluginBrowserModal extends Modal {
 		}
 
 		if (this.allPlugins.length === 0) {
-			this.contentEl.createEl("p", {
+			const errorEl = this.contentEl.createEl("p", {
 				text: "Could not load the plugin registry. Check your internet connection and try again.",
 			});
+			errorEl.setAttrs(qsDom("plugin-browser-state", { value: "error" }));
 
 			return;
 		}
@@ -90,10 +93,11 @@ export class PluginBrowserModal extends Modal {
 		);
 
 		if (filtered.length === 0) {
-			listEl.createEl("p", {
+			const emptyEl = listEl.createEl("p", {
 				text: "No plugins match your search.",
 				cls: "quartz-syncer-plugin-browser-empty",
 			});
+			emptyEl.setAttrs(qsDom("plugin-browser-state", { value: "empty" }));
 
 			return;
 		}
@@ -111,6 +115,7 @@ export class PluginBrowserModal extends Modal {
 		const wrapper = this.contentEl.createDiv({
 			cls: "quartz-syncer-plugin-browser-loading",
 		});
+		wrapper.setAttrs(qsDom("plugin-browser-state", { value: "loading" }));
 		const spinner = wrapper.createSpan({
 			cls: "quartz-syncer-plugin-browser-spinner",
 		});
@@ -133,6 +138,9 @@ export class PluginBrowserModal extends Modal {
 			placeholder: "Search plugins\u2026",
 			cls: "quartz-syncer-plugin-browser-search",
 		});
+		searchInput.setAttrs(
+			qsDom("plugin-browser-input", { field: "search" }),
+		);
 		searchInput.value = this.searchQuery;
 		searchInput.addEventListener("input", () => {
 			this.searchQuery = searchInput.value;
@@ -148,6 +156,10 @@ export class PluginBrowserModal extends Modal {
 		});
 		setIcon(cardBtn, "layout-grid");
 		cardBtn.setAttribute("aria-label", "Card view");
+
+		cardBtn.setAttrs(
+			qsDom("plugin-browser-input", { field: "view", value: "card" }),
+		);
 		cardBtn.classList.toggle("is-active", this.viewMode === "card");
 		cardBtn.addEventListener("click", () => {
 			this.viewMode = "card";
@@ -161,6 +173,10 @@ export class PluginBrowserModal extends Modal {
 		});
 		setIcon(listBtn, "list");
 		listBtn.setAttribute("aria-label", "List view");
+
+		listBtn.setAttrs(
+			qsDom("plugin-browser-input", { field: "view", value: "list" }),
+		);
 		listBtn.classList.toggle("is-active", this.viewMode === "list");
 		listBtn.addEventListener("click", () => {
 			this.viewMode = "list";
@@ -178,6 +194,11 @@ export class PluginBrowserModal extends Modal {
 			const categorySelect = bottomRow.createEl("select", {
 				cls: "quartz-syncer-plugin-browser-category-filter",
 			});
+
+			categorySelect.setAttrs(
+				qsDom("plugin-browser-input", { field: "category" }),
+			);
+
 			categorySelect.createEl("option", {
 				text: "All categories",
 				value: "",
@@ -198,6 +219,11 @@ export class PluginBrowserModal extends Modal {
 		const sourceSelect = bottomRow.createEl("select", {
 			cls: "quartz-syncer-plugin-browser-source-filter",
 		});
+
+		sourceSelect.setAttrs(
+			qsDom("plugin-browser-input", { field: "source" }),
+		);
+
 		sourceSelect.createEl("option", {
 			text: "All sources",
 			value: "all",
@@ -219,6 +245,7 @@ export class PluginBrowserModal extends Modal {
 		const sortSelect = bottomRow.createEl("select", {
 			cls: "quartz-syncer-plugin-browser-sort",
 		});
+		sortSelect.setAttrs(qsDom("plugin-browser-input", { field: "sort" }));
 		sortSelect.createEl("option", { text: "Stars", value: "stars" });
 		sortSelect.createEl("option", { text: "Name", value: "name" });
 		sortSelect.createEl("option", { text: "Author", value: "author" });
@@ -247,10 +274,11 @@ export class PluginBrowserModal extends Modal {
 		);
 
 		if (filtered.length === 0) {
-			listEl.createEl("p", {
+			const emptyEl = listEl.createEl("p", {
 				text: "No plugins match your search.",
 				cls: "quartz-syncer-plugin-browser-empty",
 			});
+			emptyEl.setAttrs(qsDom("plugin-browser-state", { value: "empty" }));
 
 			return;
 		}
@@ -272,6 +300,7 @@ export class PluginBrowserModal extends Modal {
 		const isInstalling = this.installingPlugins.has(entry.name);
 
 		const cardEl = container.createDiv("quartz-syncer-plugin-browser-card");
+		cardEl.setAttrs(qsDom("plugin-browser-item", { name: entry.name }));
 
 		const headerEl = cardEl.createDiv(
 			"quartz-syncer-plugin-browser-card-header",
@@ -330,6 +359,7 @@ export class PluginBrowserModal extends Modal {
 		const isInstalling = this.installingPlugins.has(entry.name);
 
 		const rowEl = container.createDiv("quartz-syncer-plugin-browser-row");
+		rowEl.setAttrs(qsDom("plugin-browser-item", { name: entry.name }));
 
 		const nameEl = rowEl.createSpan({
 			cls: "quartz-syncer-plugin-browser-row-name",
@@ -378,15 +408,23 @@ export class PluginBrowserModal extends Modal {
 		isInstalling: boolean,
 	): void {
 		if (isInstalled) {
-			container.createSpan({
+			const installedEl = container.createSpan({
 				text: "Installed",
 				cls: "quartz-syncer-plugin-browser-installed",
 			});
+
+			installedEl.setAttrs(
+				qsDom("plugin-browser-status", { name: entry.name }),
+			);
 		} else {
 			const installBtn = container.createEl("button", {
 				text: isInstalling ? "Installing\u2026" : "Install",
 				cls: "quartz-syncer-plugin-browser-install-btn",
 			});
+
+			installBtn.setAttrs(
+				qsDom("plugin-browser-action", { name: entry.name }),
+			);
 
 			if (isInstalling) {
 				installBtn.disabled = true;

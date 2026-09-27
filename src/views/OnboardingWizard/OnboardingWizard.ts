@@ -429,6 +429,7 @@ export class OnboardingWizard extends Modal {
 		inputEl.value = this.newSiteName;
 
 		const validationEl = container.createDiv("qs-onboarding-validation");
+		validationEl.setAttrs(qsDom("wizard-state", { field: "validation" }));
 
 		const nameError = getRepoNameError(this.newSiteName);
 
@@ -457,6 +458,7 @@ export class OnboardingWizard extends Modal {
 		const toggleContainer = container.createDiv("qs-onboarding-toggle");
 		const toggleLabel = toggleContainer.createEl("label");
 		const checkboxEl = toggleLabel.createEl("input", { type: "checkbox" });
+		checkboxEl.setAttrs(qsDom("wizard-checkbox", { field: "private" }));
 		checkboxEl.checked = this.isPrivate;
 		toggleLabel.appendText(" Make repository private");
 		checkboxEl.addEventListener("change", () => {
@@ -481,10 +483,12 @@ export class OnboardingWizard extends Modal {
 		});
 
 		if (this.isBusy) {
-			container.createEl("p", {
-				text: "Creating repository and enabling pages...",
-				cls: "qs-onboarding-progress",
-			});
+			container
+				.createEl("p", {
+					text: "Creating repository and enabling pages...",
+					cls: "qs-onboarding-progress",
+				})
+				.setAttrs(qsDom("wizard-state", { field: "creating" }));
 		}
 	}
 
@@ -496,10 +500,12 @@ export class OnboardingWizard extends Modal {
 		});
 
 		if (this.isBusy && this.repos.length === 0) {
-			container.createEl("p", {
-				text: "Loading repositories...",
-				cls: "qs-onboarding-progress",
-			});
+			container
+				.createEl("p", {
+					text: "Loading repositories...",
+					cls: "qs-onboarding-progress",
+				})
+				.setAttrs(qsDom("wizard-state", { field: "loading" }));
 			return;
 		}
 
@@ -513,6 +519,7 @@ export class OnboardingWizard extends Modal {
 		const selectEl = container.createEl("select", {
 			cls: "qs-onboarding-repo-select",
 		});
+		selectEl.setAttrs(qsDom("wizard-select", { field: "repo" }));
 		selectEl.size = 8;
 
 		const populateSelect = (filter: string): void => {
@@ -556,9 +563,12 @@ export class OnboardingWizard extends Modal {
 			this.selectedRepo = selected ?? null;
 		});
 
-		container.createDiv({ cls: "qs-onboarding-helper" }).createSpan({
-			text: `${this.repos.length} repositories loaded.`,
-		});
+		container
+			.createDiv({ cls: "qs-onboarding-helper" })
+			.createSpan({
+				text: `${this.repos.length} repositories loaded.`,
+			})
+			.setAttrs(qsDom("wizard-state", { field: "repo-count" }));
 
 		const connectBtn = container.createEl("button", {
 			text: "Continue",
@@ -654,6 +664,10 @@ export class OnboardingWizard extends Modal {
 			cls: "mod-cta",
 			text: "Open Publication Center",
 		});
+
+		openCenterButton.setAttrs(
+			qsDom("wizard-action", { value: "open-publication-center" }),
+		);
 		openCenterButton.addEventListener("click", () => {
 			this.close();
 			this.plugin.getPublicationCenterManager()?.open() ??
@@ -663,6 +677,7 @@ export class OnboardingWizard extends Modal {
 		const doneButton = container.createEl("button", {
 			text: "Done",
 		});
+		doneButton.setAttrs(qsDom("wizard-action", { value: "done" }));
 		doneButton.addClass("qs-done-button");
 		doneButton.addEventListener("click", () => {
 			this.close();

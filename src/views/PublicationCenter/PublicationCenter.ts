@@ -505,6 +505,8 @@ export class PublicationCenter extends Modal {
 				text: "Add file",
 				cls: "mod-cta",
 			});
+			addButton.setAttrs(qsDom("pub-add-file"));
+
 			addButton.addEventListener("click", () => {
 				this.openArbitraryFilePicker();
 			});
@@ -700,6 +702,8 @@ export class PublicationCenter extends Modal {
 				? "Open setup wizard"
 				: "Open manual setup",
 		});
+		setupBtn.setAttrs(qsDom("pub-setup-btn"));
+
 		setupBtn.addEventListener("click", () => {
 			this.close();
 			if (Platform.isDesktopApp) {
@@ -893,6 +897,8 @@ export class PublicationCenter extends Modal {
 			cls: "pub-center-diff-back",
 			text: "Back to overview",
 		});
+		backButton.setAttrs(qsDom("diff-action", { value: "back" }));
+
 		backButton.addEventListener("click", () => {
 			this.inlineScrollSync?.destroy();
 			this.inlineScrollSync = null;
@@ -920,10 +926,15 @@ export class PublicationCenter extends Modal {
 
 		const controls = header.createDiv({ cls: "diff-controls" });
 		const splitButton = controls.createEl("button", { text: "Split" });
+		splitButton.setAttrs(qsDom("diff-action", { value: "split" }));
 		const unifiedButton = controls.createEl("button", { text: "Unified" });
+		unifiedButton.setAttrs(qsDom("diff-action", { value: "unified" }));
+
 		const collapseButton = controls.createEl("button", {
 			text: "Expand all",
 		});
+		collapseButton.setAttrs(qsDom("diff-action", { value: "expand-all" }));
+
 		const forceUnified =
 			category === "unpublished" || category === "deleted";
 		splitButton.style.display = forceUnified ? "none" : "";

@@ -1,5 +1,6 @@
 import { ConfirmationModal, Notice } from "obsidian";
 import type QuartzSyncer from "src/main";
+import { qsDom } from "src/operability/DomContract";
 import type { IOperabilityEventSink } from "src/operability/types";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
@@ -59,17 +60,24 @@ export function renderTemplatesTab(
 		listSection.empty();
 
 		if (state.isLoading) {
-			listSection.createEl("p", { text: "Loading..." });
+			const loadingEl = listSection.createEl("p", {
+				text: "Loading...",
+			});
+			loadingEl.setAttrs(qsDom("hub-state", { value: "loading" }));
 			return;
 		}
 
 		if (state.error) {
-			listSection.createEl("p", { text: state.error });
+			const errorEl = listSection.createEl("p", { text: state.error });
+			errorEl.setAttrs(qsDom("hub-state", { value: "error" }));
 			return;
 		}
 
 		if (state.templates.length === 0) {
-			listSection.createEl("p", { text: "No templates found." });
+			const emptyEl = listSection.createEl("p", {
+				text: "No templates found.",
+			});
+			emptyEl.setAttrs(qsDom("hub-state", { value: "empty" }));
 			return;
 		}
 
@@ -77,12 +85,16 @@ export function renderTemplatesTab(
 
 		for (const templateName of state.templates) {
 			const row = listEl.createDiv({ cls: "qs-hub-template-row" });
+			row.setAttrs(qsDom("hub-template-row", { name: templateName }));
 			row.createDiv({
 				cls: "qs-hub-template-name",
 				text: templateName,
 			});
 			const actions = row.createDiv({ cls: "qs-hub-template-actions" });
 			const applyButton = actions.createEl("button", { text: "Apply" });
+			applyButton.setAttrs(
+				qsDom("hub-template-action", { name: templateName }),
+			);
 			applyButton.disabled = state.isApplying;
 			applyButton.addEventListener("click", () => {
 				void applyTemplate(templateName);

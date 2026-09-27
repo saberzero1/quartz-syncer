@@ -8,6 +8,7 @@ import {
 import { SettingPageBase } from "./SettingPageBase";
 import type QuartzSyncer from "src/main";
 import { createRepositoryAdapter } from "src/cli/handlers/cliUtils";
+import { qsDom } from "src/operability/DomContract";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 
 export class QuartzSettingsPage extends SettingPageBase {
@@ -47,6 +48,7 @@ export class QuartzSettingsPage extends SettingPageBase {
 		this.versionStatusEl = setting.controlEl.createSpan({
 			text: "Detecting...",
 			cls: "quartz-syncer-quartz-version",
+			attr: qsDom("settings-status", { field: "quartz-version" }),
 		});
 
 		void this.updateVersionStatus();
@@ -126,21 +128,27 @@ export class QuartzSettingsPage extends SettingPageBase {
 			text: "Path to your local Quartz repository for system commands.",
 		});
 		desc.createEl("br");
-		this.repoPathStatusEl = desc.createSpan({ text: "" });
+		this.repoPathStatusEl = desc.createSpan({
+			text: "",
+			attr: qsDom("settings-status", { field: "repo-validation" }),
+		});
 
 		new Setting(this.containerEl)
 			.setName("Local Quartz repo path")
 			.setDesc(desc)
-			.addText((text) =>
-				text
-					.setPlaceholder("/path/to/Quartz")
+			.addText((text) => {
+				text.setPlaceholder("/path/to/Quartz")
 					.setValue(this.plugin.settings.quartzRepoPath)
 					.onChange(async (value) => {
 						this.plugin.settings.quartzRepoPath = value.trim();
 						await this.plugin.saveSettings();
 						this.updateRepoPathStatus();
-					}),
-			);
+					});
+
+				text.inputEl.setAttrs(
+					qsDom("settings-input", { field: "repo-path" }),
+				);
+			});
 
 		this.updateRepoPathStatus();
 	}
@@ -149,15 +157,19 @@ export class QuartzSettingsPage extends SettingPageBase {
 		new Setting(this.containerEl)
 			.setName("Enable system commands")
 			.setDesc("Allow Quartz Syncer to run local git/npm/npx commands.")
-			.addToggle((toggle) =>
+			.addToggle((toggle) => {
 				toggle
 					.setValue(this.plugin.settings.enableSystemCommands)
 					.onChange(async (value) => {
 						this.plugin.settings.enableSystemCommands = value;
 						await this.plugin.saveSettings();
 						this.display();
-					}),
-			);
+					});
+
+				toggle.toggleEl.setAttrs(
+					qsDom("settings-input", { field: "system-commands" }),
+				);
+			});
 	}
 
 	private renderQuartzHubButton(): void {
@@ -171,6 +183,10 @@ export class QuartzSettingsPage extends SettingPageBase {
 					.onClick(() => {
 						this.plugin.getQuartzHubManager()?.open();
 					});
+
+				button.buttonEl.setAttrs(
+					qsDom("settings-action", { value: "open-hub" }),
+				);
 			});
 	}
 

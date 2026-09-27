@@ -1,5 +1,6 @@
 import { Notice } from "obsidian";
 import type QuartzSyncer from "src/main";
+import { qsDom } from "src/operability/DomContract";
 import type { IOperabilityEventSink } from "src/operability/types";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
@@ -71,19 +72,26 @@ export function renderLayoutTab(
 		container.empty();
 
 		if (state.isLoading) {
-			container.createEl("p", { text: "Loading..." });
+			const loadingEl = container.createEl("p", { text: "Loading..." });
+			loadingEl.setAttrs(qsDom("hub-state", { value: "loading" }));
 			return;
 		}
 
 		if (state.errorMessage) {
-			container.createEl("p", { text: state.errorMessage });
+			const errorEl = container.createEl("p", {
+				text: state.errorMessage,
+			});
+			errorEl.setAttrs(qsDom("hub-state", { value: "error" }));
 			return;
 		}
 
 		if (!state.config) {
-			container.createEl("p", {
+			const unavailableEl = container.createEl("p", {
 				text: "Quartz configuration is unavailable.",
 			});
+			unavailableEl.setAttrs(
+				qsDom("hub-state", { value: "unavailable" }),
+			);
 			return;
 		}
 
@@ -267,10 +275,11 @@ export function renderLayoutTab(
 		entry: QuartzPluginEntry,
 		options: { allowPriority: boolean },
 	) => {
+		const pluginName = getPluginName(entry.source);
 		const row = list.createDiv({ cls: "qs-hub-layout-row" });
 		row.createDiv({
 			cls: "qs-hub-layout-name",
-			text: getPluginName(entry.source),
+			text: pluginName,
 		});
 
 		const meta = row.createDiv({ cls: "qs-hub-layout-meta" });
@@ -289,6 +298,7 @@ export function renderLayoutTab(
 		const input = priorityWrap.createEl("input", {
 			type: "number",
 		});
+		input.setAttrs(qsDom("hub-layout-input", { name: pluginName }));
 		input.value =
 			entry.layout?.priority !== undefined
 				? String(entry.layout.priority)

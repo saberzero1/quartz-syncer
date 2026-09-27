@@ -4,6 +4,7 @@ import type QuartzSyncer from "src/main";
 import type { GitAuthType } from "src/models/settings";
 import { createGitBackend } from "src/git/GitBackendFactory";
 import { describeConnectionTest } from "src/git/GitRemoteUtils";
+import { qsDom } from "src/operability/DomContract";
 import { detectGitProvider } from "src/utils/gitProviderDetection";
 
 export class ManualSetupModal extends Modal {
@@ -28,6 +29,7 @@ export class ManualSetupModal extends Modal {
 		this.plugin
 			.getEventSink()
 			?.emit("ui.modal.opened", { name: "manual-setup" });
+		this.modalEl.setAttrs(qsDom("manual-setup"));
 		this.remoteUrl = this.plugin.settings.gitRemoteUrl;
 		this.branch = this.plugin.settings.gitBranch || "v5";
 		this.authType = this.plugin.settings.gitAuthType || "basic";
@@ -72,6 +74,7 @@ export class ManualSetupModal extends Modal {
 					);
 				});
 				text.inputEl.addClass("qs-full-width-input");
+				text.inputEl.setAttrs(qsDom("manual-input", { field: "url" }));
 			});
 
 		new Setting(this.contentEl)
@@ -83,6 +86,10 @@ export class ManualSetupModal extends Modal {
 					.onChange((value) => {
 						this.branch = value.trim() || "v5";
 					});
+
+				text.inputEl.setAttrs(
+					qsDom("manual-input", { field: "branch" }),
+				);
 			});
 
 		new Setting(this.contentEl)
@@ -97,6 +104,10 @@ export class ManualSetupModal extends Modal {
 						this.authType = value as GitAuthType;
 						this.render();
 					});
+
+				dropdown.selectEl.setAttrs(
+					qsDom("manual-input", { field: "auth-type" }),
+				);
 			});
 
 		if (this.authType === "basic") {
@@ -109,6 +120,10 @@ export class ManualSetupModal extends Modal {
 						.onChange((value) => {
 							this.username = value.trim();
 						});
+
+					text.inputEl.setAttrs(
+						qsDom("manual-input", { field: "username" }),
+					);
 				});
 		}
 
@@ -128,6 +143,10 @@ export class ManualSetupModal extends Modal {
 						});
 					text.inputEl.type = "password";
 					text.inputEl.addClass("qs-full-width-input");
+
+					text.inputEl.setAttrs(
+						qsDom("manual-input", { field: "token" }),
+					);
 				});
 		}
 
@@ -148,6 +167,7 @@ export class ManualSetupModal extends Modal {
 						this.corsProxyUrl = value.trim();
 					});
 				text.inputEl.addClass("qs-full-width-input");
+				text.inputEl.setAttrs(qsDom("manual-input", { field: "cors" }));
 			});
 
 		new Setting(advancedDetails)
@@ -159,6 +179,10 @@ export class ManualSetupModal extends Modal {
 					.onChange((value) => {
 						this.contentFolder = value.trim() || "content";
 					});
+
+				text.inputEl.setAttrs(
+					qsDom("manual-input", { field: "content-folder" }),
+				);
 			});
 
 		const testSetting = new Setting(this.contentEl)
@@ -169,11 +193,13 @@ export class ManualSetupModal extends Modal {
 			button.setButtonText("Test connection").onClick(async () => {
 				await this.runConnectionTest(button.buttonEl);
 			});
+			button.buttonEl.setAttrs(qsDom("manual-action", { value: "test" }));
 		});
 
 		this.testStatusEl = testSetting.controlEl.createSpan({
 			text: "",
 		});
+		this.testStatusEl.setAttrs(qsDom("manual-test-result"));
 
 		new Setting(this.contentEl).addButton((button) => {
 			button
@@ -182,6 +208,7 @@ export class ManualSetupModal extends Modal {
 				.onClick(() => {
 					void this.save();
 				});
+			button.buttonEl.setAttrs(qsDom("manual-action", { value: "save" }));
 		});
 	}
 

@@ -80,6 +80,8 @@ export class DiffModal extends Modal {
 		this.splitButtonEl = controls.createEl("button", {
 			text: "Split",
 		});
+		this.splitButtonEl.setAttrs(qsDom("diff-action", { value: "split" }));
+
 		this.splitButtonEl.addEventListener("click", () => {
 			this.mode = "split";
 			this.updateModeButtons();
@@ -89,6 +91,11 @@ export class DiffModal extends Modal {
 		this.unifiedButtonEl = controls.createEl("button", {
 			text: "Unified",
 		});
+
+		this.unifiedButtonEl.setAttrs(
+			qsDom("diff-action", { value: "unified" }),
+		);
+
 		this.unifiedButtonEl.addEventListener("click", () => {
 			this.mode = "unified";
 			this.updateModeButtons();
@@ -106,6 +113,11 @@ export class DiffModal extends Modal {
 		this.collapseToggleEl = controls.createEl("button", {
 			text: "Expand all",
 		});
+
+		this.collapseToggleEl.setAttrs(
+			qsDom("diff-action", { value: "expand-all" }),
+		);
+
 		this.collapseToggleEl.addEventListener("click", () => {
 			if (!this.contentRegionEl) return;
 			const state = getCollapseState(this.contentRegionEl);

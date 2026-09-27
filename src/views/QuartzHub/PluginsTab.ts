@@ -1,5 +1,6 @@
 import { Notice } from "obsidian";
 import type QuartzSyncer from "src/main";
+import { qsDom } from "src/operability/DomContract";
 import type { IOperabilityEventSink } from "src/operability/types";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import type {
@@ -68,46 +69,72 @@ export function renderPluginsTab(
 		listSection.empty();
 
 		if (state.isLoading) {
-			listSection.createEl("p", { text: "Loading..." });
+			const loadingEl = listSection.createEl("p", {
+				text: "Loading...",
+			});
+			loadingEl.setAttrs(qsDom("hub-state", { value: "loading" }));
 			return;
 		}
 
 		if (!state.config) {
-			listSection.createEl("p", {
+			const unavailableEl = listSection.createEl("p", {
 				text:
 					state.errorMessage ??
 					"Quartz configuration is unavailable.",
 			});
+			unavailableEl.setAttrs(
+				qsDom("hub-state", {
+					value: state.errorMessage ? "error" : "unavailable",
+				}),
+			);
 			return;
 		}
 
 		if (state.config.plugins.length === 0) {
-			listSection.createEl("p", { text: "No plugins installed." });
+			const emptyEl = listSection.createEl("p", {
+				text: "No plugins installed.",
+			});
+			emptyEl.setAttrs(qsDom("hub-state", { value: "empty" }));
 			return;
 		}
 
 		const listEl = listSection.createDiv({ cls: "qs-hub-plugin-list" });
 
 		for (const entry of state.config.plugins) {
+			const pluginName = getPluginName(entry.source);
 			const row = listEl.createDiv({ cls: "qs-hub-plugin-row" });
+			row.setAttrs(qsDom("hub-plugin-row", { name: pluginName }));
 			row.createDiv({
 				cls: "qs-hub-plugin-name",
-				text: getPluginName(entry.source),
+				text: pluginName,
 			});
 			row.createDiv({
 				cls: "qs-hub-plugin-source",
 				text: `Source: ${getPluginSourceKey(entry.source)}`,
 			});
-			row.createDiv({
+			const statusEl = row.createDiv({
 				cls: "qs-hub-plugin-status",
 				text: entry.enabled ? "Enabled" : "Disabled",
 			});
+			statusEl.setAttrs(qsDom("hub-plugin-status", { name: pluginName }));
 
 			const actions = row.createDiv({ cls: "qs-hub-plugin-actions" });
 			const toggleButton = actions.createEl("button", {
 				text: entry.enabled ? "Disable" : "Enable",
 			});
+			toggleButton.setAttrs(
+				qsDom("hub-plugin-action", {
+					name: pluginName,
+					value: entry.enabled ? "disable" : "enable",
+				}),
+			);
 			const removeButton = actions.createEl("button", { text: "Remove" });
+			removeButton.setAttrs(
+				qsDom("hub-plugin-action", {
+					name: pluginName,
+					value: "remove",
+				}),
+			);
 
 			toggleButton.disabled = state.isSaving;
 			removeButton.disabled = state.isSaving;
@@ -174,9 +201,10 @@ export function renderPluginsTab(
 
 	if (!validRepo) {
 		browseButton.disabled = true;
-		listSection.createEl("p", {
+		const invalidRepoEl = listSection.createEl("p", {
 			text: "Set a valid local Quartz repo path to manage plugins.",
 		});
+		invalidRepoEl.setAttrs(qsDom("hub-state", { value: "error" }));
 		return;
 	}
 

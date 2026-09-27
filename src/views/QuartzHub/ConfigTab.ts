@@ -1,5 +1,6 @@
 import { Notice } from "obsidian";
 import type QuartzSyncer from "src/main";
+import { qsDom } from "src/operability/DomContract";
 import type { IOperabilityEventSink } from "src/operability/types";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
@@ -58,19 +59,24 @@ export function renderConfigTab(
 		enablePopoversInput = null;
 
 		if (state.isLoading) {
-			content.createEl("p", { text: "Loading..." });
+			const loadingEl = content.createEl("p", { text: "Loading..." });
+			loadingEl.setAttrs(qsDom("hub-state", { value: "loading" }));
 			return;
 		}
 
 		if (state.errorMessage) {
-			content.createEl("p", { text: state.errorMessage });
+			const errorEl = content.createEl("p", { text: state.errorMessage });
+			errorEl.setAttrs(qsDom("hub-state", { value: "error" }));
 			return;
 		}
 
 		if (!state.config) {
-			content.createEl("p", {
+			const unavailableEl = content.createEl("p", {
 				text: "Quartz configuration is unavailable.",
 			});
+			unavailableEl.setAttrs(
+				qsDom("hub-state", { value: "unavailable" }),
+			);
 			return;
 		}
 
@@ -80,52 +86,72 @@ export function renderConfigTab(
 	const renderForm = (config: QuartzV5Config) => {
 		const fields = content.createDiv({ cls: "qs-hub-config-fields" });
 
-		const createTextField = (label: string, value: string) => {
+		const createTextField = (
+			label: string,
+			field: string,
+			value: string,
+		) => {
 			const row = fields.createDiv({ cls: "qs-hub-config-field" });
 			row.createDiv({ cls: "qs-hub-config-label", text: label });
 			const input = row.createEl("input", {
 				cls: "qs-hub-config-input",
 				type: "text",
 			});
+			input.setAttrs(qsDom("hub-config-input", { field }));
 			input.value = value;
 			return input;
 		};
 
-		const createToggleField = (label: string, checked: boolean) => {
+		const createToggleField = (
+			label: string,
+			field: string,
+			checked: boolean,
+		) => {
 			const row = fields.createDiv({ cls: "qs-hub-config-field" });
 			row.createDiv({ cls: "qs-hub-config-label", text: label });
 			const input = row.createEl("input", {
 				cls: "qs-hub-config-input",
 				type: "checkbox",
 			});
+			input.setAttrs(qsDom("hub-config-input", { field }));
 			input.checked = checked;
 			return input;
 		};
 
 		pageTitleInput = createTextField(
 			"Page title",
+			"page-title",
 			config.configuration.pageTitle,
 		);
 		pageTitleSuffixInput = createTextField(
 			"Page title suffix",
+			"title-suffix",
 			config.configuration.pageTitleSuffix ?? "",
 		);
 		baseUrlInput = createTextField(
 			"Base URL",
+			"base-url",
 			config.configuration.baseUrl ?? "",
 		);
-		localeInput = createTextField("Locale", config.configuration.locale);
+		localeInput = createTextField(
+			"Locale",
+			"locale",
+			config.configuration.locale,
+		);
 		enableSpaInput = createToggleField(
 			"Enable SPA",
+			"spa",
 			config.configuration.enableSPA,
 		);
 		enablePopoversInput = createToggleField(
 			"Enable popovers",
+			"popover",
 			config.configuration.enablePopovers ?? false,
 		);
 
 		const actions = content.createDiv({ cls: "qs-hub-config-actions" });
 		saveButton = actions.createEl("button", { text: "Save" });
+		saveButton.setAttrs(qsDom("hub-config-action", { value: "save" }));
 		saveButton.disabled = state.isSaving;
 		saveButton.addEventListener("click", () => {
 			void saveConfig();

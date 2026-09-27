@@ -61,31 +61,37 @@ export class GitSettingsPage extends SettingPageBase {
 			.setDesc(
 				"The full URL of your git repository (e.g., https://github.com/username/quartz.git)",
 			)
-			.addText((text) =>
-				text
-					.setPlaceholder("https://github.com/username/quartz.git")
+			.addText((text) => {
+				text.setPlaceholder("https://github.com/username/quartz.git")
 					.setValue(this.settings.gitRemoteUrl)
 					.onChange(async (value) => {
 						this.settings.gitRemoteUrl = value;
 						this.autoDetectProvider(value);
 						await this.saveSettings();
-					}),
-			);
+					});
+
+				text.inputEl.setAttrs(
+					qsDom("settings-input", { field: "remote-url" }),
+				);
+			});
 	}
 
 	private renderBranch(): void {
 		new Setting(this.containerEl)
 			.setName("Branch")
 			.setDesc("The branch to sync with")
-			.addText((text) =>
-				text
-					.setPlaceholder("v5")
+			.addText((text) => {
+				text.setPlaceholder("v5")
 					.setValue(this.settings.gitBranch)
 					.onChange(async (value) => {
 						this.settings.gitBranch = value || "v5";
 						await this.saveSettings();
-					}),
-			);
+					});
+
+				text.inputEl.setAttrs(
+					qsDom("settings-input", { field: "branch" }),
+				);
+			});
 	}
 
 	private renderProviderHint(): void {
@@ -94,7 +100,7 @@ export class GitSettingsPage extends SettingPageBase {
 			.setDesc(
 				"Select your git provider for optimized authentication hints",
 			)
-			.addDropdown((dropdown) =>
+			.addDropdown((dropdown) => {
 				dropdown
 					.addOption("github", "GitHub")
 					.addOption("gitlab", "GitLab")
@@ -107,15 +113,19 @@ export class GitSettingsPage extends SettingPageBase {
 							value as GitProviderHint;
 						await this.saveSettings();
 						this.display();
-					}),
-			);
+					});
+
+				dropdown.selectEl.setAttrs(
+					qsDom("settings-input", { field: "provider" }),
+				);
+			});
 	}
 
 	private renderAuthType(): void {
 		new Setting(this.containerEl)
 			.setName("Authentication type")
 			.setDesc("How to authenticate with the git server")
-			.addDropdown((dropdown) =>
+			.addDropdown((dropdown) => {
 				dropdown
 					.addOption("basic", "Username & token/password")
 					.addOption("bearer", "Bearer token")
@@ -125,8 +135,12 @@ export class GitSettingsPage extends SettingPageBase {
 						this.settings.gitAuthType = value as GitAuthType;
 						await this.saveSettings();
 						this.display();
-					}),
-			);
+					});
+
+				dropdown.selectEl.setAttrs(
+					qsDom("settings-input", { field: "auth-type" }),
+				);
+			});
 	}
 
 	private renderUsername(): void {
@@ -153,15 +167,18 @@ export class GitSettingsPage extends SettingPageBase {
 		new Setting(this.containerEl)
 			.setName("Username")
 			.setDesc(description)
-			.addText((text) =>
-				text
-					.setPlaceholder(placeholder)
+			.addText((text) => {
+				text.setPlaceholder(placeholder)
 					.setValue(this.settings.gitAuthUsername || "")
 					.onChange(async (value) => {
 						this.settings.gitAuthUsername = value;
 						await this.saveSettings();
-					}),
-			);
+					});
+
+				text.inputEl.setAttrs(
+					qsDom("settings-input", { field: "username" }),
+				);
+			});
 	}
 
 	private renderToken(): void {
@@ -210,6 +227,7 @@ export class GitSettingsPage extends SettingPageBase {
 				: "quartz-syncer-token-status-unset",
 		});
 		statusEl.setText(hasToken ? "Token stored securely" : "No token set");
+		statusEl.setAttrs(qsDom("settings-status", { field: "token" }));
 
 		const input = tokenRow.createEl("input", {
 			type: "password",
@@ -218,11 +236,13 @@ export class GitSettingsPage extends SettingPageBase {
 				? "Enter new token to replace"
 				: "Enter token",
 		});
+		input.setAttrs(qsDom("settings-input", { field: "token" }));
 
 		const saveBtn = tokenRow.createEl("button", {
 			cls: "mod-cta",
 			text: hasToken ? "Update" : "Save",
 		});
+		saveBtn.setAttrs(qsDom("settings-action", { value: "save-token" }));
 
 		const updateStatus = (stored: boolean) => {
 			statusEl.setText(stored ? "Token stored securely" : "No token set");
@@ -248,6 +268,9 @@ export class GitSettingsPage extends SettingPageBase {
 				cls: "mod-warning",
 				text: "Clear",
 			});
+			clearBtn.setAttrs(
+				qsDom("settings-action", { value: "clear-token" }),
+			);
 
 			clearBtn.addEventListener("click", () => {
 				this.plugin.secretStorageService.clearToken();
@@ -273,15 +296,18 @@ export class GitSettingsPage extends SettingPageBase {
 		new Setting(this.containerEl)
 			.setName("CORS proxy (optional)")
 			.setDesc(desc)
-			.addText((text) =>
-				text
-					.setPlaceholder("https://cors.isomorphic-git.org")
+			.addText((text) => {
+				text.setPlaceholder("https://cors.isomorphic-git.org")
 					.setValue(this.settings.gitCorsProxyUrl || "")
 					.onChange(async (value) => {
 						this.settings.gitCorsProxyUrl = value;
 						await this.saveSettings();
-					}),
-			);
+					});
+
+				text.inputEl.setAttrs(
+					qsDom("settings-input", { field: "cors" }),
+				);
+			});
 	}
 
 	private renderVaultPath(): void {
@@ -300,6 +326,10 @@ export class GitSettingsPage extends SettingPageBase {
 						this.settings.vaultPath = normalizeVaultPath(value);
 						await this.saveSettings();
 					});
+
+				search.inputEl.setAttrs(
+					qsDom("settings-input", { field: "vault-root" }),
+				);
 			});
 	}
 
