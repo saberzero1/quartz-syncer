@@ -836,18 +836,45 @@
 
 .qs-pub-center .pub-center-actions {
 	display: flex;
+	flex-wrap: wrap;
 	gap: var(--size-4-2);
 	justify-content: flex-end;
 }
 
-.qs-pub-center .progress-bar {
+.qs-pub-center .pub-center-feedback {
+	padding: var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-left: 3px solid var(--interactive-accent);
+	border-radius: var(--radius-s);
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	font-weight: 500;
+	line-height: 1.5;
+	max-height: 9rem;
+	overflow: auto;
+	overflow-wrap: anywhere;
+}
+
+.qs-pub-center .pub-center-feedback[data-phase="success"] {
+	border-left-color: var(--color-green);
+}
+
+.qs-pub-center .pub-center-feedback[data-phase="warning"] {
+	border-left-color: var(--color-orange);
+}
+
+.qs-pub-center .pub-center-feedback[data-phase="error"] {
+	border-left-color: var(--color-red);
+}
+
+.qs-pub-center .pub-center-progress {
 	height: var(--size-2-3);
 	background: var(--background-modifier-border);
 	border-radius: var(--radius-s);
 	overflow: hidden;
 }
 
-.qs-pub-center .progress-bar-indicator {
+.qs-pub-center .pub-center-progress-indicator {
 	height: 100%;
 	width: 0;
 	background: var(--interactive-accent);

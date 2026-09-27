@@ -48,6 +48,11 @@ type ProgressState = {
 	total: number;
 };
 
+type PublishFeedback = {
+	phase: "publishing" | "refreshing" | "success" | "warning" | "error";
+	message: string;
+};
+
 export interface PublicationCenterController {
 	getSelected(): string[];
 	setSelected(paths: string[]): void;
@@ -86,6 +91,9 @@ export class PublicationCenter extends Modal {
 	private diffStatsAbort: AbortController | null = null;
 	private dynamicResolveAbort: AbortController | null = null;
 	private refreshingEl: HTMLSpanElement | null = null;
+	private feedback: PublishFeedback | null = null;
+	private feedbackEl: HTMLDivElement | null = null;
+	private refreshButtonEl: HTMLButtonElement | null = null;
 
 	constructor(
 		app: App,
@@ -146,6 +154,8 @@ export class PublicationCenter extends Modal {
 		this.diffInlineEl = null;
 		this.diffContentEl = null;
 		this.refreshingEl = null;
+		this.feedbackEl = null;
+		this.refreshButtonEl = null;
 		this.searchInputEl = null;
 		this.publicationTree = null;
 		this.fileMap.clear();
@@ -380,6 +390,64 @@ export class PublicationCenter extends Modal {
 		}
 	}
 
+	/** After a write, bypass cached snapshots and await a fresh classification. */
+	private async refreshAfterPublish(): Promise<void> {
+		const publisher = this._plugin.getPublisher();
+		if (!publisher) throw new Error("Publisher is unavailable.");
+		this.hasFullStatus = false;
+		this.isRefreshing = true;
+		this.diffStatsAbort?.abort();
+		this.dynamicResolveAbort?.abort();
+		this.inlineScrollSync?.destroy();
+		this.inlineScrollSync = null;
+		this.diffInlineEl?.addClass("qs-hidden");
+		this.overviewEl?.removeClass("qs-hidden");
+		this.updateTreeState();
+		this.updateOperationButtons();
+		const cache = this._plugin.statusCache;
+		const destination = cache.getDestination();
+		// Do not reuse a read that started before the commit finished.
+		const pending = cache.getInflight();
+		cache.invalidate();
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+		try {
+			const fresh = await Promise.race([
+				(async () => {
+					if (pending) await pending.catch(() => {});
+					return publisher.getPublishStatus();
+				})(),
+				new Promise<never>((_, reject) => {
+					timeout = setTimeout(
+						() => reject(new Error("Status refresh timed out")),
+						30000,
+					);
+				}),
+			]);
+			if (cache.getDestination() !== destination) {
+				throw new Error(
+					"Publishing destination changed. Reopen the Publication Center.",
+				);
+			}
+			cache.setStatus(fresh, destination);
+			this.status = fresh;
+			this.buildFileMap();
+			await this.buildMediaLinksMap();
+			this.treeState.setKnownFiles(this.getKnownFilePaths());
+			this.hasFullStatus = true;
+			// Closing the dialog during the upload must not rebuild a detached modal.
+			if (this.hasShell) {
+				this.renderShell(true);
+				this.updateTreeState();
+				this.startDynamicResolution(publisher);
+			}
+		} finally {
+			if (timeout !== undefined) clearTimeout(timeout);
+			this.isRefreshing = false;
+			this.refreshingEl?.addClass("qs-hidden");
+			this.updateOperationButtons();
+		}
+	}
+
 	private buildMediaLinksFromSnapshot(snapshot: StatusSnapshot): void {
 		this.mediaSources.clear();
 		const linked = new Map<string, Set<string>>();
@@ -566,9 +634,15 @@ export class PublicationCenter extends Modal {
 		}
 
 		const footer = this.contentEl.createDiv({ cls: "pub-center-footer" });
-		const progress = footer.createDiv({ cls: "progress-bar" });
+		this.feedbackEl = footer.createDiv({ cls: "pub-center-feedback" });
+		this.feedbackEl.setAttrs({
+			role: "status",
+			"aria-live": "polite",
+			"aria-atomic": "true",
+		});
+		const progress = footer.createDiv({ cls: "pub-center-progress" });
 		this.progressIndicatorEl = progress.createDiv({
-			cls: "progress-bar-indicator",
+			cls: "pub-center-progress-indicator",
 		});
 		this.progressIndicatorEl.setAttrs(qsDom("pub-progress"));
 		this.updateProgress();
@@ -578,7 +652,7 @@ export class PublicationCenter extends Modal {
 		const targetEl = footer.createDiv({
 			cls: "pub-center-target",
 			text: target.effective
-				? `Publishing to ${describePublishTarget(target.effective)}`
+				? `Destination: ${describePublishTarget(target.effective)}`
 				: describeBlocker(
 						target.blocker ?? "none-configured",
 						this._plugin.settings,
@@ -602,6 +676,14 @@ export class PublicationCenter extends Modal {
 		}
 
 		const actions = footer.createDiv({ cls: "pub-center-actions" });
+		this.refreshButtonEl = actions.createEl("button", {
+			text: "Refresh list",
+		});
+		this.refreshButtonEl.addEventListener("click", () => {
+			void this.retryStatusRefresh();
+		});
+		const done = actions.createEl("button", { text: "Done" });
+		done.addEventListener("click", () => this.close());
 		this.publishButtonEl = actions.createEl("button", {
 			cls: "mod-cta",
 			text: target.effective
@@ -625,6 +707,8 @@ export class PublicationCenter extends Modal {
 		});
 
 		this.diffMode = this.getDefaultDiffMode();
+		this.updateFeedback();
+		this.updateOperationButtons();
 		if (this.status && this.publicationTree) {
 			void this.computeTreeDiffStats();
 		}
@@ -632,6 +716,7 @@ export class PublicationCenter extends Modal {
 
 	private updateTreeState(): void {
 		this.publicationTree?.update();
+		this.updateOperationButtons();
 		if (this.overviewEl && Platform.isDesktopApp) {
 			this.renderOverview();
 		}
@@ -1133,7 +1218,8 @@ export class PublicationCenter extends Modal {
 	}
 
 	private async handlePublish(): Promise<void> {
-		if (this.isOperating) return;
+		if (this.isOperating || this.isRefreshing || !this.hasFullStatus)
+			return;
 
 		const publisher = this._plugin.getPublisher();
 		if (!publisher || !this.status) {
@@ -1158,6 +1244,7 @@ export class PublicationCenter extends Modal {
 		}
 
 		this.setOperating(true);
+		this.setFeedback("publishing", "Preparing selected files…");
 		this.progressState = {
 			current: 0,
 			total: publishable.length + arbitrarySelected.length,
@@ -1172,6 +1259,7 @@ export class PublicationCenter extends Modal {
 
 		let publishedCount = 0;
 		let skipped: PublishFailure[] = [];
+		const completedPaths = new Set<string>();
 
 		try {
 			if (publishFiles.length > 0) {
@@ -1185,17 +1273,26 @@ export class PublicationCenter extends Modal {
 								publishable.length + arbitrarySelected.length,
 						};
 						this.updateProgress();
+						this.setFeedback(
+							"publishing",
+							current >= publishFiles.length
+								? "Files prepared. Saving and uploading changes…"
+								: `Preparing files: ${current} of ${publishFiles.length}…`,
+						);
 					},
 				);
 
 				if (!result.success) {
-					new Notice(
-						`Publish failed: ${result.error ?? "Unknown error"}`,
-					);
-					return;
+					throw new Error(result.error ?? "Unknown error");
 				}
 				publishedCount = result.filesPublished;
 				skipped = result.failures ?? [];
+				const failedPaths = new Set(
+					skipped.map((failure) => failure.vaultPath),
+				);
+				for (const path of publishable) {
+					if (!failedPaths.has(path)) completedPaths.add(path);
+				}
 				this.progressState = {
 					current: publishable.length,
 					total: publishable.length + arbitrarySelected.length,
@@ -1239,12 +1336,10 @@ export class PublicationCenter extends Modal {
 				);
 
 				if (!result.success) {
-					new Notice(
-						`Publish failed: ${result.error ?? "Unknown error"}`,
-					);
-					return;
+					throw new Error(result.error ?? "Unknown error");
 				}
 				publishedCount += arbitrarySelected.length;
+				for (const path of arbitrarySelected) completedPaths.add(path);
 				this.progressState = {
 					current: publishable.length + arbitrarySelected.length,
 					total: publishable.length + arbitrarySelected.length,
@@ -1268,18 +1363,67 @@ export class PublicationCenter extends Modal {
 			} else {
 				new Notice(`Published ${publishedCount} file(s).`);
 			}
-			await this.loadStatus();
+			for (const path of completedPaths) {
+				if (this.treeState.selectedFiles.has(path))
+					this.treeState.toggleFile(path);
+			}
+			const destination = resolvePublishTarget(
+				this._plugin.settings,
+			).effective;
+			const summary = `Published ${publishedCount} file(s)${destination === "remote" ? " to the repository" : " locally"}.`;
+			const details =
+				skipped.length > 0
+					? ` Skipped ${skipped.length}: ${skipped.map((failure) => `${failure.vaultPath}: ${failure.error}`).join("; ")}`
+					: destination === "remote"
+						? " Website deployment runs separately in GitHub Actions."
+						: "";
+			this.setFeedback(
+				"refreshing",
+				`${summary} Refreshing the review list…`,
+			);
+			try {
+				await this.refreshAfterPublish();
+				this.setFeedback(
+					skipped.length ? "warning" : "success",
+					`${summary} Review list updated.${details}`,
+				);
+			} catch (error) {
+				const message =
+					error instanceof Error ? error.message : String(error);
+				this.setFeedback(
+					"warning",
+					`${summary}${details} Could not refresh the list: ${message}. Use Refresh list; no need to publish again.`,
+				);
+			}
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);
 			new Notice(`Publish failed: ${message}`);
+			for (const path of completedPaths) {
+				if (this.treeState.selectedFiles.has(path))
+					this.treeState.toggleFile(path);
+			}
+			this.setFeedback(
+				"error",
+				`${publishedCount ? `${publishedCount} file(s) were published before the operation stopped. ` : ""}Publish failed: ${message}. Refresh the list before retrying.`,
+			);
+			// A network failure may happen after the remote accepted a commit.
+			// Reconcile before allowing another write; never blindly re-publish.
+			try {
+				await this.refreshAfterPublish();
+			} catch {
+				/* Refresh list remains available. */
+			}
 		} finally {
 			this.setOperating(false);
 		}
 	}
 
 	private async handleDelete(): Promise<void> {
-		if (this.isOperating) return;
+		if (this.isOperating || this.isRefreshing || !this.hasFullStatus)
+			return;
+		this.feedback = null;
+		this.updateFeedback();
 
 		const publisher = this._plugin.getPublisher();
 		if (!publisher || !this.status) {
@@ -1462,21 +1606,99 @@ export class PublicationCenter extends Modal {
 	}
 
 	private updateOperationButtons(): void {
-		const disabled = this.isOperating || !this.hasFullStatus;
+		const disabled =
+			this.isOperating || this.isRefreshing || !this.hasFullStatus;
+		if (this.refreshButtonEl)
+			this.refreshButtonEl.disabled =
+				this.isOperating || this.isRefreshing;
 
 		if (this.publishButtonEl) {
-			this.publishButtonEl.disabled = disabled;
+			this.publishButtonEl.disabled =
+				disabled ||
+				!this.treeState.getSelectedFiles().some((path) => {
+					const category = this.treeState.getCategory(path);
+					return (
+						category === "unpublished" ||
+						category === "changed" ||
+						category === "arbitrary"
+					);
+				});
 		}
 
 		if (this.deleteButtonEl) {
-			this.deleteButtonEl.disabled = disabled;
+			this.deleteButtonEl.disabled =
+				disabled ||
+				!this.treeState.getSelectedFiles().some((path) => {
+					const category = this.treeState.getCategory(path);
+					return (
+						category === "published" ||
+						category === "deleted" ||
+						category === "media-linked" ||
+						category === "media-unlinked"
+					);
+				});
 		}
 	}
 
 	private updateProgress(): void {
 		if (!this.progressIndicatorEl) return;
 		const { current, total } = this.progressState;
-		const percent = total === 0 ? 0 : Math.round((current / total) * 100);
+		const phase = this.feedback?.phase;
+		const percent =
+			phase === "success" || phase === "warning"
+				? 100
+				: phase === "refreshing"
+					? 95
+					: total === 0
+						? 0
+						: Math.min(
+								phase === "publishing" ? 90 : 100,
+								Math.round(
+									(current / total) *
+										(phase === "publishing" ? 90 : 100),
+								),
+							);
 		this.progressIndicatorEl.style.width = `${percent}%`;
+		this.progressIndicatorEl.setAttrs({
+			role: "progressbar",
+			"aria-valuemin": "0",
+			"aria-valuemax": "100",
+			"aria-valuenow": String(percent),
+			"aria-label": this.feedback?.message ?? "Publish progress",
+		});
+	}
+
+	private setFeedback(
+		phase: PublishFeedback["phase"],
+		message: string,
+	): void {
+		this.feedback = { phase, message };
+		this.updateFeedback();
+		this.updateProgress();
+	}
+
+	private updateFeedback(): void {
+		if (!this.feedbackEl) return;
+		this.feedbackEl.toggleClass("qs-hidden", !this.feedback);
+		this.feedbackEl.dataset.phase = this.feedback?.phase ?? "idle";
+		this.feedbackEl.setText(this.feedback?.message ?? "");
+	}
+
+	private async retryStatusRefresh(): Promise<void> {
+		if (this.isOperating || this.isRefreshing) return;
+		const previous = this.feedback;
+		this.setFeedback("refreshing", "Refreshing the review list…");
+		try {
+			await this.refreshAfterPublish();
+			this.setFeedback(
+				previous?.phase === "error" ? "error" : "success",
+				"Review list updated. Select any remaining changes to review before publishing.",
+			);
+		} catch (error) {
+			this.setFeedback(
+				"error",
+				`Could not refresh the list: ${error instanceof Error ? error.message : String(error)}. Try Refresh list again.`,
+			);
+		}
 	}
 }
