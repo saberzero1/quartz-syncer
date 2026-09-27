@@ -129,6 +129,19 @@ export function resetSearchComponents(): void {
 	searchComponents.length = 0;
 }
 
+type DropdownComponentRecord = {
+	selectEl: MockElement;
+	options?: Record<string, string>;
+	value?: string;
+	handler?: (value: string) => unknown;
+};
+
+export const dropdownComponents: DropdownComponentRecord[] = [];
+
+export function resetDropdownComponents(): void {
+	dropdownComponents.length = 0;
+}
+
 export class Setting {
 	controlEl = new MockElement();
 	constructor(_containerEl?: MockElement) {}
@@ -168,12 +181,27 @@ export class Setting {
 		return this;
 	});
 	addDropdown = vi.fn((callback: (dropdown: unknown) => void) => {
-		callback({
-			addOption: vi.fn().mockReturnThis(),
-			addOptions: vi.fn().mockReturnThis(),
-			setValue: vi.fn().mockReturnThis(),
-			onChange: vi.fn().mockReturnThis(),
-		});
+		const record: DropdownComponentRecord = {
+			selectEl: new MockElement(),
+		};
+		const api = {
+			selectEl: record.selectEl,
+			addOption: vi.fn(() => api),
+			addOptions: vi.fn((options: Record<string, string>) => {
+				record.options = options;
+				return api;
+			}),
+			setValue: vi.fn((value: string) => {
+				record.value = value;
+				return api;
+			}),
+			onChange: vi.fn((handler: (value: string) => unknown) => {
+				record.handler = handler;
+				return api;
+			}),
+		};
+		dropdownComponents.push(record);
+		callback(api);
 		return this;
 	});
 	addToggle = vi.fn((callback: (toggle: unknown) => void) => {
@@ -265,11 +293,24 @@ export class Plugin {
 
 export class PluginSettingTab {
 	app: App;
-	constructor(app: App, _plugin: Plugin) {
+	plugin: Plugin;
+	constructor(app: App, plugin: Plugin) {
 		this.app = app;
+		this.plugin = plugin;
 	}
 	getSettingDefinitions() {
 		return [];
+	}
+	// Mirrors the real base: reads from, and persists to, plugin.settings.
+	getControlValue(key: string): unknown {
+		const settings = (this.plugin as unknown as { settings?: unknown })
+			.settings;
+		return (settings as Record<string, unknown> | undefined)?.[key];
+	}
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		const settings = (this.plugin as unknown as { settings?: unknown })
+			.settings;
+		if (settings) (settings as Record<string, unknown>)[key] = value;
 	}
 }
 

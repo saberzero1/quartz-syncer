@@ -14,6 +14,7 @@ import {
 	resolvePublishTarget,
 	type ResolvedPublishTarget,
 } from "src/publisher/PublishTargetResolver";
+import { qsDom } from "src/operability/DomContract";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { QuartzPluginUpdateChecker } from "src/quartz/QuartzPluginUpdateChecker";
 import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
@@ -127,14 +128,28 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		items.push({
 			name: "Publish to",
 			desc: this.buildPublishTargetDesc(target),
-			control: {
-				type: "dropdown",
-				key: "publishTarget",
-				defaultValue: "remote",
-				options: {
-					remote: "Remote repository",
-					local: "Local folder (desktop only)",
-				},
+			// Rendered imperatively rather than declaratively because a
+			// `control` definition never exposes its <select>, and the publish
+			// destination has to be readable and settable through the DOM
+			// contract. Persistence still routes through setControlValue, so
+			// the publisher and status-cache invalidation below is preserved.
+			render: (setting) => {
+				setting.addDropdown((dropdown) => {
+					const current = this.getControlValue("publishTarget");
+					dropdown.addOptions({
+						remote: "Remote repository",
+						local: "Local folder (desktop only)",
+					});
+					dropdown.setValue(
+						typeof current === "string" ? current : "remote",
+					);
+					dropdown.onChange((value) => {
+						void this.setControlValue("publishTarget", value);
+					});
+					dropdown.selectEl.setAttrs(
+						qsDom("settings-input", { field: "publish-target" }),
+					);
+				});
 			},
 		});
 
@@ -226,6 +241,7 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 			frag.createSpan({
 				text: describeBlocker(target.blocker, this.plugin.settings),
 				cls: "quartz-syncer-publish-target-warning",
+				attr: qsDom("settings-status", { field: "readiness" }),
 			});
 		}
 
@@ -241,6 +257,7 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 			frag.createSpan({
 				text: describeReadinessIssue(issue),
 				cls: "quartz-syncer-publish-target-warning",
+				attr: qsDom("settings-status", { field: "readiness" }),
 			});
 		}
 
@@ -275,6 +292,7 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		frag.createSpan({ text: "Quartz plugins: " });
 		const statusEl = frag.createSpan({
 			text: this.getPluginUpdateStatusText(),
+			attr: qsDom("settings-status", { field: "plugin-updates" }),
 		});
 		frag.createSpan({ text: " " });
 		const checkLink = frag.createEl("a", {

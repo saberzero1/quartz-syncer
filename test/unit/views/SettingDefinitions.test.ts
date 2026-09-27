@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { App, type SettingDefinitionItem } from "obsidian";
+import {
+	App,
+	Setting,
+	dropdownComponents,
+	resetDropdownComponents,
+	type SettingDefinitionItem,
+} from "obsidian";
 import { DEPRECATED_SETTING_KEYS } from "src/models/settings";
 import { DEFAULT_SETTINGS } from "src/main";
 import type QuartzSyncer from "src/main";
@@ -80,8 +86,45 @@ describe("setting definitions", () => {
 
 		expect(keys).toContain("useCache");
 		expect(keys).toContain("autoCleanOrphanedMedia");
-		expect(keys).toContain("publishTarget");
+		// publishTarget is deliberately absent: its row renders imperatively so
+		// the <select> can carry the DOM contract attribute. It has its own
+		// behavioural coverage below.
+		expect(keys).toContain("frontmatterFormat");
 		expect(keys.length).toBeGreaterThan(10);
+	});
+
+	it("wires the imperative publish-target row to setControlValue", () => {
+		const plugin = makePlugin();
+		const tab = new QuartzSyncerSettingTab(new App(), plugin);
+		const row = tab
+			.getSettingDefinitions()
+			.find((item) => item.name === "Publish to");
+
+		const render = (
+			row as { render?: (setting: unknown, group: unknown) => void }
+		).render;
+
+		expect(render).toBeTypeOf("function");
+
+		resetDropdownComponents();
+		render?.(new Setting(), {});
+
+		const dropdown = dropdownComponents.at(-1);
+
+		expect(dropdown?.options).toEqual({
+			remote: "Remote repository",
+			local: "Local folder (desktop only)",
+		});
+		expect(dropdown?.value).toBe(DEFAULT_SETTINGS.publishTarget);
+		expect(dropdown?.selectEl.attributes).toMatchObject({
+			"data-qs": "settings-input",
+			"data-qs-field": "publish-target",
+		});
+
+		dropdown?.handler?.("local");
+
+		expect(plugin.settings.publishTarget).toBe("local");
+		expect(plugin.saveSettings).toHaveBeenCalled();
 	});
 
 	it("binds every control to a known settings key", () => {
