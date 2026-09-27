@@ -1,4 +1,5 @@
 import { Modal, Notice } from "obsidian";
+import { qsDom } from "src/operability/DomContract";
 import type { App } from "obsidian";
 import type { IOperabilityEventSink } from "src/operability/types";
 
@@ -44,21 +45,26 @@ export class TerminalOutputModal extends Modal {
 	private render(): void {
 		this.contentEl.empty();
 
+		this.modalEl.setAttrs(qsDom("terminal"));
 		this.outputEl = this.contentEl.createEl("pre");
+		this.outputEl.setAttrs(qsDom("terminal-output"));
 
 		const actions = this.contentEl.createDiv({
 			cls: "qs-terminal-output-actions",
 		});
 
 		const cancelButton = actions.createEl("button", { text: "Cancel" });
+		cancelButton.setAttrs(qsDom("terminal-action", { value: "cancel" }));
 		cancelButton.addEventListener("click", () => this.abort());
 
 		const copyButton = actions.createEl("button", { text: "Copy" });
+		copyButton.setAttrs(qsDom("terminal-action", { value: "copy" }));
 		copyButton.addEventListener("click", () => {
 			void this.copyOutput();
 		});
 
 		const closeButton = actions.createEl("button", { text: "Close" });
+		closeButton.setAttrs(qsDom("terminal-action", { value: "close" }));
 		closeButton.addEventListener("click", () => this.close());
 	}
 

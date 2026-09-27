@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { globSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { qsDom } from "src/operability/DomContract";
 
 describe("qsDom", () => {
@@ -61,5 +65,55 @@ describe("qsDom", () => {
 			const result = qsDom(role);
 			expect(result["data-qs"]).toBe(role);
 		}
+	});
+});
+
+describe("DOM contract consistency", () => {
+	const repoRoot = resolve(
+		dirname(fileURLToPath(import.meta.url)),
+		"../../..",
+	);
+
+	const declaredRoles = [
+		...readFileSync(
+			resolve(repoRoot, "src/operability/DomContract.ts"),
+			"utf8",
+		).matchAll(/\|\s*"([a-z0-9-]+)"/g),
+	].map((match) => match[1] as string);
+
+	const sourceText = globSync("src/**/*.ts", { cwd: repoRoot })
+		.filter((file) => !file.endsWith("DomContract.ts"))
+		.map((file) => readFileSync(resolve(repoRoot, file), "utf8"))
+		.join("\n");
+
+	const agentsDoc = readFileSync(resolve(repoRoot, "AGENTS.md"), "utf8");
+
+	it("applies every declared role to at least one element", () => {
+		const unapplied = declaredRoles.filter(
+			(role) => !sourceText.includes(`qsDom("${role}"`),
+		);
+		expect(unapplied).toEqual([]);
+	});
+
+	it("documents every declared role in the AGENTS.md contract table", () => {
+		const undocumented = declaredRoles.filter(
+			(role) => !agentsDoc.includes(`[data-qs="${role}"]`),
+		);
+		expect(undocumented).toEqual([]);
+	});
+
+	it("declares every role documented in AGENTS.md", () => {
+		const documented = [
+			...agentsDoc.matchAll(/\[data-qs="([a-z0-9-]+)"\]/g),
+		].map((match) => match[1] as string);
+		const undeclared = [...new Set(documented)].filter(
+			(role) => !declaredRoles.includes(role),
+		);
+		expect(undeclared).toEqual([]);
+	});
+
+	it("sets data-qs only through qsDom()", () => {
+		expect(sourceText).not.toMatch(/setAttribute\(\s*["']data-qs["']/);
+		expect(sourceText).not.toMatch(/["']data-qs["']\s*:/);
 	});
 });

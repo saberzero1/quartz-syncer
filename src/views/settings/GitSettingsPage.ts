@@ -3,6 +3,8 @@ import type QuartzSyncer from "src/main";
 import type { GitAuthType, GitProviderHint } from "src/models/settings";
 import { detectGitProvider } from "src/utils/gitProviderDetection";
 import { createGitBackend } from "src/git/GitBackendFactory";
+import { describeConnectionTest } from "src/git/GitRemoteUtils";
+import { qsDom } from "src/operability/DomContract";
 import { SettingPageBase } from "./SettingPageBase";
 import { resolvePublishTarget } from "src/publisher/PublishTargetResolver";
 import { normalizeVaultPath } from "src/utils/utils";
@@ -313,12 +315,14 @@ export class GitSettingsPage extends SettingPageBase {
 				.onClick(async () => {
 					await this.runConnectionTest(button.buttonEl);
 				});
+			button.buttonEl.setAttrs(qsDom("settings-test-btn"));
 		});
 
 		this.statusEl = setting.controlEl.createSpan({
 			cls: "quartz-syncer-git-test-status",
 			text: "Not tested",
 		});
+		this.statusEl.setAttrs(qsDom("settings-test-result"));
 	}
 
 	private async runConnectionTest(
@@ -356,14 +360,12 @@ export class GitSettingsPage extends SettingPageBase {
 				return;
 			}
 
-			const writeStatus = result.writeAccess ? "write" : "read-only";
-
 			const unused =
 				resolvePublishTarget(this.settings).effective === "local"
 					? " Publish target is the local folder, so this remote is not used for publishing."
 					: "";
 
-			this.updateStatus(`Connected (${writeStatus}).${unused}`);
+			this.updateStatus(`${describeConnectionTest(result)}${unused}`);
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);

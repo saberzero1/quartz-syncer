@@ -48,6 +48,10 @@ type ProgressState = {
 	total: number;
 };
 
+type StatusLoadState =
+	| { kind: "ready" | "unconfigured" }
+	| { kind: "error"; message: string };
+
 export interface PublicationCenterController {
 	getSelected(): string[];
 	setSelected(paths: string[]): void;
@@ -60,6 +64,7 @@ export interface PublicationCenterController {
 
 export class PublicationCenter extends Modal {
 	private status: PublishStatus | null = null;
+	private statusLoadState: StatusLoadState = { kind: "unconfigured" };
 	private treeState = new TreeState();
 	private progressState: ProgressState = { current: 0, total: 0 };
 	private progressIndicatorEl: HTMLDivElement | null = null;
@@ -205,6 +210,8 @@ export class PublicationCenter extends Modal {
 		const publisher = this._plugin.getPublisher();
 		if (!publisher) {
 			this.status = null;
+			this.statusLoadState = { kind: "unconfigured" };
+			this.hasFullStatus = false;
 			this.progressState = { current: 0, total: 0 };
 			this.treeState.setKnownFiles([]);
 			this.treeState.setLinkedMediaFiles(new Map());
@@ -217,6 +224,7 @@ export class PublicationCenter extends Modal {
 		const cached = this._plugin.statusCache.getCachedStatusEvenIfStale();
 
 		if (cached && this.isCachedStatusValid(cached)) {
+			this.statusLoadState = { kind: "ready" };
 			this.hasFullStatus = true;
 			this.status = cached;
 			this.progressState = { current: 0, total: 0 };
@@ -233,6 +241,7 @@ export class PublicationCenter extends Modal {
 		const snapshot = this._plugin.statusCache.getSnapshot();
 
 		if (snapshot) {
+			this.statusLoadState = { kind: "ready" };
 			this.hasFullStatus = false;
 			this.isRefreshing = true;
 			this.status = statusFromSnapshot(snapshot);
@@ -249,13 +258,18 @@ export class PublicationCenter extends Modal {
 		}
 
 		try {
-			this.status = await this.fetchAndCacheStatus(publisher);
+			const fresh = await this.fetchAndCacheStatus(publisher);
+			if (fresh === null) return;
+			this.status = fresh;
+			this.statusLoadState = { kind: "ready" };
 			this.hasFullStatus = true;
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);
 			new Notice(`Failed to load publish status: ${message}`);
 			this.status = null;
+			this.statusLoadState = { kind: "error", message };
+			this.hasFullStatus = false;
 		}
 		this.progressState = { current: 0, total: 0 };
 		this.buildFileMap();
@@ -315,6 +329,10 @@ export class PublicationCenter extends Modal {
 
 		if (file) to.push(file);
 
+		this.treeState.moveCategory(
+			vaultPath,
+			published ? "published" : "changed",
+		);
 		status.dynamic?.delete(vaultPath);
 		this.publicationTree?.markResolved(vaultPath);
 		this.updateTreeState();
@@ -322,7 +340,7 @@ export class PublicationCenter extends Modal {
 
 	private async fetchAndCacheStatus(
 		publisher: ReturnType<QuartzSyncer["getPublisher"]> & object,
-	): Promise<PublishStatus> {
+	): Promise<PublishStatus | null> {
 		const statusCache = this._plugin.statusCache;
 		const destination = statusCache.getDestination();
 		let inflight = statusCache.getInflight();
@@ -334,10 +352,11 @@ export class PublicationCenter extends Modal {
 
 		try {
 			const status = await inflight;
+			if (statusCache.getDestination() !== destination) return null;
 			statusCache.setStatus(status, destination);
 			return status;
 		} finally {
-			statusCache.clearInflight();
+			statusCache.clearInflight(inflight);
 		}
 	}
 
@@ -350,7 +369,9 @@ export class PublicationCenter extends Modal {
 
 		try {
 			const fresh = await this.fetchAndCacheStatus(publisher);
+			if (fresh === null) return;
 			this.status = fresh;
+			this.statusLoadState = { kind: "ready" };
 			this.hasFullStatus = true;
 			const selectedPaths = this.treeState.getSelectedFiles();
 			this.diffStatsAbort?.abort();
@@ -539,7 +560,20 @@ export class PublicationCenter extends Modal {
 			cls: "pub-center-tree",
 		});
 
-		if (this.status) {
+		if (this.statusLoadState.kind === "error") {
+			const errorEl = this.treeContainerEl.createEl("p", {
+				text: this.statusLoadState.message,
+			});
+			errorEl.setAttrs({ ...qsDom("pub-error"), role: "alert" });
+			const retryButton = this.treeContainerEl.createEl("button", {
+				text: "Retry",
+			});
+			retryButton.setAttrs(qsDom("pub-retry"));
+			retryButton.addEventListener("click", () => {
+				retryButton.disabled = true;
+				void this.loadStatus();
+			});
+		} else if (this.status) {
 			this.publicationTree = new PublicationTree(
 				this.treeContainerEl,
 				this.treeState,
@@ -625,6 +659,7 @@ export class PublicationCenter extends Modal {
 		});
 
 		this.diffMode = this.getDefaultDiffMode();
+		this.updateOperationButtons();
 		if (this.status && this.publicationTree) {
 			void this.computeTreeDiffStats();
 		}

@@ -1,9 +1,9 @@
-import git from "isomorphic-git";
+import git from "@saberzero1/isomorphic-git";
 import type { App } from "obsidian";
 import { BundledGitBackend } from "src/git/backends/BundledGitBackend";
 import type { GitBackendConfig } from "src/git/types";
 
-vi.mock("isomorphic-git", () => ({
+vi.mock("@saberzero1/isomorphic-git", () => ({
 	default: {
 		resolveRef: vi.fn(),
 		readCommit: vi.fn(),
@@ -14,6 +14,7 @@ vi.mock("isomorphic-git", () => ({
 		commit: vi.fn(),
 		push: vi.fn(),
 		remove: vi.fn(),
+		listFiles: vi.fn(),
 		getRemoteInfo: vi.fn(),
 		listServerRefs: vi.fn(),
 		clone: vi.fn(),
@@ -72,6 +73,11 @@ describe("BundledGitBackend", () => {
 			oid: "blob-oid",
 		});
 		gitMock.add.mockResolvedValue(undefined);
+		gitMock.listFiles.mockResolvedValue([
+			"content/a.md",
+			"content/b.md",
+			"content/c.md",
+		]);
 		gitMock.commit.mockResolvedValue("new-sha");
 		gitMock.push.mockResolvedValue(
 			undefined as unknown as ReturnType<typeof git.push> extends Promise<
@@ -172,7 +178,7 @@ describe("BundledGitBackend", () => {
 		expect(gitMock.push).toHaveBeenCalledWith(
 			expect.objectContaining({ remote: "origin", ref: "main" }),
 		);
-		expect(gitMock.remove.mock.invocationCallOrder[1]).toBeLessThan(
+		expect(gitMock.remove.mock.invocationCallOrder[0]).toBeLessThan(
 			gitMock.commit.mock.invocationCallOrder[0]!,
 		);
 		expect(gitMock.commit.mock.invocationCallOrder[0]).toBeLessThan(
@@ -262,8 +268,8 @@ describe("BundledGitBackend", () => {
 		expect(gitMock.push).toHaveBeenCalledTimes(3);
 	});
 
-	it("deleteFiles continues when remove fails for individual files", async () => {
-		gitMock.remove.mockRejectedValueOnce(new Error("missing"));
+	it("deleteFiles skips a path that is absent from the index", async () => {
+		gitMock.listFiles.mockResolvedValue(["content/b.md"]);
 
 		const backend = new BundledGitBackend(baseConfig, mockApp);
 		await backend.deleteFiles("main", "Remove files", [
@@ -271,7 +277,10 @@ describe("BundledGitBackend", () => {
 			"content/b.md",
 		]);
 
-		expect(gitMock.remove).toHaveBeenCalledTimes(2);
+		expect(gitMock.remove).toHaveBeenCalledTimes(1);
+		expect(gitMock.remove).toHaveBeenCalledWith(
+			expect.objectContaining({ filepath: "content/b.md" }),
+		);
 		expect(gitMock.commit).toHaveBeenCalledTimes(1);
 		expect(gitMock.commit).toHaveBeenCalledWith(
 			expect.objectContaining({ message: "Remove files" }),
@@ -280,11 +289,82 @@ describe("BundledGitBackend", () => {
 		expect(gitMock.push).toHaveBeenCalledWith(
 			expect.objectContaining({ remote: "origin", ref: "main" }),
 		);
-		expect(gitMock.remove.mock.invocationCallOrder[1]).toBeLessThan(
+		expect(gitMock.remove.mock.invocationCallOrder[0]).toBeLessThan(
 			gitMock.commit.mock.invocationCallOrder[0]!,
 		);
 		expect(gitMock.commit.mock.invocationCallOrder[0]).toBeLessThan(
 			gitMock.push.mock.invocationCallOrder[0]!,
+		);
+	});
+
+	it("deleteFiles rejects without committing when a remove fails", async () => {
+		gitMock.listFiles.mockResolvedValue(["content/a.md", "content/b.md"]);
+		gitMock.remove.mockRejectedValue(new Error("index is corrupt"));
+
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+
+		await expect(
+			backend.deleteFiles("main", "Remove files", [
+				"content/a.md",
+				"content/b.md",
+			]),
+		).rejects.toThrow("index is corrupt");
+
+		expect(gitMock.commit).not.toHaveBeenCalled();
+		expect(gitMock.push).not.toHaveBeenCalled();
+	});
+
+	it("deleteFiles commits and pushes the survivors when one path is already absent", async () => {
+		gitMock.listFiles.mockResolvedValue(["content/a.md", "content/c.md"]);
+
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+
+		const result = await backend.deleteFiles("main", "Remove files", [
+			"content/a.md",
+			"content/b.md",
+			"content/c.md",
+		]);
+
+		expect(result).toEqual({ sha: "new-sha", removedCount: 2 });
+		expect(gitMock.remove).toHaveBeenCalledTimes(2);
+		expect(gitMock.commit).toHaveBeenCalledTimes(1);
+
+		expect(gitMock.push).toHaveBeenCalledWith(
+			expect.objectContaining({ remote: "origin", ref: "main" }),
+		);
+	});
+
+	it("deleteFiles makes no commit when every path is absent from the index", async () => {
+		gitMock.listFiles.mockResolvedValue(["content/other.md"]);
+
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+
+		const result = await backend.deleteFiles("main", "Remove files", [
+			"content/a.md",
+			"content/b.md",
+		]);
+
+		expect(result).toEqual({ sha: "", removedCount: 0 });
+		expect(gitMock.remove).not.toHaveBeenCalled();
+		expect(gitMock.commit).not.toHaveBeenCalled();
+		expect(gitMock.push).not.toHaveBeenCalled();
+	});
+
+	it("deleteFiles removes an indexed directory prefix", async () => {
+		gitMock.listFiles.mockResolvedValue([
+			"content/blog/a.md",
+			"content/blog/b.md",
+		]);
+
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+
+		const result = await backend.deleteFiles("main", "Remove files", [
+			"content/blog",
+		]);
+
+		expect(result).toEqual({ sha: "new-sha", removedCount: 1 });
+		expect(gitMock.remove).toHaveBeenCalledWith(
+			expect.objectContaining({ filepath: "content/blog" }),
 		);
 	});
 
@@ -323,7 +403,94 @@ describe("BundledGitBackend", () => {
 			ok: false,
 			readAccess: false,
 			writeAccess: false,
+			hasCredential: false,
+			credentialVerified: false,
 			error: "no remote",
 		});
+	});
+
+	it("testConnection does not vouch for a token when the read was anonymous", async () => {
+		gitMock.getRemoteInfo.mockResolvedValue(
+			{} as unknown as Awaited<ReturnType<typeof git.getRemoteInfo>>,
+		);
+		gitMock.listServerRefs.mockRejectedValue(new Error("401"));
+
+		const backend = new BundledGitBackend(
+			{
+				...baseConfig,
+				auth: { type: "bearer", secret: "expired-token" },
+			},
+			mockApp,
+		);
+
+		await expect(backend.testConnection()).resolves.toEqual({
+			ok: true,
+			readAccess: true,
+			writeAccess: false,
+			hasCredential: true,
+			credentialVerified: false,
+		});
+	});
+
+	it("testConnection verifies the token when the read is challenged", async () => {
+		gitMock.getRemoteInfo.mockImplementation(
+			async (options: Parameters<typeof git.getRemoteInfo>[0]) => {
+				(options as { onAuth?: () => unknown }).onAuth?.();
+				return {} as Awaited<ReturnType<typeof git.getRemoteInfo>>;
+			},
+		);
+		gitMock.listServerRefs.mockRejectedValue(new Error("403"));
+
+		const backend = new BundledGitBackend(
+			{
+				...baseConfig,
+				auth: { type: "bearer", secret: "read-only-token" },
+			},
+			mockApp,
+		);
+
+		const result = await backend.testConnection();
+
+		expect(result.credentialVerified).toBe(true);
+		expect(result.writeAccess).toBe(false);
+	});
+
+	it("testConnection verifies the token when the push probe succeeds", async () => {
+		gitMock.getRemoteInfo.mockResolvedValue(
+			{} as unknown as Awaited<ReturnType<typeof git.getRemoteInfo>>,
+		);
+		gitMock.listServerRefs.mockResolvedValue(
+			[] as unknown as Awaited<ReturnType<typeof git.listServerRefs>>,
+		);
+
+		const backend = new BundledGitBackend(
+			{
+				...baseConfig,
+				auth: { type: "bearer", secret: "good-token" },
+			},
+			mockApp,
+		);
+
+		await expect(backend.testConnection()).resolves.toEqual({
+			ok: true,
+			readAccess: true,
+			writeAccess: true,
+			hasCredential: true,
+			credentialVerified: true,
+		});
+	});
+
+	it("testConnection reports no credential when none is configured", async () => {
+		gitMock.getRemoteInfo.mockResolvedValue(
+			{} as unknown as Awaited<ReturnType<typeof git.getRemoteInfo>>,
+		);
+		gitMock.listServerRefs.mockRejectedValue(new Error("401"));
+
+		const backend = new BundledGitBackend(baseConfig, mockApp);
+
+		const result = await backend.testConnection();
+
+		expect(result.hasCredential).toBe(false);
+		expect(result.credentialVerified).toBe(false);
 	});
 });

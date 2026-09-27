@@ -4,7 +4,7 @@ import type { GitBackendConfig } from "src/git/types";
 
 const fsNames: string[] = [];
 
-vi.mock("isomorphic-git", () => ({ default: {} }));
+vi.mock("@saberzero1/isomorphic-git", () => ({ default: {} }));
 
 vi.mock("@isomorphic-git/lightning-fs", () => {
 	class MockLightningFS {

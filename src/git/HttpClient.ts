@@ -30,7 +30,7 @@ interface IsomorphicGitHttpRequest {
 		loaded: number;
 		total: number;
 	}) => void;
-	signal?: object;
+	signal?: Partial<Pick<AbortSignal, "aborted">>;
 }
 
 interface IsomorphicGitHttpResponse {
@@ -107,6 +107,44 @@ function parseRateLimitHeaders(
 
 const RETRY_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 const RETRY_DELAYS = [1000, 2000, 4000];
+const JSON_TIMEOUT_MS = 30_000;
+const GIT_TIMEOUT_MS = 300_000;
+const MAX_RETRY_DELAY_MS = 60_000;
+
+function shouldRetryStatus(status: number, method: string): boolean {
+	return (
+		RETRY_STATUS_CODES.has(status) &&
+		(status === 429 ||
+			status === 503 ||
+			method === "GET" ||
+			method === "HEAD")
+	);
+}
+
+async function withTimeout<T>(request: Promise<T>, ms: number): Promise<T> {
+	let timer: number | undefined;
+	try {
+		// RequestUrlParam has no timeout/signal: this unblocks the caller but
+		// does not cancel the underlying request.
+		return await Promise.race([
+			request,
+			new Promise<never>((_, reject) => {
+				timer = window.setTimeout(
+					() =>
+						reject(
+							new DOMException(
+								"Request timed out",
+								"TimeoutError",
+							),
+						),
+					ms,
+				);
+			}),
+		]);
+	} finally {
+		if (timer !== undefined) window.clearTimeout(timer);
+	}
+}
 
 export class HttpClient {
 	private maxRetries: number;
@@ -171,26 +209,37 @@ export class HttpClient {
 
 		let lastError: unknown;
 		for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+			let receivedResponse = false;
 			try {
-				const response = await requestUrl({
-					url,
-					method,
-					headers: requestHeaders,
-					body: requestBody,
-					throw: false,
-				});
+				const response = await withTimeout(
+					requestUrl({
+						url,
+						method,
+						headers: requestHeaders,
+						body: requestBody,
+						throw: false,
+					}),
+					JSON_TIMEOUT_MS,
+				);
+				receivedResponse = true;
 
 				const responseHeaders = normalizeHeaders(response.headers);
 				parseRateLimitHeaders(responseHeaders, this.onRateLimit);
 
 				if (response.status >= 400) {
 					if (
-						RETRY_STATUS_CODES.has(response.status) &&
+						shouldRetryStatus(response.status, method) &&
 						attempt < this.maxRetries
 					) {
 						const retryAfter = responseHeaders["retry-after"];
-						const delay = retryAfter
+						const parsedDelay = retryAfter
 							? parseInt(retryAfter, 10) * 1000
+							: NaN;
+						const delay = Number.isFinite(parsedDelay)
+							? Math.min(
+									MAX_RETRY_DELAY_MS,
+									Math.max(0, parsedDelay),
+								)
 							: (RETRY_DELAYS[attempt] ?? 4000);
 						await sleep(delay);
 						continue;
@@ -205,6 +254,7 @@ export class HttpClient {
 				};
 			} catch (e) {
 				if (
+					receivedResponse ||
 					e instanceof AuthError ||
 					e instanceof NotFoundError ||
 					e instanceof ConflictError ||
@@ -213,10 +263,16 @@ export class HttpClient {
 					throw e;
 				}
 				lastError = e;
-				if (attempt < this.maxRetries) {
+				if (
+					(method === "GET" || method === "HEAD") &&
+					attempt < this.maxRetries
+				) {
 					await sleep(RETRY_DELAYS[attempt] ?? 4000);
 					continue;
 				}
+				if (e instanceof DOMException && e.name === "TimeoutError")
+					throw e;
+				break;
 			}
 		}
 		throw new NetworkError("Request failed after retries", lastError);
@@ -225,27 +281,39 @@ export class HttpClient {
 	async request(
 		request: IsomorphicGitHttpRequest,
 	): Promise<IsomorphicGitHttpResponse> {
-		const method = request.method ?? "GET";
+		const method = (request.method ?? "GET").toUpperCase();
+		const retryableEndpoint = /\/(info\/refs|git-upload-pack)$/.test(
+			new URL(request.url).pathname,
+		);
+		if (request.signal?.aborted)
+			throw new DOMException("Request aborted", "AbortError");
 		const bodyBytes = await collectBody(request.body);
 
 		let lastError: unknown;
 		for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+			if (request.signal?.aborted)
+				throw new DOMException("Request aborted", "AbortError");
 			try {
-				const response = await requestUrl({
-					url: request.url,
-					method,
-					headers: request.headers ?? {},
-					body: bodyBytes
-						? new Uint8Array(bodyBytes).buffer
-						: undefined,
-					throw: false,
-				});
+				const response = await withTimeout(
+					requestUrl({
+						url: request.url,
+						method,
+						headers: request.headers ?? {},
+						body: bodyBytes
+							? new Uint8Array(bodyBytes).buffer
+							: undefined,
+						throw: false,
+					}),
+					GIT_TIMEOUT_MS,
+				);
+				if (request.signal?.aborted)
+					throw new DOMException("Request aborted", "AbortError");
 
 				const responseHeaders = normalizeHeaders(response.headers);
 				parseRateLimitHeaders(responseHeaders, this.onRateLimit);
 
 				if (
-					RETRY_STATUS_CODES.has(response.status) &&
+					shouldRetryStatus(response.status, method) &&
 					attempt < this.maxRetries
 				) {
 					await sleep(RETRY_DELAYS[attempt] ?? 4000);
@@ -265,11 +333,16 @@ export class HttpClient {
 					statusMessage: `${response.status}`,
 				};
 			} catch (e) {
+				if (request.signal?.aborted)
+					throw new DOMException("Request aborted", "AbortError");
 				lastError = e;
-				if (attempt < this.maxRetries) {
+				if (retryableEndpoint && attempt < this.maxRetries) {
 					await sleep(RETRY_DELAYS[attempt] ?? 4000);
 					continue;
 				}
+				if (e instanceof DOMException && e.name === "TimeoutError")
+					throw e;
+				break;
 			}
 		}
 		throw new NetworkError(

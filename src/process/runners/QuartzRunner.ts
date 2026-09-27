@@ -1,5 +1,10 @@
 import { Platform } from "obsidian";
 import { getModule } from "src/utils/external-fs";
+import {
+	assertNoControlChars,
+	assertNoShellMetacharacters,
+	requiresWindowsShell,
+} from "../argSafety";
 import type { ProcessResult } from "../types";
 import type { ProcessRunner, ProcessStartResult } from "../ProcessRunner";
 
@@ -270,6 +275,14 @@ export class QuartzRunner {
 					String(resolvedOptions.port),
 				]
 			: ["quartz", "build", "--serve"];
+		const shell = requiresWindowsShell("npx");
+		try {
+			assertNoControlChars(args);
+			if (shell) assertNoShellMetacharacters(args);
+		} catch (error) {
+			if (!(error instanceof RangeError)) throw error;
+			return { ok: false, error: error.message, process: null };
+		}
 		this.stopServe();
 
 		let childProcess: ChildProcessModule;
@@ -294,7 +307,7 @@ export class QuartzRunner {
 			const process = childProcess.execFile(
 				"npx",
 				args,
-				{ cwd, timeout, shell: true, windowsHide: true },
+				{ cwd, timeout, shell, windowsHide: true },
 				(error, stdout, stderr) => {
 					stdoutListener.flush();
 					stderrListener.flush();

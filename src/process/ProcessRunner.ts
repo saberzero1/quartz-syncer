@@ -1,6 +1,11 @@
 import { Platform } from "obsidian";
 import { getModule } from "src/utils/external-fs";
 import {
+	assertNoControlChars,
+	assertNoShellMetacharacters,
+	requiresWindowsShell,
+} from "./argSafety";
+import {
 	ALLOWED_BINARIES,
 	type ProcessConfig,
 	type ProcessResult,
@@ -161,6 +166,10 @@ function attachLineListeners(
 }
 
 export class ProcessRunner {
+	static shutdown(): void {
+		terminatePendingProcess();
+	}
+
 	static resetChildProcessCache(): void {
 		childProcessCache = null;
 		pendingProcess = null;
@@ -184,6 +193,15 @@ export class ProcessRunner {
 		}
 		if (config.signal?.aborted) {
 			return createErrorResult("Aborted", "Aborted", true);
+		}
+
+		const shell = requiresWindowsShell(config.binary);
+		try {
+			assertNoControlChars(config.args);
+			if (shell) assertNoShellMetacharacters(config.args);
+		} catch (error) {
+			if (!(error instanceof RangeError)) throw error;
+			return createErrorResult(error.message);
 		}
 
 		const timeout =
@@ -228,7 +246,7 @@ export class ProcessRunner {
 						timeout,
 						killSignal: "SIGTERM",
 						cwd: config.cwd,
-						shell: true,
+						shell,
 						windowsHide: true,
 					},
 					(error, stdout, stderr) => {
@@ -332,6 +350,18 @@ export class ProcessRunner {
 			};
 		}
 
+		const shell = requiresWindowsShell(config.binary);
+		try {
+			assertNoControlChars(config.args);
+			if (shell) assertNoShellMetacharacters(config.args);
+		} catch (error) {
+			if (!(error instanceof RangeError)) throw error;
+			return {
+				process: null,
+				result: Promise.resolve(createErrorResult(error.message)),
+			};
+		}
+
 		const timeout =
 			config.timeout === -1
 				? 0
@@ -373,7 +403,7 @@ export class ProcessRunner {
 						timeout,
 						killSignal: "SIGTERM",
 						cwd: config.cwd,
-						shell: true,
+						shell,
 						windowsHide: true,
 					},
 					(error, stdout, stderr) => {

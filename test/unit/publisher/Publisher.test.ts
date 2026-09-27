@@ -137,7 +137,12 @@ const makePlugin = (
 const makeGitBackend = (overrides: Partial<GitBackend> = {}): GitBackend =>
 	({
 		writeFiles: vi.fn().mockResolvedValue({ sha: "abc" }),
-		deleteFiles: vi.fn().mockResolvedValue({ sha: "abc" }),
+		deleteFiles: vi
+			.fn()
+			.mockImplementation(
+				(_branch: string, _msg: string, paths: string[]) =>
+					Promise.resolve({ sha: "abc", removedCount: paths.length }),
+			),
 		readTree: vi.fn().mockResolvedValue([]),
 		readBlob: vi.fn(),
 		getRemoteInfo: vi.fn(),
@@ -1350,6 +1355,98 @@ describe("Publisher", () => {
 
 		expect(dataStore.dropFile).toHaveBeenCalledWith("images/photo.png");
 		expect(dataStore.dropFile).toHaveBeenCalledWith("notes/old.md");
+	});
+
+	it("deleteByRepoPaths reports zero deleted when no path was in the index", async () => {
+		const app = new App();
+		const settings = makeSettings({ contentFolder: "content" });
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		gitBackend.deleteFiles = vi
+			.fn()
+			.mockResolvedValue({ sha: "", removedCount: 0 });
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
+		const dataStore = { dropFile: vi.fn() } as unknown as DataStore;
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		const result = await publisher.deleteByRepoPaths([
+			"content/notes/a.md",
+			"content/notes/b.md",
+		]);
+
+		expect(result.filesDeleted).toBe(0);
+		expect(result.commitSha).toBe("");
+	});
+
+	it("deleteByRepoPaths reports the removed count, not the requested count", async () => {
+		const app = new App();
+		const settings = makeSettings({ contentFolder: "content" });
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		gitBackend.deleteFiles = vi
+			.fn()
+			.mockResolvedValue({ sha: "abc", removedCount: 2 });
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
+		const dataStore = { dropFile: vi.fn() } as unknown as DataStore;
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		const result = await publisher.deleteByRepoPaths([
+			"content/notes/a.md",
+			"content/notes/b.md",
+			"content/notes/c.md",
+		]);
+
+		expect(result.filesDeleted).toBe(2);
+	});
+
+	it("deleteBatch reports the removed count, not the requested count", async () => {
+		const app = new App();
+		const settings = makeSettings({ contentFolder: "content" });
+		const plugin = makePlugin(settings);
+		const gitBackend = makeGitBackend();
+		gitBackend.deleteFiles = vi
+			.fn()
+			.mockResolvedValue({ sha: "abc", removedCount: 1 });
+		const compiler = {
+			extractBlobLinks: async () => [],
+		} as unknown as SyncerPageCompiler;
+		const dataStore = { dropFile: vi.fn() } as unknown as DataStore;
+
+		const backend = new RemotePublishBackend(gitBackend, "main");
+		const publisher = new Publisher(
+			app,
+			plugin,
+			backend,
+			compiler,
+			dataStore,
+		);
+
+		const result = await publisher.deleteBatch([
+			"notes/a.md",
+			"notes/b.md",
+		]);
+
+		expect(result.filesDeleted).toBe(1);
 	});
 
 	it("pauses and resumes compilationQueue around getPublishStatus", async () => {
@@ -2864,6 +2961,31 @@ describe("Publisher", () => {
 			expect(finished).toBe(started);
 			expect(result).toBeNull();
 			expect(gitBackend.deleteFiles).not.toHaveBeenCalled();
+		});
+
+		it("deletes no orphan when the abort lands while the remote tree loads", async () => {
+			const { publisher, gitBackend } = setupCleanup(4, [
+				"images/orphan.png",
+			]);
+			const controller = new AbortController();
+			const deleteSpy = vi.spyOn(publisher, "deleteByRepoPaths");
+			const readTree = vi.mocked(gitBackend.readTree);
+			const resolveTree = readTree.getMockImplementation();
+
+			readTree.mockImplementation(async (ref: string) => {
+				controller.abort();
+
+				return resolveTree!(ref);
+			});
+
+			const result = await publisher.cleanOrphanedMedia(
+				controller.signal,
+			);
+
+			expect(readTree).toHaveBeenCalled();
+			expect(deleteSpy).not.toHaveBeenCalled();
+			expect(gitBackend.deleteFiles).not.toHaveBeenCalled();
+			expect(result).toBeNull();
 		});
 
 		it("still deletes the orphan when the signal never aborts", async () => {

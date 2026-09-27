@@ -166,6 +166,101 @@ describe("HttpClient", () => {
 		});
 	});
 
+	describe("bounded safe retries", () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+			client = new HttpClient();
+		});
+
+		afterEach(() => vi.useRealTimers());
+
+		it("times out a request that never settles", async () => {
+			mockRequestUrl.mockReturnValue(new Promise(() => {}));
+			const result = client.post("https://api.example.com/test");
+			const assertion = expect(result).rejects.toMatchObject({
+				name: "TimeoutError",
+			});
+			await vi.advanceTimersByTimeAsync(30_000);
+			await assertion;
+		});
+
+		it("does not replay POST after a network exception", async () => {
+			mockRequestUrl.mockRejectedValue(new Error("Connection lost"));
+			const assertion = expect(
+				client.post("https://api.example.com/test"),
+			).rejects.toThrow(NetworkError);
+			await vi.runAllTimersAsync();
+			await assertion;
+			expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+		});
+
+		it("retries GET network exceptions four times", async () => {
+			mockRequestUrl.mockRejectedValue(new Error("Connection lost"));
+			const assertion = expect(
+				client.get("https://api.example.com/test"),
+			).rejects.toThrow(NetworkError);
+			await vi.runAllTimersAsync();
+			await assertion;
+			expect(mockRequestUrl).toHaveBeenCalledTimes(4);
+		});
+
+		it("retries POST when the server declines with 503", async () => {
+			mockRequestUrl
+				.mockResolvedValueOnce(mockResponse(503))
+				.mockResolvedValue(mockResponse(200));
+			const result = client.post("https://api.example.com/test");
+			await vi.runAllTimersAsync();
+			expect((await result).status).toBe(200);
+			expect(mockRequestUrl).toHaveBeenCalledTimes(2);
+		});
+
+		it("does not replay git-receive-pack after a network exception", async () => {
+			mockRequestUrl.mockRejectedValue(new Error("Connection lost"));
+			const assertion = expect(
+				client.request({
+					url: "https://example.com/repo.git/git-receive-pack",
+					method: "POST",
+				}),
+			).rejects.toThrow(NetworkError);
+			await vi.runAllTimersAsync();
+			await assertion;
+			expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+		});
+
+		it("retries git-upload-pack after a network exception", async () => {
+			mockRequestUrl.mockRejectedValue(new Error("Connection lost"));
+			const assertion = expect(
+				client.request({
+					url: "https://example.com/repo.git/git-upload-pack",
+					method: "POST",
+				}),
+			).rejects.toThrow(NetworkError);
+			await vi.runAllTimersAsync();
+			await assertion;
+			expect(mockRequestUrl).toHaveBeenCalledTimes(4);
+		});
+
+		it("falls back to backoff when Retry-After is an HTTP date", async () => {
+			mockRequestUrl
+				.mockResolvedValueOnce(
+					mockResponse(
+						429,
+						{},
+						{
+							"Retry-After": "Wed, 21 Oct 2015 07:28:00 GMT",
+						},
+					),
+				)
+				.mockResolvedValue(mockResponse(200));
+			const result = client.get("https://api.example.com/test");
+			await vi.advanceTimersByTimeAsync(999);
+			expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+			await vi.advanceTimersByTimeAsync(1);
+			expect((await result).status).toBe(200);
+			expect(mockRequestUrl).toHaveBeenCalledTimes(2);
+		});
+	});
+
 	describe("rate limit header parsing", () => {
 		it("calls onRateLimit with remaining count", async () => {
 			const onRateLimit = vi.fn();

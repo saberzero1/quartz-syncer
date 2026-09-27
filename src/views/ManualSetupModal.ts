@@ -3,6 +3,7 @@ import type { App } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { GitAuthType } from "src/models/settings";
 import { createGitBackend } from "src/git/GitBackendFactory";
+import { describeConnectionTest } from "src/git/GitRemoteUtils";
 import { detectGitProvider } from "src/utils/gitProviderDetection";
 
 export class ManualSetupModal extends Modal {
@@ -222,8 +223,7 @@ export class ManualSetupModal extends Modal {
 				return;
 			}
 
-			const writeStatus = result.writeAccess ? "write" : "read-only";
-			this.updateTestStatus(`Connected (${writeStatus}).`);
+			this.updateTestStatus(describeConnectionTest(result));
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);

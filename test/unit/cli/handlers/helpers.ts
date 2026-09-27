@@ -26,6 +26,7 @@ export const buildPlugin = (
 			publishFrontmatterKey: "publish",
 			enableSystemCommands: false,
 			quartzRepoPath: "",
+			publishTarget: "remote",
 		},
 		getGitSettingsWithSecret: vi.fn(() => ({
 			remoteUrl: "https://example.com/repo.git",

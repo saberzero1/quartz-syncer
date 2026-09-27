@@ -1,4 +1,5 @@
 import { App, Modal } from "obsidian";
+import { qsDom } from "src/operability/DomContract";
 
 export class MigrationNotice extends Modal {
 	constructor(app: App) {
@@ -7,6 +8,7 @@ export class MigrationNotice extends Modal {
 
 	onOpen(): void {
 		this.modalEl.addClass("qs-migration-notice");
+		this.modalEl.setAttrs(qsDom("notice"));
 		const { contentEl } = this;
 		contentEl.empty();
 

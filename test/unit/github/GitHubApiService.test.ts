@@ -1,6 +1,6 @@
 import { GitHubApiService } from "src/github/GitHubApiService";
 import type { HttpClient } from "src/git/HttpClient";
-import { AuthError } from "src/git/errors";
+import { AuthError, ProviderError } from "src/git/errors";
 
 describe("GitHubApiService", () => {
 	let client: HttpClient;
@@ -16,6 +16,59 @@ describe("GitHubApiService", () => {
 			request: vi.fn(),
 		} as unknown as HttpClient;
 		service = new GitHubApiService("token", client);
+	});
+
+	it("rethrows authentication errors when reading file content", async () => {
+		const error = new AuthError("Invalid token", 401);
+		vi.mocked(client.get).mockRejectedValue(error);
+		await expect(
+			service.getFileContent("octo", "quartz", "package.json", "v5"),
+		).rejects.toBe(error);
+	});
+
+	it("rejects a user without a login", async () => {
+		vi.mocked(client.get).mockResolvedValue({
+			status: 200,
+			headers: {},
+			data: {},
+		});
+		await expect(service.validateToken("token")).rejects.toThrow(
+			ProviderError,
+		);
+	});
+
+	it("rejects a non-array repository response with ProviderError", async () => {
+		vi.mocked(client.get).mockResolvedValue({
+			status: 200,
+			headers: {},
+			data: {},
+		});
+		await expect(service.listRepos()).rejects.toThrow(ProviderError);
+	});
+
+	it("rejects full repository pages after the fifty-page cap", async () => {
+		const data = Array.from({ length: 100 }, () => ({
+			full_name: "octo/quartz",
+			default_branch: "v5",
+			clone_url: "https://github.com/octo/quartz.git",
+		}));
+		vi.mocked(client.get).mockImplementation(async () => {
+			if (vi.mocked(client.get).mock.calls.length > 50)
+				throw new Error("Pagination exceeded test safety bound");
+			return { status: 200, headers: {}, data };
+		});
+		await expect(service.listRepos()).rejects.toThrow(ProviderError);
+		expect(client.get).toHaveBeenCalledTimes(50);
+	});
+
+	it("stops immediately on an empty repository page", async () => {
+		vi.mocked(client.get).mockResolvedValue({
+			status: 200,
+			headers: {},
+			data: [],
+		});
+		await expect(service.listRepos()).resolves.toEqual([]);
+		expect(client.get).toHaveBeenCalledTimes(1);
 	});
 
 	it("validates token and returns user", async () => {

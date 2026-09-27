@@ -64,7 +64,7 @@ export class LocalFileSource implements QuartzFileSource {
 	}
 
 	async listDirectory(path: string): Promise<QuartzDirectoryEntry[]> {
-		const fullPath = joinPath(this.basePath, path);
+		const fullPath = this.resolveBaseDir(path);
 		const names = await readExternalDir(fullPath);
 
 		if (!names) return [];
@@ -84,9 +84,7 @@ export class LocalFileSource implements QuartzFileSource {
 	}
 
 	async listAllFiles(basePath?: string): Promise<string[]> {
-		const dirPath = basePath
-			? joinPath(this.basePath, basePath)
-			: this.basePath;
+		const dirPath = this.resolveBaseDir(basePath);
 		const entries = await readExternalDirRecursive(dirPath);
 
 		if (!entries) return [];
@@ -105,11 +103,40 @@ export class LocalFileSource implements QuartzFileSource {
 	}
 
 	async exists(path: string): Promise<boolean> {
-		return externalFileExists(joinPath(this.basePath, path));
+		let fullPath: string;
+
+		try {
+			fullPath = this.resolveBaseDir(path);
+		} catch {
+			// Deliberate: an existence probe reports absence, never throws.
+			// Preserves the mobile contract (false off the desktop app) and
+			// reports an out-of-base path as "not here".
+			return false;
+		}
+
+		return externalFileExists(fullPath);
 	}
 
 	private isDirectory(fullPath: string): boolean {
 		return externalIsDirectorySync(fullPath);
+	}
+
+	// Directory and existence operations resolve through this rather than
+	// resolveBasePath: the base directory itself is a legitimate target here
+	// (listAllFiles() is routinely called with no argument), while resolveWithin
+	// deliberately rejects an empty relative path as a *file* target.
+	private resolveBaseDir(path?: string): string {
+		if (path === undefined || path === "") {
+			return this.basePath;
+		}
+
+		const resolved = resolveWithin(this.basePath, path);
+
+		if (resolved === null) {
+			throw new Error(`Path escapes base directory: ${path}`);
+		}
+
+		return resolved;
 	}
 
 	private resolveBasePath(path: string): string {

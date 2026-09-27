@@ -1,4 +1,9 @@
-import type { FileChange, GitBackend, TreeEntry } from "src/git/types";
+import type {
+	DeleteResult,
+	FileChange,
+	GitBackend,
+	TreeEntry,
+} from "src/git/types";
 import type { PublishBackend } from "src/publisher/PublishBackend";
 import { RemoteTreeCache } from "src/git/RemoteTreeCache";
 
@@ -39,7 +44,7 @@ export class RemotePublishBackend implements PublishBackend {
 		branch: string,
 		message: string,
 		paths: string[],
-	): Promise<{ sha: string }> {
+	): Promise<DeleteResult> {
 		return this.gitBackend.deleteFiles(branch, message, paths);
 	}
 

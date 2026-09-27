@@ -2,6 +2,10 @@ import type QuartzSyncer from "src/main";
 import type { CliHandler, CliParams, CliResult } from "src/cli/types";
 import { createGitBackend } from "src/git/GitBackendFactory";
 import {
+	resolvePublishTarget,
+	describeBlocker,
+} from "src/publisher/PublishTargetResolver";
+import {
 	externalFileExists,
 	externalIsDirectorySync,
 } from "src/utils/external-fs";
@@ -10,12 +14,22 @@ import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 
 export function createTestHandler(_plugin: QuartzSyncer): CliHandler {
 	return async (params) => {
-		if (_plugin.settings.quartzRepoPath) {
+		// quartzRepoPath doubles as the Quartz management checkout, so it is
+		// routinely set while publishing to the remote. Only publishTarget
+		// selects the destination, via the resolver.
+		const target = resolvePublishTarget(_plugin.settings);
+
+		if (target.effective === "local") {
 			return handleLocalTest(_plugin, params);
 		}
 
-		if (!_plugin.settings.gitRemoteUrl) {
-			return { success: false, error: "Repository not configured" };
+		if (target.effective === null) {
+			return {
+				success: false,
+				error: target.blocker
+					? describeBlocker(target.blocker, _plugin.settings)
+					: "Repository not configured",
+			};
 		}
 
 		const gitSettings = _plugin.getGitSettingsWithSecret();
@@ -40,6 +54,7 @@ export function createTestHandler(_plugin: QuartzSyncer): CliHandler {
 		return {
 			success: true,
 			data: {
+				mode: "remote",
 				...result,
 				...(params.verbose
 					? {

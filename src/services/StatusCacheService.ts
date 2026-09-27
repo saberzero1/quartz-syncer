@@ -252,8 +252,10 @@ export class StatusCacheService {
 		this.inflight = promise;
 	}
 
-	clearInflight(): void {
-		this.inflight = null;
+	clearInflight(promise: Promise<PublishStatus>): void {
+		if (this.inflight === promise) {
+			this.inflight = null;
+		}
 	}
 
 	getDiffContent(

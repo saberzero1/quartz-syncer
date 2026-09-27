@@ -1,4 +1,5 @@
 import { Platform } from "obsidian";
+import { assertNoControlChars } from "src/process/argSafety";
 import { getModule } from "src/utils/external-fs";
 
 type ExecFileResult = {
@@ -79,13 +80,14 @@ export class NodeDetector {
 	}
 
 	private exec(command: string, args: string[]): Promise<ExecFileResult> {
+		assertNoControlChars(args);
 		const cp = getModule<ChildProcessModule>("child_process");
 
 		return new Promise((resolve, reject) => {
 			cp.execFile(
 				command,
 				args,
-				{ timeout: 10000, shell: true, windowsHide: true },
+				{ timeout: 10000, shell: false, windowsHide: true },
 				(error, stdout, stderr) => {
 					if (error) {
 						reject(new Error(error.message ?? "execFile failed"));

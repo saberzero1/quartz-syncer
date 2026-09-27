@@ -9,6 +9,15 @@ export interface CommitResult {
 	url?: string;
 }
 
+/**
+ * `removedCount` is how many paths were actually removed, which can be lower
+ * than the requested count because an already-absent path is tolerated rather
+ * than failed. Callers must report progress from this, not from the request.
+ */
+export interface DeleteResult extends CommitResult {
+	removedCount: number;
+}
+
 export interface TreeEntry {
 	path: string;
 	sha: string;
@@ -25,6 +34,14 @@ export interface ConnectionTestResult {
 	ok: boolean;
 	readAccess: boolean;
 	writeAccess: boolean;
+	/** A credential is configured, regardless of whether it works. */
+	hasCredential: boolean;
+	/**
+	 * The credential was actually exercised and accepted. A public repository
+	 * answers reads anonymously, so `readAccess` alone says nothing about the
+	 * credential — an expired token still yields `readAccess: true`.
+	 */
+	credentialVerified: boolean;
 	error?: string;
 }
 
@@ -52,7 +69,7 @@ export interface GitBackend {
 		branch: string,
 		message: string,
 		paths: string[],
-	): Promise<CommitResult>;
+	): Promise<DeleteResult>;
 	getRemoteInfo(): Promise<RemoteInfo>;
 	testConnection(): Promise<ConnectionTestResult>;
 	listBranches(): Promise<BranchInfo[]>;

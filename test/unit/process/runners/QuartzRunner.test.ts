@@ -1,6 +1,6 @@
-import { Platform } from "obsidian";
+import { Platform, resetPlatform } from "obsidian";
 import { QuartzRunner } from "src/process/runners/QuartzRunner";
-import type { ProcessRunner } from "src/process/ProcessRunner";
+import { ProcessRunner } from "src/process/ProcessRunner";
 import type { ProcessResult } from "src/process/types";
 
 const { getModule, setChildProcess } = vi.hoisted(() => {
@@ -36,6 +36,11 @@ describe("QuartzRunner", () => {
 		Platform.isDesktopApp = true;
 	});
 
+	afterEach(() => {
+		resetPlatform();
+		vi.unstubAllGlobals();
+	});
+
 	it("update calls npx quartz update", async () => {
 		const run = vi.fn().mockResolvedValue(successResult);
 		const runner = new QuartzRunner(
@@ -67,6 +72,7 @@ describe("QuartzRunner", () => {
 	});
 
 	it("serve calls npx quartz build --serve --port", () => {
+		Platform.isWin = false;
 		const execFile = vi.fn(() => ({
 			kill: vi.fn(),
 			stdout: { on: vi.fn() },
@@ -77,6 +83,31 @@ describe("QuartzRunner", () => {
 			{ run: vi.fn() } as unknown as ProcessRunner,
 			"/repo",
 		);
+		runner.serve(8080);
+
+		expect(execFile).toHaveBeenCalledWith(
+			"npx",
+			["quartz", "build", "--serve", "--port", "8080"],
+			{
+				cwd: "/repo",
+				timeout: undefined,
+				shell: false,
+				windowsHide: true,
+			},
+			expect.any(Function),
+		);
+	});
+
+	it("serve retains a shell for npx on Windows", () => {
+		Platform.isWin = true;
+		const execFile = vi.fn(() => ({
+			kill: vi.fn(),
+			stdout: { on: vi.fn() },
+			stderr: { on: vi.fn() },
+		}));
+		setChildProcess({ execFile });
+		const runner = new QuartzRunner(new ProcessRunner(), "/repo");
+
 		runner.serve(8080);
 
 		expect(execFile).toHaveBeenCalledWith(
@@ -267,7 +298,7 @@ describe("QuartzRunner", () => {
 	});
 
 	it("returns error when cwd is not set", async () => {
-		const runner = new QuartzRunner({ run: vi.fn() } as ProcessRunner);
+		const runner = new QuartzRunner(new ProcessRunner());
 
 		const result = await runner.pluginRemove("graph");
 

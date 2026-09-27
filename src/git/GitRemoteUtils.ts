@@ -1,5 +1,6 @@
-import git from "isomorphic-git";
+import git from "@saberzero1/isomorphic-git";
 import type { GitAuth } from "src/models/settings";
+import type { ConnectionTestResult } from "src/git/types";
 import { HttpClient } from "src/git/HttpClient";
 
 const httpClient = new HttpClient({ maxRetries: 0 });
@@ -20,6 +21,22 @@ function getOnAuth(auth: GitAuth) {
 		username: auth.username || "",
 		password: auth.secret || "",
 	});
+}
+
+export function describeConnectionTest(result: ConnectionTestResult): string {
+	if (result.writeAccess) {
+		return "Connected with write access.";
+	}
+
+	if (result.hasCredential && !result.credentialVerified) {
+		return "Connected, but the token could not be verified. This repository allows anonymous reads, so the connection succeeds even with an expired or wrongly scoped token. Publishing will fail until the token is replaced.";
+	}
+
+	if (!result.hasCredential) {
+		return "Connected read-only. No token is configured, so publishing will fail.";
+	}
+
+	return "Connected read-only. The token is valid but lacks write access to this repository.";
 }
 
 export async function fetchRemoteHeadCommit(

@@ -1,4 +1,4 @@
-import type { FileChange, TreeEntry } from "src/git/types";
+import type { DeleteResult, FileChange, TreeEntry } from "src/git/types";
 
 export interface PublishBackend {
 	writeFiles(
@@ -11,7 +11,7 @@ export interface PublishBackend {
 		branch: string,
 		message: string,
 		paths: string[],
-	): Promise<{ sha: string }>;
+	): Promise<DeleteResult>;
 
 	getTree(ref: string): Promise<TreeEntry[]>;
 

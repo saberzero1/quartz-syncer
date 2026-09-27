@@ -132,6 +132,90 @@ describe("Assertions", () => {
 		});
 	});
 
+	describe("health.connected", () => {
+		it("fails when no connection test has run", () => {
+			const plugin = makePlugin();
+			const buf = new EventBuffer();
+
+			const result = runAssertion(
+				"health.connected",
+				undefined,
+				plugin,
+				buf,
+			);
+
+			expect(result.pass).toBe(false);
+			expect(result.details.reason).toBe("not_tested");
+		});
+
+		it("fails when a configured credential was never verified", () => {
+			const plugin = makePlugin();
+			const buf = new EventBuffer();
+			buf.emit("connection.tested", {
+				ok: true,
+				readAccess: true,
+				writeAccess: false,
+				hasCredential: true,
+				credentialVerified: false,
+			});
+
+			const result = runAssertion(
+				"health.connected",
+				undefined,
+				plugin,
+				buf,
+			);
+
+			expect(result.pass).toBe(false);
+			expect(result.details.reason).toBe("credential_unverified");
+			expect(result.details.ok).toBe(true);
+		});
+
+		it("passes when the credential was verified", () => {
+			const plugin = makePlugin();
+			const buf = new EventBuffer();
+			buf.emit("connection.tested", {
+				ok: true,
+				readAccess: true,
+				writeAccess: true,
+				hasCredential: true,
+				credentialVerified: true,
+			});
+
+			const result = runAssertion(
+				"health.connected",
+				undefined,
+				plugin,
+				buf,
+			);
+
+			expect(result.pass).toBe(true);
+			expect(result.details.credentialVerified).toBe(true);
+		});
+
+		it("passes on a read-only connection with no credential configured", () => {
+			const plugin = makePlugin();
+			const buf = new EventBuffer();
+			buf.emit("connection.tested", {
+				ok: true,
+				readAccess: true,
+				writeAccess: false,
+				hasCredential: false,
+				credentialVerified: false,
+			});
+
+			const result = runAssertion(
+				"health.connected",
+				undefined,
+				plugin,
+				buf,
+			);
+
+			expect(result.pass).toBe(true);
+			expect(result.details.hasCredential).toBe(false);
+		});
+	});
+
 	describe("engine.idle", () => {
 		it("passes when pendingCount is 0", () => {
 			const plugin = makePlugin({ enginePending: 0 });

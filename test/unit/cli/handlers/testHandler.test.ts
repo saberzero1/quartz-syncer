@@ -61,6 +61,7 @@ describe("testHandler", () => {
 		expect(result).toEqual({
 			success: true,
 			data: {
+				mode: "remote",
 				ok: true,
 				readAccess: true,
 				writeAccess: true,
@@ -80,7 +81,7 @@ describe("testHandler", () => {
 		const result = await handler(buildParams());
 		expect(result).toEqual({
 			success: false,
-			error: "Repository not configured",
+			error: "No repository configured.",
 		});
 	});
 
@@ -104,6 +105,29 @@ describe("testHandler", () => {
 		});
 	});
 
+	it("tests the remote when a local checkout exists but the target is remote", async () => {
+		const testConnection = vi.fn(async () => ({
+			ok: true,
+			readAccess: true,
+			writeAccess: true,
+		}));
+		setBackend({ testConnection } as unknown as GitBackend);
+		const plugin = buildPlugin({
+			settings: {
+				...buildPlugin().settings,
+				publishTarget: "remote",
+				quartzRepoPath: "/management-checkout",
+			},
+		});
+		const handler = createTestHandler(plugin);
+
+		const result = await handler(buildParams());
+
+		expect(testConnection).toHaveBeenCalledTimes(1);
+		expect(externalFileExists).not.toHaveBeenCalled();
+		expect((result.data as { mode: string }).mode).toBe("remote");
+	});
+
 	it("validates local repositories when configured", async () => {
 		externalFileExists.mockImplementation(
 			async (path: string) =>
@@ -114,6 +138,7 @@ describe("testHandler", () => {
 		const plugin = buildPlugin({
 			settings: {
 				...buildPlugin().settings,
+				publishTarget: "local",
 				quartzRepoPath: "/repo",
 			},
 		});
@@ -136,6 +161,7 @@ describe("testHandler", () => {
 		const plugin = buildPlugin({
 			settings: {
 				...buildPlugin().settings,
+				publishTarget: "local",
 				quartzRepoPath: "/missing",
 			},
 		});
@@ -168,6 +194,7 @@ describe("testHandler", () => {
 		const plugin = buildPlugin({
 			settings: {
 				...buildPlugin().settings,
+				publishTarget: "local",
 				quartzRepoPath: "/repo",
 			},
 		});

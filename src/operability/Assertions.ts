@@ -120,13 +120,23 @@ function checkHealthConnected(eventBuffer: EventBuffer): CheckResult {
 	}
 
 	const ok = event.payload.ok === true;
+	const hasCredential = event.payload.hasCredential === true;
+	const credentialVerified = event.payload.credentialVerified === true;
+
+	// A public repository serves reads anonymously, so `ok` stays true for an
+	// expired or wrongly scoped token. Treating that as connected hands an
+	// agent a green light for a publish that cannot succeed.
+	const credentialUnusable = hasCredential && !credentialVerified;
 
 	return {
-		pass: ok,
+		pass: ok && !credentialUnusable,
 		details: {
 			ok,
 			readAccess: event.payload.readAccess ?? null,
 			writeAccess: event.payload.writeAccess ?? null,
+			hasCredential,
+			credentialVerified,
+			...(credentialUnusable ? { reason: "credential_unverified" } : {}),
 			cursor: event.cursor,
 		},
 	};

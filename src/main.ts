@@ -402,7 +402,7 @@ export default class QuartzSyncer extends Plugin {
 		this.gitRunner = null;
 		this.npmRunner = null;
 		this.quartzRunner = null;
-		ProcessRunner.resetChildProcessCache();
+		ProcessRunner.shutdown();
 		super.onunload();
 	}
 

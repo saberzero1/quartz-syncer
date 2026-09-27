@@ -336,7 +336,7 @@ describe("LocalPublishBackend", () => {
 			const result = await backend.deleteFiles("main", "msg", [
 				"content/remove.md",
 			]);
-			expect(result).toEqual({ sha: "local" });
+			expect(result).toEqual({ sha: "local", removedCount: 1 });
 		} finally {
 			await cleanupTempRepo(repoPath);
 		}

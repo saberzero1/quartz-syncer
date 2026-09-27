@@ -1,4 +1,11 @@
 import { HttpClient } from "src/git/HttpClient";
+import { NotFoundError, ProviderError } from "src/git/errors";
+import {
+	assertFileContent,
+	assertGitHubRepo,
+	assertGitHubRepoArray,
+	assertGitHubUser,
+} from "./guards";
 import type {
 	GitHubPagesConfig,
 	GitHubRepo,
@@ -23,6 +30,7 @@ export class GitHubApiService {
 			`${BASE_URL}/user`,
 			this.getHeaders(),
 		);
+		assertGitHubUser(response.data);
 		this.cachedUser = response.data;
 		return response.data;
 	}
@@ -32,19 +40,26 @@ export class GitHubApiService {
 		const allRepos: GitHubRepo[] = [];
 		let page = 1;
 		const perPage = 100;
+		const maxPages = 50;
 
-		while (true) {
+		while (page <= maxPages) {
 			const response = await this.client.get<GitHubRepo[]>(
 				`${BASE_URL}/user/repos?type=owner&sort=updated&per_page=${perPage}&page=${page}`,
 				this.getHeaders(),
 			);
 
+			assertGitHubRepoArray(response.data);
+			if (response.data.length === 0) break;
 			allRepos.push(...response.data);
 
 			if (response.data.length < perPage) break;
 
 			page += 1;
 		}
+		if (page > maxPages)
+			throw new ProviderError(
+				"GitHub repository pagination exceeded 50 pages",
+			);
 
 		return allRepos;
 	}
@@ -60,6 +75,7 @@ export class GitHubApiService {
 			this.getHeaders(),
 			{ owner: user.login, name, private: isPrivate },
 		);
+		assertGitHubRepo(response.data);
 		return response.data;
 	}
 
@@ -108,14 +124,16 @@ export class GitHubApiService {
 				this.getHeaders(),
 			);
 
+			assertFileContent(response.data);
 			const content =
 				response.data.encoding === "base64"
 					? this.decodeBase64(response.data.content)
 					: response.data.content;
 
 			return { content, sha: response.data.sha };
-		} catch {
-			return null;
+		} catch (error) {
+			if (error instanceof NotFoundError) return null;
+			throw error;
 		}
 	}
 
@@ -143,6 +161,7 @@ export class GitHubApiService {
 			`${BASE_URL}/repos/${owner}/${repo}`,
 			this.getHeaders(),
 		);
+		assertGitHubRepo(response.data);
 		return response.data;
 	}
 

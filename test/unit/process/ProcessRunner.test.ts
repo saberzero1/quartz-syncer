@@ -1,4 +1,4 @@
-import { Platform } from "obsidian";
+import { Platform, resetPlatform } from "obsidian";
 import { ProcessRunner } from "src/process/ProcessRunner";
 import type { AllowedBinary, ProcessResult } from "src/process/types";
 
@@ -42,8 +42,94 @@ describe("ProcessRunner", () => {
 	});
 
 	afterEach(() => {
-		Platform.isDesktopApp = true;
+		resetPlatform();
+		vi.unstubAllGlobals();
 		vi.clearAllMocks();
+	});
+
+	it("runs without a shell on Linux", async () => {
+		Platform.isWin = false;
+		execFileMock.mockImplementation((_, __, ___, callback) => {
+			callback(null, "ok", "");
+			return { kill: vi.fn() };
+		});
+
+		await runner.run({
+			binary: "npx",
+			args: ["quartz", "build"],
+			cwd: ".",
+		});
+
+		expect(execFileMock).toHaveBeenCalledWith(
+			"npx",
+			["quartz", "build"],
+			{
+				timeout: 30000,
+				killSignal: "SIGTERM",
+				cwd: ".",
+				shell: false,
+				windowsHide: true,
+			},
+			expect.any(Function),
+		);
+	});
+
+	it("rejects newlines before spawning on Linux", async () => {
+		Platform.isWin = false;
+		execFileMock.mockImplementation((_, __, ___, callback) => {
+			callback(null, "ok", "");
+			return { kill: vi.fn() };
+		});
+
+		const result = await runner.run({
+			binary: "npx",
+			args: ["quartz", "sync", "--message", "first\nsecond"],
+			cwd: ".",
+		});
+
+		expect(execFileMock).not.toHaveBeenCalled();
+		expect(result.exitCode).toBe(1);
+	});
+
+	it("passes commit message metacharacters unchanged on Linux", async () => {
+		Platform.isWin = false;
+		execFileMock.mockImplementation((_, __, ___, callback) => {
+			callback(null, "ok", "");
+			return { kill: vi.fn() };
+		});
+		const args = [
+			"quartz",
+			"sync",
+			"--message",
+			"fix: don't break (again)",
+		];
+
+		const result = await runner.run({ binary: "npx", args, cwd: "." });
+
+		expect(execFileMock).toHaveBeenCalledWith(
+			"npx",
+			args,
+			expect.objectContaining({ shell: false }),
+			expect.any(Function),
+		);
+		expect(result.exitCode).toBe(0);
+	});
+
+	it("rejects commit message metacharacters for npx on Windows", async () => {
+		Platform.isWin = true;
+		execFileMock.mockImplementation((_, __, ___, callback) => {
+			callback(null, "ok", "");
+			return { kill: vi.fn() };
+		});
+
+		const result = await runner.run({
+			binary: "npx",
+			args: ["quartz", "sync", "--message", "fix: don't break (again)"],
+			cwd: ".",
+		});
+
+		expect(execFileMock).not.toHaveBeenCalled();
+		expect(result.exitCode).toBe(1);
 	});
 
 	it("returns stdout/stderr on success", async () => {
@@ -130,6 +216,31 @@ describe("ProcessRunner", () => {
 
 		const result = await promise;
 		expect(result.killed).toBe(true);
+	});
+
+	it("kills a pending process on shutdown", async () => {
+		let capturedCallback: ExecFileCallback = () => {};
+		const handle = { kill: vi.fn() };
+		execFileMock.mockImplementation((_, __, ___, callback) => {
+			capturedCallback = callback;
+			return handle;
+		});
+		const promise = runner.run({
+			binary: "npx",
+			args: ["quartz", "build"],
+			cwd: ".",
+			timeout: -1,
+		});
+
+		ProcessRunner.shutdown();
+
+		expect(handle.kill).toHaveBeenCalledWith("SIGTERM");
+		capturedCallback(
+			{ code: 1, signal: "SIGTERM", message: "shutdown", killed: true },
+			"",
+			"",
+		);
+		expect((await promise).killed).toBe(true);
 	});
 
 	it("disables after repeated errors", async () => {

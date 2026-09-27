@@ -173,7 +173,7 @@ describe("StatusCacheService", () => {
 		const service = new StatusCacheService("app-id", "app");
 		const status = buildStatus();
 		service.setStatus(status);
-		const storeInstance = createInstance.mock.results[0].value as {
+		const storeInstance = createInstance.mock.results[0]?.value as {
 			setItem: ReturnType<typeof vi.fn>;
 		};
 
@@ -320,7 +320,7 @@ describe("StatusCacheService", () => {
 	it("patchPublished no-ops when cache is empty", async () => {
 		const service = new StatusCacheService("app-id", "app");
 		await service.loadPersistedSnapshot();
-		const storeInstance = createInstance.mock.results[0].value as {
+		const storeInstance = createInstance.mock.results[0]?.value as {
 			setItem: ReturnType<typeof vi.fn>;
 		};
 		service.cacheDiffContent("notes/a.md", "local", "remote");
@@ -370,7 +370,7 @@ describe("StatusCacheService", () => {
 	it("patchDeleted no-ops when cache is empty", async () => {
 		const service = new StatusCacheService("app-id", "app");
 		await service.loadPersistedSnapshot();
-		const storeInstance = createInstance.mock.results[0].value as {
+		const storeInstance = createInstance.mock.results[0]?.value as {
 			setItem: ReturnType<typeof vi.fn>;
 		};
 		service.cacheDiffContent("notes/a.md", "local", "remote");
@@ -389,7 +389,7 @@ describe("StatusCacheService", () => {
 		const service = new StatusCacheService("app-id", "app");
 		const status = buildStatus();
 		service.setStatus(status);
-		const storeInstance = createInstance.mock.results[0].value as {
+		const storeInstance = createInstance.mock.results[0]?.value as {
 			removeItem: ReturnType<typeof vi.fn>;
 		};
 		await flushPromises();
@@ -417,8 +417,21 @@ describe("StatusCacheService", () => {
 		expect(service.getInflight()).toBeNull();
 		service.setInflight(promise);
 		expect(service.getInflight()).toBe(promise);
-		service.clearInflight();
+		service.clearInflight(promise);
 		expect(service.getInflight()).toBeNull();
+	});
+
+	it("preserves a newer destination's inflight promise when the old one finishes", () => {
+		const service = new StatusCacheService("app-id", "app");
+		const p1 = Promise.resolve(buildStatus());
+		const p2 = Promise.resolve(buildStatus());
+		service.setInflight(p1);
+		service.setDestination("other");
+		service.setInflight(p2);
+
+		service.clearInflight(p1);
+
+		expect(service.getInflight()).toBe(p2);
 	});
 
 	it("caches and retrieves diff content", () => {

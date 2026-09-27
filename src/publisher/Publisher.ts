@@ -794,7 +794,7 @@ export class Publisher {
 			});
 
 			this.eventSink?.emit("delete.completed", {
-				fileCount: paths.length,
+				fileCount: result.removedCount,
 				commitSha: result.sha,
 			});
 
@@ -802,7 +802,7 @@ export class Publisher {
 				success: true,
 				commitSha: result.sha,
 				filesPublished: 0,
-				filesDeleted: paths.length,
+				filesDeleted: result.removedCount,
 			};
 
 			if (settings.autoCleanOrphanedMedia) {
@@ -876,7 +876,7 @@ export class Publisher {
 			});
 
 			this.eventSink?.emit("delete.completed", {
-				fileCount: repoPaths.length,
+				fileCount: result.removedCount,
 				commitSha: result.sha,
 			});
 
@@ -884,7 +884,7 @@ export class Publisher {
 				success: true,
 				commitSha: result.sha,
 				filesPublished: 0,
-				filesDeleted: repoPaths.length,
+				filesDeleted: result.removedCount,
 			};
 		} catch (error) {
 			this.eventSink?.emit("delete.failed", {
@@ -1025,6 +1025,8 @@ export class Publisher {
 			}
 
 			const orphanedRepoPaths = orphaned.map((entry) => entry.repoPath);
+
+			if (signal?.aborted) return null;
 
 			return await this.deleteByRepoPaths(
 				orphanedRepoPaths,

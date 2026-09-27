@@ -16,7 +16,9 @@ const makeGitBackend = (overrides: Partial<GitBackend> = {}): GitBackend =>
 		readTree: vi.fn().mockResolvedValue([]),
 		readBlob: vi.fn().mockResolvedValue(new Uint8Array()),
 		writeFiles: vi.fn().mockResolvedValue({ sha: "abc123" }),
-		deleteFiles: vi.fn().mockResolvedValue({ sha: "def456" }),
+		deleteFiles: vi
+			.fn()
+			.mockResolvedValue({ sha: "def456", removedCount: 1 }),
 		getRemoteInfo: vi.fn().mockResolvedValue({}),
 		testConnection: vi.fn().mockResolvedValue({
 			ok: true,
@@ -107,7 +109,7 @@ describe("RemotePublishBackend", () => {
 
 		const result = await backend.deleteFiles("main", "Delete notes", paths);
 
-		expect(result).toEqual({ sha: "def456" });
+		expect(result).toEqual({ sha: "def456", removedCount: 1 });
 	});
 
 	it("getTree delegates to gitBackend.readTree", async () => {

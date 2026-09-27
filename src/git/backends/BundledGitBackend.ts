@@ -1,9 +1,10 @@
-import git from "isomorphic-git";
+import git from "@saberzero1/isomorphic-git";
 import LightningFS from "@isomorphic-git/lightning-fs";
 import type { App } from "obsidian";
 import { HttpClient } from "src/git/HttpClient";
 import { buildFsName } from "src/git/backends/GitFsName";
 import type {
+	DeleteResult,
 	BranchInfo,
 	CommitResult,
 	ConnectionTestResult,
@@ -134,8 +135,8 @@ export class BundledGitBackend implements GitBackend {
 		branch: string,
 		message: string,
 		paths: string[],
-	): Promise<CommitResult> {
-		if (paths.length === 0) return { sha: "" };
+	): Promise<DeleteResult> {
+		if (paths.length === 0) return { sha: "", removedCount: 0 };
 		await this.ensureRepoReady(branch);
 
 		const remoteCommit = await git.resolveRef({
@@ -146,18 +147,36 @@ export class BundledGitBackend implements GitBackend {
 		await this.resetToCommit(remoteCommit, branch);
 
 		const cache = {};
+
+		// git.remove cannot report absence: GitIndex.delete() no-ops for an
+		// unknown path and still marks the index dirty, so committing after it
+		// produces a commit for zero real changes. Membership must be tested
+		// against the index up front.
+		const indexedPaths = await git.listFiles({
+			fs: this.fs,
+			dir: this.dir,
+			cache,
+		});
+		const indexed = new Set(indexedPaths);
+		const isIndexed = (path: string): boolean =>
+			indexed.has(path) ||
+			indexedPaths.some((entry) => entry.startsWith(`${path}/`));
+
+		let removedCount = 0;
+
 		for (const path of paths) {
-			try {
-				await git.remove({
-					fs: this.fs,
-					dir: this.dir,
-					filepath: path,
-					cache,
-				});
-			} catch {
-				// file may not exist in index
-			}
+			if (!isIndexed(path)) continue;
+
+			await git.remove({
+				fs: this.fs,
+				dir: this.dir,
+				filepath: path,
+				cache,
+			});
+			removedCount += 1;
 		}
+
+		if (removedCount === 0) return { sha: "", removedCount: 0 };
 
 		const sha = await git.commit({
 			fs: this.fs,
@@ -168,7 +187,7 @@ export class BundledGitBackend implements GitBackend {
 		});
 
 		await this.pushWithRetry(branch);
-		return { sha };
+		return { sha, removedCount };
 	}
 
 	async getRemoteInfo(): Promise<RemoteInfo> {
@@ -186,11 +205,23 @@ export class BundledGitBackend implements GitBackend {
 	}
 
 	async testConnection(): Promise<ConnectionTestResult> {
+		const hasCredential = this.getAuth() !== undefined;
+
+		// isomorphic-git only calls onAuth when the server issues a challenge.
+		// A public repository serves reads anonymously, so the credential is
+		// never touched and a successful read cannot vouch for it.
+		let readUsedCredential = false;
+
 		try {
 			await git.getRemoteInfo({
 				url: this.config.remoteUrl,
 				...this.networkOptions(),
+				onAuth: () => {
+					readUsedCredential = true;
+					return this.getAuth();
+				},
 			});
+
 			let writeAccess = false;
 			try {
 				await git.listServerRefs({
@@ -202,12 +233,23 @@ export class BundledGitBackend implements GitBackend {
 			} catch {
 				writeAccess = false;
 			}
-			return { ok: true, readAccess: true, writeAccess };
+
+			return {
+				ok: true,
+				readAccess: true,
+				writeAccess,
+				hasCredential,
+				// A push probe always authenticates, so reaching it proves the
+				// credential. Otherwise only a challenged read does.
+				credentialVerified: writeAccess || readUsedCredential,
+			};
 		} catch (error) {
 			return {
 				ok: false,
 				readAccess: false,
 				writeAccess: false,
+				hasCredential,
+				credentialVerified: false,
 				error: formatError(error),
 			};
 		}

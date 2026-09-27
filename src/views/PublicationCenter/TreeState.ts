@@ -203,6 +203,15 @@ export class TreeState {
 		return this.fileCategories.get(path);
 	}
 
+	moveCategory(path: string, category: PublishCategory): void {
+		const previous = this.fileCategories.get(path);
+		if (previous === undefined || previous === category) return;
+
+		this.categoryFiles.get(previous)?.delete(path);
+		this.categoryFiles.get(category)?.add(path);
+		this.fileCategories.set(path, category);
+	}
+
 	getFolderSelectionState(path: string): {
 		checked: boolean;
 		indeterminate: boolean;

@@ -1,7 +1,7 @@
 import { GitHubApiService } from "src/github/GitHubApiService";
 import type { GitHubRepo, GitHubUser } from "src/github/types";
 import type QuartzSyncer from "src/main";
-import { ConflictError, NotFoundError } from "src/git/errors";
+import { ConflictError, NotFoundError, ProviderError } from "src/git/errors";
 
 const DEPLOY_WORKFLOW = `name: Deploy Quartz site to GitHub Pages
 
@@ -90,6 +90,7 @@ export interface OnboardingConfig {
 
 export class OnboardingService {
 	private apiService: GitHubApiService | null = null;
+	private apiServiceToken = "";
 
 	constructor(private plugin: QuartzSyncer) {}
 
@@ -118,7 +119,7 @@ export class OnboardingService {
 			);
 		} catch (error) {
 			if (!(error instanceof NotFoundError)) {
-				// Proceed with creation
+				throw error;
 			}
 		}
 
@@ -213,8 +214,9 @@ export class OnboardingService {
 	}
 
 	private getService(token: string): GitHubApiService {
-		if (!this.apiService) {
+		if (!this.apiService || this.apiServiceToken !== token) {
 			this.apiService = new GitHubApiService(token);
+			this.apiServiceToken = token;
 		}
 		return this.apiService;
 	}
@@ -238,6 +240,9 @@ export class OnboardingService {
 			);
 			if (file) return;
 		}
+		throw new ProviderError(
+			"Repository template was not ready after 15 attempts",
+		);
 	}
 
 	private async updateQuartzConfig(

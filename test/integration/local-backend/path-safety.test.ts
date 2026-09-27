@@ -121,6 +121,90 @@ describe("Local backend path safety", () => {
 		}
 	});
 
+	it("rejects ../ traversal in listDirectory", async () => {
+		const repoPath = await createTempRepo();
+		try {
+			const source = new LocalFileSource(repoPath);
+			await expect(source.listDirectory("../")).rejects.toThrow(
+				"Path escapes base directory: ../",
+			);
+		} finally {
+			await cleanupTempRepo(repoPath);
+		}
+	});
+
+	it("rejects ../ traversal in listAllFiles", async () => {
+		const repoPath = await createTempRepo();
+		try {
+			const source = new LocalFileSource(repoPath);
+			await expect(source.listAllFiles("../")).rejects.toThrow(
+				"Path escapes base directory: ../",
+			);
+		} finally {
+			await cleanupTempRepo(repoPath);
+		}
+	});
+
+	it("reports an escaping path as absent in exists", async () => {
+		const repoPath = await createTempRepo();
+		try {
+			const source = new LocalFileSource(repoPath);
+			expect(await source.exists("../../etc/passwd")).toBe(false);
+		} finally {
+			await cleanupTempRepo(repoPath);
+		}
+	});
+
+	it("still lists every file when listAllFiles gets no argument", async () => {
+		const repoPath = await createTempRepo();
+		try {
+			await mkdir(join(repoPath, "content"), { recursive: true });
+			await writeFile(join(repoPath, "root.md"), "root", "utf-8");
+
+			await writeFile(
+				join(repoPath, "content/nested.md"),
+				"nested",
+				"utf-8",
+			);
+			const source = new LocalFileSource(repoPath);
+			const files = await source.listAllFiles();
+			expect(files).toContain("root.md");
+			expect(files).toContain("content/nested.md");
+		} finally {
+			await cleanupTempRepo(repoPath);
+		}
+	});
+
+	it("treats an empty listAllFiles argument as the repository root", async () => {
+		const repoPath = await createTempRepo();
+		try {
+			await mkdir(join(repoPath, "content"), { recursive: true });
+			await writeFile(join(repoPath, "root.md"), "root", "utf-8");
+
+			await writeFile(
+				join(repoPath, "content/nested.md"),
+				"nested",
+				"utf-8",
+			);
+			const source = new LocalFileSource(repoPath);
+			expect(await source.listAllFiles("")).toEqual(
+				await source.listAllFiles(),
+			);
+		} finally {
+			await cleanupTempRepo(repoPath);
+		}
+	});
+
+	it("does not throw when exists is given an empty path", async () => {
+		const repoPath = await createTempRepo();
+		try {
+			const source = new LocalFileSource(repoPath);
+			expect(await source.exists("")).toBe(true);
+		} finally {
+			await cleanupTempRepo(repoPath);
+		}
+	});
+
 	it("follows symlink escapes when writing", async () => {
 		// SECURITY: LocalPublishBackend does not validate paths — traversal possible
 		const repoPath = await createTempRepo();

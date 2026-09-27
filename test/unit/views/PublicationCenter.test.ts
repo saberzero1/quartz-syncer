@@ -4,6 +4,7 @@ import type QuartzSyncer from "src/main";
 import type { PublishFile } from "src/publishFile/PublishFile";
 import type { Publisher } from "src/publisher/Publisher";
 import type { PublishStatus } from "src/publisher/types";
+import { StatusCacheService } from "src/services/StatusCacheService";
 import { PublicationCenter } from "src/views/PublicationCenter/PublicationCenter";
 
 function note(path: string): PublishFile {
@@ -40,6 +41,9 @@ function fixture() {
 		arbitrary: [],
 	};
 	const publisher = {
+		getPublishStatus: vi
+			.fn<Publisher["getPublishStatus"]>()
+			.mockResolvedValue(status),
 		publishBatch: vi.fn<Publisher["publishBatch"]>().mockResolvedValue({
 			success: true,
 			filesPublished: 1,
@@ -59,8 +63,10 @@ function fixture() {
 			}),
 		publishArbitraryFiles: vi.fn<Publisher["publishArbitraryFiles"]>(),
 	};
+	const statusCache = new StatusCacheService("", "");
 	const plugin = {
-		getPublisher: () => publisher,
+		getPublisher: vi.fn(() => publisher),
+		statusCache,
 	} as unknown as QuartzSyncer;
 	const center = new PublicationCenter({} as App, plugin);
 
@@ -88,6 +94,10 @@ function fixture() {
 	const reload = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
 	center["loadStatus"] = reload;
 	return {
+		center,
+		plugin,
+		status,
+		statusCache,
 		controller: center.getController(),
 		publisher,
 		reload,
@@ -95,6 +105,96 @@ function fixture() {
 		changed,
 	};
 }
+
+function statusFixture() {
+	const context = fixture();
+	context.center["loadStatus"] = PublicationCenter.prototype["loadStatus"];
+	// Keep the real async loading logic, without mounting a tree in Node.
+	context.center["renderShell"] = vi.fn();
+	context.center["buildMediaLinksMap"] = vi.fn().mockResolvedValue(undefined);
+	return context;
+}
+
+describe("Publication Center status loading", () => {
+	it("keeps tree categories in sync when dynamic classification resolves", () => {
+		const { center, status, changed } = fixture();
+		const path = changed.getVaultPath();
+		status.dynamic = new Set([path]);
+		center["treeState"].selectFile(path);
+
+		center["applyResolvedClassification"](path, true);
+
+		expect(status.changed).not.toContain(changed);
+		expect(status.published).toContain(changed);
+		expect(status.dynamic.has(path)).toBe(false);
+		expect(center["treeState"].getCategory(path)).toBe("published");
+		expect(center["treeState"].getSelectedCount("changed")).toBe(0);
+		expect(center["treeState"].getSelectedCount("published")).toBe(1);
+	});
+
+	it("distinguishes a failed status load from an unconfigured publisher and recovers on retry", async () => {
+		const { center, plugin, publisher } = statusFixture();
+		const failure = new Error("Status fetch failed");
+		publisher.getPublishStatus.mockRejectedValueOnce(failure);
+
+		await center["loadStatus"]();
+
+		expect(center["statusLoadState"]).toEqual({
+			kind: "error",
+			message: failure.message,
+		});
+
+		await center["loadStatus"]();
+		expect(center["statusLoadState"].kind).toBe("ready");
+
+		vi.spyOn(plugin, "getPublisher").mockReturnValue(null);
+		await center["loadStatus"]();
+		expect(center["statusLoadState"].kind).toBe("unconfigured");
+	});
+
+	it("keeps the current status when loadStatus resolves for a stale destination", async () => {
+		const { center, publisher, status, statusCache } = statusFixture();
+		let resolveStatus: ((status: PublishStatus) => void) | undefined;
+		publisher.getPublishStatus.mockReturnValue(
+			new Promise((resolve) => {
+				resolveStatus = resolve;
+			}),
+		);
+		statusCache.setDestination("local:/quartz");
+
+		const loading = center["loadStatus"]();
+		statusCache.setDestination("remote:https://example.com/quartz.git#v5");
+		resolveStatus?.({ ...status, changed: [] });
+		await loading;
+
+		expect(publisher.getPublishStatus).toHaveBeenCalledOnce();
+		expect(center["status"]).toBe(status);
+		expect(statusCache.getStatus()).toBeNull();
+	});
+
+	it("keeps the current status when a background refresh resolves for a stale destination", async () => {
+		const { center, plugin, publisher, status, statusCache } =
+			statusFixture();
+		let resolveStatus: ((status: PublishStatus) => void) | undefined;
+		publisher.getPublishStatus.mockReturnValue(
+			new Promise((resolve) => {
+				resolveStatus = resolve;
+			}),
+		);
+		statusCache.setDestination("local:/quartz");
+		const source = plugin.getPublisher();
+		if (!source) throw new Error("Expected configured publisher");
+
+		const refreshing = center["refreshStatusInBackground"](source);
+		statusCache.setDestination("remote:https://example.com/quartz.git#v5");
+		resolveStatus?.({ ...status, changed: [] });
+		await refreshing;
+
+		expect(publisher.getPublishStatus).toHaveBeenCalledOnce();
+		expect(center["status"]).toBe(status);
+		expect(statusCache.getStatus()).toBeNull();
+	});
+});
 
 describe("Publication Center category-to-button routing", () => {
 	it.each([

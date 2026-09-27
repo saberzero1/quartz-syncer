@@ -1,4 +1,4 @@
-import type { FileChange, TreeEntry } from "src/git/types";
+import type { DeleteResult, FileChange, TreeEntry } from "src/git/types";
 import type { PublishBackend } from "src/publisher/PublishBackend";
 import { Platform } from "obsidian";
 import {
@@ -106,7 +106,9 @@ export class LocalPublishBackend implements PublishBackend {
 		_branch: string,
 		_message: string,
 		paths: string[],
-	): Promise<{ sha: string }> {
+	): Promise<DeleteResult> {
+		let removedCount = 0;
+
 		for (const path of paths) {
 			const fullPath = this.resolveRepoPath(path);
 			const success = await deleteExternalFile(fullPath);
@@ -114,11 +116,13 @@ export class LocalPublishBackend implements PublishBackend {
 			if (!success) {
 				throw new Error(`Failed to delete file: ${path}`);
 			}
+
+			removedCount += 1;
 		}
 
 		this.cachedTree = null;
 
-		return { sha: "local" };
+		return { sha: "local", removedCount };
 	}
 
 	async getTree(_ref: string): Promise<TreeEntry[]> {

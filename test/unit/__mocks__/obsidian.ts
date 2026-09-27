@@ -92,6 +92,7 @@ export function debounce<T extends (...args: unknown[]) => void>(
 class MockElement {
 	parentElement: MockElement | null = null;
 	style: Record<string, string> = {};
+	attributes: Record<string, string> = {};
 	addClass = vi.fn();
 	createDiv = vi.fn(() => new MockElement());
 	createEl = vi.fn(() => new MockElement());
@@ -99,6 +100,16 @@ class MockElement {
 	empty = vi.fn();
 	setText = vi.fn();
 	addEventListener = vi.fn();
+	setAttr = vi.fn((key: string, value: string) => {
+		this.attributes[key] = value;
+	});
+	setAttrs = vi.fn((attrs: Record<string, string>) => {
+		Object.assign(this.attributes, attrs);
+	});
+	getAttribute = vi.fn((key: string) => this.attributes[key] ?? null);
+	removeAttribute = vi.fn((key: string) => {
+		delete this.attributes[key];
+	});
 }
 
 type SearchComponentRecord = {
@@ -215,6 +226,7 @@ export class Modal {
 const PLATFORM_DEFAULTS = {
 	isDesktopApp: true,
 	isMobileApp: false,
+	isWin: false,
 };
 
 export const Platform = { ...PLATFORM_DEFAULTS };
