@@ -7,7 +7,14 @@ export interface OperabilitySnapshot {
 	plugin: {
 		version: string;
 		loaded: boolean;
+		/** Derived from Platform.isDesktopApp, the flag the plugin branches on. */
 		platform: "desktop" | "mobile";
+		/**
+		 * True when Obsidian is emulating mobile. Emulation flips
+		 * Platform.isMobile but NOT Platform.isDesktopApp, so `platform` above
+		 * still reads "desktop" and every desktop-gated branch still runs.
+		 */
+		mobileEmulated: boolean;
 	};
 	settings: {
 		configured: boolean; // has gitRemoteUrl set

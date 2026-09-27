@@ -45,6 +45,7 @@ export function assembleSnapshot(
 			version: plugin.appVersion ?? plugin.manifest.version,
 			loaded: !!plugin.app,
 			platform: Platform.isDesktopApp ? "desktop" : "mobile",
+			mobileEmulated: Platform.isMobile && Platform.isDesktopApp,
 		},
 		settings: {
 			configured,

@@ -2,6 +2,7 @@ import { assembleSnapshot } from "src/operability/OperabilitySnapshot";
 import { DEFAULT_SETTINGS } from "src/main";
 import type QuartzSyncer from "src/main";
 import { it } from "vitest";
+import { setPlatform, resetPlatform } from "obsidian";
 
 function makePlugin(
 	overrides: Partial<{
@@ -66,6 +67,44 @@ describe("assembleSnapshot", () => {
 		const snapshot = assembleSnapshot(makePlugin());
 		expect(snapshot.timestamp).toBeGreaterThanOrEqual(before);
 		expect(snapshot.timestamp).toBeLessThanOrEqual(Date.now());
+	});
+
+	describe("plugin.mobileEmulated", () => {
+		afterEach(() => {
+			resetPlatform();
+		});
+
+		it("is false on a plain desktop session", () => {
+			const snapshot = assembleSnapshot(makePlugin());
+
+			expect(snapshot.plugin.platform).toBe("desktop");
+			expect(snapshot.plugin.mobileEmulated).toBe(false);
+		});
+
+		// Emulation flips isMobile but leaves isDesktopApp true, so `platform`
+		// keeps reading "desktop" and every desktop-gated branch still runs.
+		// Without this flag an agent cannot tell it is in an emulated session.
+		it("is true under emulation, while platform still reads desktop", () => {
+			setPlatform({ isDesktopApp: true, isMobile: true });
+
+			const snapshot = assembleSnapshot(makePlugin());
+
+			expect(snapshot.plugin.platform).toBe("desktop");
+			expect(snapshot.plugin.mobileEmulated).toBe(true);
+		});
+
+		it("is false on a real mobile app, which is not emulation", () => {
+			setPlatform({
+				isDesktopApp: false,
+				isMobileApp: true,
+				isMobile: true,
+			});
+
+			const snapshot = assembleSnapshot(makePlugin());
+
+			expect(snapshot.plugin.platform).toBe("mobile");
+			expect(snapshot.plugin.mobileEmulated).toBe(false);
+		});
 	});
 
 	describe("settings.configured", () => {

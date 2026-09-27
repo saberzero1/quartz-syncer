@@ -49,8 +49,16 @@ export function parseYaml(yamlString: string): Record<string, unknown> {
 	return yaml.parse(yamlString) as Record<string, unknown>;
 }
 
+export const notices: string[] = [];
+
+export function resetNotices(): void {
+	notices.length = 0;
+}
+
 export class Notice {
-	constructor(_message: string, _timeout?: number) {}
+	constructor(message: string, _timeout?: number) {
+		notices.push(message);
+	}
 }
 
 export type EventRef = {
@@ -142,6 +150,32 @@ export function resetDropdownComponents(): void {
 	dropdownComponents.length = 0;
 }
 
+type TextComponentRecord = {
+	inputEl: MockElement;
+	placeholder?: string;
+	value?: string;
+	handler?: (value: string) => unknown;
+};
+
+export const textComponents: TextComponentRecord[] = [];
+
+export function resetTextComponents(): void {
+	textComponents.length = 0;
+}
+
+type ButtonComponentRecord = {
+	buttonEl: MockElement;
+	text?: string;
+	disabled?: boolean;
+	handler?: () => unknown;
+};
+
+export const buttonComponents: ButtonComponentRecord[] = [];
+
+export function resetButtonComponents(): void {
+	buttonComponents.length = 0;
+}
+
 export class Setting {
 	controlEl = new MockElement();
 	constructor(_containerEl?: MockElement) {}
@@ -149,11 +183,24 @@ export class Setting {
 	setDesc = vi.fn().mockReturnThis();
 	setHeading = vi.fn().mockReturnThis();
 	addText = vi.fn((callback: (text: unknown) => void) => {
-		callback({
-			setPlaceholder: vi.fn().mockReturnThis(),
-			setValue: vi.fn().mockReturnThis(),
-			onChange: vi.fn().mockReturnThis(),
-		});
+		const record: TextComponentRecord = { inputEl: new MockElement() };
+		const api = {
+			inputEl: record.inputEl,
+			setPlaceholder: vi.fn((value: string) => {
+				record.placeholder = value;
+				return api;
+			}),
+			setValue: vi.fn((value: string) => {
+				record.value = value;
+				return api;
+			}),
+			onChange: vi.fn((handler: (value: string) => unknown) => {
+				record.handler = handler;
+				return api;
+			}),
+		};
+		textComponents.push(record);
+		callback(api);
 		return this;
 	});
 	addSearch = vi.fn((callback: (search: unknown) => void) => {
@@ -212,11 +259,26 @@ export class Setting {
 		return this;
 	});
 	addButton = vi.fn((callback: (button: unknown) => void) => {
-		callback({
-			setButtonText: vi.fn().mockReturnThis(),
-			setCta: vi.fn().mockReturnThis(),
-			onClick: vi.fn().mockReturnThis(),
-		});
+		const record: ButtonComponentRecord = { buttonEl: new MockElement() };
+		const api = {
+			buttonEl: record.buttonEl,
+			setButtonText: vi.fn((value: string) => {
+				record.text = value;
+				return api;
+			}),
+			setCta: vi.fn(() => api),
+			setWarning: vi.fn(() => api),
+			setDisabled: vi.fn((value: boolean) => {
+				record.disabled = value;
+				return api;
+			}),
+			onClick: vi.fn((handler: () => unknown) => {
+				record.handler = handler;
+				return api;
+			}),
+		};
+		buttonComponents.push(record);
+		callback(api);
 		return this;
 	});
 }
@@ -254,6 +316,7 @@ export class Modal {
 const PLATFORM_DEFAULTS = {
 	isDesktopApp: true,
 	isMobileApp: false,
+	isMobile: false,
 	isWin: false,
 };
 

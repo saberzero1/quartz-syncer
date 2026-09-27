@@ -285,6 +285,16 @@ obsidian eval code="(async()=>{const r=await window.__QS__.act({name:'status.ref
 ```
 `snapshot()` is always safe to stringify — it is a redacted, plain-object view.
 
+**`env.emulateMobile` cannot exercise the mobile code paths.** It calls Obsidian's `app.emulateMobile()`, which reloads the app and flips `Platform.isMobile` — but **not** `Platform.isDesktopApp`, because the process is still desktop Electron. Every `Platform.isDesktopApp` branch therefore keeps taking the desktop path, and that flag gates the whole two-tier platform split. Verified: with the remote unconfigured under active emulation, the Publication Center empty state still renders "Open setup wizard" (desktop) rather than "Open manual setup" (mobile).
+
+Consequences:
+
+- The *branch selection* between desktop and mobile UI cannot be emulated. Paths that pick a surface with `Platform.isDesktopApp` always choose the desktop one, so e.g. the Publication Center empty state cannot be made to route to `ManualSetupModal`.
+- `ManualSetupModal` itself is still reachable on desktop: the `quartz-syncer:manual-setup` command is registered unconditionally, so `obsidian command id=quartz-syncer:manual-setup` opens it for verification.
+- `snapshot().plugin.platform` is derived from `isDesktopApp` and so reads `"desktop"` during emulation. Use `snapshot().plugin.mobileEmulated` to detect the emulated state.
+- Emulation is still useful for layout and CSS checks, which respond to the `is-mobile` body class.
+
+
 **Setting input values requires `dispatchEvent`.** DOM `.value` assignment does not trigger event listeners. Always dispatch an `input` event after setting:
 ```bash
 obsidian eval code="const el=document.querySelector('[data-qs=\"hub-setup-clone-url\"]');el.value='https://example.com/repo.git';el.dispatchEvent(new Event('input',{bubbles:true}))" 2>/dev/null
