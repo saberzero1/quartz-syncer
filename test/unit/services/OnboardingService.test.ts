@@ -210,6 +210,57 @@ describe("OnboardingService", () => {
 		}
 	});
 
+	// Every post-creation step is best-effort, but a silently skipped one
+	// leaves a repository that reports as ready and is not.
+	it("reports post-creation failures instead of swallowing them", async () => {
+		const plugin = buildPlugin();
+		const service = new OnboardingService(plugin);
+		const repo = {
+			full_name: "octo/quartz",
+			html_url: "https://github.com/octo/quartz",
+			clone_url: "https://github.com/octo/quartz.git",
+			default_branch: "v5",
+			private: false,
+		};
+
+		mockService.getUser.mockResolvedValue({ login: "octo" });
+		mockService.getRepo.mockRejectedValue(new NotFoundError());
+		mockService.createFromTemplate.mockResolvedValue(repo);
+		mockService.getFileContent.mockImplementation((owner, name, path) => {
+			void owner;
+			void name;
+			if (path === "package.json") {
+				return Promise.resolve({ content: "{}", sha: "1" });
+			}
+			return Promise.resolve(null);
+		});
+		// The index page fails; the deploy workflow succeeds.
+		mockService.createFile.mockImplementation(
+			(owner, name, path: string) => {
+				void owner;
+				void name;
+				if (path === "content/index.md") {
+					return Promise.reject(new Error("422"));
+				}
+				return Promise.resolve(undefined);
+			},
+		);
+		mockService.enablePages.mockRejectedValue(new Error("403"));
+
+		vi.useFakeTimers();
+		const promise = service.createRepo("token", "quartz", false);
+		await vi.runAllTimersAsync();
+		const result = await promise;
+		vi.useRealTimers();
+
+		expect(result.pagesWarning).toContain(
+			"index page could not be created",
+		);
+		expect(result.pagesWarning).toContain(
+			"GitHub Pages could not be enabled",
+		);
+	});
+
 	it("creates repo from template and configures pages", async () => {
 		const plugin = buildPlugin();
 		const service = new OnboardingService(plugin);

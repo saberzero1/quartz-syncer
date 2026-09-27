@@ -132,7 +132,7 @@ export class OnboardingService {
 		const branch = "v5";
 		await this.waitForTemplateReady(service, owner, repoName, branch);
 
-		let pagesWarning: string | null = null;
+		const warnings: string[] = [];
 
 		try {
 			await service.createFile(
@@ -144,8 +144,9 @@ export class OnboardingService {
 				branch,
 			);
 		} catch {
-			pagesWarning =
-				"Repository created successfully. The deploy workflow could not be added automatically — see the Quartz documentation for manual setup.";
+			warnings.push(
+				"The deploy workflow could not be added automatically — see the Quartz documentation for manual setup.",
+			);
 		}
 
 		try {
@@ -158,7 +159,9 @@ export class OnboardingService {
 				branch,
 			);
 		} catch {
-			// No-op
+			warnings.push(
+				"The initial index page could not be created. Add content/index.md before publishing.",
+			);
 		}
 
 		try {
@@ -171,17 +174,24 @@ export class OnboardingService {
 				baseUrl,
 			);
 		} catch {
-			// No-op
+			warnings.push(
+				"The Quartz config could not be updated with the site base URL. Set baseUrl manually.",
+			);
 		}
 
 		try {
 			await service.enablePages(owner, repoName);
 		} catch {
-			if (!pagesWarning) {
-				pagesWarning =
-					"Repository created successfully. GitHub Pages could not be enabled automatically — you can enable it manually in your repository settings.";
-			}
+			warnings.push(
+				"GitHub Pages could not be enabled automatically — you can enable it manually in your repository settings.",
+			);
 		}
+
+		// Every step after creation is best-effort, but a silently skipped one
+		// leaves a repo that looks ready and is not. Each failure is reported.
+		const pagesWarning = warnings.length
+			? `Repository created successfully. ${warnings.join(" ")}`
+			: null;
 
 		return { repo, pagesWarning };
 	}
