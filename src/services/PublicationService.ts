@@ -1,3 +1,4 @@
+import { createPublishCommitMessage } from "src/publisher/commitMessage";
 import type { Publisher } from "src/publisher/Publisher";
 import type {
 	PublishProgressCallback,
@@ -20,7 +21,7 @@ export class PublicationService {
 	): Promise<PublishResult> {
 		return this.publisher.publishBatch(
 			files,
-			message ?? "Published via Quartz Syncer",
+			message ?? createPublishCommitMessage(),
 			onProgress,
 		);
 	}
@@ -59,7 +60,7 @@ export class PublicationService {
 	): Promise<PublishResult> {
 		return this.publisher.publishArbitraryFiles(
 			files,
-			message ?? "Published via Quartz Syncer",
+			message ?? createPublishCommitMessage(),
 		);
 	}
 

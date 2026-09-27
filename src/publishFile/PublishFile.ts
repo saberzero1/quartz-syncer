@@ -10,6 +10,7 @@ import {
 } from "src/compiler/FrontmatterCompiler";
 import QuartzSyncerSettings from "src/models/settings";
 import { hasPublishFlag } from "src/publishFile/Validator";
+import { assertVaultPathAllowed, isExcludedVaultPath } from "./ExcludedFolders";
 import { FileMetadataManager } from "src/publishFile/FileMetaDataManager";
 import {
 	DataStore,
@@ -127,6 +128,7 @@ export class PublishFile {
 	async compile(
 		cacheOptions: CompilationCacheOptions = {},
 	): Promise<CompiledPublishFile> {
+		assertVaultPathAllowed(this.file.path, this.settings);
 		let compiledFile: TCompiledFile;
 		const sourceMtime = this.file.stat.mtime;
 
@@ -348,6 +350,7 @@ export class PublishFile {
 	 * @returns true if the file should be published, false otherwise.
 	 */
 	shouldPublish(): boolean {
+		if (isExcludedVaultPath(this.file.path, this.settings)) return false;
 		const specialType = getSpecialFileType(this.file);
 
 		if (specialType === "base") return this.settings.useBases;

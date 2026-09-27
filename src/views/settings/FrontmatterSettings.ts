@@ -1,5 +1,6 @@
 import type { SettingDefinition, SettingDefinitionItem } from "obsidian";
 import type QuartzSyncer from "src/main";
+import { validateExcludedFolders } from "src/publishFile/ExcludedFolders";
 
 /**
  * Validates a comma-separated list of frontmatter keys.
@@ -78,6 +79,18 @@ function buildFrontmatterItems(plugin: QuartzSyncer): SettingDefinition[] {
 				type: "toggle",
 				key: "allNotesPublishableByDefault",
 				defaultValue: false,
+			},
+		},
+		{
+			name: "Excluded folders",
+			desc: "Never publish files in these vault-relative folders, even when marked publishable. One folder per line, including its descendants. Queries that read the vault are blocked while exclusions are configured. Previously published files must be unpublished separately.",
+			aliases: ["private", "ignore", "exclude", "folders"],
+			control: {
+				type: "textarea",
+				key: "excludedFolders",
+				defaultValue: "",
+				placeholder: "Private\nWork/Confidential",
+				validate: validateExcludedFolders,
 			},
 		},
 		{

@@ -1,3 +1,4 @@
+import { createPublishCommitMessage } from "src/publisher/commitMessage";
 import type QuartzSyncer from "src/main";
 import type { CliHandler } from "src/cli/types";
 
@@ -33,7 +34,7 @@ export function createSyncHandler(_plugin: QuartzSyncer): CliHandler {
 		let publishSha: string | undefined;
 		let deleteSha: string | undefined;
 		const publishMessage =
-			params.args.message ?? "Published via Quartz Syncer CLI";
+			params.args.message ?? createPublishCommitMessage();
 		const deleteMessage = params.args.message
 			? `${params.args.message} (deletions)`
 			: "Deleted via Quartz Syncer CLI";

@@ -55,7 +55,9 @@ describe("PublicationService", () => {
 		expect(result).toBe(publishResult);
 		expect(publisher.publishBatch).toHaveBeenCalledWith(
 			files,
-			"Published via Quartz Syncer",
+			expect.stringMatching(
+				/^✨ 🌱 A little garden growth · \d{4}-\d{2}-\d{2} \d{2}:\d{2} /,
+			),
 			onProgress,
 		);
 	});
@@ -137,7 +139,9 @@ describe("PublicationService", () => {
 		expect(result).toBe(publishResult);
 		expect(publisher.publishArbitraryFiles).toHaveBeenCalledWith(
 			files,
-			"Published via Quartz Syncer",
+			expect.stringMatching(
+				/^✨ 🌱 A little garden growth · \d{4}-\d{2}-\d{2} \d{2}:\d{2} /,
+			),
 		);
 	});
 

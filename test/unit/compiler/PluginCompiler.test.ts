@@ -224,3 +224,36 @@ describe("PluginCompiler.compilePatterns", () => {
 		expect(file.dynamicSources).toEqual(["dataview"]);
 	});
 });
+
+describe("excluded folders and generated query output", () => {
+	it("blocks vault-dependent patterns before the query executes", async () => {
+		const query = vi.fn(() => "private result");
+		const integration = {
+			...makeIntegration(
+				[{ id: "query", pattern: /QUERY/g, type: "inline" }],
+				query,
+			),
+			isVaultDependent: true,
+		};
+		vi.mocked(integrationRegistry.getEnabled).mockReturnValue([
+			integration,
+		]);
+		vi.mocked(integrationRegistry.getVaultDependentEnabled).mockReturnValue(
+			[integration],
+		);
+		const file = Object.assign(Object.create(PublishFile.prototype), {
+			dynamicSources: [],
+		}) as PublishFile;
+		const compiler = new PluginCompiler(
+			new App(),
+			makeSettings({ excludedFolders: "Private" }),
+		);
+		await expect(compiler.compile(file)("QUERY")).rejects.toThrow(
+			"excluded folders",
+		);
+		expect(query).not.toHaveBeenCalled();
+		await expect(compiler.compile(file)("ordinary text")).resolves.toBe(
+			"ordinary text",
+		);
+	});
+});

@@ -27,7 +27,7 @@ import {
 } from "src/operability/PerfMetrics";
 
 /** Invalidate compiled payloads independently of the plugin release version. */
-export const DATA_STORE_CACHE_VERSION = "deferred-assets-v1";
+export const DATA_STORE_CACHE_VERSION = "export-frontmatter-v2";
 
 export type AssetShaCache = {
 	mtime: number;

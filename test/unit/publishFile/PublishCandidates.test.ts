@@ -665,3 +665,81 @@ describe("collectCandidatePaths", () => {
 		expect(result.has("db/table.base")).toBe(false);
 	});
 });
+
+describe("excluded folders", () => {
+	it.each([false, true])(
+		"overrides publication flags and all-notes mode (%s)",
+		(allNotesPublishableByDefault) => {
+			const files = [
+				makeTFile("Private/journal.md"),
+				makeTFile("Private/nested/note.md"),
+				makeTFile("Private-ish/public.md"),
+				makeTFile("Books/book.md"),
+			];
+			const app = makeApp(
+				files,
+				files,
+				Object.fromEntries(
+					files.map((file) => [file.path, { publish: true }]),
+				),
+			);
+			expect(
+				collectCandidatePaths(
+					app,
+					makePlugin(),
+					makeSettings({
+						allNotesPublishableByDefault,
+						excludedFolders: "Private",
+					}),
+				),
+			).toEqual(new Set(["Private-ish/public.md", "Books/book.md"]));
+		},
+	);
+
+	it("filters the ready metadata index and enabled special files", () => {
+		const files = [
+			makeTFile("Private/table.base"),
+			makeTFile("Private/board.canvas"),
+			makeTFile("Private/drawing.excalidraw.md"),
+			makeTFile("Public/table.base"),
+		];
+		const app = makeApp([], files);
+		const cache = {
+			api: {
+				isReady: true,
+				getFilesWithFrontmatterValue: () =>
+					new Set(["Private/journal.md", "Books/book.md"]),
+			},
+		} as unknown as NonNullable<QuartzSyncer["cacheHandle"]>;
+		expect(
+			collectCandidatePaths(
+				app,
+				makePlugin(cache),
+				makeSettings({
+					excludedFolders: "Private",
+					useBases: true,
+					useCanvas: true,
+					useExcalidraw: true,
+				}),
+			),
+		).toEqual(new Set(["Books/book.md", "Public/table.base"]));
+	});
+
+	it("interprets exclusions relative to the vault, not the publishing root", () => {
+		const files = [
+			makeTFile("Garden/Private/note.md"),
+			makeTFile("Garden/Public/note.md"),
+		];
+		expect(
+			collectCandidatePaths(
+				makeApp(files, files),
+				makePlugin(),
+				makeSettings({
+					vaultPath: "Garden",
+					allNotesPublishableByDefault: true,
+					excludedFolders: "Garden/Private",
+				}),
+			),
+		).toEqual(new Set(["Garden/Public/note.md"]));
+	});
+});

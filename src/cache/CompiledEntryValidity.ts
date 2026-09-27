@@ -46,6 +46,7 @@ export function settingsFingerprint(settings: QuartzSyncerSettings): string {
 
 	return JSON.stringify({
 		vaultPath: settings.vaultPath,
+		excludedFolders: settings.excludedFolders ?? "",
 		showCreatedTimestamp: settings.showCreatedTimestamp,
 		showUpdatedTimestamp: settings.showUpdatedTimestamp,
 		showPublishedTimestamp: settings.showPublishedTimestamp,

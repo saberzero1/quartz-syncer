@@ -37,7 +37,9 @@ describe("publishHandler", () => {
 		const result = await handler(buildParams());
 		expect(publishBatch).toHaveBeenCalledWith(
 			[fileA, fileB],
-			"Published via Quartz Syncer CLI",
+			expect.stringMatching(
+				/^✨ 🌱 A little garden growth · \d{4}-\d{2}-\d{2} \d{2}:\d{2} /,
+			),
 		);
 		expect(result).toEqual({
 			success: true,
@@ -199,7 +201,9 @@ describe("publishHandler", () => {
 					encoding: "utf-8",
 				},
 			],
-			"Published arbitrary files via Quartz Syncer CLI",
+			expect.stringMatching(
+				/^✨ 🌱 A little garden growth · \d{4}-\d{2}-\d{2} \d{2}:\d{2} /,
+			),
 		);
 		expect(result).toEqual({
 			success: true,
