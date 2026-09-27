@@ -123,6 +123,28 @@ describe("QuartzRunner", () => {
 		);
 	});
 
+	it("resolves a repo path configured after construction", async () => {
+		Platform.isWin = false;
+		let repoPath: string | undefined;
+		const run = vi.fn().mockResolvedValue(successResult);
+		const runner = new QuartzRunner(
+			{ run } as unknown as ProcessRunner,
+			() => repoPath,
+		);
+
+		const before = await runner.build();
+		expect(before.ok).toBe(false);
+		expect(before.error).toBe("Quartz repo path not set");
+
+		repoPath = "/configured/later";
+		const after = await runner.build();
+
+		expect(after.ok).toBe(true);
+		expect(run).toHaveBeenCalledWith(
+			expect.objectContaining({ cwd: "/configured/later" }),
+		);
+	});
+
 	it("sync passes through flags and message", async () => {
 		const run = vi.fn().mockResolvedValue(successResult);
 		const runner = new QuartzRunner(

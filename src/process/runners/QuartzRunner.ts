@@ -83,16 +83,23 @@ export type QuartzPluginPruneOptions = QuartzRunnerOptions & {
 
 export class QuartzRunner {
 	private runner: ProcessRunner;
-	private cwd?: string;
+	private cwd?: string | (() => string | undefined);
 	private serveProcess: ProcessStartResult["process"] | null = null;
 
-	constructor(runner: ProcessRunner, cwd?: string) {
+	constructor(
+		runner: ProcessRunner,
+		cwd?: string | (() => string | undefined),
+	) {
 		this.runner = runner;
 		this.cwd = cwd;
 	}
 
+	// Resolved per call rather than captured, so a repo path configured after
+	// construction is picked up instead of reporting "not set".
 	private resolveCwd(cwd?: string): string | null {
-		return cwd ?? this.cwd ?? null;
+		if (cwd) return cwd;
+		const fallback = typeof this.cwd === "function" ? this.cwd() : this.cwd;
+		return fallback || null;
 	}
 
 	private resolveTimeout(timeout?: number): number | undefined {

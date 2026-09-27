@@ -355,7 +355,10 @@ export default class QuartzSyncer extends Plugin {
 			this.binaryDetector = new BinaryDetector(this.processRunner);
 			this.gitRunner = new GitRunner(this.processRunner);
 			this.npmRunner = new NpmRunner(this.processRunner);
-			this.quartzRunner = new QuartzRunner(this.processRunner);
+			this.quartzRunner = new QuartzRunner(
+				this.processRunner,
+				() => this.settings.quartzRepoPath || undefined,
+			);
 		}
 
 		if (Platform.isDesktopApp) {
