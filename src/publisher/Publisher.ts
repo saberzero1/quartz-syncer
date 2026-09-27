@@ -1,3 +1,4 @@
+import { createPublishCommitMessage } from "src/publisher/commitMessage";
 import { arrayBufferToBase64, Platform, type App } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type QuartzSyncerSettings from "src/models/settings";
@@ -475,7 +476,7 @@ export class Publisher {
 			hash: string;
 		}> = [];
 		const now = Date.now();
-		const commitMessage = message ?? "Publish notes";
+		const commitMessage = message ?? createPublishCommitMessage();
 		const total = files.length;
 
 		const publishedFiles: PublishFile[] = [];
@@ -948,7 +949,7 @@ export class Publisher {
 			};
 		}
 
-		const commitMessage = message ?? "Publish files";
+		const commitMessage = message ?? createPublishCommitMessage();
 
 		const changes: FileChange[] = files.map((file) => ({
 			path: file.repoPath,

@@ -1,3 +1,4 @@
+import { createPublishCommitMessage } from "src/publisher/commitMessage";
 import {
 	arrayBufferToBase64,
 	FuzzySuggestModal,
@@ -1260,12 +1261,13 @@ export class PublicationCenter extends Modal {
 		let publishedCount = 0;
 		let skipped: PublishFailure[] = [];
 		const completedPaths = new Set<string>();
+		const commitMessage = createPublishCommitMessage();
 
 		try {
 			if (publishFiles.length > 0) {
 				const result = await publisher.publishBatch(
 					publishFiles,
-					"Published via Quartz Syncer",
+					commitMessage,
 					(current) => {
 						this.progressState = {
 							current,
@@ -1332,7 +1334,7 @@ export class PublicationCenter extends Modal {
 
 				const result = await publisher.publishArbitraryFiles(
 					arbitraryFiles,
-					"Published via Quartz Syncer",
+					commitMessage,
 				);
 
 				if (!result.success) {

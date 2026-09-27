@@ -165,7 +165,9 @@ describe("Publication Center category-to-button routing", () => {
 
 			expect(publisher.publishBatch).toHaveBeenCalledExactlyOnceWith(
 				[file],
-				"Published via Quartz Syncer",
+				expect.stringMatching(
+					/^✨ 🌱 A little garden growth · \d{4}-\d{2}-\d{2} \d{2}:\d{2} /,
+				),
 				expect.any(Function),
 			);
 			expect(publisher.deleteBatch).not.toHaveBeenCalled();

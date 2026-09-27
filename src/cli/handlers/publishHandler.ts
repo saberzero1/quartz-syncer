@@ -1,3 +1,4 @@
+import { createPublishCommitMessage } from "src/publisher/commitMessage";
 import type QuartzSyncer from "src/main";
 import type { CliHandler } from "src/cli/types";
 import { isMediaFile } from "src/utils/mediaTypes";
@@ -81,8 +82,7 @@ export function createPublishHandler(_plugin: QuartzSyncer): CliHandler {
 			}
 
 			const commitMessage =
-				params.args.message ??
-				"Published arbitrary files via Quartz Syncer CLI";
+				params.args.message ?? createPublishCommitMessage();
 			const result = await publisher.publishArbitraryFiles(
 				files,
 				commitMessage,
@@ -114,7 +114,7 @@ export function createPublishHandler(_plugin: QuartzSyncer): CliHandler {
 			};
 		}
 		const commitMessage =
-			params.args.message ?? "Published via Quartz Syncer CLI";
+			params.args.message ?? createPublishCommitMessage();
 		const result = await publisher.publishBatch(files, commitMessage);
 
 		if (!result.success) {

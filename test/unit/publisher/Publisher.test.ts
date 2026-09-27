@@ -186,7 +186,9 @@ describe("Publisher", () => {
 
 		expect(gitBackend.writeFiles).toHaveBeenCalledWith(
 			"main",
-			"Publish notes",
+			expect.stringMatching(
+				/^✨ 🌱 A little garden growth · \d{4}-\d{2}-\d{2} \d{2}:\d{2} /,
+			),
 			[
 				{
 					path: "content/notes/a.md",
@@ -695,7 +697,9 @@ describe("Publisher", () => {
 			expect(cachedTree).toHaveBeenCalledExactlyOnceWith("main", true);
 			expect(gitBackend.writeFiles).toHaveBeenCalledExactlyOnceWith(
 				"main",
-				"Publish notes",
+				expect.stringMatching(
+					/^✨ 🌱 A little garden growth · \d{4}-\d{2}-\d{2} \d{2}:\d{2} /,
+				),
 				[
 					{
 						path: "site/notes/a.md",
