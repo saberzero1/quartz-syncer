@@ -1215,7 +1215,7 @@ describe("DataStore", () => {
 				datastore: store,
 			});
 			expect((await file.compile()).getCompiledFile()).toEqual([
-				"Hello\n",
+				"---\npublish: true\ncreated: 1970-01-01T00:00:01.000Z\nmodified: 1970-01-01T00:00:01.000Z\n---\n\nHello\n",
 				{ blobs: [] },
 			]);
 			await file.compile();

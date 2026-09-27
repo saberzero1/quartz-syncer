@@ -730,7 +730,7 @@ describe("SyncerPageCompiler", () => {
 			expect(result).not.toContain("draft: true");
 		});
 
-		it("returns text unchanged when no frontmatter exists", () => {
+		it("prepends compiled frontmatter when the source has none", () => {
 			const { compiler } = makeCompiler();
 
 			const file = makeMockPublishFile({
@@ -740,8 +740,92 @@ describe("SyncerPageCompiler", () => {
 			const input = "Just body content, no frontmatter.";
 			const result = compiler.convertFrontMatter(file)(input);
 
-			expect(result).toBe(input);
+			expect(result).toBe(`---\npublish: true\n---\n\n${input}`);
 		});
+
+		it.each([
+			"---\n---\n\nBody",
+			"---\n\n---\n\nBody",
+			"---\r\ntitle: Old\r\n---\r\n\r\nBody",
+			"\uFEFF---\n---\nBody",
+			"---\ntitle: Old\n---",
+		])(
+			"replaces a complete YAML block without duplicating it: %j",
+			(input) => {
+				const { compiler } = makeCompiler();
+				const file = makeMockPublishFile();
+				const result = compiler.convertFrontMatter(file)(
+					input,
+				) as string;
+				expect(result.startsWith("---\npublish: true\n---\n")).toBe(
+					true,
+				);
+				expect(result.match(/^---$/gm)).toHaveLength(2);
+				expect(result).not.toContain("title: Old");
+				if (input.includes("Body")) expect(result).toContain("Body");
+			},
+		);
+
+		it("preserves thematic breaks in a body without frontmatter", () => {
+			const { compiler } = makeCompiler();
+			const input = "Introduction\n\n---\n\nAnother section\n\n---\n";
+			expect(
+				compiler.convertFrontMatter(makeMockPublishFile())(input),
+			).toBe(`---\npublish: true\n---\n\n${input}`);
+		});
+
+		it.each([
+			{ source: "Body", frontmatter: {} },
+			{ source: "---\n---\n\nBody", frontmatter: {} },
+			{
+				source: "---\ncreated: 2025-09-20\nlastmod: 2026-07-23\n---\n\nBody",
+				frontmatter: { created: "2025-09-20", lastmod: "2026-07-23" },
+			},
+		])(
+			"exports publish and source dates through the full pipeline: $source",
+			async ({ source, frontmatter }) => {
+				const { compiler, vault, metadataCache, settings } =
+					makeCompiler({
+						showCreatedTimestamp: true,
+						showUpdatedTimestamp: true,
+						updatedTimestampKey: "modified, lastmod, updated",
+					});
+				const ctime = Date.parse("2025-04-12T10:30:00-07:00");
+				const mtime = Date.parse("2026-07-23T18:50:56-07:00");
+				const sourceFile = makeMockPublishFile().file;
+				sourceFile.stat = { ctime, mtime, size: source.length };
+				(metadataCache.getCache as Mock).mockReturnValue({
+					frontmatter,
+				});
+				(vault.cachedRead as Mock).mockResolvedValue(source);
+				const file = new PublishFile({
+					file: sourceFile,
+					compiler,
+					vault,
+					metadataCache,
+					settings,
+					datastore: {} as DataStore,
+				});
+
+				const [exported] = await compiler.generateMarkdown(file);
+				expect(exported).toContain("publish: true");
+				expect(exported).toContain(
+					frontmatter.created ?? new Date(ctime).toISOString(),
+				);
+				expect(exported).toContain(
+					frontmatter.lastmod ?? new Date(mtime).toISOString(),
+				);
+				expect(exported).toMatch(/^created:/m);
+				expect(exported).toMatch(/^modified:/m);
+				expect(exported).toContain("Body");
+				expect(await file.cachedRead()).toBe(source);
+				expect(sourceFile.stat).toEqual({
+					ctime,
+					mtime,
+					size: source.length,
+				});
+			},
+		);
 	});
 
 	describe("convertFileLinks", () => {

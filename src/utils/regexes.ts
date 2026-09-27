@@ -1,4 +1,6 @@
-export const FRONTMATTER_REGEX = /^\s*?---\n([\s\S]*?)\n---/g;
+// Match a complete opening YAML block, including empty blocks and CRLF files.
+export const FRONTMATTER_REGEX =
+	/^\s*?---[\t ]*\r?\n(?:([\s\S]*?)\r?\n)?---[\t ]*(?:\r?\n|$)/g;
 
 export const BLOCKREF_REGEX = /(\^\w+(\n|$))/g;
 

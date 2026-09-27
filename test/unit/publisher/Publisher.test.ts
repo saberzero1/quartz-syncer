@@ -1075,7 +1075,7 @@ describe("Publisher", () => {
 				]);
 				expect(compiled[0]).toBe(
 					type === "markdown"
-						? "![[rewritten/photo.png#center|300]]\n"
+						? "---\npublish: true\n---\n\n![[rewritten/photo.png#center|300]]\n"
 						: raw,
 				);
 				vi.mocked(dataStore.loadLocalFile).mockResolvedValue(compiled);

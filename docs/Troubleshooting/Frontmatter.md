@@ -21,3 +21,21 @@ tags: [frontmatter]
 > > ---
 > > rest of the note here...
 > > ```
+
+## Exported frontmatter and dates
+
+With **All notes publishable by default** enabled, source notes do not need a
+`publish` property. Excluded paths and explicit opt-outs still apply, and you
+choose which eligible notes to publish in the Publication Center.
+
+Syncer adds frontmatter to the exported Markdown copy even when the source has
+no frontmatter or an empty YAML block. It includes `publish: true` and, when
+**Created timestamp** and **Updated timestamp** are enabled, `created` and
+`modified`. Existing dates from the configured timestamp keys take precedence;
+otherwise Syncer uses the source file's creation and modification timestamps.
+It does not replace those dates with the time you press Publish.
+
+Your vault note and its file timestamps are not changed. Timestamp fallbacks are
+stored as ISO dates in UTC, preserving the same instant for Quartz to display
+in the site's configured timezone. Non-Markdown assets such as images, Bases,
+and Canvas files keep their original format.

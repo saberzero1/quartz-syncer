@@ -329,7 +329,8 @@ export class SyncerPageCompiler {
 
 	/**
 	 * Converts the front matter of the file to a string.
-	 * It replaces the front matter in the text with the compiled front matter from the file.
+	 * Replaces an existing YAML block or prepends one to the exported copy.
+	 * Notes without source frontmatter still need publish metadata and enabled dates.
 	 *
 	 * @param file - The file to compile the front matter for.
 	 * @returns A function that takes the text to compile and returns the compiled text.
@@ -337,7 +338,12 @@ export class SyncerPageCompiler {
 	convertFrontMatter: TCompilerStep = (file) => (text) => {
 		const compiledFrontmatter = file.getCompiledFrontmatter(text);
 
-		return text.replace(FRONTMATTER_REGEX, () => compiledFrontmatter);
+		if (text.match(FRONTMATTER_REGEX)) {
+			return text.replace(FRONTMATTER_REGEX, () => compiledFrontmatter);
+		}
+
+		// A BOM belongs at the beginning of a file, never between YAML and body.
+		return `${compiledFrontmatter}\n${text.replace(/^\uFEFF/, "")}`;
 	};
 
 	/**
