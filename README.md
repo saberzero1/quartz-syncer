@@ -9,7 +9,7 @@ Quartz Syncer is an [Obsidian](https://obsidian.md/) plugin for managing and pub
 - **Auto-publish timer**: Schedule background publishing (desktop only).
 - **Secure tokens**: Encrypted storage via `electron.safeStorage` (desktop).
 - **Diff viewer**: Preview exact changes before publishing with split (side-by-side) or unified view.
-- **CLI support**: Automate publishing workflows from the terminal with 12 commands.
+- **CLI support**: Automate publishing workflows from the terminal with 22 commands.
 
 ## Requirements
 
@@ -71,6 +71,15 @@ Quartz Syncer supports the [Obsidian CLI](https://obsidian.md/cli) (v1.13+) for 
 | `quartz-syncer:version` | Show plugin, Obsidian, and Quartz versions | `obsidian quartz-syncer:version` |
 | `quartz-syncer:plugin` | Manage Quartz v5 plugins | `obsidian quartz-syncer:plugin action=updates` |
 | `quartz-syncer:quartz-config` | Read or update Quartz v5 site config | `obsidian quartz-syncer:quartz-config action=get key=pageTitle` |
+| `quartz-syncer:quartz-build` | Run a Quartz build of the local repository | `obsidian quartz-syncer:quartz-build` |
+| `quartz-syncer:quartz-serve` | Run the Quartz dev server for local preview | `obsidian quartz-syncer:quartz-serve port=8081` |
+| `quartz-syncer:quartz-sync` | Run Quartz git sync (pull, commit, push) | `obsidian quartz-syncer:quartz-sync pull=false` |
+| `quartz-syncer:quartz-restore` | Restore Quartz content from cache | `obsidian quartz-syncer:quartz-restore force` |
+| `quartz-syncer:repo` | Inspect or change the repository connection | `obsidian quartz-syncer:repo action=set-local path=/path/to/quartz` |
+| `quartz-syncer:media` | List, find, or clean media files in the Quartz repo | `obsidian quartz-syncer:media action=orphaned` |
+| `quartz-syncer:diff` | Show the compiled diff between vault and repo | `obsidian quartz-syncer:diff path=notes/post.md` |
+| `quartz-syncer:validate` | Validate the Quartz repository state | `obsidian quartz-syncer:validate` |
+| `quartz-syncer:inspect` | Inspect internal cache, hashes, and compilation state | `obsidian quartz-syncer:inspect target=hashes` |
 
 The `config` and `quartz-config` commands default to listing all settings when no action is provided.
 

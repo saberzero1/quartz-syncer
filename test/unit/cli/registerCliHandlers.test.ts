@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { CliData as ObsidianCliData } from "obsidian";
 import {
 	COMMAND_REGISTRY,
@@ -22,6 +24,23 @@ const metaFor = (name: string): CommandMeta => {
 	if (!meta) throw new Error(`not in registry: ${name}`);
 
 	return meta;
+};
+
+const readmeCommandNames = (): string[] => {
+	const readmePath = fileURLToPath(
+		new URL("../../../README.md", import.meta.url),
+	);
+	const readme = readFileSync(readmePath, "utf-8");
+	const section = readme.split("\n### Commands\n")[1]?.split("\n### ")[0];
+
+	if (!section) throw new Error("README has no '### Commands' section");
+
+	return section
+		.split("\n")
+		.filter((line) => line.startsWith("|"))
+		.map((line) => line.split("|")[1]?.trim() ?? "")
+		.filter((cell) => cell.startsWith("`"))
+		.map((cell) => cell.replaceAll("`", ""));
 };
 
 type Dispatch = (data: ObsidianCliData) => Promise<string>;
@@ -135,6 +154,15 @@ describe("registerCliHandlers dispatch", () => {
 			} as unknown as ObsidianCliData);
 			expect(output).not.toContain("Unknown CLI command");
 		}
+	});
+
+	// Structural invariant, not a phrase check: the README's command table is
+	// the only public inventory of the CLI, and it silently drifted to 12 of 22
+	// entries. Asserting the parsed set catches the next omission.
+	it("documents exactly the registered command set in the README", () => {
+		expect(readmeCommandNames().sort()).toEqual(
+			COMMAND_REGISTRY.map((entry) => entry.name).sort(),
+		);
 	});
 
 	it("returns the command metadata for the help flag", async () => {
