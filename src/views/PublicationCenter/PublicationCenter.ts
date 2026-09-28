@@ -676,6 +676,7 @@ export class PublicationCenter extends Modal {
 
 	private updateTreeState(): void {
 		this.publicationTree?.update();
+		this.updateOperationButtons();
 		if (this.overviewEl && Platform.isDesktopApp) {
 			this.renderOverview();
 		}
@@ -1332,6 +1333,37 @@ export class PublicationCenter extends Modal {
 		}
 	}
 
+	private collectDeletions(): {
+		noteDeletions: string[];
+		repoDeletions: string[];
+	} {
+		const noteDeletions: string[] = [];
+		const repoDeletions: string[] = [];
+
+		for (const path of this.treeState.getSelectedFiles()) {
+			const category = this.treeState.getCategory(path);
+
+			if (category === "deleted" || category === "published") {
+				noteDeletions.push(path);
+				continue;
+			}
+
+			if (category === "media-linked" || category === "media-unlinked") {
+				const entry = this.mediaMap.get(path);
+				if (entry) {
+					repoDeletions.push(entry.repoPath);
+				}
+				continue;
+			}
+
+			if (category === "arbitrary") {
+				repoDeletions.push(path);
+			}
+		}
+
+		return { noteDeletions, repoDeletions };
+	}
+
 	private async handleDelete(): Promise<void> {
 		if (this.isOperating) return;
 
@@ -1343,27 +1375,7 @@ export class PublicationCenter extends Modal {
 			return;
 		}
 
-		const selected = this.treeState.getSelectedFiles();
-		const noteDeletions = selected.filter((path) => {
-			const category = this.treeState.getCategory(path);
-			return category === "deleted" || category === "published";
-		});
-		const repoDeletions: string[] = [];
-
-		for (const path of selected) {
-			const category = this.treeState.getCategory(path);
-
-			if (category === "media-linked" || category === "media-unlinked") {
-				const entry = this.mediaMap.get(path);
-				if (entry) {
-					repoDeletions.push(entry.repoPath);
-				}
-			}
-
-			if (category === "arbitrary") {
-				repoDeletions.push(path);
-			}
-		}
+		const { noteDeletions, repoDeletions } = this.collectDeletions();
 
 		if (noteDeletions.length === 0 && repoDeletions.length === 0) {
 			new Notice("No files selected for deletion.");
@@ -1523,7 +1535,10 @@ export class PublicationCenter extends Modal {
 		}
 
 		if (this.deleteButtonEl) {
-			this.deleteButtonEl.disabled = disabled;
+			const { noteDeletions, repoDeletions } = this.collectDeletions();
+			const hasDeletions =
+				noteDeletions.length > 0 || repoDeletions.length > 0;
+			this.deleteButtonEl.disabled = disabled || !hasDeletions;
 		}
 	}
 
