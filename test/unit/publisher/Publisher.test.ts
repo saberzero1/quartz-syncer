@@ -106,6 +106,7 @@ const makeSettings = (
 	remoteFetchInterval: 60,
 	quartzRepoPath: "",
 	enableSystemCommands: false,
+	autoPublishDynamicNotes: false,
 	...overrides,
 });
 

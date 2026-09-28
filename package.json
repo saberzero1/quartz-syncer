@@ -29,7 +29,7 @@
 		"@wdio/globals": "^9.29.1",
 		"@wdio/local-runner": "^9.30.0",
 		"@wdio/mocha-framework": "^9.30.0",
-		"esbuild": "^0.25",
+		"esbuild": "^0.25.12",
 		"eslint": "^9",
 		"eslint-plugin-obsidianmd": "^0.4",
 		"globals": "latest",
@@ -56,5 +56,12 @@
 		"unified": "^11.0.5",
 		"unist-util-visit": "^5.1.0",
 		"yaml": "^2.9.0"
+	},
+	"allowScripts": {
+		"esbuild@0.25.12": true,
+		"esbuild@0.28.2": true,
+		"classic-level@3.0.0": true,
+		"geckodriver@6.1.1": true,
+		"edgedriver@6.3.1": true
 	}
 }

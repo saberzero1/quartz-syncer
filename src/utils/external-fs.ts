@@ -43,6 +43,7 @@ type PathType = {
 	resolve(...paths: string[]): string;
 	relative(from: string, to: string): string;
 	isAbsolute(p: string): boolean;
+	normalize(p: string): string;
 	sep: string;
 };
 
@@ -105,10 +106,9 @@ export function expandTilde(p: string): string {
 	const os = getOs();
 	const home = os.homedir();
 	if (p === "~") return home;
-	if (p.startsWith("~/") || p.startsWith("~\\")) {
-		return home + p.slice(1);
-	}
-	return p;
+	const path = getPath();
+	const segments = path.normalize(p).split(path.sep);
+	return path.join(home, ...segments.slice(1));
 }
 
 export function joinPath(...segments: string[]): string {
@@ -285,11 +285,10 @@ export async function readExternalDirRecursive(
 	const resolved = expandTilde(dirPath);
 	try {
 		const fs = getFsPromises();
+		const path = getPath();
 		const entries = await fs.readdir(resolved, { recursive: true });
 
-		// Node's fs.readdir returns backslash-separated paths on Windows.
-		// Normalize to forward slashes for consistent cross-platform behavior.
-		return entries.map((e) => e.replace(/\\/g, "/"));
+		return entries.map((e) => path.normalize(e)); //e.replace(/\\/g, "/"));
 	} catch {
 		return null;
 	}

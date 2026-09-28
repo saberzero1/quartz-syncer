@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import * as nodePath from "node:path";
+import * as nodeOs from "node:os";
 import { Platform } from "obsidian";
 import {
 	resolveExternalPath,
@@ -23,6 +24,15 @@ const directories: Record<string, Entry[]> = {
 	"/repo/.git": [{ name: "config", kind: "file" }],
 };
 
+// Also accept windows-style paths in the mock
+if (nodeOs.platform() === "win32") {
+	Object.entries(directories).forEach(([key, value]) => {
+		directories[nodePath.resolve(key)] = value;
+		delete directories[key];
+	});
+}
+
+
 function toDirent(entry: Entry) {
 	return {
 		name: entry.name,
@@ -35,14 +45,13 @@ function toDirent(entry: Entry) {
 const fsPromisesStub = {
 	readdir: async (target: string) => {
 		const entries = directories[target];
-
 		if (!entries) throw new Error(`ENOENT: ${target}`);
 
 		return entries.map(toDirent);
 	},
 	stat: async (target: string) => ({
-		isDirectory: () => target === "/repo/linked-dir",
-		isFile: () => target !== "/repo/linked-dir",
+		isDirectory: () => target === "/repo/linked-dir" || target === "C:\\repo\\linked-dir",
+		isFile: () => target !== "/repo/linked-dir" && target !== "C:\\repo\\linked-dir",
 	}),
 };
 
@@ -62,17 +71,18 @@ afterEach(() => {
 	Platform.isDesktopApp = true;
 });
 
+
 describe("resolveExternalPath", () => {
 	it("expands a tilde into an absolute path", () => {
-		expect(resolveExternalPath("~/quartz")).toBe("/home/testuser/quartz");
+			expect(resolveExternalPath("~/quartz")).toBe(nodePath.resolve("/home/testuser/quartz"));
 	});
 
 	it("normalizes a trailing separator", () => {
-		expect(resolveExternalPath("/repo/")).toBe("/repo");
+		expect(resolveExternalPath("/repo/")).toBe(nodePath.resolve("/repo"));
 	});
 
 	it("leaves an absolute path unchanged", () => {
-		expect(resolveExternalPath("/repo/content")).toBe("/repo/content");
+		expect(resolveExternalPath("/repo/content")).toBe(nodePath.resolve("/repo/content"));
 	});
 
 	it("returns the input untouched on mobile", () => {
@@ -84,19 +94,19 @@ describe("resolveExternalPath", () => {
 describe("resolveWithin", () => {
 	it("resolves a path inside the base", () => {
 		expect(resolveWithin("/repo", "content/note.md")).toBe(
-			"/repo/content/note.md",
+			nodePath.resolve("/repo/content/note.md"),
 		);
 	});
 
 	it("resolves against a tilde base", () => {
 		expect(resolveWithin("~/quartz", "content/note.md")).toBe(
-			"/home/testuser/quartz/content/note.md",
+			nodePath.resolve("/home/testuser/quartz/content/note.md"),
 		);
 	});
 
 	it("resolves against a base with a trailing separator", () => {
 		expect(resolveWithin("/repo/", "content/note.md")).toBe(
-			"/repo/content/note.md",
+			nodePath.resolve("/repo/content/note.md"),
 		);
 	});
 
@@ -118,7 +128,7 @@ describe("resolveWithin", () => {
 	});
 
 	it("allows a filename that merely contains dots", () => {
-		expect(resolveWithin("/repo", "note..md")).toBe("/repo/note..md");
+		expect(resolveWithin("/repo", "note..md")).toBe(nodePath.resolve("/repo/note..md"));
 	});
 
 	it("returns null on mobile", () => {
