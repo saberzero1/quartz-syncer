@@ -52,6 +52,8 @@ type StatusLoadState =
 	| { kind: "ready" | "unconfigured" }
 	| { kind: "error"; message: string };
 
+const MIN_SPLIT_CONTAINER_WIDTH = 620;
+
 export interface PublicationCenterController {
 	getSelected(): string[];
 	setSelected(paths: string[]): void;
@@ -67,6 +69,7 @@ export class PublicationCenter extends Modal {
 	private statusLoadState: StatusLoadState = { kind: "unconfigured" };
 	private treeState = new TreeState();
 	private progressState: ProgressState = { current: 0, total: 0 };
+	private progressBarEl: HTMLDivElement | null = null;
 	private progressIndicatorEl: HTMLDivElement | null = null;
 	private publishButtonEl: HTMLButtonElement | null = null;
 	private deleteButtonEl: HTMLButtonElement | null = null;
@@ -143,6 +146,7 @@ export class PublicationCenter extends Modal {
 		this.inlineScrollSync?.destroy();
 		this.inlineScrollSync = null;
 		this.contentEl.empty();
+		this.progressBarEl = null;
 		this.progressIndicatorEl = null;
 		this.publishButtonEl = null;
 		this.deleteButtonEl = null;
@@ -482,12 +486,13 @@ export class PublicationCenter extends Modal {
 
 		this.contentEl.empty();
 		const header = this.contentEl.createDiv({ cls: "pub-center-header" });
+		const headerText = header.createDiv({ cls: "pub-center-header-text" });
 		const pluginName = this._plugin.manifest.name ?? "Quartz Syncer";
-		header.createSpan({
+		headerText.createSpan({
 			text: `Select notes to publish or delete with ${pluginName}.`,
 		});
 
-		this.refreshingEl = header.createSpan({
+		this.refreshingEl = headerText.createSpan({
 			cls: "pub-center-refreshing",
 		});
 		setIcon(this.refreshingEl, "refresh-cw");
@@ -501,9 +506,11 @@ export class PublicationCenter extends Modal {
 			this._plugin.settings.allowArbitraryFilePublishing &&
 			this.treeState.tab === "advanced"
 		) {
-			const addButton = header.createEl("button", {
+			const headerActions = header.createDiv({
+				cls: "pub-center-header-actions",
+			});
+			const addButton = headerActions.createEl("button", {
 				text: "Add file",
-				cls: "mod-cta",
 			});
 			addButton.setAttrs(qsDom("pub-add-file"));
 
@@ -602,8 +609,8 @@ export class PublicationCenter extends Modal {
 		}
 
 		const footer = this.contentEl.createDiv({ cls: "pub-center-footer" });
-		const progress = footer.createDiv({ cls: "progress-bar" });
-		this.progressIndicatorEl = progress.createDiv({
+		this.progressBarEl = footer.createDiv({ cls: "progress-bar" });
+		this.progressIndicatorEl = this.progressBarEl.createDiv({
 			cls: "progress-bar-indicator",
 		});
 		this.progressIndicatorEl.setAttrs(qsDom("pub-progress"));
@@ -720,6 +727,11 @@ export class PublicationCenter extends Modal {
 			return Platform.isDesktopApp ? "split" : "unified";
 		}
 		return style;
+	}
+
+	private inlinePaneFitsSplit(): boolean {
+		const width = this.diffInlineEl?.clientWidth ?? 0;
+		return width === 0 || width >= MIN_SPLIT_CONTAINER_WIDTH;
 	}
 
 	private async buildMediaLinksMap(): Promise<void> {
@@ -936,21 +948,17 @@ export class PublicationCenter extends Modal {
 		collapseButton.setAttrs(qsDom("diff-action", { value: "expand-all" }));
 
 		const forceUnified =
-			category === "unpublished" || category === "deleted";
+			category === "unpublished" ||
+			category === "deleted" ||
+			!this.inlinePaneFitsSplit();
+		const effectiveMode = (): DiffViewMode =>
+			forceUnified ? "unified" : this.diffMode;
 		splitButton.style.display = forceUnified ? "none" : "";
 		unifiedButton.style.display = forceUnified ? "none" : "";
-		if (forceUnified) {
-			this.diffMode = "unified";
-		}
 		const updateButtons = () => {
-			splitButton.classList.toggle(
-				"is-active",
-				this.diffMode === "split",
-			);
-			unifiedButton.classList.toggle(
-				"is-active",
-				this.diffMode === "unified",
-			);
+			const mode = effectiveMode();
+			splitButton.classList.toggle("is-active", mode === "split");
+			unifiedButton.classList.toggle("is-active", mode === "unified");
 		};
 		const updateCollapseButton = () => {
 			if (!this.diffContentEl) return;
@@ -979,7 +987,7 @@ export class PublicationCenter extends Modal {
 				this.diffContentEl,
 				localContent,
 				remoteContent,
-				this.diffMode,
+				effectiveMode(),
 				this._plugin.settings.diffContextLines,
 			);
 			updateCollapseButton();
@@ -1524,5 +1532,6 @@ export class PublicationCenter extends Modal {
 		const { current, total } = this.progressState;
 		const percent = total === 0 ? 0 : Math.round((current / total) * 100);
 		this.progressIndicatorEl.style.width = `${percent}%`;
+		this.progressBarEl?.toggleClass("qs-hidden", total === 0);
 	}
 }
