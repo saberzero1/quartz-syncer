@@ -307,35 +307,44 @@ export class OnboardingWizard extends Modal {
 		}
 
 		const choices = container.createDiv("qs-onboarding-choices");
-		const createCard = choices.createDiv("qs-onboarding-choice-card");
-		createCard.setAttr("tabindex", "0");
-		createCard.setAttr("role", "button");
-		createCard.setAttrs(qsDom("wizard-choice", { value: "create" }));
-		const createIcon = createCard.createSpan("qs-onboarding-choice-icon");
-		setIcon(createIcon, "plus");
-		createCard.createSpan({
-			cls: "qs-onboarding-choice-title",
-			text: "Create new Quartz site",
-		});
-		createCard.createSpan({
-			cls: "qs-onboarding-choice-desc",
-			text: "Start fresh with a new GitHub repository",
-		});
 
-		const connectCard = choices.createDiv("qs-onboarding-choice-card");
-		connectCard.setAttr("tabindex", "0");
-		connectCard.setAttr("role", "button");
-		connectCard.setAttrs(qsDom("wizard-choice", { value: "connect" }));
-		const connectIcon = connectCard.createSpan("qs-onboarding-choice-icon");
-		setIcon(connectIcon, "link");
-		connectCard.createSpan({
-			cls: "qs-onboarding-choice-title",
-			text: "Connect existing repository",
-		});
-		connectCard.createSpan({
-			cls: "qs-onboarding-choice-desc",
-			text: "Link to a Quartz repository you already have",
-		});
+		const createChoiceCard = (
+			value: "create" | "connect",
+			icon: string,
+			title: string,
+			description: string,
+		): HTMLDivElement => {
+			const card = choices.createDiv("qs-onboarding-choice-card");
+			card.setAttr("tabindex", "0");
+			card.setAttr("role", "button");
+			card.setAttrs(qsDom("wizard-choice", { value }));
+			const iconEl = card.createSpan("qs-onboarding-choice-icon");
+			setIcon(iconEl, icon);
+			const body = card.createDiv("qs-onboarding-choice-body");
+			body.createSpan({
+				cls: "qs-onboarding-choice-title",
+				text: title,
+			});
+			body.createSpan({
+				cls: "qs-onboarding-choice-desc",
+				text: description,
+			});
+			return card;
+		};
+
+		const createCard = createChoiceCard(
+			"create",
+			"plus",
+			"Create new Quartz site",
+			"Start fresh with a new GitHub repository",
+		);
+
+		const connectCard = createChoiceCard(
+			"connect",
+			"link",
+			"Connect existing repository",
+			"Link to a Quartz repository you already have",
+		);
 
 		const handleChoice = (flow: "create" | "connect") => {
 			this.flow = flow;
