@@ -1,7 +1,8 @@
 {
-	"extends": "stylelint-config-standard",
+	"extends": "stylelint-config-obsidianmd",
 	"rules": {
 		"selector-class-pattern": null,
-		"no-descending-specificity": null
+		"no-descending-specificity": null,
+		"declaration-no-important": [true, { "severity": "error" }]
 	}
 }
