@@ -58,6 +58,10 @@ Media files linked by notes are pushed alongside them automatically. Orphaned me
 
 Uses persistent shell + `PublicationTree` class with keyed DOM row maps. State changes update checkbox properties and CSS classes in-place — no full DOM rebuilds. This preserves `checkbox.indeterminate`, scroll position, and input focus.
 
+The Delete button is real and destructive: it calls `Publisher.deleteBatch()` for selected `deleted`/`published` notes and `Publisher.deleteByRepoPaths()` for selected media and custom files. `collectDeletions()` is the single predicate deciding what is deletable, and both `handleDelete()` and the button's enabled state read it — keep them on that one helper so they cannot drift. `changed` and `unpublished` files are deliberately not deletable, so selecting only those leaves the button disabled.
+
+Note that the button performs no confirmation step, while the two programmatic surfaces both demand one: the facade's `pub.delete` requires `confirm: true`, and the CLI's `delete` requires `force`.
+
 ## CLI
 
 22 commands registered via `registerCliHandler()` (Obsidian 1.12.2+ API). NOT `registerObsidianProtocolHandler` — that is for URL protocol handling, not CLI.
@@ -100,6 +104,37 @@ Declarative settings only (Obsidian minAppVersion 1.13). Definitions in `getSett
 - No new runtime dependencies.
 - `Platform.isDesktopApp` (not `Platform.isDesktop`).
 - Keep `src/main.ts` minimal — lifecycle + settings only.
+
+## Styling
+
+All plugin CSS lives in the single top-level `styles.css`. There is no preprocessor and no CSS framework.
+
+### Design tokens
+
+Spacing, surfaces, status colours, and label treatment come from a `--qs-*` token block at the top of `styles.css`. Every token derives from an Obsidian variable, which is what keeps the plugin theme-reactive across light/dark and third-party themes. Use the tokens rather than reaching for raw Obsidian variables ad hoc — that is what keeps a Hub status label and a Publication Center category label the same size.
+
+Never add a hard-coded colour, and never add a raw px font size.
+
+**The token block must stay on `body`.** Obsidian declares its theme variables (`--background-primary`, `--color-green`, …) on `body`, not on `:root`. A token defined at `:root` resolves `var(--background-primary)` against `:root`, where it is undefined, and the token silently becomes invalid at computed-value time. Moving the block to `:root` breaks every token without any build or test failure.
+
+Status colours flow from three tone tokens — `--qs-tone-new`, `--qs-tone-changed`, `--qs-tone-gone` — consumed by the Publication Center row rails (`.tree-rail-*`), the `.qs-dot` status dots, and the Hub chips. Change a state colour there, not at the call site.
+
+### The `.qs-hidden` trap
+
+`.qs-hidden` carries `display: none !important`. The `!important` is load-bearing: component rules with two classes, such as `.qs-pub-center .tree-category-header`, have higher specificity and otherwise win, so the element stays visible while the calling code believes it hid it.
+
+This exact failure shipped once — `TreeRenderer.update()` correctly called `toggleClass("qs-hidden", count === 0)` on empty category headers, and they rendered anyway. Removing the `!important` reintroduces that bug across all `qs-hidden` call sites at once, and no unit test will catch it.
+
+### What tests cannot see
+
+`vitest` runs in jsdom, which has no layout engine. Geometry bugs — a stretched checkbox, a misaligned grid column, text wrapping onto four lines, an element that should be hidden but is not — pass `tsc`, `eslint`, and the entire unit suite. Verify layout changes in a running Obsidian instance with `getBoundingClientRect()` / `getComputedStyle()` probes, not by reading the stylesheet.
+
+### Verifying layout in Obsidian
+
+Two traps make live layout probes unreliable:
+
+- **Stale modals.** Modals survive `disablePlugin`/`enablePlugin` and accumulate in the DOM, and `document.querySelector` returns the *first* — usually a dead one. Close everything with repeated `Escape` keydowns (`.modal-close-button.click()` does not reliably work), confirm `document.querySelectorAll('.modal').length === 0`, then open exactly one. Prefer reading state off the live instance via `window.__QS__.plugin.publicationCenterManager.modal`.
+- **Window resizing.** `window.resizeTo()` works for testing breakpoints, but under Wayland the renderer viewport can desync from the Electron window — `innerWidth` freezes while `getCurrentWindow().getBounds()` reports the new size. Always assert the new `innerWidth` before trusting a breakpoint result. To recover, set bounds via `require('@electron/remote').getCurrentWindow()` and then `location.reload()` to resync.
 
 ## Verification
 
