@@ -266,36 +266,61 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 
 	private buildStatusFragment(): DocumentFragment {
 		const frag = createFragment();
-		const addLine = (label: string, value: string): void => {
-			frag.createSpan({ text: `${label}: ` });
-			frag.createSpan({ text: value });
-			frag.createEl("br");
+		const grid = frag.createDiv({ cls: "qs-settings-status" });
+
+		const addRow = (
+			label: string,
+			value: string,
+			tone?: "ok" | "warn" | "error",
+		): HTMLSpanElement => {
+			const row = grid.createDiv({ cls: "qs-settings-status-row" });
+			row.createSpan({
+				cls: "qs-settings-status-label",
+				text: label,
+			});
+			const valueEl = row.createDiv({
+				cls: "qs-settings-status-value",
+			});
+			if (tone) {
+				valueEl.createSpan({ cls: `qs-dot qs-dot-${tone}` });
+			}
+			return valueEl.createSpan({ text: value });
 		};
 
 		if (resolvePublishTarget(this.plugin.settings).effective === "local") {
-			addLine("Repository", this.plugin.settings.quartzRepoPath);
-			addLine("Mode", "Local folder");
+			addRow("Repository", this.plugin.settings.quartzRepoPath);
+			addRow("Mode", "Local folder");
 		} else {
-			addLine(
+			addRow(
 				"Repository",
 				this.formatRepoUrl(this.plugin.settings.gitRemoteUrl),
 			);
-			addLine("Branch", this.plugin.settings.gitBranch);
-			addLine(
+			addRow("Branch", this.plugin.settings.gitBranch);
+			const hasToken = this.plugin.secretStorageService.hasToken();
+			addRow(
 				"Authentication",
-				this.plugin.secretStorageService.hasToken()
-					? "Token stored securely"
-					: "No token set",
+				hasToken ? "Token stored securely" : "No token set",
+				hasToken ? "ok" : "error",
 			);
 		}
 
-		frag.createSpan({ text: "Quartz plugins: " });
-		const statusEl = frag.createSpan({
+		const pluginsRow = grid.createDiv({ cls: "qs-settings-status-row" });
+		pluginsRow.createSpan({
+			cls: "qs-settings-status-label",
+			text: "Quartz plugins",
+		});
+		const pluginsValue = pluginsRow.createDiv({
+			cls: "qs-settings-status-value",
+		});
+		pluginsValue.createSpan({
+			cls: `qs-dot qs-dot-${this.getPluginUpdateTone()}`,
+		});
+		const statusEl = pluginsValue.createSpan({
 			text: this.getPluginUpdateStatusText(),
 			attr: qsDom("settings-status", { field: "plugin-updates" }),
 		});
-		frag.createSpan({ text: " " });
-		const checkLink = frag.createEl("a", {
+		const checkLink = pluginsValue.createEl("a", {
+			cls: "qs-settings-status-link",
 			text: "Check now",
 			href: "#",
 		});
@@ -305,6 +330,23 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		});
 
 		return frag;
+	}
+
+	private getPluginUpdateTone(): "ok" | "warn" | "error" | "idle" {
+		switch (this.pluginUpdateStatus.state) {
+			case "failed":
+				return "error";
+			case "v5-required":
+				return "warn";
+			case "complete":
+				return (this.pluginUpdateStatus.updates ?? 0) > 0
+					? "warn"
+					: "ok";
+			case "checking":
+			case "not-checked":
+			default:
+				return "idle";
+		}
 	}
 
 	private formatRepoUrl(url: string): string {
