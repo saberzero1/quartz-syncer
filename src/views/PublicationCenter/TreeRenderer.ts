@@ -154,7 +154,7 @@ export class PublicationTree {
 		for (const [category, catRow] of this.categoryRows) {
 			const count = this.treeState.getCategoryCount(category);
 			const selected = this.treeState.getSelectedCount(category);
-			catRow.countEl.setText(`(${count})`);
+			catRow.countEl.setText(String(count));
 			catRow.headerEl.classList.toggle("qs-hidden", count === 0);
 			catRow.childrenEl.classList.toggle("qs-hidden", count === 0);
 			catRow.checkbox.checked = count > 0 && selected === count;
@@ -385,7 +385,9 @@ export class PublicationTree {
 
 		const category = node.category ?? "published";
 
-		const row = containerEl.createDiv({ cls: "tree-item tree-file" });
+		const row = containerEl.createDiv({
+			cls: `tree-item tree-file tree-rail-${category}`,
+		});
 		row.setAttrs(
 			qsDom("pub-row", {
 				path: node.path,
@@ -440,16 +442,6 @@ export class PublicationTree {
 		if (category === "changed") {
 			statsEl = row.createSpan({ cls: "tree-diff-stats" });
 		}
-
-		const badge = row.createSpan({
-			cls: `category-badge category-${category}`,
-		});
-		const icon = categoryIcons[category];
-		if (icon) {
-			const iconEl = badge.createSpan({ cls: "category-icon" });
-			setIcon(iconEl, icon);
-		}
-		badge.createSpan({ text: categoryLabels[category] });
 
 		this.fileRows.set(node.path, { row, checkbox, statsEl });
 	}
