@@ -115,10 +115,11 @@ body {
 	margin-top: var(--size-4-3);
 }
 
-/* Hidden element. !important: two-class component rules such as
-   `.qs-pub-center .tree-category-header` otherwise outrank it. */
-.qs-hidden {
-	display: none !important;
+/* Hidden element. The class is repeated to raise specificity to (0,3,0):
+   two-class component rules such as `.qs-pub-center .tree-category-header`
+   set `display` and otherwise outrank a single-class utility. */
+.qs-hidden.qs-hidden.qs-hidden {
+	display: none;
 }
 
 .quartz-syncer-token-row {
@@ -288,6 +289,7 @@ body {
 	from {
 		transform: rotate(0deg);
 	}
+
 	to {
 		transform: rotate(360deg);
 	}
@@ -360,7 +362,7 @@ body {
 	padding-left: var(--qs-gap-stack);
 }
 
-@media (max-width: 820px) {
+@media (width <= 820px) {
 	.qs-pub-center .pub-center-body {
 		grid-template-columns: minmax(0, 1fr);
 	}
@@ -756,7 +758,7 @@ body {
 }
 
 /* Below this width the source string truncates to noise — drop the column */
-@media (max-width: 640px) {
+@media (width <= 640px) {
 	.qs-hub .qs-hub-plugin-row {
 		grid-template-columns: minmax(0, 1fr) auto auto;
 	}
@@ -1347,7 +1349,7 @@ body {
 }
 
 .qs-diff-view .diff-added {
-	background: rgba(var(--color-green-rgb), 0.1);
+	background: rgb(var(--color-green-rgb), 0.1);
 }
 
 .qs-diff-view .diff-added .diff-line-number,
@@ -1360,7 +1362,7 @@ body {
 }
 
 .qs-diff-view .diff-removed {
-	background: rgba(var(--color-red-rgb), 0.1);
+	background: rgb(var(--color-red-rgb), 0.1);
 }
 
 .qs-diff-view .diff-removed .diff-line-number,
@@ -1426,7 +1428,7 @@ body {
 	padding-right: var(--qs-gap-stack);
 }
 
-@media (max-width: 600px) {
+@media (width <= 600px) {
 	.qs-onboarding-layout {
 		grid-template-columns: minmax(0, 1fr);
 	}
