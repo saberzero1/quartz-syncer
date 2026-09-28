@@ -36,10 +36,10 @@ export function renderPluginsTab(
 	const resolvedRepoPath = repoPath ? expandTilde(repoPath) : "";
 
 	const header = container.createDiv({ cls: "qs-hub-plugins-header" });
-	header.createEl("h3", { text: "Plugins" });
+	header.createEl("h3", { cls: "qs-section-label", text: "Plugins" });
 
-	const actionRow = container.createDiv({ cls: "qs-hub-plugins-actions" });
-	const browseButton = actionRow.createEl("button", {
+	const browseButton = header.createEl("button", {
+		cls: "mod-cta",
 		text: "Browse community plugins",
 	});
 
@@ -113,7 +113,9 @@ export function renderPluginsTab(
 				text: `Source: ${getPluginSourceKey(entry.source)}`,
 			});
 			const statusEl = row.createDiv({
-				cls: "qs-hub-plugin-status",
+				cls: entry.enabled
+					? "qs-hub-plugin-status is-enabled"
+					: "qs-hub-plugin-status",
 				text: entry.enabled ? "Enabled" : "Disabled",
 			});
 			statusEl.setAttrs(qsDom("hub-plugin-status", { name: pluginName }));
@@ -128,7 +130,10 @@ export function renderPluginsTab(
 					value: entry.enabled ? "disable" : "enable",
 				}),
 			);
-			const removeButton = actions.createEl("button", { text: "Remove" });
+			const removeButton = actions.createEl("button", {
+				cls: "mod-destructive",
+				text: "Remove",
+			});
 			removeButton.setAttrs(
 				qsDom("hub-plugin-action", {
 					name: pluginName,

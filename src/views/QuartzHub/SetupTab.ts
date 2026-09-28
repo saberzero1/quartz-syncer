@@ -26,13 +26,31 @@ export function renderSetupTab(
 	eventSink?: IOperabilityEventSink,
 	options?: SetupTabOptions,
 ): void {
+	const createField = (
+		section: HTMLElement,
+		label: string,
+		placeholder: string,
+	): HTMLInputElement => {
+		const id = `qs-setup-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`;
+		const field = section.createDiv({ cls: "qs-hub-setup-field" });
+		field.createEl("label", {
+			cls: "qs-section-label",
+			text: label,
+			attr: { for: id },
+		});
+		const input = field.createEl("input", { type: "text", placeholder });
+		input.id = id;
+		return input;
+	};
+
 	const linkSection = container.createDiv({ cls: "qs-hub-setup-section" });
 	linkSection.createEl("h3", { text: "Link existing repository" });
 
-	const linkInput = linkSection.createEl("input", {
-		type: "text",
-		placeholder: "/path/to/Quartz",
-	});
+	const linkInput = createField(
+		linkSection,
+		"Repository path",
+		"/path/to/Quartz",
+	);
 	linkInput.setAttrs(qsDom("hub-setup-link-path"));
 	linkInput.value = plugin.settings.quartzRepoPath;
 
@@ -42,25 +60,39 @@ export function renderSetupTab(
 	});
 	linkStatus.setAttrs(qsDom("hub-setup-status"));
 
-	const linkButton = linkSection.createEl("button", { text: "Link" });
+	const linkActions = linkSection.createDiv({
+		cls: "qs-hub-setup-actions",
+	});
+	const linkButton = linkActions.createEl("button", {
+		cls: "mod-cta",
+		text: "Link",
+	});
 	linkButton.setAttrs(qsDom("hub-setup-link"));
 
 	const cloneSection = container.createDiv({ cls: "qs-hub-setup-section" });
 	cloneSection.createEl("h3", { text: "Clone from remote" });
 
-	const urlInput = cloneSection.createEl("input", {
-		type: "text",
-		placeholder: "https://github.com/user/quartz.git",
-	});
+	const urlInput = createField(
+		cloneSection,
+		"Remote URL",
+		"https://github.com/user/quartz.git",
+	);
 	urlInput.setAttrs(qsDom("hub-setup-clone-url"));
 
-	const destInput = cloneSection.createEl("input", {
-		type: "text",
-		placeholder: "/path/to/Quartz",
-	});
+	const destInput = createField(
+		cloneSection,
+		"Destination folder",
+		"/path/to/Quartz",
+	);
 	destInput.setAttrs(qsDom("hub-setup-clone-dest"));
 
-	const cloneButton = cloneSection.createEl("button", { text: "Clone" });
+	const cloneActions = cloneSection.createDiv({
+		cls: "qs-hub-setup-actions",
+	});
+	const cloneButton = cloneActions.createEl("button", {
+		cls: "mod-cta",
+		text: "Clone",
+	});
 	cloneButton.setAttrs(qsDom("hub-setup-clone"));
 
 	let isOperating = false;
@@ -75,6 +107,8 @@ export function renderSetupTab(
 	const updateLinkState = () => {
 		const result = validateRepoPath(linkInput.value.trim());
 		linkStatus.setText(result.message);
+		linkStatus.toggleClass("is-valid", result.ok);
+		linkStatus.toggleClass("is-invalid", !result.ok);
 		linkButton.disabled = !result.ok || isOperating;
 	};
 

@@ -2,6 +2,7 @@ import { Notice, Platform } from "obsidian";
 import type QuartzSyncer from "src/main";
 import { qsDom } from "src/operability/DomContract";
 import type { IOperabilityEventSink } from "src/operability/types";
+import type { BinaryInfo } from "src/process/types";
 import { LocalFileSource } from "src/quartz/LocalFileSource";
 import { QuartzUpgradeService } from "src/quartz/QuartzUpgradeService";
 import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
@@ -54,20 +55,27 @@ export function renderOverviewTab(
 	queueMicrotask(() => {
 		if (!container.isConnected) return;
 		repoRow.valueEl.empty();
-		repoRow.valueEl.createSpan({
+		repoRow.valueEl.addClass("qs-hub-status-value-split");
+		const repoText = repoRow.valueEl.createDiv({
+			cls: "qs-hub-status-value-text",
+		});
+		repoText.createSpan({
+			cls: "qs-hub-repo-path",
 			text: repoPath ? repoPath : "Not set",
 		});
+		if (!repoValidation.ok) {
+			repoText.createSpan({
+				cls: "qs-hub-repo-warning",
+				text: repoValidation.message,
+			});
+		}
 		if (options?.onNavigateToSetup) {
 			const changeButton = repoRow.valueEl.createEl("button", {
+				cls: "qs-hub-status-action",
 				text: "Change",
 			});
 			changeButton.addEventListener("click", () => {
 				options.onNavigateToSetup?.();
-			});
-		}
-		if (!repoValidation.ok) {
-			repoRow.valueEl.createSpan({
-				text: ` (${repoValidation.message})`,
 			});
 		}
 	});
@@ -178,14 +186,7 @@ export function renderOverviewTab(
 			Date.now() - binaryCache.time < BINARY_CACHE_TTL_MS
 		) {
 			if (!container.isConnected) return;
-			binaryRow.valueEl.empty();
-			for (const entry of binaryCache.data) {
-				const status = entry.available ? "✓" : "✗";
-				const version = entry.version ? ` (${entry.version})` : "";
-				binaryRow.valueEl.createDiv({
-					text: `${entry.name}: ${status}${version}`,
-				});
-			}
+			renderBinaryChips(binaryRow.valueEl, binaryCache.data);
 			return;
 		}
 
@@ -197,14 +198,7 @@ export function renderOverviewTab(
 				time: Date.now(),
 			};
 			plugin.hubDetectionCache.persist();
-			binaryRow.valueEl.empty();
-			for (const entry of info) {
-				const status = entry.available ? "✓" : "✗";
-				const version = entry.version ? ` (${entry.version})` : "";
-				binaryRow.valueEl.createDiv({
-					text: `${entry.name}: ${status}${version}`,
-				});
-			}
+			renderBinaryChips(binaryRow.valueEl, info);
 		} catch (error) {
 			if (!container.isConnected) return;
 			const message =
@@ -266,8 +260,12 @@ export function renderOverviewTab(
 		label: string,
 		value: string,
 		onClick: () => void,
+		options?: { primary?: boolean },
 	): HTMLButtonElement => {
-		const button = actionsSection.createEl("button", { text: label });
+		const button = actionsSection.createEl("button", {
+			cls: options?.primary ? "mod-cta" : "",
+			text: label,
+		});
 		button.setAttrs(qsDom("hub-action", { value }));
 		button.addEventListener("click", () => {
 			if (button.disabled) return;
@@ -313,15 +311,20 @@ export function renderOverviewTab(
 		).open();
 	};
 
-	registerAction("Preview", "preview", () => {
-		const resolved = requireRepoPath();
-		if (!resolved) return;
-		if (!plugin.quartzRunner) {
-			new Notice("Quartz runner is unavailable.");
-			return;
-		}
-		launchQuartzPreview(plugin.app, plugin.quartzRunner, resolved);
-	});
+	registerAction(
+		"Preview",
+		"preview",
+		() => {
+			const resolved = requireRepoPath();
+			if (!resolved) return;
+			if (!plugin.quartzRunner) {
+				new Notice("Quartz runner is unavailable.");
+				return;
+			}
+			launchQuartzPreview(plugin.app, plugin.quartzRunner, resolved);
+		},
+		{ primary: true },
+	);
 
 	registerAction("Build", "build", () => {
 		if (!plugin.quartzRunner) {
@@ -438,13 +441,43 @@ export function renderOverviewTab(
 	updateActionState();
 }
 
+function renderBinaryChips(
+	valueEl: HTMLDivElement,
+	entries: readonly BinaryInfo[],
+): void {
+	valueEl.empty();
+	valueEl.addClass("qs-hub-chip-row");
+
+	for (const entry of entries) {
+		const chip = valueEl.createSpan({
+			cls: entry.available
+				? "qs-chip qs-chip-ok"
+				: "qs-chip qs-chip-missing",
+		});
+		chip.createSpan({
+			cls: entry.available ? "qs-dot qs-dot-ok" : "qs-dot qs-dot-error",
+		});
+		chip.createSpan({ text: entry.name });
+
+		if (entry.version) {
+			chip.createSpan({
+				cls: "qs-chip-meta",
+				text: entry.version,
+			});
+		}
+	}
+}
+
 function createStatusRow(
 	container: HTMLElement,
 	label: string,
 ): { row: HTMLDivElement; valueEl: HTMLDivElement } {
 	const row = container.createDiv({ cls: "qs-hub-status-row" });
-	row.createSpan({ text: label });
-	const valueEl = row.createDiv({ text: "Detecting..." });
+	row.createSpan({ cls: "qs-hub-status-label", text: label });
+	const valueEl = row.createDiv({
+		cls: "qs-hub-status-value",
+		text: "Detecting...",
+	});
 	return { row, valueEl };
 }
 

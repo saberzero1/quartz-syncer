@@ -30,7 +30,7 @@ export function renderTemplatesTab(
 	const resolvedRepoPath = repoPath ? expandTilde(repoPath) : "";
 
 	const header = container.createDiv({ cls: "qs-hub-templates-header" });
-	header.createEl("h3", { text: "Templates" });
+	header.createEl("h3", { cls: "qs-section-label", text: "Templates" });
 
 	const listSection = container.createDiv({ cls: "qs-hub-templates-list" });
 
