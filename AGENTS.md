@@ -10,6 +10,7 @@ Obsidian Community Plugin. Publishes Obsidian notes to [Quartz](https://quartz.j
 - E2E tests: WebdriverIO
 - Integration tests: Playwright
 - Type check: `npx tsc --noEmit`
+- Lint: `npm run lint` (ESLint + Stylelint). CSS only: `npm run lint:css`
 - isomorphic-git fork: published as `@saberzero1/isomorphic-git`. Import it by that name — never bare `isomorphic-git`. Obsidian enforces npm 12, which rejects git-based dependencies, so **no dependency may resolve from a git URL**: never `file:../isomorphic-git`, never `https://github.com/...`. Verify with `grep -c "git+" package-lock.json` — it must be `0`.
 
 ## Architecture
@@ -121,9 +122,24 @@ Status colours flow from three tone tokens — `--qs-tone-new`, `--qs-tone-chang
 
 ### The `.qs-hidden` trap
 
-`.qs-hidden` carries `display: none !important`. The `!important` is load-bearing: component rules with two classes, such as `.qs-pub-center .tree-category-header`, have higher specificity and otherwise win, so the element stays visible while the calling code believes it hid it.
+`.qs-hidden` is written as `.qs-hidden.qs-hidden.qs-hidden`. The repetition is load-bearing, not a typo: it raises the selector to specificity (0,3,0) so it beats two-class component rules such as `.qs-pub-center .tree-category-header`, which set `display` and would otherwise win — leaving the element visible while the calling code believes it hid it.
 
-This exact failure shipped once — `TreeRenderer.update()` correctly called `toggleClass("qs-hidden", count === 0)` on empty category headers, and they rendered anyway. Removing the `!important` reintroduces that bug across all `qs-hidden` call sites at once, and no unit test will catch it.
+This exact failure shipped once — `TreeRenderer.update()` correctly called `toggleClass("qs-hidden", count === 0)` on empty category headers, and they rendered anyway. Collapsing the selector back to a single `.qs-hidden` reintroduces that bug across all `qs-hidden` call sites at once, and no unit test will catch it.
+
+`!important` would also fix it, but it is banned — see CSS linting below.
+
+### CSS linting
+
+`npm run lint:css` runs Stylelint with [`stylelint-config-obsidianmd`](https://github.com/obsidianmd/stylelint-config) — the same rules the Obsidian community plugin review uses. It is wired into `npm run lint`, so CI already enforces it.
+
+`declaration-no-important` is raised from the config's default `warning` to **`error`**: the community scanner flags `!important`, so it must fail the build rather than be quietly tolerated. Fix specificity conflicts by making the selector more specific, never by reaching for `!important`.
+
+Two consequences worth knowing:
+
+- Media queries must use range syntax — `@media (width <= 820px)`, not `(max-width: 820px)`.
+- Use `rgb()` rather than the `rgba()` alias, even with an alpha channel.
+
+`npm run lint:css:fix` auto-fixes both.
 
 ### What tests cannot see
 
