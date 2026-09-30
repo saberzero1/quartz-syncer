@@ -46,6 +46,21 @@ export function performanceSettingDefinitions(
 					},
 				},
 				{
+					name: "Allow large full clones",
+					desc: "Quartz Syncer normally downloads only the file list from your repository, not its contents. Git servers that do not support this have to send the whole repository instead, which can exhaust memory on large repositories, so Quartz Syncer refuses. Enable this to download it anyway.",
+					aliases: [
+						"partial clone",
+						"blobless",
+						"filter",
+						"large repository",
+					],
+					control: {
+						type: "toggle",
+						key: "allowLargeFullClone",
+						defaultValue: false,
+					},
+				},
+				{
 					name: "Auto-publish notes with queries",
 					desc: "When enabled, automatic publishing also includes notes containing Dataview or Datacore queries. These notes are recompiled on every run, because their output depends on the rest of the vault. Leave disabled to publish them manually.",
 					aliases: [

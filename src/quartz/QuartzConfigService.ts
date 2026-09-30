@@ -1,5 +1,8 @@
 import { Document, parseDocument } from "yaml";
-import type { QuartzFileSource } from "src/quartz/QuartzFileSource";
+import {
+	readFilesFrom,
+	type QuartzFileSource,
+} from "src/quartz/QuartzFileSource";
 import type { QuartzV5Config, QuartzLockFile } from "./QuartzConfigTypes";
 
 const CONFIG_YAML_PATH = "quartz.config.yaml";
@@ -118,36 +121,27 @@ export class QuartzConfigService {
 		content: string;
 		format: ConfigFormat;
 	}> {
-		try {
-			const yamlContent = await this.repo.readFile(CONFIG_YAML_PATH);
+		// Fetched together rather than probed one after another: against a
+		// remote each probe is its own request, and the common case (only the
+		// shipped default present) would pay for two misses before hitting it.
+		const candidates = [
+			{ path: CONFIG_YAML_PATH, format: "yaml" as const },
+			{ path: CONFIG_DEFAULT_YAML_PATH, format: "yaml" as const },
+			{ path: CONFIG_JSON_PATH, format: "json" as const },
+		];
 
-			if (yamlContent) {
-				return { content: yamlContent, format: "yaml" };
+		const contents = await readFilesFrom(
+			this.repo,
+			candidates.map(({ path }) => path),
+		);
+
+		// Order is precedence: a user override wins over the shipped default.
+		for (const [index, candidate] of candidates.entries()) {
+			const content = contents[index];
+
+			if (content) {
+				return { content, format: candidate.format };
 			}
-		} catch {
-			console.debug("No YAML config found, trying JSON fallback");
-		}
-
-		try {
-			const defaultYamlContent = await this.repo.readFile(
-				CONFIG_DEFAULT_YAML_PATH,
-			);
-
-			if (defaultYamlContent) {
-				return { content: defaultYamlContent, format: "yaml" };
-			}
-		} catch {
-			console.debug("No default YAML config found, trying JSON fallback");
-		}
-
-		try {
-			const jsonContent = await this.repo.readFile(CONFIG_JSON_PATH);
-
-			if (jsonContent) {
-				return { content: jsonContent, format: "json" };
-			}
-		} catch {
-			console.debug("No JSON config found either");
 		}
 
 		throw new Error(

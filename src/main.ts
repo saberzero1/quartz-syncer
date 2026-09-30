@@ -177,6 +177,7 @@ export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	/** UI settings */
 	diffViewStyle: "auto",
 	diffContextLines: 3,
+	allowLargeFullClone: false,
 	allowArbitraryFilePublishing: false,
 	arbitraryPublishPaths: [],
 
@@ -656,6 +657,7 @@ export default class QuartzSyncer extends Plugin {
 				username: this.settings.gitAuthUsername || undefined,
 				secret: this.secretStorageService.getToken() || undefined,
 			},
+			allowLargeFullClone: this.settings.allowLargeFullClone,
 			providerHint: this.settings.gitProviderHint || undefined,
 		};
 	}

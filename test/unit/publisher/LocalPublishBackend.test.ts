@@ -1,8 +1,9 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import * as nodePath from "node:path";
 import { createHash } from "node:crypto";
 import { Platform } from "obsidian";
 import { LocalPublishBackend } from "src/publisher/LocalPublishBackend";
+import * as cacheStore from "src/cache/IndexedDBStore";
 
 const files = new Map<string, Uint8Array>();
 
@@ -64,6 +65,8 @@ const fsPromisesStub = {
 		}));
 	},
 	stat: async (target: string) => ({
+		size: files.get(target)?.byteLength ?? 0,
+		mtimeMs: 1000,
 		isDirectory: () => childrenOf(target).size > 0,
 		isFile: () => files.has(target),
 	}),
@@ -91,6 +94,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	Platform.isDesktopApp = true;
 });
 
@@ -185,6 +189,51 @@ describe("LocalPublishBackend repo path handling", () => {
 });
 
 describe("LocalPublishBackend tree", () => {
+	it("returns the correct tree when persisting the cache fails", async () => {
+		// Given
+		const bytes = new Uint8Array([4, 5, 6]);
+		files.set("/repo/note.md", bytes);
+		const store = cacheStore.createStore("unused");
+		vi.spyOn(cacheStore, "createStore").mockReturnValue({
+			...store,
+			getItem: async () => null,
+			setItem: async () => {
+				throw new Error("Quota exceeded");
+			},
+		});
+		// When
+		const tree = await new LocalPublishBackend("/repo").getTree("main");
+		// Then
+		expect(tree).toEqual([
+			{ path: "note.md", sha: gitBlobSha(bytes), type: "blob" },
+		]);
+	});
+
+	it("leaves persistent storage untouched when constructed or read cache-only", async () => {
+		// Given
+		const open = vi.spyOn(cacheStore, "createStore");
+		// When
+		const backend = new LocalPublishBackend("~/quartz");
+		await backend.getCachedTree("main", true);
+		// Then
+		expect(open).not.toHaveBeenCalled();
+	});
+
+	it("returns the correct tree when persistent storage creation throws", async () => {
+		// Given
+		const bytes = new Uint8Array([1, 2, 3]);
+		files.set("/repo/note.md", bytes);
+		vi.spyOn(cacheStore, "createStore").mockImplementation(() => {
+			throw new Error("Storage unavailable");
+		});
+		// When
+		const tree = await new LocalPublishBackend("/repo").getTree("main");
+		// Then
+		expect(tree).toEqual([
+			{ path: "note.md", sha: gitBlobSha(bytes), type: "blob" },
+		]);
+	});
+
 	it("omits dependency and build directories", async () => {
 		files.set("/repo/content/note.md", new TextEncoder().encode("Note"));
 		files.set("/repo/node_modules/pkg/index.js", new Uint8Array([1]));

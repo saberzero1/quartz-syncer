@@ -40,6 +40,12 @@ export interface PublishFailure {
 
 export interface PublishResult {
 	success: boolean;
+	/**
+	 * Every selected file already matched the remote, so no commit was made.
+	 * Distinguishes "nothing to do" from "published", which an empty commit
+	 * sha alone does not.
+	 */
+	unchanged?: boolean;
 	commitSha?: string;
 	filesPublished: number;
 	filesDeleted: number;

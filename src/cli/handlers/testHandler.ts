@@ -38,6 +38,7 @@ export function createTestHandler(_plugin: QuartzSyncer): CliHandler {
 				remoteUrl: gitSettings.remoteUrl,
 				branch: gitSettings.branch,
 				corsProxyUrl: gitSettings.corsProxyUrl,
+				allowLargeFullClone: gitSettings.allowLargeFullClone,
 				auth: gitSettings.auth,
 			},
 			_plugin.app,

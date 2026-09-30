@@ -36,16 +36,43 @@ export class RemoteFileSource implements QuartzFileSource {
 	}
 
 	async readFile(path: string): Promise<string | null> {
+		return (await this.readFiles([path]))[0] ?? null;
+	}
+
+	async readFiles(paths: string[]): Promise<(string | null)[]> {
 		const entries = await this.getTree();
-		const match = entries.find(
-			(entry) => entry.path === path && entry.type === "blob",
+		const shaByPath = new Map<string, string>();
+
+		for (const entry of entries) {
+			if (entry.type === "blob") shaByPath.set(entry.path, entry.sha);
+		}
+
+		const wanted = paths
+			.map((path) => shaByPath.get(path))
+			.filter((sha): sha is string => sha !== undefined);
+
+		if (wanted.length === 0) return paths.map(() => null);
+
+		const blobs = this.backend.readBlobs
+			? await this.backend.readBlobs(wanted)
+			: await Promise.all(
+					wanted.map((sha) => this.backend.readBlob(sha)),
+				);
+
+		const decoder = new TextDecoder();
+
+		const bySha = new Map(
+			wanted.map((sha, index) => [sha, blobs[index]] as const),
 		);
 
-		if (!match) return null;
+		return paths.map((path) => {
+			const sha = shaByPath.get(path);
 
-		const blob = await this.backend.readBlob(match.sha);
+			if (sha === undefined) return null;
+			const blob = bySha.get(sha);
 
-		return new TextDecoder().decode(blob);
+			return blob === undefined ? null : decoder.decode(blob);
+		});
 	}
 
 	async writeFile(path: string, content: string): Promise<void> {

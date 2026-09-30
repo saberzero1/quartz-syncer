@@ -1,4 +1,4 @@
-import { arrayBufferToBase64, Platform, type App } from "obsidian";
+import { Platform, type App } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type QuartzSyncerSettings from "src/models/settings";
 import type { FileChange } from "src/git/types";
@@ -481,10 +481,13 @@ export class Publisher {
 		const updatedAssetShas = new Map<string, AssetShaCache>();
 
 		try {
-			// This optimization must not fetch on a cold cache or block publishing
-			// when the cached tree is unavailable.
+			// Decides which assets are already on the remote. Reading this
+			// cache-only yields an empty index on a cold cache, so nothing is
+			// skipped and every asset is re-uploaded. Fetching is cheap now the
+			// tree arrives without blobs; the catch still keeps a tree failure
+			// from blocking a publish.
 			const remoteIndex = await this.backend
-				.getCachedTree(settings.gitBranch, true)
+				.getCachedTree(settings.gitBranch)
 				.then((tree) => buildRemoteIndex(tree ?? [], this.pathMapper))
 				.catch(() => buildRemoteIndex([], this.pathMapper));
 
@@ -567,16 +570,18 @@ export class Publisher {
 						const cached = assetShas.get(asset.vaultPath);
 						let gitSha =
 							cached?.mtime === mtime ? cached.gitSha : undefined;
-						let bytes: ArrayBuffer | undefined;
 						if (!gitSha) {
-							bytes = await this.app.vault.readBinary(source);
+							// Scoped so the bytes are collectable once hashed;
+							// the write path re-reads them on demand.
+							const bytes =
+								await this.app.vault.readBinary(source);
 							try {
-								// Git hashes raw bytes, not the base64 transport text.
+								// Git hashes raw bytes, not any transport encoding.
 								gitSha = await generateBlobHash(
 									new Uint8Array(bytes),
 								);
 							} catch {
-								// If hashing fails, stage the bytes without a comparison.
+								// If hashing fails, stage the asset without a comparison.
 							}
 							if (source.stat.mtime !== mtime) {
 								throw new Error(
@@ -593,16 +598,24 @@ export class Publisher {
 						const remote = remoteIndex.full.get(assetPath);
 						if (gitSha && gitSha === remote?.sha) continue;
 
-						bytes ??= await this.app.vault.readBinary(source);
-						if (source.stat.mtime !== mtime) {
-							throw new Error(
-								`Asset changed while reading: ${asset.vaultPath}. Retry publishing.`,
-							);
-						}
+						// Read at write time, not now. Holding every staged
+						// asset is what made publishing a media-heavy vault
+						// exhaust memory; one extra read per changed asset is
+						// the cheaper trade.
 						fileChanges.push({
 							path: assetPath,
-							content: arrayBufferToBase64(bytes),
-							encoding: "base64",
+							content: async () => {
+								const data =
+									await this.app.vault.readBinary(source);
+
+								if (source.stat.mtime !== mtime) {
+									throw new Error(
+										`Asset changed while reading: ${asset.vaultPath}. Retry publishing.`,
+									);
+								}
+
+								return new Uint8Array(data);
+							},
 						});
 						fileAssetPaths.add(assetPath);
 					}
@@ -689,8 +702,12 @@ export class Publisher {
 				);
 			}
 
+			// An empty sha means the rewritten tree equalled the remote's,
+			// so every selected file was already up to date.
+			const unchanged = result.sha === "";
+
 			this.eventSink?.emit("publish.completed", {
-				fileCount: publishedFiles.length,
+				fileCount: unchanged ? 0 : publishedFiles.length,
 				failedCount: failures.length,
 				commitSha: result.sha,
 			});
@@ -721,8 +738,10 @@ export class Publisher {
 
 			const publishResult: PublishResult = {
 				success: true,
-				commitSha: result.sha,
-				filesPublished: publishedFiles.length,
+				...(unchanged
+					? { unchanged: true }
+					: { commitSha: result.sha }),
+				filesPublished: unchanged ? 0 : publishedFiles.length,
 				filesDeleted: 0,
 				...(failures.length > 0 ? { failures } : {}),
 			};

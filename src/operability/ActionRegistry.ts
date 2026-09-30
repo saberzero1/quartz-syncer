@@ -549,6 +549,7 @@ export class ActionRegistry {
 					remoteUrl: gitSettings.remoteUrl,
 					branch: gitSettings.branch,
 					corsProxyUrl: gitSettings.corsProxyUrl,
+					allowLargeFullClone: gitSettings.allowLargeFullClone,
 					auth: gitSettings.auth,
 				},
 				this.plugin.app,

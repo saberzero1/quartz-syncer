@@ -44,6 +44,8 @@ export interface GitRemoteSettings {
 	corsProxyUrl?: string;
 	/** Authentication configuration */
 	auth: GitAuth;
+	/** Permit an unbounded clone the size check would otherwise refuse */
+	allowLargeFullClone?: boolean;
 	/** Provider hint for UI customization (optional) */
 	providerHint?: GitProviderHint;
 }
@@ -234,6 +236,12 @@ export default interface QuartzSyncerSettings {
 	/** UI settings */
 	diffViewStyle: DiffViewStyle;
 	diffContextLines: number;
+	/**
+	 * Download a repository whole even when it is large enough to be refused.
+	 * Only consulted when the Git server cannot do a partial clone.
+	 */
+	allowLargeFullClone: boolean;
+
 	/** Allow publishing arbitrary files outside the content folder */
 	allowArbitraryFilePublishing: boolean;
 	/** Vault paths to publish as custom files */

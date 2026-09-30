@@ -3,6 +3,11 @@ import LightningFS from "@isomorphic-git/lightning-fs";
 import type { App } from "obsidian";
 import { HttpClient } from "src/git/HttpClient";
 import { buildFsName } from "src/git/backends/GitFsName";
+import {
+	resolveCloneStrategy,
+	type CloneStrategy,
+} from "src/git/CloneStrategy";
+import { fetchRepositorySize } from "src/git/RepositorySize";
 import type {
 	DeleteResult,
 	BranchInfo,
@@ -14,6 +19,7 @@ import type {
 	RemoteInfo,
 	TreeEntry,
 } from "src/git/types";
+import { resolveFileContent } from "src/git/types";
 
 type AuthCredentials = { username: string; password: string };
 
@@ -22,6 +28,19 @@ const COMMIT_AUTHOR = {
 	email: "268450573+quartz-syncer-publisher[bot]@users.noreply.github.com",
 };
 
+const MAX_BACKFILL_OBJECTS_PER_REQUEST = 500;
+
+const EMPTY_TREE_OID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
+type ChangeNode = {
+	files: Map<string, string | null>;
+	dirs: Map<string, ChangeNode>;
+};
+
+function emptyChangeNode(): ChangeNode {
+	return { files: new Map(), dirs: new Map() };
+}
+
 export class BundledGitBackend implements GitBackend {
 	private config: GitBackendConfig;
 	private fs: LightningFS;
@@ -29,6 +48,7 @@ export class BundledGitBackend implements GitBackend {
 	private cache: Record<string, unknown>;
 	private dir: string;
 	private initialized = false;
+	private partial = false;
 
 	constructor(config: GitBackendConfig, app: App) {
 		this.config = config;
@@ -76,13 +96,102 @@ export class BundledGitBackend implements GitBackend {
 	}
 
 	async readBlob(sha: string): Promise<Uint8Array> {
+		return (await this.readBlobs([sha]))[0]!;
+	}
+
+	/**
+	 * Read blobs, backfilling any the blobless clone omitted.
+	 *
+	 * Always prefer this over repeated `readBlob` calls: one request serves any
+	 * number of oids, so a caller that loops turns a single round trip into one
+	 * per blob, against a remote that rate-limits reads.
+	 */
+	async readBlobs(shas: string[]): Promise<Uint8Array[]> {
 		await this.ensureRepoReady(this.config.branch);
-		const { blob } = await git.readBlob({
+		const found = new Map<string, Uint8Array>();
+		const missing: string[] = [];
+
+		for (const sha of new Set(shas)) {
+			const blob = await this.tryReadBlob(sha);
+
+			if (blob === null) {
+				missing.push(sha);
+			} else {
+				found.set(sha, blob);
+			}
+		}
+
+		if (missing.length > 0) {
+			await this.backfill(missing);
+
+			for (const sha of missing) {
+				const { blob } = await git.readBlob({
+					fs: this.fs,
+					dir: this.dir,
+					oid: sha,
+				});
+				found.set(sha, blob);
+			}
+		}
+
+		return shas.map((sha) => found.get(sha)!);
+	}
+
+	private async tryReadBlob(oid: string): Promise<Uint8Array | null> {
+		try {
+			const { blob } = await git.readBlob({
+				fs: this.fs,
+				dir: this.dir,
+				oid,
+			});
+
+			return blob;
+		} catch (error) {
+			// Anything other than absence is real damage and must not be
+			// papered over by re-downloading.
+			if (
+				error instanceof Error &&
+				"code" in error &&
+				error.code === git.Errors.NotFoundError.code
+			) {
+				return null;
+			}
+			throw error;
+		}
+	}
+
+	/**
+	 * Fetch omitted blobs on demand.
+	 *
+	 * Only reached for objects the caller already resolved from the remote tree,
+	 * so an absent one is a filtered-out blob rather than damage.
+	 *
+	 * The ceiling bounds a single request rather than the session: asking for
+	 * thousands of blobs at once is the "pull the whole repository back down"
+	 * mistake worth refusing, while a long session that legitimately reads many
+	 * files one at a time is not.
+	 */
+	private async backfill(oids: string[]): Promise<void> {
+		if (!this.partial) {
+			throw new Error(
+				`Object ${oids[0]} is missing from a complete clone. The local repository cache may be damaged; clear the plugin cache to re-clone.`,
+			);
+		}
+
+		if (oids.length > MAX_BACKFILL_OBJECTS_PER_REQUEST) {
+			throw new Error(
+				`Refusing to fetch ${oids.length} omitted objects in one request (limit ${MAX_BACKFILL_OBJECTS_PER_REQUEST}). This usually means something is reading the whole repository rather than the files it needs.`,
+			);
+		}
+
+		await git.fetchObjects({
 			fs: this.fs,
+			http: this.http,
 			dir: this.dir,
-			oid: sha,
+			oids,
+			onAuth: () => this.getAuth(),
+			corsProxy: this.config.corsProxyUrl || undefined,
 		});
-		return blob;
 	}
 
 	async writeFiles(
@@ -92,42 +201,25 @@ export class BundledGitBackend implements GitBackend {
 	): Promise<CommitResult> {
 		await this.ensureRepoReady(branch);
 
-		const remoteCommit = await git.resolveRef({
-			fs: this.fs,
-			dir: this.dir,
-			ref: `origin/${branch}`,
-		});
-		await this.resetToCommit(remoteCommit, branch);
+		const changes = new Map<string, string | null>();
 
-		const cache = {};
 		for (const file of files) {
-			await this.ensureParentDir(file.path);
-			const data = this.toWriteData(file);
-			const encoding = typeof data === "string" ? "utf8" : undefined;
-			await this.fs.promises.writeFile(
-				`${this.dir}/${file.path}`,
-				data,
-				encoding,
+			changes.set(
+				file.path,
+				await git.writeBlob({
+					fs: this.fs,
+					dir: this.dir,
+					blob: await this.toBlob(file),
+				}),
 			);
 		}
 
-		const filepaths = files.map((f) => f.path);
-		await git.add({
-			fs: this.fs,
-			dir: this.dir,
-			filepath: filepaths,
-			cache,
-		});
+		const sha = await this.commitChanges(branch, message, changes);
 
-		const sha = await git.commit({
-			fs: this.fs,
-			dir: this.dir,
-			message,
-			author: COMMIT_AUTHOR,
-			cache,
-		});
+		if (sha === null) return { sha: "" };
 
 		await this.pushWithRetry(branch);
+
 		return { sha };
 	}
 
@@ -139,55 +231,188 @@ export class BundledGitBackend implements GitBackend {
 		if (paths.length === 0) return { sha: "", removedCount: 0 };
 		await this.ensureRepoReady(branch);
 
+		// Absence must be detected before committing: deleting nothing and
+		// committing anyway produces an empty commit and reports progress for
+		// work that never happened.
+		const present = new Set(
+			(await this.readTree(branch))
+				.filter((entry) => entry.type === "blob")
+				.map((entry) => entry.path),
+		);
+
+		const changes = new Map<string, string | null>();
+		// Counts requested paths that matched, not the files they expanded to:
+		// callers drive progress from this against the list they supplied.
+		let removedCount = 0;
+
+		for (const path of paths) {
+			if (present.has(path)) {
+				changes.set(path, null);
+				removedCount += 1;
+				continue;
+			}
+
+			let matched = false;
+
+			for (const candidate of present) {
+				if (candidate.startsWith(`${path}/`)) {
+					changes.set(candidate, null);
+					matched = true;
+				}
+			}
+
+			if (matched) removedCount += 1;
+		}
+
+		if (removedCount === 0) return { sha: "", removedCount: 0 };
+
+		const sha = await this.commitChanges(branch, message, changes);
+
+		if (sha === null) return { sha: "", removedCount: 0 };
+
+		await this.pushWithRetry(branch);
+
+		return { sha, removedCount };
+	}
+
+	/**
+	 * Commit path changes by writing objects, never a working tree.
+	 *
+	 * A checkout would materialize every file in the repository, which on a
+	 * blobless clone means fetching back all the content the filter omitted.
+	 * Building the tree directly touches only the directories on the path to a
+	 * change; every other entry is carried over by oid.
+	 *
+	 * @returns The new commit sha, or null when the tree is unchanged.
+	 */
+	private async commitChanges(
+		branch: string,
+		message: string,
+		changes: Map<string, string | null>,
+	): Promise<string | null> {
 		const remoteCommit = await git.resolveRef({
 			fs: this.fs,
 			dir: this.dir,
 			ref: `origin/${branch}`,
 		});
-		await this.resetToCommit(remoteCommit, branch);
-
-		const cache = {};
-
-		// git.remove cannot report absence: GitIndex.delete() no-ops for an
-		// unknown path and still marks the index dirty, so committing after it
-		// produces a commit for zero real changes. Membership must be tested
-		// against the index up front.
-		const indexedPaths = await git.listFiles({
+		const { commit } = await git.readCommit({
 			fs: this.fs,
 			dir: this.dir,
-			cache,
+			oid: remoteCommit,
 		});
-		const indexed = new Set(indexedPaths);
-		const isIndexed = (path: string): boolean =>
-			indexed.has(path) ||
-			indexedPaths.some((entry) => entry.startsWith(`${path}/`));
 
-		let removedCount = 0;
+		const root = emptyChangeNode();
 
-		for (const path of paths) {
-			if (!isIndexed(path)) continue;
+		for (const [path, oid] of changes) {
+			const segments = path.split("/").filter(Boolean);
+			const name = segments.pop();
+			if (name === undefined) continue;
 
-			await git.remove({
-				fs: this.fs,
-				dir: this.dir,
-				filepath: path,
-				cache,
-			});
-			removedCount += 1;
+			let node = root;
+
+			for (const segment of segments) {
+				let child = node.dirs.get(segment);
+
+				if (!child) {
+					child = emptyChangeNode();
+					node.dirs.set(segment, child);
+				}
+				node = child;
+			}
+			node.files.set(name, oid);
 		}
 
-		if (removedCount === 0) return { sha: "", removedCount: 0 };
+		const tree = await this.writeTreeWithChanges(commit.tree, root);
 
-		const sha = await git.commit({
+		if (tree === commit.tree) return null;
+
+		const now = Math.floor(Date.now() / 1000);
+
+		const sha = await git.writeCommit({
 			fs: this.fs,
 			dir: this.dir,
-			message,
-			author: COMMIT_AUTHOR,
-			cache,
+			commit: {
+				tree: tree ?? EMPTY_TREE_OID,
+				parent: [remoteCommit],
+				author: { ...COMMIT_AUTHOR, timestamp: now, timezoneOffset: 0 },
+				committer: {
+					...COMMIT_AUTHOR,
+					timestamp: now,
+					timezoneOffset: 0,
+				},
+				message: message.endsWith("\n") ? message : `${message}\n`,
+			},
 		});
 
-		await this.pushWithRetry(branch);
-		return { sha, removedCount };
+		await git.writeRef({
+			fs: this.fs,
+			dir: this.dir,
+			ref: `refs/heads/${branch}`,
+			value: sha,
+			force: true,
+		});
+
+		return sha;
+	}
+
+	/**
+	 * @returns The new tree oid, or null when the directory became empty —
+	 * git has no empty directories, so the parent must drop the entry.
+	 */
+	private async writeTreeWithChanges(
+		baseOid: string | null,
+		node: ChangeNode,
+	): Promise<string | null> {
+		const base = baseOid
+			? await git.readTree({ fs: this.fs, dir: this.dir, oid: baseOid })
+			: { tree: [] };
+
+		const entries = new Map(base.tree.map((entry) => [entry.path, entry]));
+
+		for (const [name, oid] of node.files) {
+			if (oid === null) {
+				entries.delete(name);
+				continue;
+			}
+
+			entries.set(name, {
+				// Reuse the existing mode so an executable bit or a symlink is
+				// not silently rewritten into a plain file on republish.
+				mode: entries.get(name)?.mode ?? "100644",
+				path: name,
+				oid,
+				type: "blob",
+			});
+		}
+
+		for (const [name, child] of node.dirs) {
+			const existing = entries.get(name);
+
+			const childOid = await this.writeTreeWithChanges(
+				existing?.type === "tree" ? existing.oid : null,
+				child,
+			);
+
+			if (childOid === null) {
+				entries.delete(name);
+				continue;
+			}
+
+			entries.set(name, {
+				mode: "040000",
+				path: name,
+				oid: childOid,
+				type: "tree",
+			});
+		}
+
+		if (entries.size === 0) return null;
+
+		return git.writeTree({
+			fs: this.fs,
+			dir: this.dir,
+			tree: [...entries.values()],
+		});
 	}
 
 	async getRemoteInfo(): Promise<RemoteInfo> {
@@ -338,23 +563,58 @@ export class BundledGitBackend implements GitBackend {
 	private async ensureRepoReady(branch: string): Promise<void> {
 		if (!this.initialized) {
 			const hasRepo = await this.pathExists(`${this.dir}/.git`);
+
 			if (!hasRepo) {
-				// Skip materializing the working tree: reads go through
-				// readTree/readBlob (object-level), and both write paths call
-				// resetToCommit(), which checks out before staging.
+				const strategy = await this.resolveStrategy();
+
+				if (strategy.kind === "refuse") {
+					throw new Error(strategy.reason);
+				}
+
+				if (strategy.kind === "full") {
+					await git.clone({
+						fs: this.fs,
+						dir: this.dir,
+						url: this.config.remoteUrl,
+						ref: branch,
+						singleBranch: true,
+						depth: 1,
+						noCheckout: true,
+						...this.networkOptions(),
+					});
+					this.partial = false;
+					this.initialized = true;
+
+					return;
+				}
+
+				// Nothing ever needs a working tree: reads go through
+				// readTree/readBlobs and writes build trees object-by-object.
+				//
+				// `noCheckout` alone still downloads every blob at HEAD, which
+				// on a media-heavy repository is gigabytes fetched to answer a
+				// question the tree objects already answer. `blob:none` omits
+				// them; readBlobs() fetches back only what is actually read.
 				await git.clone({
 					fs: this.fs,
 					dir: this.dir,
 					url: this.config.remoteUrl,
 					ref: branch,
 					singleBranch: true,
-					depth: 1,
 					noCheckout: true,
+					// No `depth`: commits and trees are small once blobs are
+					// filtered out, and a shallow history truncates the
+					// merge-base that push relies on to know which objects the
+					// remote already has.
+					filter: "blob:none",
 					...this.networkOptions(),
 				});
+				this.partial = true;
 				this.initialized = true;
+
 				return;
 			}
+			this.partial = await this.hasPromisorPack();
 		}
 
 		await git.fetch({
@@ -363,33 +623,54 @@ export class BundledGitBackend implements GitBackend {
 			url: this.config.remoteUrl,
 			ref: branch,
 			singleBranch: true,
+			// Must match the clone: an unfiltered fetch against a partial clone
+			// re-downloads every blob it previously omitted.
+			...(this.partial ? { filter: "blob:none" } : {}),
 			...this.networkOptions(),
 		});
 		this.initialized = true;
 	}
 
-	private async resetToCommit(
-		commitOid: string,
-		branch: string,
-	): Promise<void> {
-		await git.checkout({
-			fs: this.fs,
-			dir: this.dir,
-			ref: commitOid,
-			force: true,
+	/**
+	 * Servers that cannot filter still have to be handled, and the only safe
+	 * unfiltered clone is one small enough to buffer whole.
+	 */
+	private async resolveStrategy(): Promise<CloneStrategy> {
+		// Deliberately not caught: a connection failure here is the same
+		// failure the clone would hit, and swallowing it would fall through to
+		// the unbounded full clone this check exists to prevent.
+		const info = await git.getRemoteInfo({
+			url: this.config.remoteUrl,
+			...this.networkOptions(),
 		});
-		await git.branch({
-			fs: this.fs,
-			dir: this.dir,
-			ref: branch,
-			object: commitOid,
-			force: true,
-		});
-		await git.checkout({
-			fs: this.fs,
-			dir: this.dir,
-			ref: branch,
-		});
+		const capabilities = info.capabilities ? [...info.capabilities] : [];
+
+		// Only pay for the size lookup when it can change the answer.
+		if (capabilities.includes("filter")) {
+			return resolveCloneStrategy(capabilities, null);
+		}
+
+		return resolveCloneStrategy(
+			capabilities,
+			await fetchRepositorySize(
+				this.config.remoteUrl,
+				this.http,
+				this.getAuth()?.password,
+			),
+			{ allowLargeFullClone: this.config.allowLargeFullClone },
+		);
+	}
+
+	private async hasPromisorPack(): Promise<boolean> {
+		try {
+			const names = await this.fs.promises.readdir(
+				`${this.dir}/.git/objects/pack`,
+			);
+
+			return names.some((name) => name.endsWith(".promisor"));
+		} catch {
+			return false;
+		}
 	}
 
 	private async pushWithRetry(branch: string): Promise<void> {
@@ -416,6 +697,18 @@ export class BundledGitBackend implements GitBackend {
 		throw lastError;
 	}
 
+	private async toBlob(file: FileChange): Promise<Uint8Array> {
+		const content = await resolveFileContent(file.content);
+
+		if (content instanceof Uint8Array) return content;
+
+		if (file.encoding === "base64") {
+			return Uint8Array.from(atob(content), (c) => c.charCodeAt(0));
+		}
+
+		return new TextEncoder().encode(content);
+	}
+
 	private async pathExists(path: string): Promise<boolean> {
 		try {
 			await this.fs.promises.stat(path);
@@ -423,30 +716,6 @@ export class BundledGitBackend implements GitBackend {
 		} catch {
 			return false;
 		}
-	}
-
-	private async ensureParentDir(path: string): Promise<void> {
-		const parts = path.split("/");
-		if (parts.length <= 1) return;
-		let current = this.dir;
-		for (let i = 0; i < parts.length - 1; i++) {
-			current = `${current}/${parts[i]}`;
-			try {
-				await this.fs.promises.mkdir(current);
-			} catch {
-				// directory may already exist
-			}
-		}
-	}
-
-	private toWriteData(file: FileChange): string | Uint8Array {
-		if (file.encoding === "base64" && typeof file.content === "string") {
-			return Buffer.from(file.content, "base64");
-		}
-		if (typeof file.content === "string") {
-			return file.content;
-		}
-		return file.content;
 	}
 }
 

@@ -9,7 +9,11 @@ import {
 import { createHash } from "node:crypto";
 import { Publisher } from "src/publisher/Publisher";
 import { RemotePublishBackend } from "src/publisher/RemotePublishBackend";
-import type { GitBackend, TreeEntry } from "src/git/types";
+import {
+	resolveFileContent,
+	type GitBackend,
+	type TreeEntry,
+} from "src/git/types";
 import { PublishFile } from "src/publishFile/PublishFile";
 import type QuartzSyncerSettings from "src/models/settings";
 import type QuartzSyncer from "src/main";
@@ -626,6 +630,34 @@ describe("Publisher", () => {
 			type: "blob",
 		};
 
+		// Media is staged as a thunk so a batch does not hold every asset at
+		// once. Resolving it here is what a backend does when it writes, and
+		// keeps these assertions written against the bytes that land.
+		const stagedFor = async (backendMock: GitBackend, call = 0) =>
+			Promise.all(
+				(
+					vi.mocked(backendMock.writeFiles).mock.calls[call]?.[2] ??
+					[]
+				).map(async (change) => {
+					const resolved = await resolveFileContent(change.content);
+
+					return resolved instanceof Uint8Array
+						? {
+								path: change.path,
+								content: arrayBufferToBase64(
+									new Uint8Array(resolved)
+										.buffer as ArrayBuffer,
+								),
+								encoding: "base64" as const,
+							}
+						: {
+								path: change.path,
+								content: resolved,
+								encoding: change.encoding,
+							};
+				}),
+			);
+
 		const setup = async (tree?: TreeEntry[]) => {
 			const gitBackend = makeGitBackend({
 				readTree: vi.fn().mockResolvedValue(tree ?? []),
@@ -697,7 +729,7 @@ describe("Publisher", () => {
 				makePublishFile("notes/a.md"),
 			]);
 			expect(result.success).toBe(true);
-			expect(cachedTree).toHaveBeenCalledExactlyOnceWith("main", true);
+			expect(cachedTree).toHaveBeenCalledExactlyOnceWith("main");
 			expect(gitBackend.writeFiles).toHaveBeenCalledExactlyOnceWith(
 				"main",
 				"Publish notes",
@@ -725,9 +757,7 @@ describe("Publisher", () => {
 				"isInContentFolder",
 			).mockReturnValue(false);
 			await publisher.publishBatch([makePublishFile("notes/a.md")]);
-			expect(
-				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
-			).toHaveLength(1);
+			expect(await stagedFor(gitBackend)).toHaveLength(1);
 		});
 
 		it.each([
@@ -740,16 +770,14 @@ describe("Publisher", () => {
 		])("stages media for %s", async (_label, tree) => {
 			const { publisher, gitBackend } = await setup(tree);
 			await publisher.publishBatch([makePublishFile("notes/a.md")]);
-			expect(vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2]).toEqual(
-				[
-					{
-						path: "site/notes/a.md",
-						content: "hello",
-						encoding: "utf-8",
-					},
-					assetChange,
-				],
-			);
+			expect(await stagedFor(gitBackend)).toEqual([
+				{
+					path: "site/notes/a.md",
+					content: "hello",
+					encoding: "utf-8",
+				},
+				assetChange,
+			]);
 		});
 
 		it.each(["cold", "null", "rejected"])(
@@ -780,9 +808,7 @@ describe("Publisher", () => {
 					makePublishFile("notes/a.md"),
 				]);
 				expect(result.success).toBe(true);
-				expect(
-					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
-				).toEqual([
+				expect(await stagedFor(gitBackend)).toEqual([
 					{
 						path: "site/notes/a.md",
 						content: "hello",
@@ -791,12 +817,19 @@ describe("Publisher", () => {
 					assetChange,
 					{ ...assetChange, path: "site/images/second.png" },
 				]);
-				expect(gitBackend.readTree).toHaveBeenCalledTimes(1);
+				// A cold cache now fetches the tree to decide which assets are
+				// already published; the other two states stub getCachedTree
+				// so the transport is never reached.
+				const readCalls = vi.mocked(gitBackend.readTree).mock;
+				expect(readCalls.calls).toHaveLength(state === "cold" ? 2 : 1);
+				// The post-write refresh is always the last read.
 				expect(
 					vi.mocked(gitBackend.writeFiles).mock
 						.invocationCallOrder[0],
 				).toBeLessThan(
-					vi.mocked(gitBackend.readTree).mock.invocationCallOrder[0]!,
+					readCalls.invocationCallOrder[
+						readCalls.invocationCallOrder.length - 1
+					]!,
 				);
 			},
 		);
@@ -811,21 +844,19 @@ describe("Publisher", () => {
 				makePublishFile("notes/a.md"),
 				makePublishFile("notes/b.md"),
 			]);
-			expect(vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2]).toEqual(
-				[
-					{
-						path: "site/notes/a.md",
-						content: "hello",
-						encoding: "utf-8",
-					},
-					assetChange,
-					{
-						path: "site/notes/b.md",
-						content: "hello",
-						encoding: "utf-8",
-					},
-				],
-			);
+			expect(await stagedFor(gitBackend)).toEqual([
+				{
+					path: "site/notes/a.md",
+					content: "hello",
+					encoding: "utf-8",
+				},
+				assetChange,
+				{
+					path: "site/notes/b.md",
+					content: "hello",
+					encoding: "utf-8",
+				},
+			]);
 		});
 
 		it("does not deduplicate against assets discarded with a failed note", async () => {
@@ -838,16 +869,14 @@ describe("Publisher", () => {
 				makePublishFile("notes/b.md"),
 			]);
 			expect(result.filesPublished).toBe(1);
-			expect(vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2]).toEqual(
-				[
-					{
-						path: "site/notes/b.md",
-						content: "hello",
-						encoding: "utf-8",
-					},
-					assetChange,
-				],
-			);
+			expect(await stagedFor(gitBackend)).toEqual([
+				{
+					path: "site/notes/b.md",
+					content: "hello",
+					encoding: "utf-8",
+				},
+				assetChange,
+			]);
 		});
 
 		it("stages media when hashing fails", async () => {
@@ -860,9 +889,7 @@ describe("Publisher", () => {
 					makePublishFile("notes/a.md"),
 				]);
 				expect(result.success).toBe(true);
-				expect(
-					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
-				).toContainEqual(assetChange);
+				expect(await stagedFor(gitBackend)).toContainEqual(assetChange);
 			} finally {
 				digest.mockRestore();
 			}
@@ -879,9 +906,7 @@ describe("Publisher", () => {
 				makePublishFile("notes/a.md"),
 			]);
 			expect(result.success).toBe(true);
-			expect(
-				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
-			).toContainEqual(assetChange);
+			expect(await stagedFor(gitBackend)).toContainEqual(assetChange);
 		});
 
 		it("reuses cached SHA without reading or hashing unchanged media across notes", async () => {
@@ -903,9 +928,7 @@ describe("Publisher", () => {
 					[asset.vaultPath],
 				);
 				expect(dataStore.storeAssetShas).not.toHaveBeenCalled();
-				expect(
-					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
-				).toHaveLength(2);
+				expect(await stagedFor(gitBackend)).toHaveLength(2);
 			} finally {
 				digest.mockRestore();
 			}
@@ -939,12 +962,78 @@ describe("Publisher", () => {
 				).toHaveBeenCalledExactlyOnceWith(
 					new Map([[asset.vaultPath, { mtime: 2000, gitSha: sha }]]),
 				);
-				const changes = vi.mocked(gitBackend.writeFiles).mock
-					.calls[0]?.[2];
+				const changes = await stagedFor(gitBackend);
 				expect(changes).toHaveLength(matches ? 2 : 3);
 				if (!matches) expect(changes).toContainEqual(assetChange);
 			},
 		);
+
+		it("reports nothing done when the tree is already up to date", async () => {
+			const { publisher, gitBackend } = await setup([remoteAsset]);
+			// An unchanged tree makes the backend skip the commit entirely.
+			vi.mocked(gitBackend.writeFiles).mockResolvedValue({ sha: "" });
+
+			const result = await publisher.publishBatch([
+				makePublishFile("notes/a.md"),
+			]);
+
+			expect(result.success).toBe(true);
+			expect(result.unchanged).toBe(true);
+			expect(result.filesPublished).toBe(0);
+			expect(result.commitSha).toBeUndefined();
+		});
+
+		it("stages assets deferred, so a batch never holds their bytes", async () => {
+			const { publisher, gitBackend, dataStore } = await setup();
+
+			vi.mocked(dataStore.loadLocalFile).mockResolvedValue([
+				"hello",
+				{
+					blobs: [
+						asset,
+						{ ...asset, path: "/vault/images/second.png" },
+						{ ...asset, path: "/vault/images/third.png" },
+					],
+				},
+			]);
+
+			await publisher.publishBatch([makePublishFile("notes/a.md")]);
+
+			const staged =
+				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2] ?? [];
+			const assets = staged.filter((change) =>
+				change.path.startsWith("site/images/"),
+			);
+			expect(assets).toHaveLength(3);
+
+			// Every asset is a thunk, so the peak cost of staging the batch is
+			// one asset at a time rather than all of them.
+			for (const change of assets) {
+				expect(typeof change.content).toBe("function");
+			}
+
+			// And each still resolves to the real bytes.
+			for (const change of assets) {
+				expect(await resolveFileContent(change.content)).toEqual(bytes);
+			}
+		});
+
+		it("skips an unchanged asset even when the tree cache starts cold", async () => {
+			const { publisher, gitBackend } = await setup([remoteAsset]);
+
+			// setup() warms the cache when given a tree; drop it so the skip
+			// guard has to fetch, which is the case that used to skip nothing.
+			await publisher.refreshTreeCache();
+			vi.mocked(gitBackend.readTree).mockClear();
+
+			await publisher.publishBatch([makePublishFile("notes/a.md")]);
+
+			const staged =
+				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2] ?? [];
+			expect(
+				staged.some((change) => change.path === assetChange.path),
+			).toBe(false);
+		});
 
 		it("reads once to stage a cached SHA that differs from the remote", async () => {
 			const { publisher, app, gitBackend, dataStore } = await setup([]);
@@ -952,10 +1041,8 @@ describe("Publisher", () => {
 				new Map([[asset.vaultPath, { mtime: 1000, gitSha: sha }]]),
 			);
 			await publisher.publishBatch([makePublishFile("a.md")]);
+			expect(await stagedFor(gitBackend)).toContainEqual(assetChange);
 			expect(app.vault.readBinary).toHaveBeenCalledTimes(1);
-			expect(
-				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
-			).toContainEqual(assetChange);
 		});
 
 		it("SHA cache write failures do not prevent staging", async () => {
@@ -967,9 +1054,7 @@ describe("Publisher", () => {
 				(await publisher.publishBatch([makePublishFile("a.md")]))
 					.success,
 			).toBe(true);
-			expect(
-				vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
-			).toContainEqual(assetChange);
+			expect(await stagedFor(gitBackend)).toContainEqual(assetChange);
 		});
 
 		it.each(["missing", "unreadable", "modified during read"])(
@@ -1089,9 +1174,7 @@ describe("Publisher", () => {
 				expect(app.vault.readBinary).toHaveBeenCalledExactlyOnceWith(
 					source,
 				);
-				expect(
-					vi.mocked(gitBackend.writeFiles).mock.calls[0]?.[2],
-				).toEqual([
+				expect(await stagedFor(gitBackend)).toEqual([
 					{
 						path: `site/${path}`,
 						content: compiled[0],

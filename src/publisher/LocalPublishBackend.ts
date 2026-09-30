@@ -1,4 +1,9 @@
-import type { DeleteResult, FileChange, TreeEntry } from "src/git/types";
+import {
+	resolveFileContent,
+	type DeleteResult,
+	type FileChange,
+	type TreeEntry,
+} from "src/git/types";
 import type { PublishBackend } from "src/publisher/PublishBackend";
 import { Platform } from "obsidian";
 import {
@@ -6,13 +11,13 @@ import {
 	writeExternalFile,
 	writeBinaryExternalFile,
 	deleteExternalFile,
-	walkExternalFiles,
 	ensureParentDir,
 	joinPath,
 	resolveExternalPath,
 	resolveWithin,
 } from "src/utils/external-fs";
-import { generateBlobHash } from "src/utils/utils";
+import { walkExternalFileMetadata } from "src/utils/external-file-metadata";
+import { buildCachedLocalTree } from "src/publisher/LocalTreeHashCache";
 
 // Scanning these would walk tens of thousands of files on a real Quartz repo,
 // and none of them are publishable content.
@@ -64,12 +69,12 @@ export class LocalPublishBackend implements PublishBackend {
 		for (const file of files) {
 			const fullPath = this.resolveRepoPath(file.path);
 			await ensureParentDir(fullPath);
+			// Resolved inside the loop so a deferred file's bytes live only for
+			// as long as it takes to write that one file.
+			const content = await resolveFileContent(file.content);
 
-			if (
-				file.encoding === "base64" &&
-				typeof file.content === "string"
-			) {
-				const binary = base64ToUint8Array(file.content);
+			if (file.encoding === "base64" && typeof content === "string") {
+				const binary = base64ToUint8Array(content);
 				const success = await writeBinaryExternalFile(fullPath, binary);
 
 				if (!success) {
@@ -77,10 +82,10 @@ export class LocalPublishBackend implements PublishBackend {
 						`Failed to write binary file: ${file.path}`,
 					);
 				}
-			} else if (file.content instanceof Uint8Array) {
+			} else if (content instanceof Uint8Array) {
 				const success = await writeBinaryExternalFile(
 					fullPath,
-					file.content,
+					content,
 				);
 
 				if (!success) {
@@ -89,7 +94,7 @@ export class LocalPublishBackend implements PublishBackend {
 					);
 				}
 			} else {
-				const success = await writeExternalFile(fullPath, file.content);
+				const success = await writeExternalFile(fullPath, content);
 
 				if (!success) {
 					throw new Error(`Failed to write file: ${file.path}`);
@@ -163,26 +168,14 @@ export class LocalPublishBackend implements PublishBackend {
 	}
 
 	private async buildTree(): Promise<TreeEntry[]> {
-		const entries = await walkExternalFiles(
+		const entries = await walkExternalFileMetadata(
 			this.repoPath,
 			IGNORED_DIRECTORIES,
 		);
 
 		if (!entries) return [];
 
-		const tree: TreeEntry[] = [];
-
-		for (const entry of entries) {
-			const fullPath = joinPath(this.repoPath, entry);
-			const content = await readBinaryExternalFile(fullPath);
-			const sha = content !== null ? await generateBlobHash(content) : "";
-
-			tree.push({
-				path: entry,
-				sha,
-				type: "blob",
-			});
-		}
+		const tree = await buildCachedLocalTree(this.repoPath, entries);
 
 		this.cachedTree = tree;
 

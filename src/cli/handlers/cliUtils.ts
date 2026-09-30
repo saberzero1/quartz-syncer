@@ -21,6 +21,7 @@ export function createRepositoryAdapter(
 			remoteUrl: gitSettings.remoteUrl,
 			branch: gitSettings.branch,
 			corsProxyUrl: gitSettings.corsProxyUrl,
+			allowLargeFullClone: gitSettings.allowLargeFullClone,
 			auth: gitSettings.auth,
 		},
 		plugin.app,

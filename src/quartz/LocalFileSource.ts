@@ -35,6 +35,10 @@ export class LocalFileSource implements QuartzFileSource {
 		return readExternalFile(this.resolveBasePath(path));
 	}
 
+	async readFiles(paths: string[]): Promise<(string | null)[]> {
+		return Promise.all(paths.map((path) => this.readFile(path)));
+	}
+
 	async writeFile(path: string, content: string): Promise<void> {
 		const fullPath = this.resolveBasePath(path);
 		await ensureParentDir(fullPath);

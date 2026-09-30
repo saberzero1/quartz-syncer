@@ -2,8 +2,13 @@
  * Bump to orphan every existing clone when the on-disk layout changes.
  * Cleanup shares this constant so it never deletes a clone current code uses,
  * without importing the Git transport or LightningFS itself.
+ *
+ * Generation 3 is the move to blobless (`filter=blob:none`) clones. Reusing a
+ * generation-2 database would be worse than wrong-looking: it already holds
+ * every blob, so nothing would ever miss, the lazy backfill would never run,
+ * and the partial clone would appear to work while being untested.
  */
-export const GIT_FS_GENERATION = 2;
+export const GIT_FS_GENERATION = 3;
 
 /**
  * Build the LightningFS database name for a repository clone.

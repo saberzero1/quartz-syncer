@@ -9,7 +9,10 @@ import {
 	liveCacheNames,
 	surveyForeignCaches,
 } from "src/cache/LegacyCacheCleanup";
-import { parseGitFsGeneration } from "src/git/backends/GitFsName";
+import {
+	GIT_FS_GENERATION,
+	parseGitFsGeneration,
+} from "src/git/backends/GitFsName";
 import { DEFAULT_SETTINGS } from "src/main";
 
 const { createInstance, dropInstance } = vi.hoisted(() => ({
@@ -32,7 +35,10 @@ const scope: CacheScope = {
 const CURRENT_DB = "quartz-syncer/cache/319a0eefd0e81b84/quartz-syncer/2.0.11";
 const LEGACY_DB = "quartz-syncer/cache/myvault/quartz-syncer/2.0.10";
 const LEGACY_FS = "quartz-syncer-s2q7m9";
-const CURRENT_FS = "quartz-syncer-2-319a0eefd0e81b84-s2q7m9";
+const CURRENT_FS = `quartz-syncer-${GIT_FS_GENERATION}-319a0eefd0e81b84-s2q7m9`;
+const OTHER_VAULT_FS = `quartz-syncer-${GIT_FS_GENERATION}-other-vault-abc`;
+const FUTURE_FS = `quartz-syncer-${GIT_FS_GENERATION + 1}-319a0eefd0e81b84-abc`;
+const SUPERSEDED_FS = `quartz-syncer-${GIT_FS_GENERATION - 1}-319a0eefd0e81b84-s2q7m9`;
 
 function setIndexedDB(
 	value: Pick<IDBFactory, "databases"> | object | undefined,
@@ -278,7 +284,7 @@ describe("legacy cache cleanup", () => {
 		it.each([
 			[LEGACY_FS, 1],
 			["quartz-syncer-0", 1],
-			[CURRENT_FS, 2],
+			[CURRENT_FS, GIT_FS_GENERATION],
 			["quartz-syncer-3-319a0eefd0e81b84-abc", 3],
 			["quartz-syncer-1-vault-a-abc", 1],
 			["quartz-syncer-2-vault-a-abc", 2],
@@ -335,8 +341,8 @@ describe("legacy cache cleanup", () => {
 			"quartz-syncer/cache/myvault/other-plugin/2.0.10",
 			"quartz-syncer/cache/319a0eefd0e81b84/other-plugin/2.0.10",
 			CURRENT_FS,
-			"quartz-syncer-2-other-vault-abc",
-			"quartz-syncer-3-319a0eefd0e81b84-abc",
+			OTHER_VAULT_FS,
+			FUTURE_FS,
 			"319a0eefd0e81b84-quartz-syncer-status",
 			"319a0eefd0e81b84-quartz-syncer-hub",
 			"319a0eefd0e81b84-quartz-syncer-tree",
@@ -478,10 +484,11 @@ describe("legacy cache cleanup", () => {
 				"myvault-quartz-syncer-hub",
 				"myvault-quartz-syncer-status",
 				"myvault-quartz-syncer-tree",
+				SUPERSEDED_FS,
 			];
 			const survivors = [
 				"quartz-syncer/cache/319a0eefd0e81b84/quartz-syncer/2.0.11",
-				"quartz-syncer-2-319a0eefd0e81b84-s2q7m9",
+				CURRENT_FS,
 				"319a0eefd0e81b84-quartz-syncer-hub",
 				"319a0eefd0e81b84-quartz-syncer-status",
 				"319a0eefd0e81b84-quartz-syncer-tree",
