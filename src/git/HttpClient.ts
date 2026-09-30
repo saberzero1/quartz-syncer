@@ -262,7 +262,10 @@ export class HttpClient {
 				) {
 					throw e;
 				}
+				if (e instanceof DOMException && e.name === "TimeoutError")
+					throw e;
 				lastError = e;
+
 				if (
 					(method === "GET" || method === "HEAD") &&
 					attempt < this.maxRetries
@@ -270,8 +273,6 @@ export class HttpClient {
 					await sleep(RETRY_DELAYS[attempt] ?? 4000);
 					continue;
 				}
-				if (e instanceof DOMException && e.name === "TimeoutError")
-					throw e;
 				break;
 			}
 		}
@@ -335,13 +336,19 @@ export class HttpClient {
 			} catch (e) {
 				if (request.signal?.aborted)
 					throw new DOMException("Request aborted", "AbortError");
+
+				// Must precede the retry branch: `withTimeout` stops waiting but
+				// cannot cancel a `requestUrl`, so retrying a timed-out packfile
+				// fetch leaves the old transfer downloading and multiplies peak
+				// main-process memory by the retry count.
+				if (e instanceof DOMException && e.name === "TimeoutError")
+					throw e;
 				lastError = e;
+
 				if (retryableEndpoint && attempt < this.maxRetries) {
 					await sleep(RETRY_DELAYS[attempt] ?? 4000);
 					continue;
 				}
-				if (e instanceof DOMException && e.name === "TimeoutError")
-					throw e;
 				break;
 			}
 		}

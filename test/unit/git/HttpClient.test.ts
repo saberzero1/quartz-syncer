@@ -261,6 +261,54 @@ describe("HttpClient", () => {
 		});
 	});
 
+	// `withTimeout` cannot cancel a `requestUrl`, so each retry of a timed-out
+	// transfer adds a concurrent download rather than replacing it. On a large
+	// packfile that is the difference between one transfer and four.
+	describe("timed-out transfers are never replayed", () => {
+		beforeEach(() => {
+			vi.useFakeTimers();
+			client = new HttpClient();
+		});
+
+		afterEach(() => vi.useRealTimers());
+
+		it("does not replay git-upload-pack after a timeout", async () => {
+			mockRequestUrl.mockReturnValue(new Promise(() => {}));
+			const assertion = expect(
+				client.request({
+					url: "https://example.com/repo.git/git-upload-pack",
+					method: "POST",
+				}),
+			).rejects.toMatchObject({ name: "TimeoutError" });
+			await vi.advanceTimersByTimeAsync(300_000);
+			await assertion;
+			expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+		});
+
+		it("does not replay info/refs after a timeout", async () => {
+			mockRequestUrl.mockReturnValue(new Promise(() => {}));
+			const assertion = expect(
+				client.request({
+					url: "https://example.com/repo.git/info/refs",
+					method: "GET",
+				}),
+			).rejects.toMatchObject({ name: "TimeoutError" });
+			await vi.advanceTimersByTimeAsync(300_000);
+			await assertion;
+			expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+		});
+
+		it("does not replay a GET after a timeout", async () => {
+			mockRequestUrl.mockReturnValue(new Promise(() => {}));
+			const assertion = expect(
+				client.get("https://api.example.com/test"),
+			).rejects.toMatchObject({ name: "TimeoutError" });
+			await vi.advanceTimersByTimeAsync(30_000);
+			await assertion;
+			expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+		});
+	});
+
 	describe("rate limit header parsing", () => {
 		it("calls onRateLimit with remaining count", async () => {
 			const onRateLimit = vi.fn();
