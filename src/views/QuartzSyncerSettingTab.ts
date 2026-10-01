@@ -186,14 +186,14 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 
 		frag.createEl("a", {
 			text: "Setup guide",
-			href: "https://saberzero1.github.io/quartz-syncer-docs/Setup-Guide",
+			href: "https://saberzero1.github.io/quartz-syncer-docs/setup-guide",
 		});
 
 		frag.createSpan({ text: " · " });
 
 		frag.createEl("a", {
 			text: "Troubleshooting",
-			href: "https://saberzero1.github.io/quartz-syncer-docs/Troubleshooting/",
+			href: "https://saberzero1.github.io/quartz-syncer-docs/troubleshooting/",
 		});
 
 		return frag;

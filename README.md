@@ -40,15 +40,15 @@ Alternatively, install through the [Obsidian42 Brat plugin](https://github.com/T
 >
 > For the most up-to-date information on Quartz Syncer, please refer to the [official documentation](https://saberzero1.github.io/quartz-syncer-docs/).
 
-New to Quartz Syncer? Please follow the [setup guide](https://saberzero1.github.io/quartz-syncer-docs/Setup-Guide) to get started.
+New to Quartz Syncer? Please follow the [setup guide](https://saberzero1.github.io/quartz-syncer-docs/setup-guide) to get started.
 
 ## Usage
 
-Unsure on how to use Quartz Syncer, or just curious about its usage? Check the [usage guide](https://saberzero1.github.io/quartz-syncer-docs/Usage-Guide).
+Unsure on how to use Quartz Syncer, or just curious about its usage? Check the [usage guide](https://saberzero1.github.io/quartz-syncer-docs/usage-guide).
 
 ## Advanced usage
 
-For more advanced usages of Quartz Syncer, check the [guides section](https://saberzero1.github.io/quartz-syncer-docs/Guides/).
+For more advanced usages of Quartz Syncer, check the [guides section](https://saberzero1.github.io/quartz-syncer-docs/guides/).
 
 ## CLI
 
@@ -143,7 +143,7 @@ obsidian quartz-syncer:sync force
 >
 > For issues or questions related to Quartz, not Quartz Syncer, please consult the [Quartz documentation](https://quartz.jzhao.xyz/) or reach out through the communication channels provided there.
 
-If you need help with Quartz Syncer, or if you have a question, please first check the [troubleshooting section](https://saberzero1.github.io/quartz-syncer-docs/Troubleshooting/). If your question or issue is not listed, feel free to [reach out for help](https://saberzero1.github.io/quartz-syncer-docs/Troubleshooting/#i-have-a-different-issue-not-listed-here).
+If you need help with Quartz Syncer, or if you have a question, please first check the [troubleshooting section](https://saberzero1.github.io/quartz-syncer-docs/troubleshooting/). If your question or issue is not listed, feel free to [reach out for help](https://saberzero1.github.io/quartz-syncer-docs/troubleshooting/#i-have-a-different-issue-not-listed-here).
 
 ## Disclosures
 

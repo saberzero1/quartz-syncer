@@ -207,7 +207,7 @@ export class GitSettingsPage extends SettingPageBase {
 
 		desc.createEl("a", {
 			text: "Documentation",
-			href: "https://saberzero1.github.io/quartz-syncer-docs/Settings/Git/Access-Token",
+			href: "https://saberzero1.github.io/quartz-syncer-docs/settings/git/access-token",
 		});
 
 		const hasToken = this.plugin.secretStorageService.hasToken();

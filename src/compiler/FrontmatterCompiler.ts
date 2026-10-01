@@ -36,7 +36,7 @@ export type TPublishedFrontMatter = Record<string, unknown> & {
  * This class is responsible for compiling the frontmatter of a file.
  * It adds the permalink, default pass-throughs, timestamps, tags, CSS classes, and social image to the frontmatter.
  *
- * Documentation: {@link https://saberzero1.github.io/quartz-syncer-docs/Settings/Note-properties/}
+ * Documentation: {@link https://saberzero1.github.io/quartz-syncer-docs/settings/note-properties/}
  */
 /**
  * Parse a frontmatter value that may be a comma-separated string or an array.
