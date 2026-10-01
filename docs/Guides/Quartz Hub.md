@@ -2,73 +2,150 @@
 title: Quartz Hub
 description: Managing your local Quartz repository from within Obsidian.
 created: 2026-08-30T12:00:00Z+0200
-modified: 2026-08-30T12:00:00Z+0200
+modified: 2026-10-01T12:00:00Z+0200
 publish: true
 tags: [guides]
 ---
 
-The Quartz Hub is a desktop-only modal for managing a local Quartz repository directly from Obsidian. It provides repository status, configuration editing, plugin management, and local preview capabilities.
+The Quartz Hub is a desktop-only modal for managing a local Quartz repository from inside Obsidian — status, builds, local preview, plugins, site configuration, layout and templates.
 
 > [!NOTE] Desktop only
 >
-> The Quartz Hub requires a local Quartz repository and Node.js v22 or later. It is only available on desktop.
+> The Hub runs the Quartz CLI against a checkout on disk. It needs:
+>
+> - A desktop Obsidian install. On mobile the command is not registered.
+> - A [[Local Quartz repo path|local Quartz repo path]].
+> - [[Enable system commands]] turned on.
+> - Node.js 18 or later on your system path. Quartz v5's own CLI wants Node 22 or later, so that is the practical floor if you intend to build.
+
+> [!TIP] The Hub is independent of your publish destination
+>
+> The Hub always uses [[Local Quartz repo path]], regardless of whether [[Publish to]] is set to **Remote repository** or **Local folder**. You can publish to a remote and still manage a local checkout here.
 
 ## Opening the Quartz Hub
 
-There are three ways to open the Quartz Hub:
+1. From the command palette: `Quartz Syncer: Open Quartz Hub`.
+2. From Quartz Syncer settings: the **Open Quartz Hub** button on the desktop-only **Quartz** screen.
+3. From the [[Settings/Overview/index|Overview]] screen, when it offers **Link a local Quartz repo**.
 
-1. From the command palette: `Quartz Syncer: Open Quartz Hub`
-2. From Quartz Syncer settings: click the **Open Quartz Hub** button
-3. From the CLI: `obsidian quartz-syncer:repo action=info`
+## Tabs
+
+The Hub has six tabs:
+
+| Tab | Purpose | Requires Quartz v5 |
+| --- | --- | --- |
+| [[#Overview tab\|Overview]] | Status and actions | No |
+| [[#Plugins tab\|Plugins]] | Install, enable, disable and remove Quartz plugins | Yes |
+| [[#Config tab\|Config]] | Edit `quartz.config.yaml` | Yes |
+| [[#Layout tab\|Layout]] | Inspect and reorder layout plugin placement | Yes |
+| [[#Templates tab\|Templates]] | Apply a Quartz starter template | Yes |
+| [[#Setup tab\|Setup]] | Link or clone a local repository | No |
+
+On a Quartz v4 repository the four v5-only tabs report that site management requires v5. Publishing to that repository still works — see [[Setup Guide#Quartz v4 and v5]].
 
 ## Overview tab
 
-The Overview tab shows the current status of your local Quartz repository:
+### Status
 
-- **Repository path**: the local path to your Quartz repository
-- **Quartz version**: the installed Quartz version
-- **Node.js**: detected Node.js version and path
-- **Serve state**: whether the local preview server is running
+| Row | Shows |
+| --- | --- |
+| **Repository** | The local path, and whether it validates as a Quartz checkout |
+| **Quartz version** | The detected config format (`v5 (YAML)`, `v5 (JSON)`, `v4`) and the installed Quartz package version |
+| **Binaries** | Which of `node`, `npm`, `npx` and `git` were found |
+| **Preview server** | Whether the local preview server is running, and on which port |
 
-Action buttons:
+### Actions
 
-| Action | Description |
-|---|---|
-| **Preview** | Start the Quartz dev server for local preview |
-| **Build** | Run `npx quartz build` to build the site |
-| **Update** | Pull upstream Quartz changes |
-| **Install deps** | Run `npm install` to install/update dependencies |
-| **Plugins** | Switch to the Plugins tab |
-| **Open folder** | Open the repository folder in your file manager |
+| Action | Effect |
+| --- | --- |
+| **Preview** | Starts the Quartz dev server. Takes 15–20 seconds to come up. A **Stop** button appears while it runs. |
+| **Build** | Runs `npx quartz build`. Typically 5–15 seconds. |
+| **Update** | Pulls upstream Quartz changes. Quartz v5 only, and requires `git` on your system path. |
+| **Install deps** | Runs `npm install`. Expect 30 seconds or more. |
+| **Plugins** | Switches to the Plugins tab. |
+| **Open folder** | Opens the repository in your system file manager. |
+
+Each long-running action opens a terminal output modal streaming the command's output, with buttons to cancel, copy or close.
+
+### When actions are unavailable
+
+- **[[Enable system commands]] is off** → *"Enable system commands in settings to run local Quartz actions."* No action buttons are shown at all.
+- **Repeated command failures** → *"System commands are temporarily disabled after repeated errors."* A circuit breaker has tripped; the buttons stay disabled until it resets.
+- **No valid repository** → actions report that a local Quartz repo path must be set first. Use the [[#Setup tab|Setup tab]].
+
+> [!NOTE] Upgrade conflicts
+>
+> **Update** preserves your own files and accepts upstream changes for framework files. If you have modified framework files it fails and lists them rather than overwriting your work. See [[Troubleshooting/Quartz]].
 
 ## Setup tab
 
-The Setup tab helps you connect a local Quartz repository:
+Two ways to get a local repository.
 
-- **Link existing repository**: enter the path to an existing local Quartz repository. The path is validated to ensure it contains a valid Quartz installation.
-- **Clone from remote**: provide a remote URL to clone a new Quartz repository locally. This runs `git clone` followed by `npm install`.
+### Link existing repository
+
+Enter the path to a Quartz checkout you already have. The path is validated — it must exist, be a directory, and contain a `quartz.config.*` file — and the result is shown before you save.
+
+### Clone from remote
+
+Give a Git URL and a destination folder. Quartz Syncer runs `git clone`, then `npm install`, then saves the resulting path. Both steps take 30 seconds or more; progress streams into a terminal modal.
+
+Either way, the saved path becomes [[Local Quartz repo path]].
 
 ## Plugins tab
 
 Manage Quartz v5 community plugins:
 
-- View installed plugins with their status (enabled/disabled)
-- Add new plugins from the community registry
-- Remove installed plugins
-- Check for and apply plugin updates
+- List installed plugins with their enabled/disabled status.
+- Enable or disable a plugin.
+- Remove a plugin.
+- Browse the community registry and install from it. The browser supports search, category, source, sort and view controls.
+
+Plugin changes are written to `quartz.config.yaml` and `quartz.lock.json`. Run **Install deps**, or `npx quartz plugin install`, afterwards so newly referenced plugins are actually downloaded into `.quartz/plugins/`.
+
+The equivalent CLI command is [[Guides/CLI#quartz-syncerplugin|`quartz-syncer:plugin`]].
 
 ## Config tab
 
-Edit Quartz site configuration (`quartz.config.yaml`) directly:
+Edit the site-wide options in `quartz.config.yaml`:
 
-- Page title, base URL, locale
-- Theme settings (typography, colors, font origin)
-- SPA mode, popovers, CDN caching
-- Ignore patterns
+| Field | Config key |
+| --- | --- |
+| Page title | `pageTitle` |
+| Page title suffix | `pageTitleSuffix` |
+| Base URL | `baseUrl` |
+| Locale | `locale` |
+| Enable SPA | `enableSPA` |
+| Enable popovers | `enablePopovers` |
 
-Changes are written directly to `quartz.config.yaml` in your local repository.
+**Save** writes the changes to your local checkout.
+
+For keys not exposed here — themes, analytics, ignore patterns — use [[Guides/CLI#quartz-syncerquartz-config|`quartz-syncer:quartz-config`]] or edit `quartz.config.yaml` directly.
+
+> [!NOTE] Config editing is not in plugin settings
+>
+> Quartz site configuration lives here, in the Hub. Quartz Syncer's own **Quartz** settings screen only configures how the plugin talks to the repository — [[Content folder]], [[Local Quartz repo path]] and [[Enable system commands]].
+
+## Layout tab
+
+Inspect how your Quartz plugins are laid out, and adjust their ordering:
+
+- **Positions** — which plugins occupy each layout position, with their display mode and group.
+- **Groups** — each group's priority, direction, gap and wrap.
+- **Page type overrides** — per-page-type template and position overrides.
+
+Plugin **priority** values are editable; everything else is read-only. Edit `quartz.config.yaml` for structural changes.
+
+## Templates tab
+
+Lists the Quartz starter templates available to your installation, with an **Apply** button for each.
+
+> [!WARNING] Applying a template replaces configuration
+>
+> A template overwrites your current configuration, plugin list and layout. The Hub asks for confirmation first. If you have hand-tuned any of those, back up `quartz.config.yaml` and `quartz.lock.json` before applying one.
 
 ## Related
 
-- [[Guides/CLI|CLI guide]] — the `repo`, `plugin`, and `quartz-config` CLI commands provide equivalent functionality from the terminal.
-- [[Setup Guide]] — initial repository setup instructions.
+- [[Guides/CLI|CLI guide]] — `repo`, `plugin`, `quartz-config`, `quartz-build`, `quartz-serve`, `quartz-sync` and `upgrade` provide the same functionality from the terminal.
+- [[Local Quartz repo path]] — the setting everything here depends on.
+- [[Enable system commands]] — the switch that enables it all.
+- [[Setup Guide]] — initial repository setup.

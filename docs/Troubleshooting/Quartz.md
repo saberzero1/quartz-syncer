@@ -22,11 +22,19 @@ See [[Using an Obsidian theme in Quartz]].
 
 ## Can I configure Quartz settings from Obsidian using Quartz Syncer?
 
-Yes. Quartz Syncer can read and update `quartz.config.yaml` directly:
+Yes, on desktop, with a [[Local Quartz repo path|local Quartz checkout]] and a Quartz v5 repository:
 
-- **From the UI**: Use the **Quartz** tab in Quartz Syncer's settings to edit site-wide options like page title, base URL, theme, and locale.
-- **From the CLI**: Use the `quartz-syncer:quartz-config` command to read or update configuration values. See the [[Guides/CLI|CLI guide]] for details.
-- **Plugin management**: Use the `quartz-syncer:plugin` command to list, add, remove, and update Quartz v5 plugins. See the [[Guides/CLI|CLI guide]] for details.
+- **From the UI**: the [[Guides/Quartz Hub#Config tab|Quartz Hub's **Config** tab]] edits page title, title suffix, base URL, locale, SPA mode and popovers. The **Layout** and **Templates** tabs handle layout and starter templates.
+- **From the CLI**: [[Guides/CLI#quartz-syncerquartz-config|`quartz-syncer:quartz-config`]] reads and writes any supported config key.
+- **Plugin management**: the [[Guides/Quartz Hub#Plugins tab|Hub's **Plugins** tab]], or [[Guides/CLI#quartz-syncerplugin|`quartz-syncer:plugin`]].
+
+> [!NOTE] Not in the Quartz settings tab
+>
+> Quartz Syncer's own **Quartz** settings screen does *not* edit your site config. It only configures how the plugin talks to the repository — [[Content folder]], [[Local Quartz repo path]] and [[Enable system commands]]. Site configuration lives in the Hub.
+
+> [!WARNING] Requires Quartz v5
+>
+> Config, plugin, layout, template and upgrade management are refused on a Quartz v4 repository: *"Quartz v4 detected. Publishing notes and media is supported; Quartz site management (config, plugins, upgrades) requires Quartz v5."* Publishing to v4 still works — see [[Setup Guide#Quartz v4 and v5]].
 
 ## Quartz plugins fail to build on a fresh clone
 

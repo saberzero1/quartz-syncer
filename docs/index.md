@@ -2,30 +2,41 @@
 title: Quartz Syncer Documentation
 description: Quartz Syncer allows you to manage your Quartz site content from Obsidian.
 created: 2025-04-20T00:00:00Z+0200
-modified: 2026-04-01T17:15:09Z+0200
+modified: 2026-10-01T12:00:00Z+0200
 publish: true
 aliases: [home]
 ---
 
 [Quartz Syncer](https://github.com/saberzero1/quartz-syncer) is an [Obsidian](https://obsidian.md/) plugin for managing and publishing notes to [Quartz](https://quartz.jzhao.xyz/), the fast, batteries-included static-site generator that transforms Markdown content into fully functional websites.
 
-Quartz Syncer supports multiple Git providers including GitHub, GitLab, Bitbucket, Codeberg, Gitea, and self-hosted instances.
+Quartz Syncer supports multiple Git providers including GitHub, GitLab, Bitbucket, Codeberg, Gitea, and self-hosted instances — or no Git provider at all, by [[Publish to|publishing straight into a local Quartz folder]].
 
 Quartz Syncer fully utilizes the capabilities of Obsidian to enable features that would otherwise be hard or impossible to replicate in Quartz, like [[Settings/Integrations/index|integrating Obsidian plugins]], such as [[Settings/Integrations/Dataview|Dataview]], [[Settings/Integrations/Datacore|Datacore]], and [[Settings/Integrations/Fantasy Statblocks|Fantasy Statblocks]], or [[Configuring a specific folder for Quartz content|using a specific folder for Quartz content, instead of the entire vault]].
 
+## Requirements
+
+- Obsidian 1.13.0 or later
+- A Quartz repository — v5 for everything, v4 for publishing only. See [[Setup Guide#Quartz v4 and v5]].
+
+Publishing needs nothing else: no `git` binary, no Node.js, on desktop or mobile. Node.js is only needed for the desktop-only [[Guides/Quartz Hub|Quartz site management]] features.
+
 ## Installation
 
-Install the plugin by downloading it from the Obsidian Community plugins browser in Obsidian.
+Install the plugin from the Obsidian Community plugins browser.
 
-Alternatively, install the plugin by downloading it from the [Release Tab](https://github.com/saberzero1/quartz-syncer/releases), or through the [Obsidian42 Brat plugin](https://github.com/TfTHacker/obsidian42-brat).
+Alternatively, download it from the [Release Tab](https://github.com/saberzero1/quartz-syncer/releases), or install it through the [Obsidian42 Brat plugin](https://github.com/TfTHacker/obsidian42-brat).
 
 ## Setup
 
-New to Quartz Syncer? please follow the [[Setup Guide|setup guide]] to get started.
+New to Quartz Syncer? Please follow the [[Setup Guide|setup guide]] to get started.
 
 ## Usage
 
-Unsure on how to use Quartz Syncer, or just curious about its usage? Check out the [[Usage Guide|usage guide]].
+Unsure how to use Quartz Syncer, or just curious? Check out the [[Usage Guide|usage guide]].
+
+## Settings
+
+Every setting has its own page. See the [[Settings/index|settings reference]], starting with [[Publish to|where publishing goes]].
 
 ## Advanced usage
 
@@ -33,11 +44,11 @@ For more advanced use-cases of Quartz Syncer, check the [[Guides/index|guides se
 
 ## CLI
 
-Quartz Syncer supports the [Obsidian CLI](https://obsidian.md/cli) for automating publishing workflows from the terminal. See the [[Guides/CLI|CLI guide]] for the full command reference.
+Quartz Syncer registers 22 commands with the [Obsidian CLI](https://obsidian.md/cli) for automating publishing workflows from the terminal. See the [[Guides/CLI|CLI guide]] for the full command reference.
 
 ## Quartz Hub
 
-On desktop, the Quartz Hub lets you manage your local Quartz repository, preview your site, and manage plugins — all from within Obsidian. See the [[Guides/Quartz Hub|Quartz Hub guide]].
+On desktop, the Quartz Hub lets you manage your local Quartz repository, build and preview your site, and manage plugins, configuration, layout and templates — all from within Obsidian. See the [[Guides/Quartz Hub|Quartz Hub guide]].
 
 ## Troubleshooting
 

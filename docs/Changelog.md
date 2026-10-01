@@ -2,13 +2,140 @@
 title: Roadmap and Changelog
 description: Changelog and feature roadmap for Quartz Syncer.
 created: 2025-05-16T12:59:31Z+0200
-modified: 2026-07-31T03:11:14Z+0200
+modified: 2026-10-01T12:00:00Z+0200
 publish: true
 ---
 
 ## Upcoming
 
 ## Releases
+
+### Version 2.2.0
+
+- Reading a repository no longer downloads its contents. Quartz Syncer asks the Git server for the file list and hashes only, which is all a publish status needs. On servers that cannot serve that, the full download is refused unless you opt in — see [[Allow large full clones]].
+- A Git request that times out is no longer replayed, so a slow network cannot cause the same operation to be applied twice.
+- `moment` is pinned to the patched 2.31.0.
+
+### Version 2.1.0
+
+#### Publication Center
+
+- **Delete is enabled only for a deletable selection.** Selecting only *Changed* or *Unpublished* notes leaves the button disabled, because there is nothing at the destination to remove. See [[Usage Guide#The Delete button]].
+- **Per-row category badges replaced by coloured status rails** — a bar on each row rather than a label repeated on every line.
+- The progress bar is hidden while idle instead of sitting at zero.
+- The header no longer pins its button, so it stays usable at narrow widths.
+
+#### Appearance
+
+- Every surface now derives from a shared design-token layer, so Quartz Syncer reacts correctly to light/dark mode and third-party themes. Status colours are consistent between the Publication Center, settings and the Quartz Hub.
+- Quartz Hub status is shown as aligned rows and status chips, and the settings status block is laid out on a grid.
+- Onboarding choice-card titles no longer wrap onto four lines.
+- Empty category headers now actually hide. They had been rendering despite being marked hidden, because component rules outranked the hiding rule.
+
+#### CLI
+
+- **Argument and flag parsing is now explicit.** Each command declares which parameters take values and which are booleans, so a value that looks like a flag is still read as a value. An explicit `force=false` leaves destructive commands disarmed rather than arming them. See [[Guides/CLI#Arguments and flags]].
+- Nine previously undocumented commands are now documented.
+
+#### Other
+
+- Post-creation setup failures in the onboarding wizard are reported instead of being swallowed, so a repository that was created but not fully configured no longer looks like a success.
+- The Quartz repo path is resolved per call rather than when the process runner is constructed, so changing it takes effect without a reload.
+- The settings popout window is disabled.
+
+### Version 2.0.18
+
+- Dynamic-note classification is persisted, so rows show a "checking" state while classification resolves rather than appearing in the wrong category.
+- Dynamic notes are no longer all recompiled when an unrelated note changes.
+- Query-generated embeds are detected from the parsed document rather than by pattern matching, so examples inside code blocks are no longer treated as real embeds.
+- Dynamic compilation is cancelled when the Publication Center closes or the plugin unloads.
+- Orphaned-media cleanup is reachable from the background engine and runs with bounded concurrency.
+- Edits arriving while a file is already compiling are requeued instead of dropped.
+- Remote cache reads no longer return locally-published payloads.
+
+### Version 2.0.17
+
+- Removed two settings that no longer did anything: **Synchronize cache between devices** and **Persist cache after unload**. The cache lives in IndexedDB per vault and survives unloading regardless. See [[Enable caching]].
+
+### Version 2.0.16
+
+- Restored the **Vault root folder** setting to the Git settings page, with folder suggestions. See [[Vault root folder]].
+
+### Version 2.0.14
+
+- **Unpublish from the CLI and the operability facade.** A published note can be removed from the destination while staying in your vault, via `delete action=unpublish` or `pub.unpublish`. See [[Guides/CLI#Unpublishing notes]].
+- The connection test now tests the destination publishing actually uses, rather than always testing the remote.
+- Binary asset bytes are no longer retained in the compilation cache; they are read at publish time instead.
+- Cache reads and writes are batched into bounded transactions.
+- Media links are resolved in a single cache-aware pass rather than once per note.
+- The compilation queue drains in linear time instead of re-sorting on every insertion.
+- Startup no longer compiles the whole vault.
+- Publish candidates are scoped to Markdown files within the configured [[Vault root folder|vault root folder]].
+
+### Version 2.0.13
+
+- A single malformed file is reported and skipped instead of failing the whole operation.
+
+### Version 2.0.12
+
+- **The publish destination is now explicit.** [[Publish to]] selects a remote repository or a local folder, and Quartz Syncer never infers one from whatever happens to be configured. A destination that is selected but unconfigured is reported rather than silently swapped for the other one; the only automatic override is local-on-mobile.
+- The Publication Center and settings show where publishing goes, or precisely what is blocking it.
+- Local publishing path handling was corrected for relative paths, `~`, trailing separators, Windows paths and symlinks. Local repository scans skip dependency and build directories.
+- Binary hashes are computed from raw bytes, so media no longer looks changed on every publish.
+- **Caches from other vaults can be reclaimed.** A reviewed, confirm-before-delete dialog lists stranded cache databases. See [[Clean up caches from other vaults]].
+- Malformed operability actions return structured errors instead of throwing.
+
+### Version 2.0.11
+
+- **Publishing to Quartz v4 is supported.** Notes, media, status, deletion and compilation all work against a v4 repository. Quartz *site management* — config, plugins, upgrades, layout, templates — requires v5 and is refused with a clear message. Publishing outside the content folder is blocked on v4. See [[Setup Guide#Quartz v4 and v5]].
+- Integration stylesheets are published again on Quartz v5 when [[Manage integration styles]] is enabled, and removed when it is disabled.
+- **Caches are scoped per vault.** Two vaults could previously share a repository clone or a compiled-output cache, letting one overwrite the other's staged commits or serve the wrong compiled output. Changing repository or branch no longer reuses an unrelated cached tree.
+- Several vault changes within one debounce window no longer drop all but the last.
+- Startup no longer recompiles the entire vault, and media the destination already has is skipped.
+- Dynamic notes are compiled once per operation rather than repeatedly, and query-generated embeds are published as media.
+- Removed the v1 migration notice's cache cleanup, which matched live repository clones rather than the caches it claimed to remove.
+
+> [!NOTE] One-time rebuild after upgrading to 2.0.11
+>
+> Because caches are now scoped per vault, the first publish after upgrading performs a one-time re-clone of the Quartz repository and a one-time recompile of published notes. Both happen lazily on first use rather than at startup, but large vaults and repositories will notice the delay once. Databases from earlier versions are left in place so downgrading still works — reclaim them later with [[Clean up caches from other vaults]].
+
+### Version 2.0.10
+
+- UI updates wait for real layout events instead of fixed delays.
+
+### Version 2.0.9
+
+- Files deleted while being processed no longer cause parsing failures.
+- Inline Dataview expressions are handled correctly.
+
+### Version 2.0.8
+
+- More reliable background refresh, and a lower memory footprint while idle.
+
+### Version 2.0.7
+
+- Error messages are specific and actionable instead of generic.
+
+### Version 2.0.6
+
+- Added binary-file detection, so media is no longer misread as text and needlessly republished.
+
+### Version 2.0.5
+
+- Fixed Dataview query output, escaped characters in Markdown tables, and preservation of Obsidian tasks.
+
+### Version 2.0.3
+
+- An unterminated Obsidian comment no longer causes a catastrophic processing failure.
+
+### Version 2.0.2
+
+- More reliable direct `npm` and `npx` invocation.
+
+### Version 2.0.1
+
+- Corrected `npm`/`npx` detection and the unpublishing filter.
+- Documentation updated for the v2 rewrite.
 
 ### Version 2.0.0
 
@@ -33,7 +160,7 @@ Quartz Syncer has been rebuilt from the ground up for performance, reliability, 
 - **Auto-publish timer**: automatically publish pending changes on a configurable interval (desktop only).
 - **Encrypted token storage**: access tokens are encrypted via `electron.safeStorage` on desktop, with Obsidian's SecretStorage as fallback on mobile.
 - **Diff viewer**: preview exact changes before publishing with split (side-by-side) or unified view, with synchronized scrolling.
-- **CLI support**: 12 commands for automating publishing workflows from the terminal via the Obsidian CLI.
+- **CLI support**: 12 commands for automating publishing workflows from the terminal via the Obsidian CLI. (Since expanded to 22 — see the [[Guides/CLI|CLI guide]].)
 - **Quartz v5 plugin management**: list, add, remove, and update Quartz plugins. Browse the community registry. Read and write Quartz site configuration with schema validation.
 
 #### Performance
@@ -53,7 +180,7 @@ Quartz Syncer has been rebuilt from the ground up for performance, reliability, 
 #### Migration
 
 - Settings automatically migrate from v1. No manual action required.
-- Old LightningFS cache can be cleaned up via the migration notice on first v2 load.
+- Old LightningFS cache can be cleaned up via the migration notice on first v2 load. (Removed in 2.0.11 — the notice matched live repository clones rather than stale caches. Use [[Clean up caches from other vaults]] instead.)
 - Quartz upstream upgrade temporarily requires manual `npx quartz update`.
 
 ### Version 1.18.0
