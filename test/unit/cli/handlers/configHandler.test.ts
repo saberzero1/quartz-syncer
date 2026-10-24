@@ -221,3 +221,68 @@ describe("configHandler", () => {
 		});
 	});
 });
+
+describe("Obsidian comment configuration", () => {
+	it.each(["preserve", "remove"])("sets and reads %s", async (value) => {
+		const plugin = buildPlugin();
+		const handler = createConfigHandler(plugin);
+		expect(
+			(
+				await handler(
+					buildParams({
+						action: "set",
+						key: "obsidianCommentMode",
+						value,
+					}),
+				)
+			).success,
+		).toBe(true);
+		expect(
+			await handler(
+				buildParams({ action: "get", key: "obsidianCommentMode" }),
+			),
+		).toMatchObject({ success: true, data: { value } });
+		expect(await handler(buildParams({ action: "list" }))).toMatchObject({
+			success: true,
+			data: { obsidianCommentMode: value },
+		});
+	});
+	it.each([
+		"",
+		"true",
+		"false",
+		"null",
+		"{}",
+		"Preserve",
+		"REMOVE",
+		" preserve ",
+	])("rejects invalid mode %s without mutation", async (value) => {
+		const plugin = buildPlugin();
+		const before = { ...plugin.settings };
+		const handler = createConfigHandler(plugin);
+		expect(
+			(
+				await handler(
+					buildParams({
+						action: "set",
+						key: "obsidianCommentMode",
+						value,
+					}),
+				)
+			).success,
+		).toBe(false);
+		expect(plugin.settings).toEqual(before);
+		expect(plugin.saveSettings).not.toHaveBeenCalled();
+	});
+	it("resets preservation to Remove through the existing force contract", async () => {
+		const plugin = buildPlugin();
+		plugin.settings.obsidianCommentMode = "preserve";
+		const handler = createConfigHandler(plugin);
+		expect((await handler(buildParams({ action: "reset" }))).success).toBe(
+			false,
+		);
+		expect(plugin.settings.obsidianCommentMode).toBe("preserve");
+		await handler(buildParams({ action: "reset" }, ["force"]));
+		expect(plugin.settings.obsidianCommentMode).toBe("remove");
+	});
+});

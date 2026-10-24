@@ -1,3 +1,12 @@
+export type ObsidianCommentMode = "remove" | "preserve";
+
+/** Only explicit opt-in may include private comments in published Markdown. */
+export function normalizeObsidianCommentMode(
+	value: unknown,
+): ObsidianCommentMode {
+	return value === "preserve" ? "preserve" : "remove";
+}
+
 /**
  * Git authentication configuration.
  * Used as a data transfer type for git services.
@@ -68,6 +77,9 @@ export default interface QuartzSyncerSettings {
 	 * this value.
 	 */
 	publishTarget: PublishTarget;
+
+	/** Whether published Markdown includes all Obsidian %% comments. */
+	obsidianCommentMode: ObsidianCommentMode;
 
 	/** Git remote URL (e.g., https://github.com/username/quartz.git) */
 	gitRemoteUrl: string;

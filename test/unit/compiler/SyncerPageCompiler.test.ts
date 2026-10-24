@@ -115,6 +115,8 @@ function makeMockPublishFile(
 		getFrontmatter: vi.fn().mockReturnValue(overrides.frontmatter ?? {}),
 		getMetadata: vi.fn().mockReturnValue({}),
 		getBlock: vi.fn().mockReturnValue(undefined),
+		correctDynamicContentAfterCompile: vi.fn(),
+		isDynamic: vi.fn().mockReturnValue(false),
 		meta: {
 			getCreatedAt: vi.fn().mockReturnValue(null),
 			getUpdatedAt: vi.fn().mockReturnValue(null),
@@ -1386,5 +1388,246 @@ describe("SyncerPageCompiler", () => {
 
 			expect(result).toBe("input [async]");
 		});
+	});
+});
+
+describe("Obsidian comment preservation", () => {
+	const preservedSettings = {
+		obsidianCommentMode: "preserve",
+	} as Partial<QuartzSyncerSettings>;
+	it.each([
+		"Before %% inline Ω \\ spaces %% after",
+		"%% tabs %%\n%% tab: First %%\n%% cols %%\n%% col %%\nFirst\n%% col %%\nSecond\n%% endcols %%\n%% endtabs %%",
+		"Before\n%%\n [label](Home/path) [[Home/note|alias]] ![[secret.png]]\n| [[Home/a|b]] |\n```dataview\nLIST\n```\n%%\nAfter",
+		"%%\r\n  Unicode Ω\r\n\r\n payload \\ \r\n%%",
+		"Before %%same%% %%same%% after",
+	])("preserves raw closed comment spans: %s", async (source) => {
+		const { compiler } = makeCompiler({
+			...preservedSettings,
+			vaultPath: "Home/",
+		});
+		const file = makeMockPublishFile({ cachedReadValue: source });
+		const direct = await compiler.astTransform(file)(source);
+		const [compiled] = await compiler.generateMarkdown(file);
+		const spans = source.match(/%%[\s\S]*?%%/g) ?? [];
+		for (const span of spans) {
+			expect(direct).toContain(span);
+			expect(compiled).toContain(span);
+		}
+		expect(await file.cachedRead()).toBe(source);
+	});
+	it("retains Markdown behavior around inline, quote and list comments", async () => {
+		const { compiler } = makeCompiler(preservedSettings);
+		const source =
+			"> Before %%quoted%% **strong** [link](https://example.com)\n\n- Before %%listed%% *emphasis*\n\nBefore %%inline%%**after**";
+		const [output] = await compiler.generateMarkdown(
+			makeMockPublishFile({ cachedReadValue: source }),
+		);
+		expect(output).toContain(
+			"> Before %%quoted%% **strong** [link](https://example.com)",
+		);
+		expect(output).toContain("- Before %%listed%% _emphasis_");
+		expect(output).toContain("Before %%inline%%**after**");
+	});
+});
+
+describe("comment boundaries across publication", () => {
+	it("does not collect commented metadata embeds, but still collects an identical visible embed", async () => {
+		const hidden = "%% ![[secret.png]] ![[shared.png]] %%";
+		const source = `${hidden}\n\n![[shared.png]]`;
+		const mc = new MetadataCache();
+		const embed = (link: string, start: number) => ({
+			link,
+			original: `![[${link}]]`,
+			position: {
+				start: { line: 0, col: start, offset: start },
+				end: {
+					line: 0,
+					col: start + link.length + 5,
+					offset: start + link.length + 5,
+				},
+			},
+		});
+		(mc.getCache as Mock).mockReturnValue({
+			embeds: [
+				embed("secret.png", source.indexOf("![[secret.png]]")),
+				embed("shared.png", source.indexOf("![[shared.png]]")),
+				embed("shared.png", source.lastIndexOf("![[shared.png]]")),
+			],
+		});
+		(mc.getFirstLinkpathDest as Mock).mockImplementation(
+			(path: string) => ({
+				path: `Home/${path.replace(/^Home\//, "")}`,
+				extension: "png",
+			}),
+		);
+		(mc.fileToLinktext as Mock).mockImplementation(
+			(file: TFile) => file.path,
+		);
+		const { compiler } = makeCompiler(
+			{ obsidianCommentMode: "preserve", vaultPath: "Home/" },
+			mc,
+		);
+		const [output, assets] = await compiler.generateMarkdown(
+			makeMockPublishFile({ cachedReadValue: source }),
+		);
+		expect(output).toContain(hidden);
+		expect(assets.blobs).toEqual([
+			{ path: "Home/shared.png", vaultPath: "Home/shared.png" },
+		]);
+	});
+	it("keeps comment queries opaque while executing visible queries and rewriting ordinary links", async () => {
+		const originalApp = Reflect.get(window, "app");
+		const tryQueryMarkdown = vi
+			.fn()
+			.mockResolvedValue("Rendered visible query");
+		Object.defineProperty(window, "app", {
+			configurable: true,
+			value: {
+				plugins: {
+					plugins: {
+						dataview: {
+							settings: {},
+							api: {
+								settings: {},
+								index: { initialized: true },
+								tryQueryMarkdown,
+							},
+						},
+					},
+				},
+			},
+		});
+		try {
+			const { compiler } = makeCompiler({
+				obsidianCommentMode: "preserve",
+				vaultPath: "Home/",
+				useDataview: true,
+			});
+			const payload =
+				"%%\n```dataview\nLIST SECRET\n```\n[label](Home/private)\n| [[Home/note|alias]] |\n%%";
+			const file = makeMockPublishFile({
+				cachedReadValue: `${payload}\n\n[visible](Home/public)\n\n\`\`\`dataview\nLIST VISIBLE\n\`\`\``,
+			});
+			const [output] = await compiler.generateMarkdown(file);
+			expect(output).toContain(payload);
+			expect(output).toContain("[visible](public)");
+			expect(output).toContain("Rendered visible query");
+			expect(tryQueryMarkdown).toHaveBeenCalledTimes(1);
+			expect(tryQueryMarkdown).toHaveBeenCalledWith(
+				expect.stringContaining("VISIBLE"),
+				file.getPath(),
+			);
+			expect(file.cachedRead).toHaveBeenCalledTimes(1);
+		} finally {
+			Object.defineProperty(window, "app", {
+				configurable: true,
+				value: originalApp,
+			});
+		}
+	});
+
+	it.each(["remove", "invalid", undefined])(
+		"removes comments with effective mode %s",
+		async (mode) => {
+			const { compiler } = makeCompiler({
+				obsidianCommentMode: mode,
+			} as Partial<QuartzSyncerSettings>);
+			const [output] = await compiler.generateMarkdown(
+				makeMockPublishFile({
+					cachedReadValue: "Before %%secret%% after",
+				}),
+			);
+			expect(output).not.toContain("secret");
+		},
+	);
+	it("uses original source for unclosed comments recognized by the existing parser", async () => {
+		const { compiler } = makeCompiler({ obsidianCommentMode: "preserve" });
+		const [output] = await compiler.generateMarkdown(
+			makeMockPublishFile({ cachedReadValue: "%%unclosed" }),
+		);
+		expect(output.trim()).toBe("%%unclosed");
+	});
+	it.each(["%%%%", "> %%comment%% **following**"])(
+		"retains existing parser rejection for %s in both modes",
+		async (source) => {
+			for (const mode of ["remove", "preserve"] as const) {
+				const { compiler } = makeCompiler({
+					obsidianCommentMode: mode,
+				});
+				await expect(
+					compiler.generateMarkdown(
+						makeMockPublishFile({ cachedReadValue: source }),
+					),
+				).rejects.toThrow();
+			}
+		},
+	);
+	it("keeps code literals and concurrent compilation isolated without modifying source", async () => {
+		const { compiler } = makeCompiler({ obsidianCommentMode: "preserve" });
+		const sources = [
+			"Before %%one%% after\n\n`%%literal%%`\n\n```js\n%%code%%\n```",
+			"Before %%two%% after\n\n    %%indented%%",
+		];
+		const outputs = await Promise.all(
+			sources.map((cachedReadValue) =>
+				compiler.generateMarkdown(
+					makeMockPublishFile({ cachedReadValue }),
+				),
+			),
+		);
+		expect(outputs[0]?.[0]).toContain("%%one%%");
+		expect(outputs[0]?.[0]).not.toContain("%%two%%");
+		expect(outputs[1]?.[0]).toContain("%%two%%");
+		expect(outputs[1]?.[0]).not.toContain("%%one%%");
+		expect(outputs[0]?.[0]).toContain("`%%literal%%`");
+		expect(outputs[0]?.[0]).toContain("%%code%%");
+		expect(outputs[1]?.[0]).toContain("%%indented%%");
+		const repeated = await compiler.generateMarkdown(
+			makeMockPublishFile({ cachedReadValue: sources[0] }),
+		);
+		expect(repeated).toEqual(outputs[0]);
+	});
+});
+
+describe("preserved comment delimiter boundaries", () => {
+	it("keeps standalone layout markers separated from following Markdown", async () => {
+		const source =
+			"%% tabs %%\n%% tab: First %%\n*emphasis*\n%% endtabs %%";
+		const { compiler } = makeCompiler({ obsidianCommentMode: "preserve" });
+		const [output] = await compiler.generateMarkdown(
+			makeMockPublishFile({ cachedReadValue: source }),
+		);
+		expect(output).toBe(
+			"%% tabs %%\n\n%% tab: First %%\n\n_emphasis_\n\n%% endtabs %%\n",
+		);
+	});
+	it.each([
+		["Before %%secret%%_emphasis_", "Before %%secret%%_emphasis_"],
+		["Before %%secret%%*emphasis*", "Before %%secret%%_emphasis_"],
+		["_emphasis_%%secret%% after", "_emphasis_%%secret%% after"],
+		["*emphasis*%%secret%% after", "_emphasis_%%secret%% after"],
+		["Before %%secret%%**strong**", "Before %%secret%%**strong**"],
+		["**strong**%%secret%% after", "**strong**%%secret%% after"],
+		[
+			"Before %%secret%%[link](https://example.com)",
+			"Before %%secret%%[link](https://example.com)",
+		],
+		[
+			"[link](https://example.com)%%secret%% after",
+			"[link](https://example.com)%%secret%% after",
+		],
+		["%%standalone%%\n*emphasis*", "%%standalone%%\n\n_emphasis_"],
+		["> %%standalone%%\n> *emphasis*", "> %%standalone%%\n>\n> _emphasis_"],
+		["- %%standalone%%\n  *emphasis*", "- %%standalone%%\n  _emphasis_"],
+	])("preserves adjacent Markdown for %s", async (source, expected) => {
+		const { compiler } = makeCompiler({ obsidianCommentMode: "preserve" });
+		const file = makeMockPublishFile({ cachedReadValue: source });
+		expect((await compiler.astTransform(file)(source)).trim()).toBe(
+			expected,
+		);
+		expect((await compiler.generateMarkdown(file))[0].trim()).toBe(
+			expected,
+		);
 	});
 });

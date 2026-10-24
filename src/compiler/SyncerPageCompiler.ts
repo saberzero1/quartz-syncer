@@ -1,5 +1,8 @@
 import { App, MetadataCache, Vault, getLinkpath } from "obsidian";
-import QuartzSyncerSettings from "src/models/settings";
+import QuartzSyncerSettings, {
+	normalizeObsidianCommentMode,
+} from "src/models/settings";
+import { protectObsidianComments } from "src/compiler/ObsidianComments";
 import { escapeRegExp, stripVaultPath, vaultScope } from "src/utils/utils";
 import { ASSET_EXTENSIONS } from "src/utils/mediaTypes";
 import {
@@ -153,6 +156,11 @@ export class SyncerPageCompiler {
 				successfulVaultDependentExecutions: new Set(),
 			};
 		}
+		const comments =
+			normalizeObsidianCommentMode(this.settings.obsidianCommentMode) ===
+			"preserve"
+				? protectObsidianComments(vaultFileText)
+				: undefined;
 		let successfulVaultDependentExecutions: ReadonlySet<string> = new Set();
 		const convertIntegrations: TCompilerStep =
 			(publishFile) => async (text) => {
@@ -178,13 +186,20 @@ export class SyncerPageCompiler {
 		const compiledText = await this.runCompilerSteps(
 			file,
 			COMPILE_STEPS,
-		)(vaultFileText);
+		)(comments?.text ?? vaultFileText);
 
-		const [text, blobs] = await this.convertFileLinks(file)(compiledText);
+		const [text, blobs] = await this.convertFileLinks(
+			file,
+			comments?.containsOffset,
+		)(compiledText);
 
 		return {
 			compiledFile: [
-				SyncerPageCompiler.escapeTableWikilinks(text),
+				comments
+					? comments.restore(
+							SyncerPageCompiler.escapeTableWikilinks(text),
+						)
+					: SyncerPageCompiler.escapeTableWikilinks(text),
 				{ blobs },
 			],
 			successfulVaultDependentExecutions,
@@ -236,6 +251,11 @@ export class SyncerPageCompiler {
 	}
 
 	astTransform: TCompilerStep = (file) => async (text) => {
+		const comments =
+			normalizeObsidianCommentMode(this.settings.obsidianCommentMode) ===
+			"preserve"
+				? protectObsidianComments(text)
+				: undefined;
 		const vaultPath = this.settings.vaultPath;
 		const hasVaultPath = vaultScope(vaultPath) !== "";
 
@@ -251,7 +271,7 @@ export class SyncerPageCompiler {
 
 		try {
 			const startedAt = perfMetricsEnabled ? performance.now() : 0;
-			const tree = processor.parse(text);
+			const tree = processor.parse(comments?.text ?? text);
 			const transformed = await processor.run(tree);
 
 			if (hasVaultPath) {
@@ -276,7 +296,7 @@ export class SyncerPageCompiler {
 				getPerfMetrics()?.addDuration("remarkMs", startedAt);
 			}
 
-			return result;
+			return comments ? comments.restore(result) : result;
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : String(error);
@@ -449,7 +469,7 @@ export class SyncerPageCompiler {
 	};
 
 	convertFileLinks =
-		(file: PublishFile) =>
+		(file: PublishFile, isCommentOffset?: (offset: number) => boolean) =>
 		async (text: string): Promise<[string, Array<DeferredAsset>]> => {
 			const filePath = file.getPath();
 			const assets: Array<DeferredAsset> = [];
@@ -463,6 +483,12 @@ export class SyncerPageCompiler {
 			let blobText = text;
 
 			for (const embed of cache.embeds) {
+				if (
+					isCommentOffset &&
+					embed.position?.start.offset !== undefined &&
+					isCommentOffset(embed.position.start.offset)
+				)
+					continue;
 				try {
 					const linkedFile = this.metadataCache.getFirstLinkpathDest(
 						getLinkpath(embed.link),

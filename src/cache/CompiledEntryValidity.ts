@@ -6,6 +6,7 @@ import {
 } from "src/compiler/integrations/apis/dataview";
 import type { DatacoreApi } from "src/compiler/integrations/apis/datacore";
 import type QuartzSyncerSettings from "src/models/settings";
+import { normalizeObsidianCommentMode } from "src/models/settings";
 
 /** Bump whenever dynamic detection or vault-dependency declarations change. */
 export const DYNAMIC_CONTENT_DETECTOR_VERSION = "vault-dependencies-v2";
@@ -46,6 +47,9 @@ export function settingsFingerprint(settings: QuartzSyncerSettings): string {
 
 	return JSON.stringify({
 		vaultPath: settings.vaultPath,
+		obsidianCommentMode: normalizeObsidianCommentMode(
+			settings.obsidianCommentMode,
+		),
 		showCreatedTimestamp: settings.showCreatedTimestamp,
 		showUpdatedTimestamp: settings.showUpdatedTimestamp,
 		showPublishedTimestamp: settings.showPublishedTimestamp,

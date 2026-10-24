@@ -134,3 +134,24 @@ describe("setting definitions", () => {
 		expect(unknown).toEqual([]);
 	});
 });
+
+describe("Obsidian comments definition", () => {
+	it("offers Remove by default and explains publication of all comments", () => {
+		const tab = new QuartzSyncerSettingTab(new App(), makePlugin());
+		const item = tab
+			.getSettingDefinitions()
+			.find(
+				(entry) =>
+					"name" in entry && entry.name === "Obsidian comments",
+			);
+		expect(item).toMatchObject({
+			desc: expect.stringContaining("all %% comments"),
+			control: {
+				type: "dropdown",
+				key: "obsidianCommentMode",
+				defaultValue: "remove",
+				options: { remove: "Remove", preserve: "Preserve" },
+			},
+		});
+	});
+});

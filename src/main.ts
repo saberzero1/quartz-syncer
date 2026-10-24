@@ -1,6 +1,7 @@
 import { Notice, Platform, Plugin } from "obsidian";
 import QuartzSyncerSettings, {
 	type GitRemoteSettings,
+	normalizeObsidianCommentMode,
 } from "src/models/settings";
 import {
 	createGitBackend,
@@ -63,6 +64,7 @@ export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	settingsSchemaVersion: 5,
 
 	publishTarget: "remote",
+	obsidianCommentMode: "remove",
 
 	gitRemoteUrl: "",
 	gitBranch: "v5",
@@ -417,6 +419,9 @@ export default class QuartzSyncer extends Plugin {
 		>;
 
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, persisted);
+		this.settings.obsidianCommentMode = normalizeObsidianCommentMode(
+			persisted["obsidianCommentMode"],
+		);
 
 		this.migrateGitHubSettings();
 		this.migrateNestedGitSettings();

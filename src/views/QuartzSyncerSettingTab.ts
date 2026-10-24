@@ -62,6 +62,16 @@ export class QuartzSyncerSettingTab extends PluginSettingTab {
 		return [
 			...this.buildOverviewItems(),
 			{
+				name: "Obsidian comments",
+				desc: "Remove comments by default. Preserve includes all %% comments and their contents in published Markdown, including personal comments.",
+				control: {
+					type: "dropdown",
+					key: "obsidianCommentMode",
+					defaultValue: "remove",
+					options: { remove: "Remove", preserve: "Preserve" },
+				},
+			},
+			{
 				type: "page",
 				name: "Git",
 				desc: "Configure your Git remote, authentication, and branch.",

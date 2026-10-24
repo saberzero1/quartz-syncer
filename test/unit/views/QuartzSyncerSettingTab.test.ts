@@ -60,3 +60,14 @@ describe("QuartzSyncerSettingTab.setControlValue", () => {
 		expect(saveSettings).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe("Obsidian comments control", () => {
+	it("saves opt-in preservation through normal cache invalidation", async () => {
+		const { tab, plugin, saveSettings } = makeTab();
+		await tab.setControlValue("obsidianCommentMode", "preserve");
+		expect(plugin.settings.obsidianCommentMode).toBe("preserve");
+		expect(saveSettings).toHaveBeenCalledTimes(1);
+		await tab.setControlValue("obsidianCommentMode", "remove");
+		expect(plugin.settings.obsidianCommentMode).toBe("remove");
+	});
+});

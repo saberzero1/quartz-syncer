@@ -496,3 +496,53 @@ describe("Dataview syntax resolution barrier", () => {
 		}
 	});
 });
+
+describe("comment mode cache validity", () => {
+	it("normalizes missing and invalid modes to Remove", () => {
+		const remove = settingsFingerprint({
+			...DEFAULT_SETTINGS,
+			obsidianCommentMode: "remove",
+		});
+		for (const value of [undefined, null, "invalid", true]) {
+			expect(
+				settingsFingerprint({
+					...DEFAULT_SETTINGS,
+					obsidianCommentMode: value,
+				} as unknown as typeof DEFAULT_SETTINGS),
+			).toBe(remove);
+		}
+	});
+	it("invalidates same-mtime entries in both directions", () => {
+		const remove = settingsFingerprint({
+			...DEFAULT_SETTINGS,
+			obsidianCommentMode: "remove",
+		});
+		const preserve = settingsFingerprint({
+			...DEFAULT_SETTINGS,
+			obsidianCommentMode: "preserve",
+		});
+		expect(remove).not.toBe(preserve);
+		for (const [before, after] of [
+			[remove, preserve],
+			[preserve, remove],
+		]) {
+			const entry = {
+				...base,
+				settingsFingerprint: before,
+				dynamicSources: [],
+			};
+			expect(
+				isCompiledEntryValid(entry, {
+					...criteria,
+					settingsFingerprint: before!,
+				}),
+			).toBe(true);
+			expect(
+				isCompiledEntryValid(entry, {
+					...criteria,
+					settingsFingerprint: after!,
+				}),
+			).toBe(false);
+		}
+	});
+});

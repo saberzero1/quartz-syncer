@@ -266,3 +266,33 @@ describe("vaultPath migration", () => {
 		expect(plugin.settings.vaultPath).toBe("/");
 	});
 });
+
+describe("Obsidian comment settings", () => {
+	it.each([undefined, null, "invalid", true, false, "PRESERVE"])(
+		"defaults invalid persisted mode %s to Remove",
+		async (value) => {
+			const plugin = createPlugin({ obsidianCommentMode: value });
+			await plugin.loadSettings();
+			expect(plugin.settings.obsidianCommentMode).toBe("remove");
+		},
+	);
+	it("persists Preserve and reloads it without changing other settings", async () => {
+		const plugin = createPlugin({
+			obsidianCommentMode: "preserve",
+			vaultPath: "Home/",
+		});
+		await plugin.loadSettings();
+		expect(plugin.settings.obsidianCommentMode).toBe("preserve");
+		expect(plugin.saveData).toHaveBeenCalledWith(
+			expect.objectContaining({
+				obsidianCommentMode: "preserve",
+				vaultPath: "Home/",
+			}),
+		);
+		const reloaded = createPlugin(
+			plugin.settings as unknown as Record<string, unknown>,
+		);
+		await reloaded.loadSettings();
+		expect(reloaded.settings.obsidianCommentMode).toBe("preserve");
+	});
+});

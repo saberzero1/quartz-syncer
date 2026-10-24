@@ -40,6 +40,16 @@ export function createConfigHandler(plugin: QuartzSyncer): CliHandler {
 				return { success: false, error: "Missing value parameter" };
 			}
 
+			if (
+				key === "obsidianCommentMode" &&
+				rawValue !== "remove" &&
+				rawValue !== "preserve"
+			) {
+				return {
+					success: false,
+					error: "Obsidian comment mode must be remove or preserve",
+				};
+			}
 			const value = parseCliValue(rawValue);
 			setValueByPath(settings, key, value);
 			await plugin.saveSettings();

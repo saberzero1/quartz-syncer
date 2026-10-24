@@ -401,3 +401,33 @@ describe("normalizeCliParams", () => {
 		expect(params.flags.has("value")).toBe(false);
 	});
 });
+
+describe("comment mode raw CLI dispatch", () => {
+	it.each(["remove", "preserve"])("accepts raw mode %s", async (value) => {
+		const { registered, plugin } = setup();
+		const output = await dispatch(registered, "quartz-syncer:config", {
+			action: "set",
+			key: "obsidianCommentMode",
+			value,
+			format: "json",
+		});
+		expect(JSON.parse(output)).toMatchObject({ success: true });
+		expect(plugin.settings.obsidianCommentMode).toBe(value);
+	});
+	it.each(["true", "false", "", "Preserve"])(
+		"rejects raw mode %s before saving",
+		async (value) => {
+			const { registered, plugin } = setup();
+			const before = { ...plugin.settings };
+			const output = await dispatch(registered, "quartz-syncer:config", {
+				action: "set",
+				key: "obsidianCommentMode",
+				value,
+				format: "json",
+			});
+			expect(JSON.parse(output)).toMatchObject({ success: false });
+			expect(plugin.settings).toEqual(before);
+			expect(plugin.saveSettings).not.toHaveBeenCalled();
+		},
+	);
+});
