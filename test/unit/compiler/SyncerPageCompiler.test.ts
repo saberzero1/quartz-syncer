@@ -1342,6 +1342,23 @@ describe("SyncerPageCompiler", () => {
 			expect(assets).toEqual([]);
 		});
 
+		it("ignores an embed inside a %% comment", async () => {
+			const mc = new MetadataCache();
+			(mc.getCache as Mock).mockReturnValue({ embeds: [] });
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(link: string) =>
+					link === "images/query-output.png" ? imageFile : null,
+			);
+
+			const { compiler } = makeCompiler({}, mc);
+			const commented = "Text %%![[images/query-output.png]]%% more";
+			const file = makeDynamicFile(commented);
+
+			const [, assets] = await compiler.convertFileLinks(file)(commented);
+
+			expect(assets).toEqual([]);
+		});
+
 		it("does not scan compiled output for a static note", async () => {
 			const mc = new MetadataCache();
 			(mc.getCache as Mock).mockReturnValue({ embeds: [] });
