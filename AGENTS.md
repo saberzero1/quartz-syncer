@@ -19,7 +19,7 @@ Obsidian Community Plugin. Publishes Obsidian notes to [Quartz](https://quartz.j
 
 **Core (desktop + mobile):** Publish, sync, delete, status, diff, cache, mark, background compilation. Uses `BundledGitBackend` (isomorphic-git fork) for all Git I/O — no shell commands.
 
-**Management (desktop only):** Quartz config, plugins, upgrades, templates, auto-publish, local preview. Uses `ProcessRunner` → `QuartzRunner` for `npx quartz` commands. Requires local Quartz checkout + Node.js ≥18.
+**Management (desktop only):** Quartz config, plugins, upgrades, templates, auto-publish, local preview. Uses `ProcessRunner` → `QuartzRunner` for `npx quartz` commands. Requires local Quartz checkout + Node.js ≥22.
 
 ### Key modules
 
@@ -32,7 +32,7 @@ Obsidian Community Plugin. Publishes Obsidian notes to [Quartz](https://quartz.j
 - `BackgroundEngine` — watches vault changes, queues compilation, auto-publish timer.
 - `ProcessRunner` — desktop-only system command execution with circuit breaker. Timeout sentinel: `-1` = no timeout.
 - `QuartzRunner` — wraps `npx quartz` subcommands. `serve()` bypasses `ProcessRunner` singleton to avoid pending process kills.
-- `NodeDetector` — checks Node.js ≥18 availability.
+- `NodeDetector` — checks Node.js ≥22 availability (Quartz v5's CLI floor).
 
 ### Quartz Hub
 
@@ -93,7 +93,7 @@ GitHub's template API (`POST /repos/{template}/generate`) is asynchronous — th
 
 ## Settings
 
-Declarative settings only (Obsidian minAppVersion 1.13). Definitions in `getSettingDefinitions()`. Schema version 5. Migrations in `src/main.ts`.
+Declarative settings only (Obsidian minAppVersion 1.13). Definitions in `getSettingDefinitions()`. Schema version 6. Migrations in `src/main.ts`.
 
 `loadSettings()` keeps the raw persisted record and passes it to migrations. Migrations MUST detect "was this key ever persisted?" from that raw record, not from `this.settings` — `DEFAULT_SETTINGS` is merged in first, so an un-migrated record otherwise looks like it is already at the current schema version.
 

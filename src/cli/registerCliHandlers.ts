@@ -277,6 +277,21 @@ export const COMMAND_REGISTRY = [
 				name: "dry-run",
 				description: "Preview changes without executing.",
 			},
+			{
+				name: "from-config",
+				description:
+					"For install: install every plugin declared in the config rather than a single source.",
+			},
+			{
+				name: "latest",
+				description:
+					"For install: resolve to the latest version instead of the pinned one.",
+			},
+			{
+				name: "clean",
+				description:
+					"For install: remove existing installed plugins first.",
+			},
 			{ name: "help", description: "Show help for this command." },
 		],
 		examples: [
@@ -285,6 +300,7 @@ export const COMMAND_REGISTRY = [
 			"obsidian quartz-syncer:plugin action=add source=@jackyzha0/quartz dry-run",
 			"obsidian quartz-syncer:plugin action=search",
 			"obsidian quartz-syncer:plugin action=search query=graph",
+			"obsidian quartz-syncer:plugin action=install from-config latest",
 		],
 	},
 	{

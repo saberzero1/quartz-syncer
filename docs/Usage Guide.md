@@ -40,16 +40,17 @@ The property name is configurable — see [[Publish key]].
 
 ### Ways to add the property
 
-1. Obsidian's own properties editor — `+ Add property`, name it `publish`, tick the checkbox.
-2. From the terminal with the [[Guides/CLI#quartz-syncermark|`mark` CLI command]], which supports exact paths, globs and fuzzy matching:
+1. From the command palette, with the note open — `Quartz Syncer: Add publication flag`, `Quartz Syncer: Remove publication flag`, or `Quartz Syncer: Toggle publication flag`. Each acts on the active note and reports what it changed.
+2. Obsidian's own properties editor — `+ Add property`, name it `publish`, tick the checkbox.
+3. From the terminal with the [[Guides/CLI#quartz-syncermark|`mark` CLI command]], which supports exact paths, globs and fuzzy matching:
    ```bash
    obsidian quartz-syncer:mark path="blog/**/*.md" state=publish
    ```
-3. A community plugin that applies frontmatter templates automatically.
+4. A community plugin that applies frontmatter templates automatically.
 
-> [!NOTE] There is no command for this
+> [!TIP] Pick the route that matches the scale
 >
-> Quartz Syncer does not register a command-palette command for toggling the publish property. The v1 commands `Add publish flag`, `Remove publish flag` and `Toggle publication status` no longer exist; the `mark` CLI command replaced them.
+> The palette commands are the fastest way to mark the note you are looking at, and they are the only route available on mobile. For many notes at once, the `mark` CLI command takes globs and fuzzy patterns, and supports `dry-run` to preview the matches first.
 
 ### Publishing everything instead
 

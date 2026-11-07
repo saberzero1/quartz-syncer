@@ -48,10 +48,13 @@ Quartz Syncer registers the following commands in the command palette:
 | `Quartz Syncer: Open Quartz Hub` | Opens the [[Guides/Quartz Hub\|Quartz Hub]] for local repository management. | Desktop only |
 | `Quartz Syncer: Manual setup` | Opens the manual Git setup dialog. | All platforms |
 | `Quartz Syncer: Show publish status` | Reports the current publish status as a notice. | All platforms |
+| `Quartz Syncer: Add publication flag` | Sets the [[Publish key\|publish property]] to `true` on the active note. | All platforms |
+| `Quartz Syncer: Remove publication flag` | Sets the [[Publish key\|publish property]] to `false` on the active note. | All platforms |
+| `Quartz Syncer: Toggle publication flag` | Flips the [[Publish key\|publish property]] on the active note. | All platforms |
 
-> [!TIP] Marking notes is not a command
+> [!TIP] The three publication-flag commands act on the active note only
 >
-> Quartz Syncer does not register a command for toggling the publish property. Add it through Obsidian's own properties editor, through a community plugin, or from the terminal with [[Guides/CLI#quartz-syncermark|the `mark` CLI command]].
+> They need an open Markdown note and report what they changed as a notice. To mark many notes at once, use [[Guides/CLI#quartz-syncermark|the `mark` CLI command]], which supports globs and fuzzy matching, or turn on [[All notes publishable by default]].
 
 ## Ribbon icon
 

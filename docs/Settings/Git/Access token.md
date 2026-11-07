@@ -5,7 +5,6 @@ created: 2026-01-08T14:00:00Z+0100
 modified: 2026-10-01T12:00:00Z+0200
 publish: true
 tags: [settings/git]
-aliases: [Access Token]
 ---
 
 The personal access token or password used to authenticate with your Git provider.

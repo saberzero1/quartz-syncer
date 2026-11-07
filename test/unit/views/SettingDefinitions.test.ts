@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	App,
 	Setting,
 	dropdownComponents,
+	notices,
 	resetDropdownComponents,
+	resetNotices,
 	type SettingDefinitionItem,
 } from "obsidian";
 import { DEPRECATED_SETTING_KEYS } from "src/models/settings";
@@ -132,5 +134,80 @@ describe("setting definitions", () => {
 		const unknown = allControlKeys().filter((key) => !known.has(key));
 
 		expect(unknown).toEqual([]);
+	});
+});
+
+describe("clear cache action", () => {
+	const findClearCache = (plugin: QuartzSyncer) => {
+		const group = performanceSettingDefinitions(plugin).find(
+			(item) => (item as { heading?: string }).heading === "Performance",
+		);
+		const items =
+			(group as { items?: SettingDefinitionItem[] }).items ?? [];
+
+		return items.find((item) => item.name === "Clear cache") as
+			| (SettingDefinitionItem & {
+					action?: () => void;
+					visible?: () => boolean;
+			  })
+			| undefined;
+	};
+
+	const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+	beforeEach(() => {
+		resetNotices();
+	});
+
+	// Asserts the predicate, not the rendering: Obsidian 1.13 does not honour
+	// `visible` for these rows, so the row shows either way — the same is true
+	// of the pre-existing remoteFetchInterval row next to it.
+	it("is offered on the Performance screen and tracks useCache", () => {
+		const plugin = makePlugin();
+		const row = findClearCache(plugin);
+
+		expect(row?.action).toBeTypeOf("function");
+		expect(row?.visible?.()).toBe(true);
+
+		plugin.settings.useCache = false;
+
+		expect(row?.visible?.()).toBe(false);
+	});
+
+	it("drops every cached file and resets the persisted mirror", async () => {
+		const plugin = makePlugin();
+		const dropAllFiles = vi.fn().mockResolvedValue(undefined);
+		plugin.dataStore = {
+			dropAllFiles,
+		} as unknown as QuartzSyncer["dataStore"];
+		plugin.settings.cache = '{"notes/post.md":{}}';
+		plugin.settings.cacheTimestamp = 1234;
+
+		findClearCache(plugin)?.action?.();
+		await flush();
+
+		expect(dropAllFiles).toHaveBeenCalledTimes(1);
+		expect(plugin.settings.cache).toBe("{}");
+		expect(plugin.settings.cacheTimestamp).toBe(0);
+		expect(plugin.saveSettings).toHaveBeenCalled();
+		expect(notices).toEqual(["Quartz Syncer: cache cleared."]);
+	});
+
+	it("reports a failure and leaves the mirror untouched", async () => {
+		const plugin = makePlugin();
+		plugin.dataStore = {
+			dropAllFiles: vi.fn().mockRejectedValue(new Error("db locked")),
+		} as unknown as QuartzSyncer["dataStore"];
+		plugin.settings.cache = '{"notes/post.md":{}}';
+		plugin.settings.cacheTimestamp = 1234;
+
+		findClearCache(plugin)?.action?.();
+		await flush();
+
+		expect(plugin.settings.cache).toBe('{"notes/post.md":{}}');
+		expect(plugin.settings.cacheTimestamp).toBe(1234);
+		expect(notices).toEqual([
+			"Quartz Syncer: could not clear the cache. db locked",
+		]);
 	});
 });

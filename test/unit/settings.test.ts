@@ -84,7 +84,7 @@ describe("DEFAULT_SETTINGS completeness", () => {
 		await plugin.loadSettings();
 
 		const settings = plugin.settings;
-		expect(settings.settingsSchemaVersion).toBe(5);
+		expect(settings.settingsSchemaVersion).toBe(6);
 		expect(settings.publishTarget).toBe("remote");
 		expect(settings.gitRemoteUrl).toBe("");
 		expect(settings.gitBranch).toBe("v5");
@@ -151,7 +151,7 @@ describe("settings migration", () => {
 		expect(plugin.settings.gitBranch).toBe("v4");
 		expect(plugin.settings.gitAuthType).toBe("basic");
 		expect(plugin.settings.gitAuthUsername).toBe("testuser");
-		expect(plugin.settings.settingsSchemaVersion).toBe(5);
+		expect(plugin.settings.settingsSchemaVersion).toBe(6);
 		expect(
 			(plugin.settings as unknown as Record<string, unknown>)["git"],
 		).toBeUndefined();
@@ -166,7 +166,7 @@ describe("settings migration", () => {
 			"https://github.com/testuser/quartz.git",
 		);
 		expect(plugin.settings.gitBranch).toBe("v4");
-		expect(plugin.settings.settingsSchemaVersion).toBe(5);
+		expect(plugin.settings.settingsSchemaVersion).toBe(6);
 	});
 
 	it("migrates empty timestamp keys to defaults", async () => {
@@ -204,6 +204,37 @@ describe("settings migration", () => {
 	});
 });
 
+describe("timestampFormat removal in schema v6", () => {
+	// Nothing has ever read it, and the v3 deletion list could not reach it:
+	// that migration early-returns for any record already at schema 3+.
+	it.each([2, 3, 4, 5, 6])(
+		"deletes the key from a record at schema v%i",
+		async (settingsSchemaVersion) => {
+			const plugin = createPlugin({
+				settingsSchemaVersion,
+				timestampFormat: "MMM dd, yyyy h:mm a",
+			});
+			await plugin.loadSettings();
+
+			expect(
+				(plugin.settings as unknown as Record<string, unknown>)[
+					"timestampFormat"
+				],
+			).toBeUndefined();
+			expect(plugin.settings.settingsSchemaVersion).toBe(6);
+		},
+	);
+
+	it("is absent from DEFAULT_SETTINGS so new installs never gain it", async () => {
+		const plugin = createPlugin({});
+		await plugin.loadSettings();
+
+		expect(
+			Object.keys(plugin.settings as unknown as Record<string, unknown>),
+		).not.toContain("timestampFormat");
+	});
+});
+
 describe("SecretStorageService", () => {
 	it("stores and retrieves tokens", () => {
 		const mockStorage = {
@@ -233,7 +264,7 @@ describe("SecretStorageService", () => {
 });
 
 describe("vaultPath migration", () => {
-	it("preserves a persisted subfolder through migration to schema v5", async () => {
+	it("preserves a persisted subfolder through migration to the current schema", async () => {
 		const plugin = createPlugin({
 			settingsSchemaVersion: 2,
 			gitRemoteUrl: "https://github.com/user/repo.git",
@@ -242,7 +273,7 @@ describe("vaultPath migration", () => {
 		await plugin.loadSettings();
 
 		expect(plugin.settings.vaultPath).toBe("notes/");
-		expect(plugin.settings.settingsSchemaVersion).toBe(5);
+		expect(plugin.settings.settingsSchemaVersion).toBe(6);
 	});
 
 	it("preserves a nested persisted subfolder", async () => {

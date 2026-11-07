@@ -357,6 +357,42 @@ describe("normalizeCliParams", () => {
 		expect([...params.flags]).toEqual([]);
 	});
 
+	// pluginHandler reads from-config, latest and clean for `action=install`.
+	// While they were undeclared they only worked through the heuristic
+	// fallback below and never appeared in generated help.
+	it("declares every flag the plugin install path reads", () => {
+		const declared = metaFor("quartz-syncer:plugin").flags.map(
+			(flag) => flag.name,
+		);
+
+		expect([...declared].sort()).toEqual([
+			"clean",
+			"dry-run",
+			"from-config",
+			"help",
+			"latest",
+		]);
+	});
+
+	it("classifies the plugin install flags from raw CliData", () => {
+		const params = normalizeCliParams(
+			{
+				action: "install",
+				"from-config": "true",
+				latest: "true",
+				clean: "true",
+			},
+			metaFor("quartz-syncer:plugin"),
+		);
+
+		expect([...params.flags].sort()).toEqual([
+			"clean",
+			"from-config",
+			"latest",
+		]);
+		expect(params.args.action).toBe("install");
+	});
+
 	it("falls back to flag classification for undeclared names", () => {
 		const params = normalizeCliParams(
 			{ mystery: "true", riddle: "answer" },

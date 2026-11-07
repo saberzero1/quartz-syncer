@@ -5,7 +5,7 @@ created: 2026-08-30T12:00:00Z+0200
 modified: 2026-10-01T12:00:00Z+0200
 publish: true
 tags: [settings/ui]
-aliases: [Arbitrary file publishing]
+aliases: [Settings/UI/Arbitrary file publishing]
 default_value: "false"
 ---
 

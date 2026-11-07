@@ -20,7 +20,8 @@ type ChildProcessModule = {
 	): void;
 };
 
-const MIN_NODE_MAJOR = 18;
+/** Matches Quartz v5's own CLI requirement; gating lower defers the failure into `npx quartz`. */
+const MIN_NODE_MAJOR = 22;
 
 export class NodeDetector {
 	private cachedVersion: string | null = null;

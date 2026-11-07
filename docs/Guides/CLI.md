@@ -316,6 +316,7 @@ obsidian quartz-syncer:plugin action=remove name="my-plugin"
 obsidian quartz-syncer:plugin action=config name="my-plugin" set="key=value"
 obsidian quartz-syncer:plugin action=search query="theme"
 obsidian quartz-syncer:plugin action=install dry-run
+obsidian quartz-syncer:plugin action=install from-config latest
 ```
 
 | Parameter | Description |
@@ -326,6 +327,9 @@ obsidian quartz-syncer:plugin action=install dry-run
 | `set` | Configuration key-value pair (`key=value`) for `action=config`. |
 | `query` | Search query for `action=search`. |
 | `dry-run` | Preview changes without applying them. |
+| `from-config` | For `install`: install every plugin declared in the config, rather than a single `source`. |
+| `latest` | For `install`: resolve each plugin to its latest version instead of the pinned one. |
+| `clean` | For `install`: remove the existing installed plugins first. |
 | `format` | Output format: `json` or `text` (default). |
 | `verbose` | Show source keys, plugin options, and commit SHAs. |
 

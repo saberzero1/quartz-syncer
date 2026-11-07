@@ -5,7 +5,7 @@ created: 2025-06-29T17:23:42Z+0200
 modified: 2026-10-01T12:00:00Z+0200
 publish: true
 tags: [settings/frontmatter]
-aliases: [Include all notes by default]
+aliases: [Settings/Note properties/Include all notes by default]
 default_value: "false"
 ---
 

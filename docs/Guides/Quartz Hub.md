@@ -16,7 +16,7 @@ The Quartz Hub is a desktop-only modal for managing a local Quartz repository fr
 > - A desktop Obsidian install. On mobile the command is not registered.
 > - A [[Local Quartz repo path|local Quartz repo path]].
 > - [[Enable system commands]] turned on.
-> - Node.js 18 or later on your system path. Quartz v5's own CLI wants Node 22 or later, so that is the practical floor if you intend to build.
+> - Node.js 22 or later on your system path, which is what Quartz v5's own CLI requires. An older Node is reported as unavailable rather than failing later inside a build.
 
 > [!TIP] The Hub is independent of your publish destination
 >

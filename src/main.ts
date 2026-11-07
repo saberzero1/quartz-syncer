@@ -28,6 +28,7 @@ import {
 	publishTargetIdentity,
 	resolvePublishTarget,
 } from "src/publisher/PublishTargetResolver";
+import { applyPublishFlagToActiveFile } from "src/publishFile/publishFlag";
 import { SyncerPageCompiler } from "src/compiler/SyncerPageCompiler";
 import { BackgroundEngine } from "src/services/BackgroundEngine";
 import { ProcessRunner } from "src/process/ProcessRunner";
@@ -60,7 +61,7 @@ import {
  * This interface defines the default settings for the QuartzSyncer plugin.
  */
 export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
-	settingsSchemaVersion: 5,
+	settingsSchemaVersion: 6,
 
 	publishTarget: "remote",
 
@@ -101,7 +102,6 @@ export const DEFAULT_SETTINGS: QuartzSyncerSettings = {
 	createdTimestampKey: "created, created_at, date",
 	updatedTimestampKey: "modified, lastmod, updated, last-modified",
 	publishedTimestampKey: "published, publishDate, date",
-	timestampFormat: "MMM dd, yyyy h:mm a",
 
 	/** Performance settings */
 	useCache: true,
@@ -425,6 +425,7 @@ export default class QuartzSyncer extends Plugin {
 		this.migrateDeprecatedSettingsV3();
 		this.migrateDeprecatedSettingsV4();
 		this.migratePublishTargetV5(persisted);
+		this.migrateDeprecatedSettingsV6();
 		this.settings.pluginVersion = this.appVersion;
 		await this.saveSettings();
 
@@ -436,8 +437,8 @@ export default class QuartzSyncer extends Plugin {
 	}
 
 	// Detects the persisted value from the raw record rather than this.settings,
-	// because DEFAULT_SETTINGS is merged in before migrations run: once the
-	// default schema version is 5, an un-migrated record would look current.
+	// because DEFAULT_SETTINGS is merged in before migrations run, so an
+	// un-migrated record already reports the current schema version.
 	private migratePublishTargetV5(persisted: Record<string, unknown>): void {
 		const stored = persisted["publishTarget"];
 
@@ -593,6 +594,17 @@ export default class QuartzSyncer extends Plugin {
 		}
 
 		this.settings.settingsSchemaVersion = 4;
+	}
+
+	// Unguarded, like migratePublishTargetV5: deleting a key is idempotent, and a
+	// `>= 6` guard would read the merged-in default rather than the persisted
+	// version and so skip records that still carry the key.
+	private migrateDeprecatedSettingsV6(): void {
+		const raw = this.settings as unknown as Record<string, unknown>;
+
+		delete raw["timestampFormat"];
+
+		this.settings.settingsSchemaVersion = 6;
 	}
 
 	private syncStatusCacheDestination(): void {
@@ -814,6 +826,42 @@ export default class QuartzSyncer extends Plugin {
 			callback: () => {
 				this.publicationCenterManager?.open() ??
 					new PublicationCenter(this.app, this).open();
+			},
+		});
+
+		this.addCommand({
+			id: "mark-note-for-publish",
+			name: "Add publication flag",
+			callback: () => {
+				void applyPublishFlagToActiveFile(
+					this.app,
+					this.settings.publishFrontmatterKey,
+					"publish",
+				);
+			},
+		});
+
+		this.addCommand({
+			id: "unmark-note-for-publish",
+			name: "Remove publication flag",
+			callback: () => {
+				void applyPublishFlagToActiveFile(
+					this.app,
+					this.settings.publishFrontmatterKey,
+					"unpublish",
+				);
+			},
+		});
+
+		this.addCommand({
+			id: "mark-toggle-publish-status",
+			name: "Toggle publication flag",
+			callback: () => {
+				void applyPublishFlagToActiveFile(
+					this.app,
+					this.settings.publishFrontmatterKey,
+					"toggle",
+				);
 			},
 		});
 	}

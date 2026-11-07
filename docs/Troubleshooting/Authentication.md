@@ -42,7 +42,7 @@ Please ensure you have the proper rights to your Quartz repository. Your token n
 If you're on a university network, corporate network, or similar shared network, your connection to the Git provider might be blocked or rate-limited. Try:
 
 1. Using a different network (e.g., mobile hotspot)
-2. Configuring a [[CORS Proxy]] if required by your network
+2. Configuring a [[CORS proxy]] if required by your network
 
 ## I have a different issue not listed here
 

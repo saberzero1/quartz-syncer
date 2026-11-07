@@ -2,7 +2,10 @@ import { TFile } from "obsidian";
 import type QuartzSyncer from "src/main";
 import type { CliHandler } from "src/cli/types";
 import { matchGlob, normalizeFuzzy } from "src/cli/pathMatching";
-import ObsidianFrontMatterEngine from "src/publishFile/ObsidianFrontMatterEngine";
+import {
+	applyPublishFlag,
+	type PublishFlagAction,
+} from "src/publishFile/publishFlag";
 
 export function createMarkHandler(_plugin: QuartzSyncer): CliHandler {
 	return async (params) => {
@@ -94,27 +97,17 @@ export function createMarkHandler(_plugin: QuartzSyncer): CliHandler {
 			};
 		}
 
+		const action: PublishFlagAction = isToggle
+			? "toggle"
+			: trueStates.has(state ?? "")
+				? "publish"
+				: falseStates.has(state ?? "")
+					? "unpublish"
+					: "remove";
+
 		const modified: string[] = [];
 		for (const file of matched) {
-			const engine = new ObsidianFrontMatterEngine(
-				_plugin.app.vault,
-				_plugin.app.metadataCache,
-				file,
-				_plugin.app.fileManager,
-			);
-			const currentValue = Boolean(engine.get(key));
-
-			if (isToggle) {
-				engine.set(key, !currentValue);
-			} else if (state && trueStates.has(state)) {
-				engine.set(key, true);
-			} else if (state && falseStates.has(state)) {
-				engine.set(key, false);
-			} else if (state && unsetStates.has(state)) {
-				engine.remove(key);
-			}
-
-			await engine.apply();
+			await applyPublishFlag(_plugin.app, file, key, action);
 			modified.push(file.path);
 		}
 

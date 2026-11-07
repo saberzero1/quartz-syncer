@@ -1,6 +1,25 @@
-import { Platform, type SettingDefinitionItem } from "obsidian";
+import { Notice, Platform, type SettingDefinitionItem } from "obsidian";
 import type QuartzSyncer from "src/main";
 import { CacheCleanupModal } from "src/views/CacheCleanupModal";
+
+async function clearCache(plugin: QuartzSyncer): Promise<void> {
+	try {
+		await plugin.dataStore?.dropAllFiles();
+		// settings.cache and cacheTimestamp are a v1-era mirror nothing reloads
+		// from, but OperabilitySnapshot still reports a file count off them, so
+		// leaving them behind makes the snapshot contradict the cleared cache.
+		plugin.settings.cache = "{}";
+		plugin.settings.cacheTimestamp = 0;
+		await plugin.saveSettings();
+		new Notice("Quartz Syncer: cache cleared.");
+	} catch (error) {
+		new Notice(
+			`Quartz Syncer: could not clear the cache. ${
+				error instanceof Error ? error.message : String(error)
+			}`,
+		);
+	}
+}
 
 export function performanceSettingDefinitions(
 	plugin: QuartzSyncer,
@@ -20,6 +39,15 @@ export function performanceSettingDefinitions(
 						type: "toggle",
 						key: "useCache",
 						defaultValue: true,
+					},
+				},
+				{
+					name: "Clear cache",
+					desc: "Discard this vault's cached compilation results. Notes are recompiled on the next publish or status check. Your notes and your published site are not affected.",
+					aliases: ["reset", "stale", "corrupted", "recompile"],
+					visible: () => settings.useCache,
+					action: () => {
+						void clearCache(plugin);
 					},
 				},
 				{

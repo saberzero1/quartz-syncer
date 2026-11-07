@@ -134,13 +134,15 @@ export default interface QuartzSyncerSettings {
 	updatedTimestampKey: string;
 	publishedTimestampKey: string;
 	/**
-	 * @deprecated Deprecated in 2.0. Removed in 2.1.
+	 * @deprecated Never read by any version. Dropped from `DEFAULT_SETTINGS` in
+	 * 2.2 and deleted by the schema v6 migration; optional only so existing
+	 * `data.json` records and migration code keep type-checking.
 	 *
 	 * Passed to Quartz as `TIMESTAMP_FORMAT` before v2. Quartz v5 renders dates
 	 * from its own `locale` configuration, and frontmatter timestamps are
-	 * written as ISO-8601 so Quartz can parse them, so nothing reads this.
+	 * written as ISO-8601 so Quartz can parse them.
 	 */
-	timestampFormat: string;
+	timestampFormat?: string;
 
 	/** Performance settings */
 	useCache: boolean;
