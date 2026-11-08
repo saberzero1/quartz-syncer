@@ -108,7 +108,7 @@ describe("Local backend path safety", () => {
 
 	it("allows safe filenames with double dots", async () => {
 		const repoPath = await createTempRepo();
-		const filePath = "notes/file..name.md";
+		const filePath = join("notes", "file..name.md");
 		try {
 			await mkdir(join(repoPath, "notes"), { recursive: true });
 			await writeFile(join(repoPath, filePath), "safe", "utf-8");
@@ -162,14 +162,14 @@ describe("Local backend path safety", () => {
 			await writeFile(join(repoPath, "root.md"), "root", "utf-8");
 
 			await writeFile(
-				join(repoPath, "content/nested.md"),
+				join(repoPath, "content", "nested.md"),
 				"nested",
 				"utf-8",
 			);
 			const source = new LocalFileSource(repoPath);
 			const files = await source.listAllFiles();
 			expect(files).toContain("root.md");
-			expect(files).toContain("content/nested.md");
+			expect(files).toContain(join("content", "nested.md"));
 		} finally {
 			await cleanupTempRepo(repoPath);
 		}
@@ -182,7 +182,7 @@ describe("Local backend path safety", () => {
 			await writeFile(join(repoPath, "root.md"), "root", "utf-8");
 
 			await writeFile(
-				join(repoPath, "content/nested.md"),
+				join(repoPath, "content", "nested.md"),
 				"nested",
 				"utf-8",
 			);

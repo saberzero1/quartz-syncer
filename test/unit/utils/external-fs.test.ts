@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { Platform } from "obsidian";
+import { homedir } from "node:os";
+import * as nodePath from "node:path";
 import {
 	isAbsolutePath,
 	expandTilde,
@@ -42,7 +44,10 @@ describe("expandTilde", () => {
 		(window as Window & { require?: (module: string) => unknown }).require =
 			vi.fn((module: string) => {
 				if (module === "os") {
-					return { homedir: () => "/home/testuser" };
+					return { homedir: homedir };	// NOTE: not a mock - real node homedir makes cross platform tests real.
+				}
+				if (module === "path") {
+					return nodePath;	// NOTE: not a mock - real node path module for now.
 				}
 				throw new Error("Unknown module");
 			});
@@ -54,11 +59,13 @@ describe("expandTilde", () => {
 	});
 
 	it("expands ~ to home directory", () => {
-		expect(expandTilde("~")).toBe("/home/testuser");
+		const realHome = homedir();
+		expect(expandTilde("~")).toBe(nodePath.resolve(realHome));
 	});
 
 	it("expands ~/path to home + path", () => {
-		expect(expandTilde("~/Documents")).toBe("/home/testuser/Documents");
+		const realHome = homedir();
+		expect(expandTilde("~/Documents")).toBe(nodePath.join(realHome, "Documents"));
 	});
 
 	it("does not expand non-tilde paths", () => {
