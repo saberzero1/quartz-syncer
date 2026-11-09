@@ -6,6 +6,7 @@ import {
 } from "src/cli/handlers/cliUtils";
 import { QuartzConfigService } from "src/quartz/QuartzConfigService";
 import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
+import { isInstallable } from "src/quartz/QuartzPluginRegistry";
 import { V4_MANAGEMENT_UNSUPPORTED } from "src/quartz/QuartzCompatibility";
 import type { QuartzPluginSource } from "src/quartz/QuartzConfigTypes";
 
@@ -90,7 +91,10 @@ export function createPluginHandler(plugin: QuartzSyncer): CliHandler {
 		}
 
 		if (action === "search") {
-			const allPlugins = await plugin.pluginRegistry.getPlugins();
+			// built into Quartz 5.1 (crawl-links, …): configured in quartz.config.yaml, not installed
+			const allPlugins = (
+				await plugin.pluginRegistry.getPlugins()
+			).filter(isInstallable);
 			const query = params.args.query?.toLowerCase();
 
 			if (!query) {

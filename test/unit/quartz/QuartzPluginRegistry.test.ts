@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { requestUrl } from "obsidian";
-import { QuartzPluginRegistry } from "src/quartz/QuartzPluginRegistry";
+import {
+	isInstallable,
+	QuartzPluginRegistry,
+	type RegistryPluginEntry,
+} from "src/quartz/QuartzPluginRegistry";
 import { createStore } from "src/cache/IndexedDBStore";
 
 const { persistedStore } = vi.hoisted(() => {
@@ -307,5 +311,23 @@ describe("QuartzPluginRegistry", () => {
 
 			expect(persistedStore.has("registry")).toBe(false);
 		});
+	});
+});
+
+describe("isInstallable", () => {
+	const entry = (fields: Partial<RegistryPluginEntry>) =>
+		({ name: "x", ...fields }) as RegistryPluginEntry;
+
+	// crawl-links, remove-draft and content-index are built into Quartz 5.1
+	it("is false for plugins built into Quartz", () => {
+		expect(isInstallable(entry({ builtin: "links" }))).toBe(false);
+	});
+
+	it("is true otherwise, including registries without the field", () => {
+		expect(isInstallable(entry({ builtin: null }))).toBe(true);
+		expect(isInstallable(entry({}))).toBe(true);
+		expect(isInstallable(entry({ deprecated: "Use X instead." }))).toBe(
+			true,
+		);
 	});
 });
