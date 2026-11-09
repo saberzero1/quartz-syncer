@@ -40,6 +40,21 @@ export interface RegistryPluginEntry {
 	lastUpdated: string;
 	installCommand: string;
 	configureCommand: string;
+	/** Deprecation message (`quartz.deprecated`), or null/absent when not deprecated. */
+	deprecated?: string | null;
+	/**
+	 * For official plugins built into Quartz since 5.1 (crawl-links, remove-draft, content-index):
+	 * the `configuration` key that replaces them. They are never installed. Null/absent otherwise.
+	 */
+	builtin?: string | null;
+}
+
+/**
+ * Whether a registry entry can be installed: plugins built into Quartz 5.1 are configured in
+ * `configuration.<key>` instead, and installing them adds an entry Quartz only maps back.
+ */
+export function isInstallable(entry: RegistryPluginEntry): boolean {
+	return !entry.builtin;
 }
 
 /** Parsed registry response. */

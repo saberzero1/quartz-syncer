@@ -33,7 +33,10 @@ vi.mock("src/git/GitBackendFactory", () => ({
 	createGitBackend,
 }));
 
-vi.mock("src/quartz/QuartzPluginRegistry", () => ({
+vi.mock("src/quartz/QuartzPluginRegistry", async (importOriginal) => ({
+	...(await importOriginal<
+		typeof import("src/quartz/QuartzPluginRegistry")
+	>()),
 	QuartzPluginRegistry: class {
 		getPlugins = getPlugins;
 	},
@@ -269,6 +272,34 @@ describe("pluginHandler", () => {
 				],
 			}),
 		);
+	});
+
+	it("leaves plugins built into Quartz out of search results", async () => {
+		getPlugins.mockResolvedValue([
+			{
+				name: "crawl-links",
+				displayName: "Crawl Links",
+				description: "Links",
+				keywords: [],
+				category: "transformer",
+				builtin: "links",
+			},
+			{
+				name: "graph",
+				displayName: "Graph",
+				description: "Graph view",
+				keywords: [],
+				category: "component",
+				builtin: null,
+			},
+		]);
+		const handler = createPluginHandler(buildPluginWithRegistry());
+
+		const result = await handler(buildParams({ action: "search" }));
+		expect(result).toMatchObject({
+			success: true,
+			data: { count: 1, plugins: [{ name: "graph" }] },
+		});
 	});
 
 	it("returns all plugins when search has no query", async () => {

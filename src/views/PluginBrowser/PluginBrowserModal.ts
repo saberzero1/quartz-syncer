@@ -1,7 +1,8 @@
 import { type App, Modal, Notice, setIcon } from "obsidian";
-import type {
-	QuartzPluginRegistry,
-	RegistryPluginEntry,
+import {
+	isInstallable,
+	type QuartzPluginRegistry,
+	type RegistryPluginEntry,
 } from "src/quartz/QuartzPluginRegistry";
 import type { QuartzV5Config } from "src/quartz/QuartzConfigTypes";
 import { getPluginSourceKey } from "src/quartz/QuartzPluginUtils";
@@ -318,6 +319,8 @@ export class PluginBrowserModal extends Modal {
 			});
 		}
 
+		this.renderDeprecatedBadge(headerEl, entry);
+
 		cardEl.createEl("p", {
 			text: entry.description,
 			cls: "quartz-syncer-plugin-browser-card-desc",
@@ -372,6 +375,8 @@ export class PluginBrowserModal extends Modal {
 			});
 		}
 
+		this.renderDeprecatedBadge(nameEl, entry);
+
 		rowEl.createSpan({
 			text: entry.author,
 			cls: "quartz-syncer-plugin-browser-row-author",
@@ -399,6 +404,22 @@ export class PluginBrowserModal extends Modal {
 		}
 
 		this.renderInstallStatus(rowEl, entry, isInstalled, isInstalling);
+	}
+
+	/** A "deprecated" badge whose tooltip is the plugin's deprecation message. */
+	private renderDeprecatedBadge(
+		container: HTMLElement,
+		entry: RegistryPluginEntry,
+	): void {
+		if (!entry.deprecated) return;
+		const badge = container.createSpan({
+			text: "deprecated",
+			cls: "quartz-syncer-plugin-browser-badge-deprecated",
+		});
+		badge.setAttrs({
+			"aria-label": entry.deprecated,
+			"data-tooltip-position": "top",
+		});
 	}
 
 	private renderInstallStatus(
@@ -474,6 +495,8 @@ export class PluginBrowserModal extends Modal {
 		const query = this.searchQuery.toLowerCase().trim();
 
 		const filtered = this.allPlugins.filter((entry) => {
+			// built into Quartz 5.1: configured in quartz.config.yaml, never installed
+			if (!isInstallable(entry)) return false;
 			if (this.sourceFilter === "official" && !entry.official) {
 				return false;
 			}

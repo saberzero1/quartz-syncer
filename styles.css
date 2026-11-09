@@ -1781,6 +1781,14 @@ body {
 	color: var(--text-on-accent);
 }
 
+.quartz-syncer-plugin-browser-badge-deprecated {
+	font-size: var(--font-ui-smaller);
+	padding: var(--size-2-1) var(--size-2-3);
+	border-radius: var(--radius-s);
+	background: var(--background-modifier-error);
+	color: var(--text-on-accent);
+}
+
 .quartz-syncer-plugin-browser-card-desc {
 	color: var(--text-muted);
 	font-size: var(--font-ui-small);
