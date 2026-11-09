@@ -123,8 +123,7 @@ function getDataviewSyntaxFingerprint(): EffectiveDataviewSyntax {
 }
 
 function waitForDataviewSyntaxResolution():
-	| DataviewSyntaxResolution
-	| Promise<DataviewSyntaxResolution> {
+	DataviewSyntaxResolution | Promise<DataviewSyntaxResolution> {
 	const plugin = getDataviewPlugin();
 	if (!plugin) return "resolved";
 

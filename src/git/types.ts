@@ -5,9 +5,7 @@
  * asset is held at once.
  */
 export type FileContent =
-	| string
-	| Uint8Array
-	| (() => Promise<string | Uint8Array>);
+	string | Uint8Array | (() => Promise<string | Uint8Array>);
 
 export interface FileChange {
 	path: string;
