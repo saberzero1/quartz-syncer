@@ -120,4 +120,13 @@ export default defineConfig(
 			"@typescript-eslint/no-unsafe-return": "off",
 		},
 	},
+	{
+		// Run by vitest under Node, never bundled into the plugin: node:url's fileURLToPath turns
+		// the alias URLs into paths (a file: URL's pathname is not a Windows path).
+		files: ["vitest*.config.ts"],
+		rules: {
+			"import/no-nodejs-modules": "off",
+			"obsidianmd/no-nodejs-modules": "off",
+		},
+	},
 );
