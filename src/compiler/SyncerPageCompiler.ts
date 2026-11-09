@@ -14,6 +14,13 @@ import remarkObsidian, {
 	collectEmbedPaths,
 } from "@quartz-community/remark-obsidian";
 import type { Root, Link, Image } from "mdast";
+
+/**
+ * remark-obsidian 2.x keeps `%%` comments in the tree by default (`keepComments`), and the
+ * formatter writes them back. Published notes must never contain them, and embeds that only a
+ * comment mentions must not be uploaded, so comments are deleted while parsing, as in 1.x.
+ */
+const REMARK_OBSIDIAN_OPTIONS = { keepComments: false } as const;
 import { visit } from "unist-util-visit";
 import { PublishFile } from "src/publishFile/PublishFile";
 import { PluginCompiler } from "src/compiler/PluginCompiler";
@@ -231,7 +238,7 @@ export class SyncerPageCompiler {
 		return unified()
 			.use(remarkParse)
 			.use(remarkFrontmatter, ["yaml"])
-			.use(remarkObsidian)
+			.use(remarkObsidian, REMARK_OBSIDIAN_OPTIONS)
 			.parse(text);
 	}
 
@@ -242,7 +249,7 @@ export class SyncerPageCompiler {
 		const processor = unified()
 			.use(remarkParse)
 			.use(remarkFrontmatter, ["yaml"])
-			.use(remarkObsidian)
+			.use(remarkObsidian, REMARK_OBSIDIAN_OPTIONS)
 			.use(remarkStringify, {
 				bullet: "-",
 				emphasis: "_",

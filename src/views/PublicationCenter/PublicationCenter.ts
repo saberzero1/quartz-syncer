@@ -49,8 +49,7 @@ type ProgressState = {
 };
 
 type StatusLoadState =
-	| { kind: "ready" | "unconfigured" }
-	| { kind: "error"; message: string };
+	{ kind: "ready" | "unconfigured" } | { kind: "error"; message: string };
 
 const MIN_SPLIT_CONTAINER_WIDTH = 620;
 

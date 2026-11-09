@@ -11,12 +11,7 @@ import { renderSetupTab } from "src/views/QuartzHub/SetupTab";
 import { renderTemplatesTab } from "src/views/QuartzHub/TemplatesTab";
 
 type HubTab =
-	| "overview"
-	| "plugins"
-	| "config"
-	| "layout"
-	| "templates"
-	| "setup";
+	"overview" | "plugins" | "config" | "layout" | "templates" | "setup";
 
 export class QuartzHub extends Modal {
 	private activeTab: HubTab = "overview";

@@ -30,14 +30,12 @@ describe("QuartzPluginManifestService", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockReadFile = vi.fn();
-		createRemoteFileSource = vi.fn(
-			(): QuartzFileSource => ({
-				readFile: mockReadFile as QuartzFileSource["readFile"],
-				writeFile: vi.fn(),
-				listDirectory: vi.fn().mockResolvedValue([]),
-				exists: vi.fn().mockResolvedValue(false),
-			}),
-		);
+		createRemoteFileSource = vi.fn((): QuartzFileSource => ({
+			readFile: mockReadFile as QuartzFileSource["readFile"],
+			writeFile: vi.fn(),
+			listDirectory: vi.fn().mockResolvedValue([]),
+			exists: vi.fn().mockResolvedValue(false),
+		}));
 		mockedFetchRemoteBranches.mockResolvedValue({
 			branches: ["main"],
 			defaultBranch: "main",
