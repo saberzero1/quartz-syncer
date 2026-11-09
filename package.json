@@ -54,7 +54,7 @@
 	},
 	"dependencies": {
 		"@isomorphic-git/lightning-fs": "^4.7.0",
-		"@quartz-community/remark-obsidian": "^2.1.0",
+		"@quartz-community/remark-obsidian": "^2.2.0",
 		"@saberzero1/isomorphic-git": "^0.0.1",
 		"buffer": "^6.0.3",
 		"diff": "^9.0.0",
