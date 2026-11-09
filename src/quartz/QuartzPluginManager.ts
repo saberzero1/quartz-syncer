@@ -13,6 +13,13 @@ import type { QuartzRunner } from "src/process/runners/QuartzRunner";
 export const DEFAULT_ORDER = 50;
 
 export class QuartzPluginManager {
+	/**
+	 * Install a plugin. With a runner (and a string source), `npx quartz plugin add` installs it
+	 * and writes its entry into `quartz.config.yaml` itself (with the plugin's default order and
+	 * options, keeping comments and layout), so `config` is left alone and `null` is returned:
+	 * re-read the config file rather than writing `config` back over it. Without a runner the
+	 * entry is added to `config`, using `entryOptions` (e.g. the registry's defaults).
+	 */
 	async installPlugin(
 		config: QuartzV5Config,
 		source: QuartzPluginSource,
@@ -23,7 +30,7 @@ export class QuartzPluginManager {
 				Pick<QuartzPluginEntry, "enabled" | "order" | "options">
 			>;
 		},
-	): Promise<QuartzPluginEntry> {
+	): Promise<QuartzPluginEntry | null> {
 		if (options?.runner && options.cwd && !isObjectSource(source)) {
 			const result = await options.runner.pluginAdd(source, {
 				cwd: options.cwd,
@@ -31,6 +38,8 @@ export class QuartzPluginManager {
 			if (!result.ok) {
 				throw new Error(result.error);
 			}
+
+			return null;
 		}
 
 		return this.addPlugin(config, source, options?.entryOptions);

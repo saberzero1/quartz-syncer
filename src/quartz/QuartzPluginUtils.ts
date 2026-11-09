@@ -122,6 +122,68 @@ export function getSourceRef(source: QuartzPluginSource): string | undefined {
 }
 
 // ---------------------------------------------------------------------------
+/**
+ * A canonical key for "is this the same plugin?" across the spellings a source can have.
+ *
+ * GitHub sources (`github:org/repo`, `org/repo`, `https://github.com/org/repo.git`,
+ * `git+https://github.com/org/repo.git`, with or without `#ref`) become `github:org/repo`; npm
+ * package names (`@scope/name`, `@scope/name@1.2.3`) become `@scope/name`. Case is ignored.
+ * Object sources use their `repo`, plus `::subdir` for monorepo plugins.
+ *
+ * @example
+ * ```
+ * canonicalPluginKey("https://github.com/Quartz-Community/explorer.git#v2") // "github:quartz-community/explorer"
+ * canonicalPluginKey("quartz-community/explorer")                          // "github:quartz-community/explorer"
+ * canonicalPluginKey("@quartz-community/explorer@1.0.3")                   // "@quartz-community/explorer"
+ * ```
+ */
+export function canonicalPluginKey(source: QuartzPluginSource): string {
+	if (isObjectSource(source)) {
+		const repoKey = canonicalPluginKey(source.repo);
+
+		return source.subdir ? `${repoKey}::${source.subdir}` : repoKey;
+	}
+
+	const raw = stripRef(source).trim();
+	const npm = /^(@[^/\s]+\/[^/@\s]+)(?:@.*)?$/.exec(raw);
+	if (npm?.[1]) return npm[1].toLowerCase();
+
+	const github =
+		/^(?:github:|(?:git\+)?https?:\/\/(?:www\.)?github\.com\/)?([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i.exec(
+			raw,
+		);
+	if (
+		github?.[1] &&
+		github[2] &&
+		!raw.startsWith(".") &&
+		!raw.startsWith("/")
+	) {
+		return `github:${github[1]}/${github[2]}`.toLowerCase();
+	}
+
+	return raw;
+}
+
+/**
+ * Whether a configured plugin source is the plugin a registry entry describes. A registry entry
+ * names both its install `source` (often the npm package) and its GitHub `repo`, and a config may
+ * use either: `@quartz-community/quartz-fonts` and `github:quartz-community/fonts` are the same
+ * plugin.
+ */
+export function isSamePluginAsRegistryEntry(
+	configSource: QuartzPluginSource,
+	entry: { source: string; repo?: string },
+): boolean {
+	const key = canonicalPluginKey(configSource);
+	const candidates = [entry.source, entry.repo].filter(
+		(s): s is string => typeof s === "string" && s.length > 0,
+	);
+
+	return candidates.some(
+		(candidate) => canonicalPluginKey(candidate) === key,
+	);
+}
+
 // Internal helpers
 // ---------------------------------------------------------------------------
 

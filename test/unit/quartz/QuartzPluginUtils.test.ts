@@ -5,6 +5,8 @@ import {
 	getPluginSourceKey,
 	resolveSourceToGitUrl,
 	getSourceRef,
+	canonicalPluginKey,
+	isSamePluginAsRegistryEntry,
 } from "src/quartz/QuartzPluginUtils";
 
 describe("QuartzPluginUtils", () => {
@@ -230,5 +232,57 @@ describe("QuartzPluginUtils", () => {
 				undefined,
 			);
 		});
+	});
+});
+
+describe("canonicalPluginKey", () => {
+	it("gives every GitHub spelling the same key", () => {
+		for (const source of [
+			"github:quartz-community/explorer",
+			"github:Quartz-Community/explorer#v2",
+			"quartz-community/explorer",
+			"https://github.com/quartz-community/explorer.git",
+			"git+https://github.com/quartz-community/explorer.git#main",
+			"https://github.com/quartz-community/explorer/",
+		]) {
+			expect(canonicalPluginKey(source), source).toBe(
+				"github:quartz-community/explorer",
+			);
+		}
+	});
+
+	it("drops an npm version", () => {
+		expect(canonicalPluginKey("@quartz-community/explorer@1.0.3")).toBe(
+			"@quartz-community/explorer",
+		);
+	});
+
+	it("keeps local paths and the subdir of object sources", () => {
+		expect(canonicalPluginKey("./plugins/mine")).toBe("./plugins/mine");
+		expect(
+			canonicalPluginKey({ repo: "github:org/mono", subdir: "plugin" }),
+		).toBe("github:org/mono::plugin");
+	});
+});
+
+describe("isSamePluginAsRegistryEntry", () => {
+	const fonts = {
+		source: "@quartz-community/quartz-fonts",
+		repo: "https://github.com/quartz-community/fonts",
+	};
+
+	it("matches by npm package or by GitHub repo", () => {
+		expect(
+			isSamePluginAsRegistryEntry(
+				"@quartz-community/quartz-fonts",
+				fonts,
+			),
+		).toBe(true);
+		expect(
+			isSamePluginAsRegistryEntry("github:quartz-community/fonts", fonts),
+		).toBe(true);
+		expect(
+			isSamePluginAsRegistryEntry("github:quartz-community/graph", fonts),
+		).toBe(false);
 	});
 });

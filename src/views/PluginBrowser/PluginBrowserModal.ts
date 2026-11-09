@@ -5,11 +5,13 @@ import {
 	type RegistryPluginEntry,
 } from "src/quartz/QuartzPluginRegistry";
 import type { QuartzV5Config } from "src/quartz/QuartzConfigTypes";
-import { getPluginSourceKey } from "src/quartz/QuartzPluginUtils";
+import { isSamePluginAsRegistryEntry } from "src/quartz/QuartzPluginUtils";
+import { satisfiesQuartzVersion } from "src/quartz/QuartzVersionRange";
 import { qsDom } from "src/operability/DomContract";
 import type { IOperabilityEventSink } from "src/operability/types";
 
-type InstallPluginFn = (source: string) => Promise<void>;
+/** Installs a registry entry; throws on failure (the modal reports it). */
+type InstallPluginFn = (entry: RegistryPluginEntry) => Promise<void>;
 type ViewMode = "card" | "list";
 type SortOption = "stars" | "name" | "author" | "updated";
 type SourceFilter = "all" | "official" | "community";
@@ -33,6 +35,8 @@ export class PluginBrowserModal extends Modal {
 		config: QuartzV5Config,
 		onInstall: InstallPluginFn,
 		private eventSink?: IOperabilityEventSink,
+		/** The site's Quartz version (package.json), to check plugins' `quartzVersion`. */
+		private siteQuartzVersion: string | null = null,
 	) {
 		super(app);
 		this.registry = registry;
@@ -437,6 +441,18 @@ export class PluginBrowserModal extends Modal {
 			installedEl.setAttrs(
 				qsDom("plugin-browser-status", { name: entry.name }),
 			);
+		} else if (this.supportsSiteQuartz(entry) === false) {
+			// Quartz warns on such a plugin and fails builds in CI: offer an upgrade instead
+			const needsBtn = container.createEl("button", {
+				text: `Needs Quartz ${entry.quartzVersion}`,
+				cls: "quartz-syncer-plugin-browser-install-btn",
+			});
+
+			needsBtn.setAttrs({
+				...qsDom("plugin-browser-action", { name: entry.name }),
+				"aria-label": `This site runs Quartz ${this.siteQuartzVersion ?? "?"}. Upgrade Quartz to install this plugin.`,
+			});
+			needsBtn.disabled = true;
 		} else {
 			const installBtn = container.createEl("button", {
 				text: isInstalling ? "Installing\u2026" : "Install",
@@ -468,7 +484,7 @@ export class PluginBrowserModal extends Modal {
 		button.disabled = true;
 
 		try {
-			await this.onInstall(entry.source);
+			await this.onInstall(entry);
 			new Notice(`Plugin "${entry.name}" installed successfully.`);
 			this.render();
 		} catch (error) {
@@ -484,10 +500,17 @@ export class PluginBrowserModal extends Modal {
 	}
 
 	private isPluginInstalled(entry: RegistryPluginEntry): boolean {
-		const entryKey = getPluginSourceKey(entry.source);
+		// a config may name the plugin by npm package or GitHub repo, in any spelling
+		return this.config.plugins.some((p) =>
+			isSamePluginAsRegistryEntry(p.source, entry),
+		);
+	}
 
-		return this.config.plugins.some(
-			(p) => getPluginSourceKey(p.source) === entryKey,
+	/** False when the site's Quartz is too old for the plugin; null when it can't be told. */
+	private supportsSiteQuartz(entry: RegistryPluginEntry): boolean | null {
+		return satisfiesQuartzVersion(
+			entry.quartzVersion,
+			this.siteQuartzVersion,
 		);
 	}
 
