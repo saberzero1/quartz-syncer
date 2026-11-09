@@ -8,7 +8,12 @@ import type {
 	QuartzV5Config,
 } from "src/quartz/QuartzConfigTypes";
 import { LocalFileSource } from "src/quartz/LocalFileSource";
-import { QuartzPluginManager } from "src/quartz/QuartzPluginManager";
+import {
+	DEFAULT_ORDER,
+	QuartzPluginManager,
+} from "src/quartz/QuartzPluginManager";
+import type { RegistryPluginEntry } from "src/quartz/QuartzPluginRegistry";
+import { QuartzVersionDetector } from "src/quartz/QuartzVersionDetector";
 
 import {
 	getPluginName,
@@ -272,21 +277,32 @@ async function openPluginBrowser(
 	const registry = plugin.pluginRegistry;
 	const manager = new QuartzPluginManager();
 
-	const onInstall = async (source: string) => {
-		try {
-			await manager.installPlugin(config, source, {
-				runner: plugin.settings.enableSystemCommands
-					? plugin.quartzRunner
-					: null,
-				cwd: repoPath,
-			});
+	// Errors reach the modal, which reports them (it said "installed" even when this failed).
+	const onInstall = async (entry: RegistryPluginEntry) => {
+		const added = await manager.installPlugin(config, entry.source, {
+			runner: plugin.settings.enableSystemCommands
+				? plugin.quartzRunner
+				: null,
+			cwd: repoPath,
+			// without the CLI, the entry gets the plugin's own defaults
+			entryOptions: {
+				enabled: entry.defaultEnabled ?? true,
+				order: entry.defaultOrder ?? DEFAULT_ORDER,
+				options: entry.defaultOptions ?? {},
+			},
+		});
+
+		if (added) {
 			await configService.writeConfig(config);
-		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : String(error);
-			new Notice(`Failed to install plugin: ${message}`);
+		} else {
+			// `quartz plugin add` wrote the config (keeping comments and layout): read it back
+			// instead of writing this copy over it
+			Object.assign(config, await configService.readConfig());
 		}
 	};
+
+	const siteQuartzVersion =
+		await QuartzVersionDetector.getQuartzPackageVersion(repo);
 
 	new PluginBrowserModal(
 		plugin.app,
@@ -294,5 +310,6 @@ async function openPluginBrowser(
 		config,
 		onInstall,
 		eventSink,
+		siteQuartzVersion,
 	).open();
 }

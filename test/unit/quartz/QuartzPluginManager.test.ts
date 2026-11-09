@@ -242,15 +242,39 @@ describe("QuartzPluginManager", () => {
 				{ runner: runner as never, cwd: "/repo" },
 			);
 
-			assert.strictEqual(
-				entry.source,
-				"github:quartz-community/explorer",
-			);
-			assert.strictEqual(config.plugins.length, 1);
+			// `quartz plugin add` writes the entry itself: the caller re-reads the config file
+			assert.strictEqual(entry, null);
+			assert.strictEqual(config.plugins.length, 0);
 			expect(runner.pluginAdd).toHaveBeenCalledWith(
 				"github:quartz-community/explorer",
 				{ cwd: "/repo" },
 			);
+		});
+
+		it("adds the entry with the given defaults without a runner", async () => {
+			const config = makeConfig();
+
+			const entry = await manager.installPlugin(
+				config,
+				"@quartz-community/graph",
+				{
+					runner: null,
+					cwd: "/repo",
+					entryOptions: {
+						enabled: false,
+						order: 80,
+						options: { depth: 2 },
+					},
+				},
+			);
+
+			assert.deepStrictEqual(entry, {
+				source: "@quartz-community/graph",
+				enabled: false,
+				order: 80,
+				options: { depth: 2 },
+			});
+			assert.strictEqual(config.plugins.length, 1);
 		});
 
 		it("skips runner when not provided", async () => {
