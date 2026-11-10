@@ -2,6 +2,7 @@ import { App, MetadataCache, Vault, getLinkpath } from "obsidian";
 import QuartzSyncerSettings from "src/models/settings";
 import { escapeRegExp, stripVaultPath, vaultScope } from "src/utils/utils";
 import { ASSET_EXTENSIONS } from "src/utils/mediaTypes";
+import { isFrontmatterImageKey } from "src/utils/frontmatterImages";
 import {
 	FRONTMATTER_REGEX,
 	DATAVIEW_LINK_TARGET_BLANK_REGEX,
@@ -343,6 +344,63 @@ export class SyncerPageCompiler {
 	}
 
 	/**
+	 * Resolves assets linked from social image properties in the frontmatter
+	 * (`image`, `cover`, `socialImage`) using CachedMetadata.frontmatterLinks.
+	 * Obsidian does not report these as embeds, so they need their own pass.
+	 *
+	 * @param file - The file whose frontmatter links are resolved.
+	 * @returns The vault paths of the linked assets.
+	 */
+	private resolveFrontmatterAssets(file: PublishFile): string[] {
+		const filePath = file.getPath();
+		const cache = this.metadataCache.getCache(filePath);
+		const assets: string[] = [];
+
+		for (const link of cache?.frontmatterLinks ?? []) {
+			if (!isFrontmatterImageKey(link.key)) continue;
+
+			try {
+				const linkedFile = this.metadataCache.getFirstLinkpathDest(
+					getLinkpath(link.link),
+					filePath,
+				);
+
+				if (
+					linkedFile &&
+					SyncerPageCompiler.ASSET_EXTENSIONS.has(
+						linkedFile.extension,
+					)
+				) {
+					assets.push(linkedFile.path);
+				}
+			} catch {
+				continue;
+			}
+		}
+
+		return assets;
+	}
+
+	/**
+	 * Appends the frontmatter image assets that are not already listed.
+	 */
+	private withFrontmatterAssets(
+		file: PublishFile,
+		assets: string[],
+	): string[] {
+		const known = new Set(assets);
+
+		for (const path of this.resolveFrontmatterAssets(file)) {
+			if (!known.has(path)) {
+				known.add(path);
+				assets.push(path);
+			}
+		}
+
+		return assets;
+	}
+
+	/**
 	 * Extracts blob links from the file using CachedMetadata.embeds.
 	 * For canvas files, parses JSON nodes directly. For all other files,
 	 * iterates over the metadata cache's embed entries and resolves each
@@ -425,7 +483,7 @@ export class SyncerPageCompiler {
 			return assets;
 		}
 
-		if (!cache?.embeds) return assets;
+		if (!cache?.embeds) return this.withFrontmatterAssets(file, assets);
 
 		for (const embed of cache.embeds) {
 			try {
@@ -452,7 +510,7 @@ export class SyncerPageCompiler {
 			}
 		}
 
-		return assets;
+		return this.withFrontmatterAssets(file, assets);
 	};
 
 	convertFileLinks =
@@ -463,7 +521,20 @@ export class SyncerPageCompiler {
 
 			const cache = this.metadataCache.getCache(filePath);
 
+			const addFrontmatterAssets = () => {
+				const known = new Set(assets.map((asset) => asset.vaultPath));
+
+				for (const vaultPath of this.resolveFrontmatterAssets(file)) {
+					if (known.has(vaultPath)) continue;
+
+					known.add(vaultPath);
+					assets.push({ path: vaultPath, vaultPath });
+				}
+			};
+
 			if (!cache?.embeds) {
+				addFrontmatterAssets();
+
 				return [this.stripVaultPathFromLinks(text), assets];
 			}
 
@@ -578,6 +649,8 @@ export class SyncerPageCompiler {
 					continue;
 				}
 			}
+
+			addFrontmatterAssets();
 
 			this.collectGeneratedAssets(file, blobText, assets);
 

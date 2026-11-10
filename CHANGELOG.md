@@ -9,6 +9,7 @@ Cache databases are now scoped per vault. Obsidian shares IndexedDB across an in
 As a result, the first publish after upgrading performs a one-time re-clone of the Quartz repository and a one-time recompile of published notes. Both happen lazily on first use rather than at startup, but large vaults and large repositories will notice the delay once. Databases from earlier versions are left in place so that downgrading still works.
 
 ### Fixed
+- Images linked only from the `image`, `cover` or `socialImage` frontmatter properties (for example `image: "[[cover.jpg]]"`) are now published, and the wikilink is rewritten to the published asset path so Quartz can use it as the social preview image
 - Publishing to Quartz v4 repositories is now explicitly supported; v5-only site management is refused with a clear message instead of failing confusingly
 - Vault changes to several notes within one debounce window no longer drop all but the last note from background compilation
 - Compilation queue no longer rescans and re-sorts on every insertion, and no longer processes the same file twice concurrently

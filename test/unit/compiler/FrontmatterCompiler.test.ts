@@ -87,6 +87,7 @@ type PrivateFrontmatterCompiler = {
 	addSocialImage: (
 		base: TFrontmatter,
 		next: TPublishedFrontMatter,
+		file?: PublishFile,
 	) => TPublishedFrontMatter;
 	addTimestampsFrontmatter: (
 		file: PublishFile,
@@ -743,6 +744,132 @@ describe("FrontmatterCompiler", () => {
 			);
 
 			expect(result.socialImage).toBe("img.png");
+		});
+
+		describe("wikilink values", () => {
+			function makeFileWithCache(
+				resolved: { path: string; extension: string } | null,
+				vaultPath = "/",
+			) {
+				const getFirstLinkpathDest = vi.fn().mockReturnValue(resolved);
+
+				const file = {
+					getPath: vi.fn().mockReturnValue("notes/article.md"),
+					metadataCache: { getFirstLinkpathDest },
+				} as unknown as PublishFile;
+
+				const compiler = makeCompiler({ vaultPath });
+
+				return {
+					file,
+					getFirstLinkpathDest,
+					compilerPrivate:
+						compiler as unknown as PrivateFrontmatterCompiler,
+				};
+			}
+
+			it("resolves a wikilink to the published asset path", () => {
+				const { file, getFirstLinkpathDest, compilerPrivate } =
+					makeFileWithCache({
+						path: "medias/2026/10/cover.jpg",
+						extension: "jpg",
+					});
+
+				const result = compilerPrivate.addSocialImage(
+					{ image: "[[cover.jpg]]" },
+					{},
+					file,
+				);
+
+				expect(getFirstLinkpathDest).toHaveBeenCalledWith(
+					"cover.jpg",
+					"notes/article.md",
+				);
+				expect(result.socialImage).toBe("medias/2026/10/cover.jpg");
+			});
+
+			it("ignores display text and anchors in the wikilink", () => {
+				const { file, getFirstLinkpathDest, compilerPrivate } =
+					makeFileWithCache({
+						path: "medias/cover.png",
+						extension: "png",
+					});
+
+				const result = compilerPrivate.addSocialImage(
+					{ cover: "[[cover.png#x|alt]]" },
+					{},
+					file,
+				);
+
+				expect(getFirstLinkpathDest).toHaveBeenCalledWith(
+					"cover.png",
+					"notes/article.md",
+				);
+				expect(result.socialImage).toBe("medias/cover.png");
+			});
+
+			it("strips the configured vault folder from the resolved path", () => {
+				const { file, compilerPrivate } = makeFileWithCache(
+					{ path: "vault/medias/cover.jpg", extension: "jpg" },
+					"vault",
+				);
+
+				const result = compilerPrivate.addSocialImage(
+					{ image: "[[cover.jpg]]" },
+					{},
+					file,
+				);
+
+				expect(result.socialImage).toBe("medias/cover.jpg");
+			});
+
+			it("keeps the value when the link does not resolve", () => {
+				const { file, compilerPrivate } = makeFileWithCache(null);
+
+				const result = compilerPrivate.addSocialImage(
+					{ image: "[[missing.jpg]]" },
+					{},
+					file,
+				);
+
+				expect(result.socialImage).toBe("[[missing.jpg]]");
+			});
+
+			it("keeps the value when the link resolves to a non-asset", () => {
+				const { file, compilerPrivate } = makeFileWithCache({
+					path: "notes/other.md",
+					extension: "md",
+				});
+
+				const result = compilerPrivate.addSocialImage(
+					{ image: "[[other]]" },
+					{},
+					file,
+				);
+
+				expect(result.socialImage).toBe("[[other]]");
+			});
+
+			it("leaves plain paths and URLs untouched", () => {
+				const { file, getFirstLinkpathDest, compilerPrivate } =
+					makeFileWithCache(null);
+
+				const plain = compilerPrivate.addSocialImage(
+					{ image: "medias/cover.jpg" },
+					{},
+					file,
+				);
+
+				const url = compilerPrivate.addSocialImage(
+					{ image: "https://example.com/cover.jpg" },
+					{},
+					file,
+				);
+
+				expect(plain.socialImage).toBe("medias/cover.jpg");
+				expect(url.socialImage).toBe("https://example.com/cover.jpg");
+				expect(getFirstLinkpathDest).not.toHaveBeenCalled();
+			});
 		});
 
 		it("uses socialDescription when provided", () => {

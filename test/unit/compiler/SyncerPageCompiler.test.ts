@@ -1087,6 +1087,94 @@ describe("SyncerPageCompiler", () => {
 		});
 	});
 
+	describe("frontmatter image assets", () => {
+		function makeFrontmatterCache(
+			embeds: Array<{ link: string; original: string }> = [],
+		) {
+			const mc = new MetadataCache();
+
+			(mc.getCache as Mock).mockReturnValue({
+				embeds: embeds.length > 0 ? embeds : undefined,
+				frontmatterLinks: [
+					{
+						key: "image",
+						link: "cover.jpg",
+						original: "[[cover.jpg]]",
+					},
+					{
+						key: "related",
+						link: "other.png",
+						original: "[[other.png]]",
+					},
+				],
+			});
+
+			(mc.getFirstLinkpathDest as Mock).mockImplementation(
+				(link: string) => ({
+					path: `medias/${link}`,
+					extension: link.split(".").pop(),
+				}),
+			);
+
+			return mc;
+		}
+
+		it("extractBlobLinks includes image links from the frontmatter", async () => {
+			const { compiler } = makeCompiler({}, makeFrontmatterCache());
+			const file = makeMockPublishFile();
+
+			const assets = await compiler.extractBlobLinks(file);
+
+			expect(assets).toEqual(["medias/cover.jpg"]);
+		});
+
+		it("extractBlobLinks does not duplicate an asset also embedded in the body", async () => {
+			const mc = makeFrontmatterCache([
+				{ link: "cover.jpg", original: "![[cover.jpg]]" },
+			]);
+
+			const { compiler } = makeCompiler({}, mc);
+			const file = makeMockPublishFile();
+
+			const assets = await compiler.extractBlobLinks(file);
+
+			expect(assets).toEqual(["medias/cover.jpg"]);
+		});
+
+		it("convertFileLinks returns the frontmatter image as an asset without body embeds", async () => {
+			const { compiler } = makeCompiler({}, makeFrontmatterCache());
+			const file = makeMockPublishFile();
+
+			const [, assets] = await compiler.convertFileLinks(file)(
+				"---\npublish: true\n---\nBody",
+			);
+
+			expect(assets).toEqual([
+				{ path: "medias/cover.jpg", vaultPath: "medias/cover.jpg" },
+			]);
+		});
+
+		it("convertFileLinks does not duplicate an asset also embedded in the body", async () => {
+			const mc = makeFrontmatterCache([
+				{ link: "cover.jpg", original: "![[cover.jpg]]" },
+			]);
+
+			(mc.fileToLinktext as Mock).mockReturnValue("medias/cover.jpg");
+
+			const { compiler } = makeCompiler({}, mc);
+			const file = makeMockPublishFile();
+
+			const [, assets] =
+				await compiler.convertFileLinks(file)("![[cover.jpg]]");
+
+			expect(
+				assets.filter(
+					(asset) => asset.vaultPath === "medias/cover.jpg",
+				),
+			).toHaveLength(1);
+		});
+	});
+
 	describe("extractBlobLinks", () => {
 		it("extracts transcluded image paths", async () => {
 			const mc = new MetadataCache();

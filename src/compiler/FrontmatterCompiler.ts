@@ -1,5 +1,7 @@
 import { FrontMatterCache, stringifyYaml } from "obsidian";
-import { sanitizePermalink } from "src/utils/utils";
+import { sanitizePermalink, stripVaultPath } from "src/utils/utils";
+import { ASSET_EXTENSIONS } from "src/utils/mediaTypes";
+import { parseFrontmatterWikilink } from "src/utils/frontmatterImages";
 import QuartzSyncerSettings from "src/models/settings";
 import { PublishFile } from "src/publishFile/PublishFile";
 
@@ -112,6 +114,7 @@ export class FrontmatterCompiler {
 		publishedFrontMatter = this.addSocialImage(
 			fileFrontMatter,
 			publishedFrontMatter,
+			file,
 		);
 
 		const fullFrontMatter = this.settings.includeAllFrontmatter
@@ -237,9 +240,35 @@ export class FrontmatterCompiler {
 		return publishedFrontMatter;
 	}
 
+	/**
+	 * Resolves a wikilink used as a social image (`image: "[[cover.jpg]]"`)
+	 * to the path the asset is published at, relative to the content folder.
+	 * Values that are not wikilinks to an existing asset are returned as is.
+	 */
+	private resolveSocialImageLink(
+		file: PublishFile | undefined,
+		value: unknown,
+	) {
+		const linkpath = parseFrontmatterWikilink(value);
+
+		if (!file || linkpath === null) return value;
+
+		const linkedFile = file.metadataCache?.getFirstLinkpathDest(
+			linkpath,
+			file.getPath(),
+		);
+
+		if (!linkedFile || !ASSET_EXTENSIONS.has(linkedFile.extension)) {
+			return value;
+		}
+
+		return stripVaultPath(linkedFile.path, this.settings.vaultPath);
+	}
+
 	private addSocialImage(
 		baseFrontMatter: TFrontmatter,
 		newFrontMatter: TPublishedFrontMatter,
+		file?: PublishFile,
 	) {
 		const publishedFrontMatter = { ...newFrontMatter };
 
@@ -254,7 +283,8 @@ export class FrontmatterCompiler {
 				baseFrontMatter["socialDescription"] ?? "";
 
 			if (socialImage && socialImage !== "") {
-				publishedFrontMatter["socialImage"] = socialImage;
+				publishedFrontMatter["socialImage"] =
+					this.resolveSocialImageLink(file, socialImage);
 			}
 
 			if (socialDescription && socialDescription !== "") {
